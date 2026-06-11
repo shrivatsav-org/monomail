@@ -1,0 +1,168 @@
+package com.shrivatsav.monomail.data.mapper
+
+import android.util.Base64
+import com.shrivatsav.monomail.data.model.Email
+import com.shrivatsav.monomail.data.model.EmailThread
+import com.shrivatsav.monomail.data.remote.GmailMessage
+import com.shrivatsav.monomail.data.remote.GmailThread
+import com.shrivatsav.monomail.data.remote.MessagePart
+
+object EmailMapper {
+
+    fun GmailMessage.toEmail(): Email {
+        val headers = payload?.headers.orEmpty()
+        val subject  = headers.firstOrNull { it.name.equals("Subject", true) }?.value ?: "(no subject)"
+        val fromRaw  = headers.firstOrNull { it.name.equals("From", true) }?.value ?: ""
+        val toRaw    = headers.firstOrNull { it.name.equals("To", true) }?.value ?: ""
+
+        val (fromName, fromEmail) = parseFrom(fromRaw)
+        val labels   = labelIds.orEmpty()
+        val isRead   = "UNREAD" !in labels
+        val isStarred = "STARRED" in labels
+
+        return Email(
+            id        = id,
+            threadId  = threadId,
+            subject   = subject,
+            from      = fromName,
+            fromEmail = fromEmail,
+            to        = toRaw,
+            snippet   = snippet?.decodeHtmlEntities() ?: "",
+            body      = extractBody(payload),
+            date      = internalDate?.toLongOrNull() ?: 0L,
+            isRead    = isRead,
+            isStarred = isStarred,
+            labels    = labels
+        )
+    }
+
+    /**
+     * Map a full GmailThread to an EmailThread inbox entry.
+     * Uses the latest message for display fields.
+     */
+    fun GmailThread.toEmailThread(): EmailThread {
+        val messages = messages.orEmpty()
+        val sorted = messages.sortedByDescending { it.internalDate?.toLongOrNull() ?: 0L }
+        val latest = sorted.firstOrNull()
+
+        val latestHeaders = latest?.payload?.headers.orEmpty()
+        val subject = latestHeaders.firstOrNull { it.name.equals("Subject", true) }?.value
+            ?: messages.firstOrNull()?.payload?.headers?.firstOrNull { it.name.equals("Subject", true) }?.value
+            ?: "(no subject)"
+        val fromRaw = latestHeaders.firstOrNull { it.name.equals("From", true) }?.value ?: ""
+        val (fromName, fromEmail) = parseFrom(fromRaw)
+
+        // All messages read?
+        val isRead = messages.all { msg ->
+            val labels = msg.labelIds.orEmpty()
+            "UNREAD" !in labels
+        }
+        val isStarred = messages.any { msg ->
+            val labels = msg.labelIds.orEmpty()
+            "STARRED" in labels
+        }
+
+        // Unique participant names
+        val participants = messages.mapNotNull { msg ->
+            val raw = msg.payload?.headers?.firstOrNull { it.name.equals("From", true) }?.value
+            raw?.let { parseFrom(it).first }
+        }.distinct()
+
+        return EmailThread(
+            threadId        = id,
+            subject         = subject.removePrefix("Re: ").removePrefix("Fwd: "),
+            from            = fromName,
+            fromEmail       = fromEmail,
+            snippet         = latest?.snippet?.decodeHtmlEntities() ?: "",
+            date            = latest?.internalDate?.toLongOrNull() ?: 0L,
+            messageCount    = messages.size,
+            isRead          = isRead,
+            isStarred       = isStarred,
+            latestMessageId = latest?.id ?: "",
+            participants    = participants
+        )
+    }
+
+    /**
+     * Map a GmailThread to a list of Email domain objects (for conversation view).
+     */
+    fun GmailThread.toEmailList(): List<Email> {
+        return messages.orEmpty()
+            .sortedBy { it.internalDate?.toLongOrNull() ?: 0L }
+            .map { it.toEmail() }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────
+
+    /** Parse "John Doe <john@example.com>" → Pair("John Doe", "john@example.com") */
+    private fun parseFrom(raw: String): Pair<String, String> {
+        val match = Regex("""^(.*?)\s*<(.+?)>$""").find(raw.trim())
+        return if (match != null) {
+            val name = match.groupValues[1].trim().removeSurrounding("\"")
+            val email = match.groupValues[2].trim()
+            Pair(name.ifEmpty { email }, email)
+        } else {
+            Pair(raw.trim(), raw.trim())
+        }
+    }
+
+    /**
+     * Walk the MIME tree to extract a readable body.
+     * Prefers text/html, falls back to text/plain.
+     */
+    private fun extractBody(part: MessagePart?): String {
+        if (part == null) return ""
+
+        // Leaf node with body data
+        if (part.body?.data != null && part.parts.isNullOrEmpty()) {
+            val decoded = decodeBase64Url(part.body.data)
+            if (part.mimeType == "text/plain" || part.mimeType == "text/html") {
+                return decoded
+            }
+        }
+
+        // Recurse through child parts
+        val children = part.parts.orEmpty()
+
+        // Prefer HTML
+        for (child in children) {
+            if (child.mimeType == "text/html" && child.body?.data != null) {
+                return decodeBase64Url(child.body.data)
+            }
+        }
+        // Fall back to plain text
+        for (child in children) {
+            if (child.mimeType == "text/plain" && child.body?.data != null) {
+                return decodeBase64Url(child.body.data)
+            }
+        }
+        // Deep recurse
+        for (child in children) {
+            val result = extractBody(child)
+            if (result.isNotEmpty()) return result
+        }
+
+        return ""
+    }
+
+    /** Decode Gmail's base64url-encoded body data. */
+    private fun decodeBase64Url(data: String): String {
+        return try {
+            val bytes = Base64.decode(data, Base64.URL_SAFE or Base64.NO_WRAP)
+            String(bytes, Charsets.UTF_8)
+        } catch (e: Exception) {
+            ""
+        }
+    }
+
+    /** Decode HTML entities that Gmail puts in snippets (e.g. &#39; → '). */
+    private fun String.decodeHtmlEntities(): String {
+        return this
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&nbsp;", " ")
+    }
+}

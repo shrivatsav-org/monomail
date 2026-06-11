@@ -1,0 +1,725 @@
+package com.shrivatsav.monomail.ui.screens.inbox
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material3.BottomAppBar
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SearchBar
+import androidx.compose.material3.SearchBarDefaults
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
+import androidx.compose.material3.rememberSwipeToDismissBoxState
+import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshState
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.WindowInsets
+import coil.compose.AsyncImage
+import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.data.model.EmailThread
+import java.util.Calendar
+import kotlin.math.min
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun InboxScreen(
+    viewModel: InboxViewModel,
+    userProfile: UserProfile?,
+    onEmailClick: (String) -> Unit,
+    onSignOut: () -> Unit,
+    onCompose: () -> Unit = {}
+) {
+    val state by viewModel.state.collectAsState()
+    val listState = rememberLazyListState()
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    var searchQuery by remember { mutableStateOf("") }
+    val currentThreads = (state as? InboxState.Success)?.threads ?: emptyList()
+
+    // Local search filtering
+    val localFilteredThreads by remember(searchQuery, currentThreads) {
+        derivedStateOf {
+            if (searchQuery.isEmpty()) null
+            else currentThreads.filter {
+                it.subject.contains(searchQuery, ignoreCase = true) ||
+                        it.from.contains(searchQuery, ignoreCase = true) ||
+                        it.snippet.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    // Pagination trigger — only fire when truly near the end
+    val shouldLoadMore by remember {
+        derivedStateOf {
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            val totalItems = listState.layoutInfo.totalItemsCount
+            totalItems > 0 && lastVisible >= totalItems - 5
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        snapshotFlow { shouldLoadMore }
+            .collect { load -> if (load) viewModel.loadMore() }
+    }
+
+    // FAB expand/collapse on scroll
+    var isFabExpanded by remember { mutableStateOf(true) }
+
+    LaunchedEffect(listState) {
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                isFabExpanded = when {
+                    index == 0 && offset == 0 -> true
+                    previousIndex != index -> previousIndex > index
+                    else -> previousOffset > offset
+                }
+                previousIndex = index
+                previousOffset = offset
+            }
+    }
+
+    val isRefreshing = (state as? InboxState.Success)?.isRefreshing == true
+
+    // ── Reveal offset: follows the pull gesture, settles based on refresh state ──
+    val loaderHeight = 56.dp
+    val density = LocalDensity.current
+    val loaderHeightPx = with(density) { loaderHeight.toPx() }
+
+    val revealOffset = remember { Animatable(0f) }
+
+    // While actively pulling, follow the gesture's progress (clamped to loader height)
+    LaunchedEffect(pullToRefreshState.distanceFraction) {
+        if (!isRefreshing) {
+            val target = min(pullToRefreshState.distanceFraction, 1f) * loaderHeightPx
+            revealOffset.snapTo(target)
+        }
+    }
+
+    // When refreshing starts/ends, animate to the resting position
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) {
+            revealOffset.animateTo(loaderHeightPx, animationSpec = tween(250))
+        } else {
+            revealOffset.animateTo(0f, animationSpec = tween(250))
+        }
+    }
+
+    Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { padding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Loader anchored at the top, sits behind the shifting content
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(loaderHeight)
+                    .align(Alignment.TopCenter),
+                contentAlignment = Alignment.Center
+            ) {
+                if (revealOffset.value > 0f) {
+                    LoadingIndicator(
+                        modifier = Modifier.size(36.dp),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            // Main content — search bar + list — shifts down to reveal the loader
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        translationY = revealOffset.value
+                    }
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                InboxSearchBar(
+                    userProfile = userProfile,
+                    query = searchQuery,
+                    onQueryChange = { searchQuery = it },
+                    onServerSearch = { viewModel.searchServer(it) },
+                    onSignOut = onSignOut,
+                    onMarkAllRead = { viewModel.markAllAsRead() }
+                )
+
+                when (val s = state) {
+                    is InboxState.Loading -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            LoadingIndicator(
+                                modifier = Modifier.size(48.dp),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    is InboxState.Error -> {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(32.dp)
+                            ) {
+                                Text(
+                                    text = s.message,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                                Button(
+                                    onClick = { viewModel.loadInbox() },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.onSurface,
+                                        contentColor = MaterialTheme.colorScheme.background
+                                    ),
+                                    shape = MaterialTheme.shapes.large
+                                ) {
+                                    Text("Retry")
+                                }
+                            }
+                        }
+                    }
+
+                    is InboxState.Success -> {
+                        val threadsToDisplay = localFilteredThreads ?: s.threads
+                        val isSearchActive = localFilteredThreads != null
+                        val grouped = groupThreadsByDate(threadsToDisplay)
+
+                        PullToRefreshBox(
+                            isRefreshing = s.isRefreshing,
+                            onRefresh = { viewModel.refresh() },
+                            state = pullToRefreshState,
+                            modifier = Modifier.fillMaxSize(),
+                            indicator = {}
+                        ) {
+                            if (threadsToDisplay.isEmpty()) {
+                                Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        Text(
+                                            text = if (isSearchActive) "No results for \"$searchQuery\"" else "No emails",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                        )
+                                        if (isSearchActive) {
+                                            OutlinedButton(
+                                                onClick = { viewModel.searchServer(searchQuery) },
+                                                shape = MaterialTheme.shapes.large
+                                            ) {
+                                                Text("Search server")
+                                            }
+                                        }
+                                    }
+                                }
+                            } else {
+                                LazyColumn(
+                                    state = listState,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentPadding = PaddingValues(bottom = 100.dp)
+                                ) {
+                                    grouped.forEach { (dateHeader, threadsForDate) ->
+                                        item(key = "header_$dateHeader") {
+                                            Text(
+                                                text = dateHeader,
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.SemiBold,
+                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .background(MaterialTheme.colorScheme.background)
+                                                    .padding(horizontal = 20.dp, vertical = 10.dp)
+                                            )
+                                        }
+
+                                        items(
+                                            items = threadsForDate,
+                                            key = { it.threadId }
+                                        ) { thread ->
+                                            val dismissState = rememberSwipeToDismissBoxState(
+                                                confirmValueChange = { value ->
+                                                    if (value == SwipeToDismissBoxValue.StartToEnd || value == SwipeToDismissBoxValue.EndToStart) {
+                                                        viewModel.archiveThread(thread.threadId)
+                                                        true
+                                                    } else {
+                                                        false
+                                                    }
+                                                }
+                                            )
+                                            
+                                            SwipeToDismissBox(
+                                                state = dismissState,
+                                                enableDismissFromEndToStart = false,
+                                                backgroundContent = {
+                                                    val color by animateColorAsState(
+                                                        when (dismissState.targetValue) {
+                                                            SwipeToDismissBoxValue.Settled -> Color.Transparent
+                                                            else -> MaterialTheme.colorScheme.primaryContainer
+                                                        }
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxSize()
+                                                            .background(color)
+                                                            .padding(horizontal = 20.dp),
+                                                        contentAlignment = Alignment.CenterStart
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Outlined.Archive,
+                                                            contentDescription = "Archive",
+                                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                        )
+                                                    }
+                                                }
+                                            ) {
+                                                EmailItem(
+                                                    thread = thread,
+                                                    onClick = { onEmailClick(thread.threadId) }
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    // "Search server" CTA at bottom when search is active
+                                    if (isSearchActive && s.threads.isNotEmpty()) {
+                                        item(key = "search_server_cta") {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 24.dp, vertical = 28.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                OutlinedButton(
+                                                    onClick = { viewModel.searchServer(searchQuery) },
+                                                    shape = MaterialTheme.shapes.large
+                                                ) {
+                                                    Text("Search server for older emails")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Custom Floating Docked Toolbar
+            val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Pill-shaped navigation bar
+                androidx.compose.material3.Surface(
+                    modifier = Modifier.height(64.dp),
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    shadowElevation = 4.dp
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxHeight().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { viewModel.switchTab(InboxTab.INBOX) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Inbox, 
+                                contentDescription = "Inbox",
+                                tint = if (currentTab == InboxTab.INBOX) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        IconButton(onClick = { viewModel.switchTab(InboxTab.SENT) }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Outlined.Send, 
+                                contentDescription = "Sent",
+                                tint = if (currentTab == InboxTab.SENT) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                        IconButton(onClick = { viewModel.switchTab(InboxTab.ARCHIVED) }) {
+                            Icon(
+                                imageVector = Icons.Outlined.Archive, 
+                                contentDescription = "Archived",
+                                tint = if (currentTab == InboxTab.ARCHIVED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+
+                // Distinct Compose FAB
+                FloatingActionButton(
+                    onClick = onCompose,
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    shape = RoundedCornerShape(16.dp),
+                    elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                    modifier = Modifier.size(64.dp)
+                ) {
+                    Icon(Icons.Outlined.Edit, contentDescription = "Compose")
+                }
+            }
+        }
+    }
+}
+
+// ── Search bar ───────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun InboxSearchBar(
+    userProfile: UserProfile?,
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onServerSearch: (String) -> Unit,
+    onSignOut: () -> Unit,
+    onMarkAllRead: () -> Unit
+) {
+    var showProfileModal by remember { mutableStateOf(false) }
+
+    SearchBar(
+        inputField = {
+            SearchBarDefaults.InputField(
+                query = query,
+                onQueryChange = onQueryChange,
+                onSearch = { onServerSearch(query) },
+                expanded = false,
+                onExpandedChange = {},
+                placeholder = {
+                    Text(
+                        text = "Search in mail",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Outlined.Search,
+                        contentDescription = "Search",
+                        tint = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 16.dp)
+                    )
+                },
+                trailingIcon = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        IconButton(
+                            onClick = onMarkAllRead,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.CheckCircle,
+                                contentDescription = "Mark all as read",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(4.dp))
+
+                        AvatarButton(
+                            userProfile = userProfile,
+                            onClick = { showProfileModal = true }
+                        )
+                    }
+                }
+            )
+        },
+        expanded = false,
+        onExpandedChange = {},
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 4.dp),
+        colors = SearchBarDefaults.colors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        ),
+        shape = MaterialTheme.shapes.extraLarge,
+        windowInsets = WindowInsets(0.dp)
+    ) {}
+
+    if (showProfileModal) {
+        ProfileBottomSheet(
+            userProfile = userProfile,
+            onDismiss = { showProfileModal = false },
+            onSignOut = {
+                showProfileModal = false
+                onSignOut()
+            }
+        )
+    }
+}
+
+// ── Avatar button ────────────────────────────────────────────────────────────
+
+@Composable
+private fun AvatarButton(
+    userProfile: UserProfile?,
+    onClick: () -> Unit
+) {
+    if (userProfile != null && !userProfile.photoUrl.isNullOrEmpty()) {
+        AsyncImage(
+            model = userProfile.photoUrl,
+            contentDescription = "Profile",
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onClick)
+        )
+    } else {
+        val initial = userProfile?.displayName?.firstOrNull()?.uppercase() ?: "?"
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurface)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.background
+            )
+        }
+    }
+}
+
+// ── Profile bottom sheet ─────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ProfileBottomSheet(
+    userProfile: UserProfile?,
+    onDismiss: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+            )
+        },
+        shape = MaterialTheme.shapes.extraLarge
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(0.dp)
+        ) {
+            // Account card
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Large avatar
+                if (!userProfile?.photoUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = userProfile!!.photoUrl,
+                        contentDescription = "Profile photo",
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                    )
+                } else {
+                    val initial = userProfile?.displayName?.firstOrNull()?.uppercase() ?: "?"
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.onSurface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initial,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.background
+                        )
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = userProfile?.displayName ?: "Account",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
+                    )
+                    Text(
+                        text = userProfile?.email ?: "",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                        maxLines = 1
+                    )
+                }
+            }
+
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            // Settings list item
+            ListItem(
+                headlineContent = {
+                    Text(
+                        "Settings",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Outlined.Settings,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.large)
+                    .clickable { /* Settings */ },
+                colors = ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            )
+
+            // Sign out / switch account list item
+            ListItem(
+                headlineContent = {
+                    Text(
+                        "Switch account",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        imageVector = Icons.Outlined.AccountCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                },
+                modifier = Modifier
+                    .clip(MaterialTheme.shapes.large)
+                    .clickable(onClick = onSignOut),
+                colors = ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                )
+            )
+        }
+    }
+}
+
+// ── Date grouping ────────────────────────────────────────────────────────────
+
+private fun groupThreadsByDate(threads: List<EmailThread>): List<Pair<String, List<EmailThread>>> {
+    val today = Calendar.getInstance()
+    val yesterday = Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }
+
+    val groups = linkedMapOf<String, MutableList<EmailThread>>()
+
+    for (thread in threads) {
+        val cal = Calendar.getInstance().apply { timeInMillis = thread.date }
+        val label = when {
+            isSameDay(cal, today) -> "Today"
+            isSameDay(cal, yesterday) -> "Yesterday"
+            else -> "Earlier"
+        }
+        groups.getOrPut(label) { mutableListOf() }.add(thread)
+    }
+
+    return groups.map { (k, v) -> k to v.toList() }
+}
+
+private fun isSameDay(a: Calendar, b: Calendar): Boolean =
+    a.get(Calendar.YEAR) == b.get(Calendar.YEAR) &&
+            a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
