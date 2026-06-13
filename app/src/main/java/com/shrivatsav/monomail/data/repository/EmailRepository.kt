@@ -224,45 +224,49 @@ class EmailRepository(
     ): Result<Unit> {
         return try {
             val headers = buildString {
-                appendLine("From: $from")
-                appendLine("To: $to")
-                appendLine("Subject: $subject")
-                appendLine("MIME-Version: 1.0")
+                append("From: $from\r\n")
+                append("To: $to\r\n")
+                append("Subject: $subject\r\n")
+                append("MIME-Version: 1.0\r\n")
                 if (inReplyToMessageId != null) {
-                    appendLine("In-Reply-To: $inReplyToMessageId")
+                    append("In-Reply-To: $inReplyToMessageId\r\n")
                 }
                 if (references != null) {
-                    appendLine("References: $references")
+                    append("References: $references\r\n")
                 }
 
                 if (attachments.isEmpty()) {
-                    appendLine("Content-Type: text/html; charset=UTF-8")
-                    appendLine()
+                    append("Content-Type: text/html; charset=UTF-8\r\n")
+                    append("\r\n")
                     append(body)
                 } else {
                     val boundary = "==Multipart_Boundary_x${System.currentTimeMillis()}x"
-                    appendLine("Content-Type: multipart/mixed; boundary=\"$boundary\"")
-                    appendLine()
+                    append("Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n")
+                    append("\r\n")
                     
-                    appendLine("--$boundary")
-                    appendLine("Content-Type: text/html; charset=UTF-8")
-                    appendLine()
-                    appendLine(body)
+                    append("--$boundary\r\n")
+                    append("Content-Type: text/html; charset=UTF-8\r\n")
+                    append("\r\n")
+                    append(body)
+                    append("\r\n")
                     
                     for (attachment in attachments) {
-                        appendLine("--$boundary")
-                        appendLine("Content-Type: ${attachment.mimeType}; name=\"${attachment.name}\"")
-                        appendLine("Content-Disposition: attachment; filename=\"${attachment.name}\"")
-                        appendLine("Content-Transfer-Encoding: base64")
-                        appendLine()
+                        append("--$boundary\r\n")
+                        append("Content-Type: ${attachment.mimeType}; name=\"${attachment.name}\"\r\n")
+                        append("Content-Disposition: attachment; filename=\"${attachment.name}\"\r\n")
+                        append("Content-Transfer-Encoding: base64\r\n")
+                        append("\r\n")
                         
                         val bytes = context.contentResolver.openInputStream(attachment.uri)?.use { it.readBytes() }
                         if (bytes != null) {
                             val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT).replace("\n", "\r\n")
-                            appendLine(base64)
+                            append(base64)
+                            if (!base64.endsWith("\n") && !base64.endsWith("\r\n")) {
+                                append("\r\n")
+                            }
                         }
                     }
-                    appendLine("--$boundary--")
+                    append("--$boundary--\r\n")
                 }
             }
             val raw = android.util.Base64.encodeToString(
