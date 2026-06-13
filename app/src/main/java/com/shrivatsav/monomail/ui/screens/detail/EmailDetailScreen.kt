@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.model.Email
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -413,6 +414,25 @@ private fun ThreadConversationContent(
 
 // -- Attachments --------------------------------------------------------------
 
+private fun openAttachment(context: android.content.Context, attachment: EmailAttachmentInfo, bytes: ByteArray?) {
+    if (bytes == null) return
+    try {
+        val attachmentsDir = java.io.File(context.cacheDir, "attachments")
+        attachmentsDir.mkdirs()
+        val file = java.io.File(attachmentsDir, attachment.name)
+        file.writeBytes(bytes)
+        
+        val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, attachment.mimeType)
+            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        context.startActivity(android.content.Intent.createChooser(intent, "Open with..."))
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+}
+
 private fun isImageAttachment(attachment: EmailAttachmentInfo): Boolean {
     val lowerName = attachment.name.lowercase()
     return attachment.mimeType.startsWith("image/") ||
@@ -468,6 +488,7 @@ private fun AttachmentsSection(
                     rowItems.forEach { attachment ->
                         FileAttachmentCard(
                             attachment = attachment,
+                            onFetchAttachment = onFetchAttachment,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -486,6 +507,7 @@ private fun ImageAttachmentCard(
     attachment: EmailAttachmentInfo,
     onFetchAttachment: suspend (String, String) -> ByteArray?
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var imageBytes by remember { androidx.compose.runtime.mutableStateOf<ByteArray?>(null) }
     androidx.compose.runtime.LaunchedEffect(attachment.id) {
         imageBytes = onFetchAttachment(attachment.messageId, attachment.id)
@@ -496,6 +518,11 @@ private fun ImageAttachmentCard(
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.large)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable {
+                if (imageBytes != null) {
+                    openAttachment(context, attachment, imageBytes)
+                }
+            }
     ) {
         Box(
             modifier = Modifier.fillMaxWidth(),
@@ -574,14 +601,28 @@ private fun ImageAttachmentCard(
 @Composable
 private fun FileAttachmentCard(
     attachment: EmailAttachmentInfo,
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
     modifier: Modifier = Modifier
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var isFetching by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     val ext = attachment.name.substringAfterLast('.', "").uppercase()
 
     Row(
         modifier = modifier
             .clip(MaterialTheme.shapes.medium)
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            .clickable {
+                if (!isFetching) {
+                    isFetching = true
+                    scope.launch {
+                        val bytes = onFetchAttachment(attachment.messageId, attachment.id)
+                        openAttachment(context, attachment, bytes)
+                        isFetching = false
+                    }
+                }
+            }
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
