@@ -16,5 +16,13 @@ data class Email(
     val date: Long,          // epoch millis
     val isRead: Boolean,
     val isStarred: Boolean,
-    val labels: List<String>
+    val labels: List<String>,
+    val attachments: List<EmailAttachmentInfo> = emptyList()
+)
+
+data class EmailAttachmentInfo(
+    val id: String, // attachmentId
+    val mimeType: String,
+    val name: String,
+    val size: Int
 )

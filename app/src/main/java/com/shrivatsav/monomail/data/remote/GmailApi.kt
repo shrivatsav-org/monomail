@@ -24,6 +24,12 @@ interface GmailApi {
         @Query("format") format: String = "full"
     ): GmailMessage
 
+    @GET("users/me/messages/{messageId}/attachments/{id}")
+    suspend fun getAttachment(
+        @Path("messageId") messageId: String,
+        @Path("id") id: String
+    ): MessagePartBody
+
     @GET("users/me/profile")
     suspend fun getProfile(): GmailProfile
 
