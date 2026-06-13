@@ -1,159 +1,215 @@
 package com.shrivatsav.monomail.data.repository
 
 import android.content.Context
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import com.shrivatsav.monomail.data.local.AppDatabase
+import com.shrivatsav.monomail.data.local.toEntity
 import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmail
 import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmailList
 import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmailThread
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
-import com.shrivatsav.monomail.data.remote.GmailApi
+import androidx.work.Constraints
+import androidx.work.Data
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import com.google.gson.Gson
+import com.shrivatsav.monomail.data.worker.SyncWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
-data class InboxPage(
-    val emails: List<Email>,
-    val nextPageToken: String?
-)
+import com.shrivatsav.monomail.data.remote.GmailApi
+import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 
-data class ThreadPage(
-    val threads: List<EmailThread>,
-    val nextPageToken: String?
-)
+class EmailRepository(
+    val api: GmailApi, 
+    private val database: AppDatabase,
+    private val context: Context
+) {
+    private val threadDao = database.threadDao()
+    private val emailDao = database.emailDao()
+    
+    private val workManager = WorkManager.getInstance(context)
+    private val networkConstraints = Constraints.Builder()
+        .setRequiredNetworkType(NetworkType.CONNECTED)
+        .build()
 
-class EmailRepository(private val api: GmailApi, private val context: Context) {
-
-    private val prefs = context.getSharedPreferences("emails_cache", Context.MODE_PRIVATE)
-    private val gson = Gson()
-
-    // ── Thread-based inbox ───────────────────────────────────────────
-
-    /** Get locally cached threads for instant loading. */
-    fun getCachedInboxThreads(): Result<ThreadPage> {
-        return try {
-            val json = prefs.getString("cached_threads", null)
-            if (json != null) {
-                val type = object : TypeToken<List<EmailThread>>() {}.type
-                val threads: List<EmailThread> = gson.fromJson(json, type)
-                Result.success(ThreadPage(threads, null))
-            } else {
-                Result.success(ThreadPage(emptyList(), null))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    private fun enqueueSync(data: Data) {
+        val request = OneTimeWorkRequestBuilder<SyncWorker>()
+            .setConstraints(networkConstraints)
+            .setInputData(data)
+            .build()
+        workManager.enqueue(request)
     }
 
-    /** Fetch a page of inbox threads. Threads are fetched concurrently for speed. */
-    suspend fun getInboxThreads(pageToken: String? = null, query: String? = null): Result<ThreadPage> {
+    // ── Local Database Flows ─────────────────────────────────────────
+
+    fun getInboxThreadsFlow(tab: InboxTab): Flow<List<EmailThread>> {
+        return when (tab) {
+            InboxTab.INBOX -> threadDao.getInboxThreads()
+            InboxTab.SENT -> threadDao.getSentThreads()
+            InboxTab.ARCHIVED -> threadDao.getArchivedThreads()
+            InboxTab.STARRED -> threadDao.getStarredThreads()
+        }.map { list -> list.map { it.toDomainModel() } }
+    }
+
+    fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> {
+        return emailDao.getEmailsForThread(threadId).map { list -> list.map { it.toDomainModel() } }
+    }
+
+    // ── Sync with Network ────────────────────────────────────────────
+
+    suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null): Result<String?> {
         return try {
+            val labelIds = when {
+                !query.isNullOrEmpty() -> null
+                tab == InboxTab.INBOX -> "INBOX"
+                tab == InboxTab.SENT -> "SENT"
+                tab == InboxTab.STARRED -> "STARRED"
+                tab == InboxTab.ARCHIVED -> null // Archived is typically -label:inbox but we handle it manually or query
+                else -> "INBOX"
+            }
+            
+            // For archived, we might need a specific query if labelIds doesn't work out of the box
+            val finalQuery = if (tab == InboxTab.ARCHIVED && query.isNullOrEmpty()) "-label:inbox -label:trash -label:sent" else query
+
             val listResponse = api.listThreads(
                 maxResults = 20,
                 pageToken  = pageToken,
-                labelIds   = if (query.isNullOrEmpty()) "INBOX" else null,
-                query      = query
+                labelIds   = labelIds,
+                query      = finalQuery
             )
 
             val threadRefs = listResponse.threads.orEmpty()
-            if (threadRefs.isEmpty()) {
-                return Result.success(ThreadPage(emptyList(), null))
+            if (threadRefs.isNotEmpty()) {
+                val threads = coroutineScope {
+                    threadRefs.map { ref ->
+                        async { api.getThread(ref.id) }
+                    }.awaitAll()
+                }.map { it.toEmailThread() }
+
+                // Insert into DB
+                val entities = threads.map { 
+                    it.toEntity(
+                        inInbox = tab == InboxTab.INBOX,
+                        inSent = tab == InboxTab.SENT,
+                        inArchived = tab == InboxTab.ARCHIVED
+                        // Starred is already mapped via the model
+                    ) 
+                }
+                threadDao.insertThreads(entities)
             }
 
-            // Fetch full threads concurrently
-            val threads = coroutineScope {
-                threadRefs.map { ref ->
-                    async { api.getThread(ref.id) }
-                }.awaitAll()
-            }.map { it.toEmailThread() }
-             .sortedByDescending { it.date }
-
-            // Cache the first page of the main inbox
-            if (pageToken == null && query.isNullOrEmpty()) {
-                prefs.edit().putString("cached_threads", gson.toJson(threads)).apply()
-            }
-
-            Result.success(ThreadPage(threads, listResponse.nextPageToken))
-
+            Result.success(listResponse.nextPageToken)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    /** Fetch all messages in a thread for conversation view. */
-    suspend fun getThread(threadId: String): Result<List<Email>> {
+    suspend fun refreshThread(threadId: String): Result<Unit> {
         return try {
-            val thread = api.getThread(threadId)
-            Result.success(thread.toEmailList())
+            val threadResponse = api.getThread(threadId)
+            val emails = threadResponse.toEmailList()
+            emailDao.insertEmails(emails.map { it.toEntity() })
+            Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    // ── Legacy message-based methods ─────────────────────────────────
+    // ── Optimistic UI Actions ────────────────────────────────────────
 
-    /** Get locally cached emails for instant loading. */
-    fun getCachedInboxEmails(): Result<InboxPage> {
-        return try {
-            val json = prefs.getString("cached_inbox", null)
-            if (json != null) {
-                val type = object : TypeToken<List<Email>>() {}.type
-                val emails: List<Email> = gson.fromJson(json, type)
-                Result.success(InboxPage(emails, null))
-            } else {
-                Result.success(InboxPage(emptyList(), null))
-            }
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun toggleStar(threadId: String, currentStarred: Boolean) {
+        val newStarred = !currentStarred
+        // Optimistic update
+        threadDao.updateThreadStarred(threadId, newStarred)
+        emailDao.updateThreadStarred(threadId, newStarred)
+
+        // Enqueue background sync
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_TOGGLE_STAR)
+            .putString(SyncWorker.KEY_THREAD_ID, threadId)
+            .putBoolean(SyncWorker.KEY_IS_STARRED, newStarred)
+            .build()
+        enqueueSync(data)
     }
 
-    /** Fetch a page of inbox emails. Messages are fetched concurrently for speed. */
-    suspend fun getInboxEmails(pageToken: String? = null, query: String? = null): Result<InboxPage> {
-        return try {
-            val listResponse = api.listMessages(
-                maxResults = 20,
-                pageToken  = pageToken,
-                labelIds   = if (query.isNullOrEmpty()) "INBOX" else null,
-                query      = query
-            )
-
-            val messageRefs = listResponse.messages.orEmpty()
-            if (messageRefs.isEmpty()) {
-                return Result.success(InboxPage(emptyList(), null))
-            }
-
-            val emails = coroutineScope {
-                messageRefs.map { ref ->
-                    async { api.getMessage(ref.id) }
-                }.awaitAll()
-            }.map { it.toEmail() }
-             .sortedByDescending { it.date }
-
-            if (pageToken == null && query.isNullOrEmpty()) {
-                prefs.edit().putString("cached_inbox", gson.toJson(emails)).apply()
-            }
-
-            Result.success(InboxPage(emails, listResponse.nextPageToken))
-
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun markEmailsAsRead(emailIds: List<String>) {
+        if (emailIds.isEmpty()) return
+        
+        // Optimistic update
+        emailDao.markEmailsAsRead(emailIds)
+        
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_EMAILS_READ)
+            .putString(SyncWorker.KEY_EMAIL_IDS, Gson().toJson(emailIds))
+            .build()
+        enqueueSync(data)
     }
 
-    /** Fetch a single email by ID. */
-    suspend fun getEmail(id: String): Result<Email> {
-        return try {
-            val message = api.getMessage(id)
-            Result.success(message.toEmail())
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
+    suspend fun markThreadAsRead(threadId: String) {
+        // Optimistic update
+        threadDao.updateThreadReadStatus(threadId, true)
+        
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_READ)
+            .putString(SyncWorker.KEY_THREAD_ID, threadId)
+            .build()
+        enqueueSync(data)
+    }
+    
+    suspend fun markThreadAsUnread(threadId: String) {
+        // Optimistic update
+        threadDao.updateThreadReadStatus(threadId, false)
+        
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_UNREAD)
+            .putString(SyncWorker.KEY_THREAD_ID, threadId)
+            .build()
+        enqueueSync(data)
     }
 
-    /** Send an email via Gmail API. */
+    suspend fun archiveThread(threadId: String) {
+        // Optimistic update
+        threadDao.archiveThread(threadId)
+        
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_ARCHIVE)
+            .putString(SyncWorker.KEY_THREAD_ID, threadId)
+            .build()
+        enqueueSync(data)
+    }
+
+    suspend fun unarchiveThread(threadId: String) {
+        // Optimistic update
+        threadDao.unarchiveThread(threadId)
+        
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_UNARCHIVE)
+            .putString(SyncWorker.KEY_THREAD_ID, threadId)
+            .build()
+        enqueueSync(data)
+    }
+
+    suspend fun deleteThread(threadId: String) {
+        // Optimistic update
+        threadDao.deleteThread(threadId)
+        emailDao.deleteThreadEmails(threadId)
+        
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_DELETE)
+            .putString(SyncWorker.KEY_THREAD_ID, threadId)
+            .build()
+        enqueueSync(data)
+    }
+
     suspend fun sendEmail(
         from: String,
         to: String,
@@ -186,13 +242,11 @@ class EmailRepository(private val api: GmailApi, private val context: Context) {
                     appendLine("Content-Type: multipart/mixed; boundary=\"$boundary\"")
                     appendLine()
                     
-                    // Body part
                     appendLine("--$boundary")
                     appendLine("Content-Type: text/html; charset=UTF-8")
                     appendLine()
                     appendLine(body)
                     
-                    // Attachments
                     for (attachment in attachments) {
                         appendLine("--$boundary")
                         appendLine("Content-Type: ${attachment.mimeType}; name=\"${attachment.name}\"")
@@ -200,7 +254,6 @@ class EmailRepository(private val api: GmailApi, private val context: Context) {
                         appendLine("Content-Transfer-Encoding: base64")
                         appendLine()
                         
-                        // Read and encode file
                         val bytes = context.contentResolver.openInputStream(attachment.uri)?.use { it.readBytes() }
                         if (bytes != null) {
                             val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT).replace("\n", "\r\n")
@@ -221,88 +274,11 @@ class EmailRepository(private val api: GmailApi, private val context: Context) {
                 )
             )
             
-            // Send & Archive: remove INBOX label from thread
+            // Send & Archive
             if (threadId != null) {
                 archiveThread(threadId)
             }
             
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Mark a batch of emails as read by removing the UNREAD label. */
-    suspend fun markEmailsAsRead(emailIds: List<String>): Result<Unit> {
-        if (emailIds.isEmpty()) return Result.success(Unit)
-        return try {
-            emailIds.chunked(1000).forEach { chunk ->
-                val request = com.shrivatsav.monomail.data.remote.BatchModifyMessagesRequest(
-                    ids = chunk,
-                    removeLabelIds = listOf("UNREAD")
-                )
-                api.batchModifyMessages(request)
-            }
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Archive a thread by removing the INBOX label. */
-    suspend fun archiveThread(threadId: String): Result<Unit> {
-        return try {
-            api.modifyThread(
-                id = threadId,
-                request = com.shrivatsav.monomail.data.remote.ModifyThreadRequest(
-                    removeLabelIds = listOf("INBOX")
-                )
-            )
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Unarchive a thread by adding the INBOX label. */
-    suspend fun unarchiveThread(threadId: String): Result<Unit> {
-        return try {
-            api.modifyThread(
-                id = threadId,
-                request = com.shrivatsav.monomail.data.remote.ModifyThreadRequest(
-                    addLabelIds = listOf("INBOX")
-                )
-            )
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Star a thread. */
-    suspend fun starThread(threadId: String): Result<Unit> {
-        return try {
-            api.modifyThread(
-                id = threadId,
-                request = com.shrivatsav.monomail.data.remote.ModifyThreadRequest(
-                    addLabelIds = listOf("STARRED")
-                )
-            )
-            Result.success(Unit)
-        } catch (e: Exception) {
-            Result.failure(e)
-        }
-    }
-
-    /** Unstar a thread. */
-    suspend fun unstarThread(threadId: String): Result<Unit> {
-        return try {
-            api.modifyThread(
-                id = threadId,
-                request = com.shrivatsav.monomail.data.remote.ModifyThreadRequest(
-                    removeLabelIds = listOf("STARRED")
-                )
-            )
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

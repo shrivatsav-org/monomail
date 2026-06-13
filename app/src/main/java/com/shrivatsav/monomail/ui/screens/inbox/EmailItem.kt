@@ -1,7 +1,7 @@
 package com.shrivatsav.monomail.ui.screens.inbox
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,34 +26,37 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImagePainter
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.shrivatsav.monomail.data.model.EmailThread
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.Star
 
 @Composable
 fun EmailItem(
     thread: EmailThread,
     onClick: () -> Unit,
-    onStarClick: () -> Unit = {},
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isUnread = !thread.isRead
-    val senderWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Bold
-    val subjectWeight = if (isUnread) FontWeight.Bold else FontWeight.SemiBold
+    val senderWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Medium
+    val subjectWeight = if (isUnread) FontWeight.Bold else FontWeight.Normal
     val senderInitial = thread.from.firstOrNull()?.uppercase() ?: "?"
     val domain = extractDomain(thread.fromEmail)
+    val backgroundColor = if (isUnread) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.background
 
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.background)
-            .clickable(onClick = onClick)
+            .background(backgroundColor)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
             .padding(horizontal = 20.dp, vertical = 11.dp),
         verticalAlignment = Alignment.Top
     ) {
@@ -128,38 +131,17 @@ fun EmailItem(
                 )
             }
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Subject
-                Text(
-                    text = thread.subject,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = subjectWeight,
-                    color = MaterialTheme.colorScheme.onSurface.copy(
-                        alpha = if (isUnread) 1f else 0.8f
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                
-                Spacer(modifier = Modifier.width(8.dp))
-                
-                // Star icon
-                androidx.compose.material3.IconButton(
-                    onClick = onStarClick,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    androidx.compose.material3.Icon(
-                        imageVector = if (thread.isStarred) Icons.Filled.Star else Icons.Outlined.Star,
-                        contentDescription = if (thread.isStarred) "Unstar" else "Star",
-                        tint = if (thread.isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
+            // Subject
+            Text(
+                text = thread.subject,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = subjectWeight,
+                color = MaterialTheme.colorScheme.onSurface.copy(
+                    alpha = if (isUnread) 1f else 0.8f
+                ),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
 
             // Snippet
             Text(
@@ -167,8 +149,7 @@ fun EmailItem(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(end = 32.dp)
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
@@ -200,8 +181,12 @@ private fun SenderAvatar(
     }
 
     if (domain != null) {
+        val context = LocalContext.current
         SubcomposeAsyncImage(
-            model = "https://www.google.com/s2/favicons?domain=$domain&sz=128",
+            model = ImageRequest.Builder(context)
+                .data("https://www.google.com/s2/favicons?domain=$domain&sz=128")
+                .crossfade(true)
+                .build(),
             contentDescription = "Sender avatar",
             modifier = avatarModifier
         ) {

@@ -15,6 +15,8 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.shrivatsav.monomail.MainActivity
 import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import kotlinx.coroutines.flow.firstOrNull
 
 class EmailSyncWorker(
     appContext: Context,
@@ -36,28 +38,29 @@ class EmailSyncWorker(
 
         val lastKnownId = tokenManager.getLastKnownEmailId()
 
-        // Fetch latest emails
-        val result = repository.getInboxEmails()
+        // Fetch latest emails from network and update DB
+        val result = repository.refreshInbox(InboxTab.INBOX)
         if (result.isFailure) {
             return Result.retry()
         }
 
-        val emails = result.getOrNull()?.emails ?: emptyList()
-        if (emails.isEmpty()) return Result.success()
+        // Get the latest thread from DB
+        val threads = repository.getInboxThreadsFlow(InboxTab.INBOX).firstOrNull()
+        if (threads.isNullOrEmpty()) return Result.success()
 
-        val newestEmail = emails.first()
+        val newestThread = threads.first()
 
-        if (lastKnownId != null && newestEmail.id != lastKnownId) {
+        if (lastKnownId != null && newestThread.threadId != lastKnownId) {
             // New email arrived!
             showNotification(
-                title = newestEmail.from,
-                text = newestEmail.subject,
-                emailId = newestEmail.id
+                title = newestThread.from,
+                text = newestThread.subject,
+                emailId = newestThread.threadId
             )
         }
 
         // Update the last known ID
-        tokenManager.setLastKnownEmailId(newestEmail.id)
+        tokenManager.setLastKnownEmailId(newestThread.threadId)
 
         return Result.success()
     }
@@ -77,7 +80,6 @@ class EmailSyncWorker(
 
         val intent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            // We could pass emailId to deep link directly to it later
         }
 
         val pendingIntent = PendingIntent.getActivity(
