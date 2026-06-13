@@ -89,20 +89,22 @@ class EmailRepository(
 
             val threadRefs = listResponse.threads.orEmpty()
             if (threadRefs.isNotEmpty()) {
-                val threads = coroutineScope {
+                val rawThreads = coroutineScope {
                     threadRefs.map { ref ->
                         async { api.getThread(ref.id) }
                     }.awaitAll()
-                }.map { it.toEmailThread() }
+                }
 
                 // Insert into DB
-                val entities = threads.map { 
-                    it.toEntity(
-                        inInbox = tab == InboxTab.INBOX,
-                        inSent = tab == InboxTab.SENT,
+                val entities = rawThreads.map { rawThread ->
+                    val domainThread = rawThread.toEmailThread()
+                    val labels = rawThread.messages.orEmpty().flatMap { it.labelIds.orEmpty() }.toSet()
+                    
+                    domainThread.toEntity(
+                        inInbox = "INBOX" in labels || (tab == InboxTab.INBOX),
+                        inSent = "SENT" in labels || (tab == InboxTab.SENT),
                         inArchived = tab == InboxTab.ARCHIVED
-                        // Starred is already mapped via the model
-                    ) 
+                    )
                 }
                 threadDao.insertThreads(entities)
             }
