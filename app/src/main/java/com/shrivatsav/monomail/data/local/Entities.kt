@@ -52,7 +52,8 @@ data class EmailEntity(
     val date: Long,
     val isRead: Boolean,
     val isStarred: Boolean,
-    val labels: List<String>
+    val labels: List<String>,
+    val attachmentsJson: String = "[]"
 ) {
     fun toDomainModel() = Email(
         id = id,
@@ -66,7 +67,10 @@ data class EmailEntity(
         date = date,
         isRead = isRead,
         isStarred = isStarred,
-        labels = labels
+        labels = labels,
+        attachments = try {
+            com.google.gson.Gson().fromJson(attachmentsJson, Array<com.shrivatsav.monomail.data.model.EmailAttachmentInfo>::class.java)?.toList() ?: emptyList()
+        } catch(e: Exception) { emptyList() }
     )
 }
 
@@ -105,5 +109,6 @@ fun Email.toEntity() = EmailEntity(
     date = date,
     isRead = isRead,
     isStarred = isStarred,
-    labels = labels
+    labels = labels,
+    attachmentsJson = com.google.gson.Gson().toJson(attachments)
 )
