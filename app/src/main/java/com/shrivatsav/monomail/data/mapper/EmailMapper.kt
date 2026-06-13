@@ -28,7 +28,7 @@ object EmailMapper {
             fromEmail = fromEmail,
             to        = toRaw,
             snippet   = snippet?.decodeHtmlEntities() ?: "",
-            body      = extractBody(payload),
+            body      = extractAndInjectImages(payload),
             date      = internalDate?.toLongOrNull() ?: 0L,
             isRead    = isRead,
             isStarred = isStarred,
@@ -143,6 +143,30 @@ object EmailMapper {
         }
 
         return ""
+    }
+
+    private fun extractAndInjectImages(payload: MessagePart?): String {
+        var htmlBody = extractBody(payload)
+        val cidMap = mutableMapOf<String, String>()
+        extractInlineImages(payload, cidMap)
+        
+        cidMap.forEach { (cid, dataUri) ->
+            // Match cid: references in src attributes
+            htmlBody = htmlBody.replace("cid:$cid", dataUri)
+        }
+        return htmlBody
+    }
+
+    private fun extractInlineImages(part: MessagePart?, map: MutableMap<String, String>) {
+        if (part == null) return
+        val contentId = part.headers?.firstOrNull { it.name.equals("Content-ID", true) }?.value?.removeSurrounding("<", ">")
+        
+        if (contentId != null && part.mimeType?.startsWith("image/") == true && !part.body?.data.isNullOrEmpty()) {
+            val base64 = part.body!!.data!!.replace("-", "+").replace("_", "/")
+            map[contentId] = "data:${part.mimeType};base64,$base64"
+        }
+        
+        part.parts?.forEach { extractInlineImages(it, map) }
     }
 
     /** Decode Gmail's base64url-encoded body data. */
