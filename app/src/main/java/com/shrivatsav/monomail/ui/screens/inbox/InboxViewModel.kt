@@ -74,6 +74,15 @@ class InboxViewModel(
 
     init {
         refresh()
+        // Immediately sync all other tabs silently in the background
+        // so they are fully cached when the user switches pages
+        viewModelScope.launch {
+            InboxTab.values().forEach { tab ->
+                if (tab != _currentTab.value) {
+                    repository.refreshInbox(tab)
+                }
+            }
+        }
         startForegroundPolling()
     }
 
