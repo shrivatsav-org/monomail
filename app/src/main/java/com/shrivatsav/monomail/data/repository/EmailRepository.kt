@@ -248,13 +248,9 @@ class EmailRepository(
                 append("To: $to\r\n")
                 append("Subject: $subject\r\n")
                 append("MIME-Version: 1.0\r\n")
-                if (inReplyToMessageId != null) {
-                    append("In-Reply-To: $inReplyToMessageId\r\n")
-                }
-                if (references != null) {
-                    append("References: $references\r\n")
-                }
-
+                // Gmail API automatically handles threading if threadId is provided in the request body.
+                // We should NOT add In-Reply-To and References unless we have the RFC 2822 Message-ID (e.g. <...@mail.gmail.com>).
+                // Passing the 16-hex Gmail ID causes a 400 Bad Request.
                 if (attachments.isEmpty()) {
                     append("Content-Type: text/html; charset=UTF-8\r\n")
                     append("\r\n")
