@@ -72,7 +72,7 @@ fun MonoMailTheme(
 ) {
     MaterialExpressiveTheme(
         colorScheme  = if (darkTheme) DarkColors else LightColors,
-        typography   = MonoMailTypography,
+        typography   = AppTypography,
         shapes       = MonoMailShapes,
         motionScheme = MotionScheme.expressive(),
         content      = content

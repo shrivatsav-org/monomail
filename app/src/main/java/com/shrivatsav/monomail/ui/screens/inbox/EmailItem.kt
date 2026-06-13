@@ -40,7 +40,8 @@ fun EmailItem(
     modifier: Modifier = Modifier
 ) {
     val isUnread = !thread.isRead
-    val fontWeight = if (isUnread) FontWeight.SemiBold else FontWeight.Normal
+    val senderWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Bold
+    val subjectWeight = if (isUnread) FontWeight.Bold else FontWeight.SemiBold
     val senderInitial = thread.from.firstOrNull()?.uppercase() ?: "?"
     val domain = extractDomain(thread.fromEmail)
 
@@ -89,8 +90,8 @@ fun EmailItem(
                 ) {
                     Text(
                         text = displayName(thread.from),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = fontWeight,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = senderWeight,
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -102,7 +103,7 @@ fun EmailItem(
                         Text(
                             text = "${thread.messageCount}",
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
                             modifier = Modifier
                                 .background(
@@ -117,7 +118,7 @@ fun EmailItem(
                 Text(
                     text = formatTimestamp(thread.date),
                     style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (isUnread) FontWeight.Medium else FontWeight.Normal,
+                    fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface.copy(
                         alpha = if (isUnread) 0.75f else 0.45f
                     )
@@ -128,7 +129,7 @@ fun EmailItem(
             Text(
                 text = thread.subject,
                 style = MaterialTheme.typography.bodyMedium,
-                fontWeight = fontWeight,
+                fontWeight = subjectWeight,
                 color = MaterialTheme.colorScheme.onSurface.copy(
                     alpha = if (isUnread) 1f else 0.8f
                 ),

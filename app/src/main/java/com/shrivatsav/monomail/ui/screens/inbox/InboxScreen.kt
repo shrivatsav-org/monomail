@@ -31,6 +31,7 @@ import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Archive
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.FloatingActionButton
@@ -298,6 +299,7 @@ fun InboxScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                                 modifier = Modifier
+                                                    .animateItem()
                                                     .fillMaxWidth()
                                                     .background(MaterialTheme.colorScheme.background)
                                                     .padding(horizontal = 20.dp, vertical = 10.dp)
@@ -321,6 +323,7 @@ fun InboxScreen(
                                             
                                             SwipeToDismissBox(
                                                 state = dismissState,
+                                                modifier = Modifier.animateItem(),
                                                 enableDismissFromEndToStart = false,
                                                 backgroundContent = {
                                                     val color by animateColorAsState(
@@ -394,8 +397,8 @@ fun InboxScreen(
                     shadowElevation = 4.dp
                 ) {
                     Row(
-                        modifier = Modifier.fillMaxHeight().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        modifier = Modifier.fillMaxHeight().padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         IconButton(onClick = { viewModel.switchTab(InboxTab.INBOX) }) {
@@ -515,7 +518,7 @@ private fun InboxSearchBar(
     ) {}
 
     if (showProfileModal) {
-        ProfileBottomSheet(
+        ProfileModal(
             userProfile = userProfile,
             onDismiss = { showProfileModal = false },
             onSignOut = {
@@ -561,141 +564,199 @@ private fun AvatarButton(
     }
 }
 
-// ── Profile bottom sheet ─────────────────────────────────────────────────────
+// ── Profile Modal ────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileBottomSheet(
+private fun ProfileModal(
     userProfile: UserProfile?,
     onDismiss: () -> Unit,
     onSignOut: () -> Unit
 ) {
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    ModalBottomSheet(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        sheetState = sheetState,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        dragHandle = {
-            BottomSheetDefaults.DragHandle(
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-            )
-        },
-        shape = MaterialTheme.shapes.extraLarge
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
+        androidx.compose.material3.Surface(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(0.dp)
+                .fillMaxWidth(0.92f),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 6.dp
         ) {
-            // Account card
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 20.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    .padding(top = 28.dp, bottom = 20.dp),
             ) {
-                // Large avatar
-                if (!userProfile?.photoUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = userProfile!!.photoUrl,
-                        contentDescription = "Profile photo",
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
+                // ── Header: Avatar + Name + Email ────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // Large avatar
+                    if (!userProfile?.photoUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = userProfile!!.photoUrl,
+                            contentDescription = "Profile photo",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        val initial = userProfile?.displayName?.firstOrNull()?.uppercase() ?: "?"
+                        Box(
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.onSurface),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = initial,
+                                style = MaterialTheme.typography.headlineSmall,
+                                color = MaterialTheme.colorScheme.background
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = userProfile?.displayName ?: "Account",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1
                     )
-                } else {
-                    val initial = userProfile?.displayName?.firstOrNull()?.uppercase() ?: "?"
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Email in a subtle pill
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.onSurface),
-                        contentAlignment = Alignment.Center
+                            .background(
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = RoundedCornerShape(20.dp)
+                            )
+                            .padding(horizontal = 14.dp, vertical = 5.dp)
                     ) {
                         Text(
-                            text = initial,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = MaterialTheme.colorScheme.background
+                            text = userProfile?.email ?: "",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                            maxLines = 1
                         )
                     }
                 }
 
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = userProfile?.displayName ?: "Account",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1
+                Spacer(modifier = Modifier.height(20.dp))
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                    thickness = 0.5.dp,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // ── Menu Items ───────────────────────────────────────────
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                ) {
+                    // Starred
+                    ProfileMenuItem(
+                        icon = Icons.Outlined.Star,
+                        label = "Starred",
+                        onClick = { /* TODO */ }
                     )
-                    Text(
-                        text = userProfile?.email ?: "",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                        maxLines = 1
+
+                    // Settings
+                    ProfileMenuItem(
+                        icon = Icons.Outlined.Settings,
+                        label = "Settings",
+                        onClick = { /* TODO */ }
+                    )
+
+                    // Help & feedback
+                    ProfileMenuItem(
+                        icon = Icons.Outlined.AccountCircle,
+                        label = "Manage account",
+                        onClick = { /* TODO */ }
                     )
                 }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                    thickness = 0.5.dp,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // ── Sign out button ──────────────────────────────────────
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onSignOut,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                        )
+                    ) {
+                        Text(
+                            text = "Sign out",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                }
             }
-
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-
-            // Settings list item
-            ListItem(
-                headlineContent = {
-                    Text(
-                        "Settings",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Outlined.Settings,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                modifier = Modifier
-                    .clip(MaterialTheme.shapes.large)
-                    .clickable { /* Settings */ },
-                colors = ListItemDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            )
-
-            // Sign out / switch account list item
-            ListItem(
-                headlineContent = {
-                    Text(
-                        "Switch account",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                },
-                leadingContent = {
-                    Icon(
-                        imageVector = Icons.Outlined.AccountCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                },
-                modifier = Modifier
-                    .clip(MaterialTheme.shapes.large)
-                    .clickable(onClick = onSignOut),
-                colors = ListItemDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
-                )
-            )
         }
+    }
+}
+
+@Composable
+private fun ProfileMenuItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+            modifier = Modifier.size(22.dp)
+        )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
