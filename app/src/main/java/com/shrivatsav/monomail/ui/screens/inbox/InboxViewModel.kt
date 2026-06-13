@@ -73,6 +73,16 @@ class InboxViewModel(
 
     init {
         refresh()
+        startForegroundPolling()
+    }
+
+    private fun startForegroundPolling() {
+        viewModelScope.launch {
+            while (true) {
+                delay(30_000) // Poll every 30 seconds silently
+                refresh(showLoader = false)
+            }
+        }
     }
 
     fun switchTab(tab: InboxTab) {
