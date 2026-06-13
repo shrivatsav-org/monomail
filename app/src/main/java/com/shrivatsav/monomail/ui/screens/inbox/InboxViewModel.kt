@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-enum class InboxTab { INBOX, SENT, ARCHIVED }
+enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED }
 
 sealed class InboxState {
     object Loading : InboxState()
@@ -210,11 +210,49 @@ class InboxViewModel(
         }
     }
 
+    fun unarchiveThread(threadId: String) {
+        viewModelScope.launch {
+            val current = _state.value as? InboxState.Success ?: return@launch
+            // Optimistic update
+            _state.value = current.copy(
+                threads = current.threads.filter { it.threadId != threadId }
+            )
+            // Background network call
+            repository.unarchiveThread(threadId)
+        }
+    }
+
+    fun toggleStar(threadId: String) {
+        viewModelScope.launch {
+            val current = _state.value as? InboxState.Success ?: return@launch
+            
+            // Find the thread
+            val threadToUpdate = current.threads.find { it.threadId == threadId } ?: return@launch
+            val isCurrentlyStarred = threadToUpdate.isStarred
+            
+            // Optimistic update
+            _state.value = current.copy(
+                threads = current.threads.map { 
+                    if (it.threadId == threadId) it.copy(isStarred = !isCurrentlyStarred) 
+                    else it 
+                }
+            )
+            
+            // Background network call
+            if (isCurrentlyStarred) {
+                repository.unstarThread(threadId)
+            } else {
+                repository.starThread(threadId)
+            }
+        }
+    }
+
     private fun getTabQuery(tab: InboxTab): String? {
         return when (tab) {
             InboxTab.INBOX -> null // Repository defaults to "label:INBOX" when query is null
             InboxTab.SENT -> "in:sent"
             InboxTab.ARCHIVED -> "-in:inbox -in:sent -in:trash -in:spam"
+            InboxTab.STARRED -> "is:starred"
         }
     }
 }

@@ -210,7 +210,8 @@ fun InboxScreen(
                     onQueryChange = { searchQuery = it },
                     onServerSearch = { viewModel.searchServer(it) },
                     onSignOut = onSignOut,
-                    onMarkAllRead = { viewModel.markAllAsRead() }
+                    onMarkAllRead = { viewModel.markAllAsRead() },
+                    onStarredClick = { viewModel.switchTab(InboxTab.STARRED) }
                 )
 
                 when (val s = state) {
@@ -310,10 +311,15 @@ fun InboxScreen(
                                             items = threadsForDate,
                                             key = { it.threadId }
                                         ) { thread ->
+                                            val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
                                             val dismissState = rememberSwipeToDismissBoxState(
                                                 confirmValueChange = { value ->
                                                     if (value == SwipeToDismissBoxValue.StartToEnd || value == SwipeToDismissBoxValue.EndToStart) {
-                                                        viewModel.archiveThread(thread.threadId)
+                                                        if (currentTab == InboxTab.ARCHIVED) {
+                                                            viewModel.unarchiveThread(thread.threadId)
+                                                        } else {
+                                                            viewModel.archiveThread(thread.threadId)
+                                                        }
                                                         true
                                                     } else {
                                                         false
@@ -340,18 +346,19 @@ fun InboxScreen(
                                                         contentAlignment = Alignment.CenterStart
                                                     ) {
                                                         Icon(
-                                                            Icons.Outlined.Archive,
-                                                            contentDescription = "Archive",
+                                                            imageVector = if ((state as? InboxState.Success)?.currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
+                                                            contentDescription = if ((state as? InboxState.Success)?.currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
                                                             tint = MaterialTheme.colorScheme.onPrimaryContainer
                                                         )
                                                     }
                                                 }
                                             ) {
                                                 EmailItem(
-                                                    thread = thread,
-                                                    onClick = { onEmailClick(thread.threadId) }
-                                                )
-                                            }
+                                                thread = thread,
+                                                onClick = { onEmailClick(thread.threadId) },
+                                                onStarClick = { viewModel.toggleStar(thread.threadId) },
+                                                modifier = Modifier.animateItem()
+                                            )}
                                         }
                                     }
 
@@ -451,7 +458,8 @@ private fun InboxSearchBar(
     onQueryChange: (String) -> Unit,
     onServerSearch: (String) -> Unit,
     onSignOut: () -> Unit,
-    onMarkAllRead: () -> Unit
+    onMarkAllRead: () -> Unit,
+    onStarredClick: () -> Unit
 ) {
     var showProfileModal by remember { mutableStateOf(false) }
 
@@ -524,6 +532,10 @@ private fun InboxSearchBar(
             onSignOut = {
                 showProfileModal = false
                 onSignOut()
+            },
+            onStarredClick = {
+                showProfileModal = false
+                onStarredClick()
             }
         )
     }
@@ -570,7 +582,8 @@ private fun AvatarButton(
 private fun ProfileModal(
     userProfile: UserProfile?,
     onDismiss: () -> Unit,
-    onSignOut: () -> Unit
+    onSignOut: () -> Unit,
+    onStarredClick: () -> Unit
 ) {
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -671,7 +684,7 @@ private fun ProfileModal(
                     ProfileMenuItem(
                         icon = Icons.Outlined.Star,
                         label = "Starred",
-                        onClick = { /* TODO */ }
+                        onClick = onStarredClick
                     )
 
                     // Settings

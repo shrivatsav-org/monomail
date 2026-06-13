@@ -263,4 +263,49 @@ class EmailRepository(private val api: GmailApi, private val context: Context) {
             Result.failure(e)
         }
     }
+
+    /** Unarchive a thread by adding the INBOX label. */
+    suspend fun unarchiveThread(threadId: String): Result<Unit> {
+        return try {
+            api.modifyThread(
+                id = threadId,
+                request = com.shrivatsav.monomail.data.remote.ModifyThreadRequest(
+                    addLabelIds = listOf("INBOX")
+                )
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Star a thread. */
+    suspend fun starThread(threadId: String): Result<Unit> {
+        return try {
+            api.modifyThread(
+                id = threadId,
+                request = com.shrivatsav.monomail.data.remote.ModifyThreadRequest(
+                    addLabelIds = listOf("STARRED")
+                )
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Unstar a thread. */
+    suspend fun unstarThread(threadId: String): Result<Unit> {
+        return try {
+            api.modifyThread(
+                id = threadId,
+                request = com.shrivatsav.monomail.data.remote.ModifyThreadRequest(
+                    removeLabelIds = listOf("STARRED")
+                )
+            )
+            Result.success(Unit)
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
