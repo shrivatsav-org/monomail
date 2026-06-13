@@ -286,7 +286,7 @@ fun InboxScreen(
                                                 fontWeight = FontWeight.SemiBold,
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
                                                 modifier = Modifier
-                                                    .animateItem()
+                                                    .animateItem(fadeInSpec = null, fadeOutSpec = null)
                                                     .fillMaxWidth()
                                                     .background(MaterialTheme.colorScheme.background)
                                                     .padding(horizontal = 20.dp, vertical = 10.dp)
@@ -320,7 +320,7 @@ fun InboxScreen(
                                             
                                             SwipeToDismissBox(
                                                 state = dismissState,
-                                                modifier = Modifier.animateItem(),
+                                                modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null),
                                                 enableDismissFromEndToStart = true,
                                                 enableDismissFromStartToEnd = true,
                                                 backgroundContent = {
@@ -361,7 +361,7 @@ fun InboxScreen(
                                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                                         longPressedThread = thread
                                                     },
-                                                    modifier = Modifier.animateItem()
+                                                    modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)
                                                 )
                                             }
                                         }
