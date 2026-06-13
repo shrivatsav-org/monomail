@@ -60,7 +60,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
+import com.shrivatsav.monomail.data.model.Attachment
 import com.shrivatsav.monomail.data.model.Email
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -215,7 +215,7 @@ private fun ThreadConversationContent(
         emails.forEachIndexed { index, email ->
             val isExpanded = expandedMap[email.id] ?: (index == emails.lastIndex)
 
-            // Message header â€” always visible, tappable to expand/collapse
+            // Message header — always visible, tappable to expand/collapse
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -368,7 +368,7 @@ private fun ThreadConversationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Reply / Forward â€” applies to the latest message
+        // Reply / Forward — applies to the latest message
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -413,7 +413,7 @@ private fun ThreadConversationContent(
 
 // -- Attachments --------------------------------------------------------------
 
-private fun isImageAttachment(attachment: EmailAttachmentInfo): Boolean {
+private fun isImageAttachment(attachment: Attachment): Boolean {
     val lowerName = attachment.name.lowercase()
     return attachment.mimeType.startsWith("image/") ||
         lowerName.endsWith(".png") || lowerName.endsWith(".jpg") ||
@@ -431,7 +431,7 @@ private fun formatFileSize(bytes: Long): String {
 
 @Composable
 private fun AttachmentsSection(
-    attachments: List<EmailAttachmentInfo>,
+    attachments: List<Attachment>,
     onFetchAttachment: suspend (String, String) -> ByteArray?
 ) {
     Column(
@@ -483,7 +483,7 @@ private fun AttachmentsSection(
 
 @Composable
 private fun ImageAttachmentCard(
-    attachment: EmailAttachmentInfo,
+    attachment: Attachment,
     onFetchAttachment: suspend (String, String) -> ByteArray?
 ) {
     var imageBytes by remember { androidx.compose.runtime.mutableStateOf<ByteArray?>(null) }
@@ -563,7 +563,7 @@ private fun ImageAttachmentCard(
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = formatFileSize(attachment.size.toLong()),
+                text = formatFileSize(attachment.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
@@ -573,7 +573,7 @@ private fun ImageAttachmentCard(
 
 @Composable
 private fun FileAttachmentCard(
-    attachment: EmailAttachmentInfo,
+    attachment: Attachment,
     modifier: Modifier = Modifier
 ) {
     val ext = attachment.name.substringAfterLast('.', "").uppercase()
@@ -612,7 +612,7 @@ private fun FileAttachmentCard(
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                text = formatFileSize(attachment.size.toLong()),
+                text = formatFileSize(attachment.size),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
             )
