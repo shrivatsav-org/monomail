@@ -79,18 +79,18 @@ class InboxViewModel(
         if (_currentTab.value == tab) return
         _currentTab.value = tab
         currentServerQuery = null
-        refresh()
+        refresh(showLoader = false)
     }
 
-    fun refresh() {
+    fun refresh(showLoader: Boolean = true) {
         viewModelScope.launch {
-            _isRefreshing.value = true
+            if (showLoader) _isRefreshing.value = true
             val query = currentServerQuery // Use query if searching
             val result = repository.refreshInbox(_currentTab.value, query = query)
             result.onSuccess { token ->
                 _nextPageToken.value = token
             }
-            _isRefreshing.value = false
+            if (showLoader) _isRefreshing.value = false
         }
     }
 
