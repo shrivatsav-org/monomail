@@ -97,7 +97,14 @@ fun ComposeScreen(
                     if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
                 }
             }
-            val mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+            var mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+            if (mimeType == "application/octet-stream") {
+                val lowerName = name.lowercase()
+                if (lowerName.endsWith(".png")) mimeType = "image/png"
+                else if (lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")) mimeType = "image/jpeg"
+                else if (lowerName.endsWith(".gif")) mimeType = "image/gif"
+                else if (lowerName.endsWith(".webp")) mimeType = "image/webp"
+            }
             viewModel.addAttachment(EmailAttachment(uri, name, size, mimeType))
         }
     }

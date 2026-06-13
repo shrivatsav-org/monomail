@@ -61,6 +61,33 @@ class EmailRepository(
         }.map { list -> list.map { it.toDomainModel() } }
     }
 
+    suspend fun getEmailById(id: String): Email? {
+        return emailDao.getEmailById(id)?.let { entity ->
+            // Try to decode attachments, etc. Here we just convert to domain model
+            // The mapper from Entity to Domain doesn't exist directly without thread context,
+            // but we can map the EmailEntity to an Email.
+            val attachmentsList = try {
+                Gson().fromJson(entity.attachmentsJson, Array<com.shrivatsav.monomail.data.model.EmailAttachmentInfo>::class.java)?.toList() ?: emptyList()
+            } catch(e: Exception) { emptyList() }
+            
+            Email(
+                id = entity.id,
+                threadId = entity.threadId,
+                from = entity.fromName,
+                fromEmail = entity.fromEmail,
+                to = entity.toEmail,
+                subject = entity.subject,
+                snippet = entity.snippet,
+                body = entity.body,
+                date = entity.date,
+                isRead = entity.isRead,
+                isStarred = entity.isStarred,
+                labels = try { Gson().fromJson(entity.labelsJson, Array<String>::class.java)?.toList() ?: emptyList() } catch(e: Exception) { emptyList() },
+                attachments = attachmentsList
+            )
+        }
+    }
+
     fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> {
         return emailDao.getEmailsForThread(threadId).map { list -> list.map { it.toDomainModel() } }
     }

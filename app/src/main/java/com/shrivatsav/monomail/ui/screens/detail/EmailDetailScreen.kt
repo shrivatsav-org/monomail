@@ -351,7 +351,13 @@ private fun ThreadConversationContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             email.attachments.forEach { attachment ->
-                                if (attachment.mimeType.startsWith("image/")) {
+                                val lowerName = attachment.name.lowercase()
+                                val isImage = attachment.mimeType.startsWith("image/") ||
+                                    lowerName.endsWith(".png") || lowerName.endsWith(".jpg") ||
+                                    lowerName.endsWith(".jpeg") || lowerName.endsWith(".gif") ||
+                                    lowerName.endsWith(".webp")
+                                    
+                                if (isImage) {
                                     var imageBytes by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ByteArray?>(null) }
                                     androidx.compose.runtime.LaunchedEffect(attachment.id) {
                                         imageBytes = onFetchAttachment(attachment.messageId, attachment.id)

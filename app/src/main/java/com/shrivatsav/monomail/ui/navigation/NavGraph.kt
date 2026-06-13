@@ -51,17 +51,16 @@ sealed class Screen(val route: String) {
     object ThreadDetail : Screen("thread/{threadId}") {
         fun createRoute(threadId: String) = "thread/$threadId"
     }
-    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&body={body}&threadId={threadId}&messageId={messageId}") {
+    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}") {
         fun createRoute(
             mode: ComposeMode = ComposeMode.NEW,
             to: String = "",
             subject: String = "",
-            body: String = "",
             threadId: String = "",
             messageId: String = ""
         ): String {
             val enc = { s: String -> URLEncoder.encode(s, "UTF-8") }
-            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&body=${enc(body)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}"
+            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}"
         }
     }
 }
@@ -204,7 +203,6 @@ fun NavGraph(
                             mode = ComposeMode.REPLY,
                             to = to,
                             subject = subject,
-                            body = body,
                             threadId = tid,
                             messageId = messageId
                         )
@@ -216,7 +214,6 @@ fun NavGraph(
                             mode = ComposeMode.FORWARD,
                             to = "",
                             subject = subject,
-                            body = body,
                             threadId = tid,
                             messageId = messageId
                         )
@@ -227,12 +224,11 @@ fun NavGraph(
 
         // ── Compose / Reply / Forward ────────────────────────────────
         composable(
-            route = "compose?mode={mode}&to={to}&subject={subject}&body={body}&threadId={threadId}&messageId={messageId}",
+            route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}",
             arguments = listOf(
                 navArgument("mode") { type = NavType.StringType; defaultValue = "NEW" },
                 navArgument("to") { type = NavType.StringType; defaultValue = "" },
                 navArgument("subject") { type = NavType.StringType; defaultValue = "" },
-                navArgument("body") { type = NavType.StringType; defaultValue = "" },
                 navArgument("threadId") { type = NavType.StringType; defaultValue = "" },
                 navArgument("messageId") { type = NavType.StringType; defaultValue = "" }
             )
@@ -243,7 +239,6 @@ fun NavGraph(
             )
             val to = dec(backStackEntry.arguments?.getString("to") ?: "")
             val subject = dec(backStackEntry.arguments?.getString("subject") ?: "")
-            val body = dec(backStackEntry.arguments?.getString("body") ?: "")
             val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
             val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
             val fromEmail = authManager.currentUser?.email ?: ""
@@ -259,7 +254,6 @@ fun NavGraph(
                             mode = mode,
                             replyTo = to,
                             originalSubject = subject,
-                            originalBody = body,
                             threadId = threadId,
                             messageId = messageId
                         ) as T

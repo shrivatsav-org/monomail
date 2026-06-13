@@ -60,10 +60,22 @@ class ComposeViewModel(
             threadId = threadId,
             inReplyToMessageId = messageId,
             references = messageId,
-            originalBody = null
+            originalBody = null // We will fetch this async
         )
     )
+
     val state: StateFlow<ComposeUiState> = _state.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            if (!messageId.isNullOrEmpty()) {
+                val email = repository.getEmailById(messageId)
+                if (email != null) {
+                    _state.value = _state.value.copy(originalBody = email.body)
+                }
+            }
+        }
+    }
 
     // ── Email autocomplete ───────────────────────────────────────────
 

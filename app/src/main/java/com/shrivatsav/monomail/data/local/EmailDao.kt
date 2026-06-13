@@ -12,6 +12,9 @@ interface EmailDao {
     @Query("SELECT * FROM emails WHERE threadId = :threadId ORDER BY date ASC")
     fun getEmailsForThread(threadId: String): Flow<List<EmailEntity>>
 
+    @Query("SELECT * FROM emails WHERE id = :id LIMIT 1")
+    suspend fun getEmailById(id: String): EmailEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEmails(emails: List<EmailEntity>)
 
