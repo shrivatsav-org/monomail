@@ -284,7 +284,9 @@ private fun ThreadConversationContent(
                                 settings.javaScriptEnabled = false
                                 settings.loadWithOverviewMode = true
                                 settings.useWideViewPort = true
-                                settings.cacheMode = WebSettings.LOAD_NO_CACHE
+                                settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+                                settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                                settings.loadsImagesAutomatically = true
                                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
                                 isVerticalScrollBarEnabled = false
                                 isHorizontalScrollBarEnabled = false
