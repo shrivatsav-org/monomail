@@ -80,8 +80,12 @@ class InboxViewModel(
     private fun startForegroundPolling() {
         viewModelScope.launch {
             while (true) {
-                delay(30_000) // Poll every 30 seconds silently
-                refresh(showLoader = false)
+                delay(15_000) // Poll every 15 seconds silently
+                // Poll the Inbox specifically as it's the most critical
+                repository.refreshInbox(InboxTab.INBOX)
+                if (_currentTab.value != InboxTab.INBOX) {
+                    repository.refreshInbox(_currentTab.value)
+                }
             }
         }
     }
@@ -90,7 +94,8 @@ class InboxViewModel(
         if (_currentTab.value == tab) return
         _currentTab.value = tab
         currentServerQuery = null
-        refresh(showLoader = false)
+        // Intentionally NOT calling refresh() here to avoid pop-in on page change.
+        // Sync is handled by background polling, pull-to-refresh, or app restart.
     }
 
     fun refresh(showLoader: Boolean = true) {
