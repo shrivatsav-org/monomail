@@ -30,7 +30,7 @@ class AuthManager(
 ) {
 
     companion object {
-        const val CLIENT_ID   = "614534704346-n2hvjk5j1026dl6005rtidb54pjavdp5.apps.googleusercontent.com"
+        val CLIENT_ID = com.shrivatsav.monomail.BuildConfig.GOOGLE_CLIENT_ID
         const val GMAIL_SCOPE = "oauth2:https://www.googleapis.com/auth/gmail.modify"
     }
 

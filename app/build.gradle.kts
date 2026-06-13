@@ -1,8 +1,19 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
+
+val secretsFile = rootProject.file("secrets.properties")
+val secrets = Properties()
+if (secretsFile.exists()) {
+    secrets.load(FileInputStream(secretsFile))
+}
+val googleClientId = secrets.getProperty("GOOGLE_CLIENT_ID") ?: "\"\""
+
 
 android {
     namespace = "com.shrivatsav.monomail"
@@ -15,6 +26,8 @@ android {
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        
+        buildConfigField("String", "GOOGLE_CLIENT_ID", googleClientId)
     }
 
     buildTypes {
