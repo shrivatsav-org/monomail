@@ -22,6 +22,7 @@ data class Email(
 
 data class EmailAttachmentInfo(
     val id: String, // attachmentId
+    val messageId: String,
     val mimeType: String,
     val name: String,
     val size: Int

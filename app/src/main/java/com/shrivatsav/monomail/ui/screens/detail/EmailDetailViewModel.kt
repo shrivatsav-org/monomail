@@ -60,4 +60,8 @@ class EmailDetailViewModel(
             repository.toggleStar(threadId, isStarred.value)
         }
     }
+
+    suspend fun fetchAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
+        return repository.getAttachmentBytes(messageId, attachmentId)
+    }
 }

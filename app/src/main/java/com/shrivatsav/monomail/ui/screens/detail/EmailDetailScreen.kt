@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,6 +48,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -67,7 +69,8 @@ fun EmailDetailScreen(
     viewModel: EmailDetailViewModel,
     onBack: () -> Unit,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _, _ -> },
-    onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> }
+    onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> },
+    onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
 ) {
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
@@ -147,7 +150,8 @@ fun EmailDetailScreen(
                     emails = emails,
                     modifier = Modifier.padding(padding),
                     onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
-                    onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) }
+                    onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
+                    onFetchAttachment = { msgId, attId -> viewModel.fetchAttachmentBytes(msgId, attId) }
                 )
             }
         }
@@ -159,7 +163,8 @@ private fun ThreadConversationContent(
     emails: List<Email>,
     modifier: Modifier = Modifier,
     onReply: () -> Unit = {},
-    onForward: () -> Unit = {}
+    onForward: () -> Unit = {},
+    onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
 ) {
     val isDark = isSystemInDarkTheme()
     val bgColor = if (isDark) "#121212" else "#FFFFFF"
@@ -346,33 +351,61 @@ private fun ThreadConversationContent(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             email.attachments.forEach { attachment ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), MaterialTheme.shapes.small)
-                                        .padding(12.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Outlined.AttachFile,
-                                        contentDescription = "Attachment",
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = attachment.name,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                            maxLines = 1,
-                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                if (attachment.mimeType.startsWith("image/")) {
+                                    var imageBytes by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<ByteArray?>(null) }
+                                    androidx.compose.runtime.LaunchedEffect(attachment.id) {
+                                        imageBytes = onFetchAttachment(attachment.messageId, attachment.id)
+                                    }
+                                    if (imageBytes != null) {
+                                        coil.compose.AsyncImage(
+                                            model = imageBytes,
+                                            contentDescription = attachment.name,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(max = 300.dp)
+                                                .clip(MaterialTheme.shapes.medium),
+                                            contentScale = androidx.compose.ui.layout.ContentScale.Fit
                                         )
-                                        Text(
-                                            text = "${attachment.size / 1024} KB",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    } else {
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().height(100.dp),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            androidx.compose.material3.CircularProgressIndicator(
+                                                modifier = Modifier.size(24.dp),
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), MaterialTheme.shapes.small)
+                                            .padding(12.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.AttachFile,
+                                            contentDescription = "Attachment",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(20.dp)
                                         )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = attachment.name,
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurface,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "${attachment.size / 1024} KB",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
                                     }
                                 }
                             }

@@ -33,7 +33,7 @@ object EmailMapper {
             isRead    = isRead,
             isStarred = isStarred,
             labels    = labels,
-            attachments = extractAttachments(payload)
+            attachments = extractAttachments(payload, id)
         )
     }
 
@@ -170,7 +170,7 @@ object EmailMapper {
         part.parts?.forEach { extractInlineImages(it, map) }
     }
 
-    private fun extractAttachments(part: MessagePart?): List<com.shrivatsav.monomail.data.model.EmailAttachmentInfo> {
+    private fun extractAttachments(part: MessagePart?, messageId: String): List<com.shrivatsav.monomail.data.model.EmailAttachmentInfo> {
         if (part == null) return emptyList()
         val attachments = mutableListOf<com.shrivatsav.monomail.data.model.EmailAttachmentInfo>()
         
@@ -178,6 +178,7 @@ object EmailMapper {
             attachments.add(
                 com.shrivatsav.monomail.data.model.EmailAttachmentInfo(
                     id = part.body.attachmentId,
+                    messageId = messageId,
                     mimeType = part.mimeType ?: "application/octet-stream",
                     name = part.filename,
                     size = part.body.size ?: 0
@@ -185,7 +186,7 @@ object EmailMapper {
             )
         }
         
-        part.parts?.forEach { attachments.addAll(extractAttachments(it)) }
+        part.parts?.forEach { attachments.addAll(extractAttachments(it, messageId)) }
         return attachments
     }
 

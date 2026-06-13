@@ -23,6 +23,7 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 import com.shrivatsav.monomail.data.remote.GmailApi
@@ -210,6 +211,21 @@ class EmailRepository(
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
+    }
+
+    suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
+        return withContext(Dispatchers.IO) {
+            try {
+                val part = api.getAttachment(messageId, attachmentId)
+                part.data?.let { data ->
+                    val base64 = data.replace("-", "+").replace("_", "/")
+                    android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
     }
 
     suspend fun sendEmail(
