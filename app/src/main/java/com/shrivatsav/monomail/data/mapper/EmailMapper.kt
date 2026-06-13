@@ -32,7 +32,8 @@ object EmailMapper {
             date      = internalDate?.toLongOrNull() ?: 0L,
             isRead    = isRead,
             isStarred = isStarred,
-            labels    = labels
+            labels    = labels,
+            attachments = extractAttachments(payload)
         )
     }
 
@@ -167,6 +168,25 @@ object EmailMapper {
         }
         
         part.parts?.forEach { extractInlineImages(it, map) }
+    }
+
+    private fun extractAttachments(part: MessagePart?): List<com.shrivatsav.monomail.data.model.EmailAttachmentInfo> {
+        if (part == null) return emptyList()
+        val attachments = mutableListOf<com.shrivatsav.monomail.data.model.EmailAttachmentInfo>()
+        
+        if (!part.filename.isNullOrEmpty() && part.body?.attachmentId != null) {
+            attachments.add(
+                com.shrivatsav.monomail.data.model.EmailAttachmentInfo(
+                    id = part.body.attachmentId,
+                    mimeType = part.mimeType ?: "application/octet-stream",
+                    name = part.filename,
+                    size = part.body.size ?: 0
+                )
+            )
+        }
+        
+        part.parts?.forEach { attachments.addAll(extractAttachments(it)) }
+        return attachments
     }
 
     /** Decode Gmail's base64url-encoded body data. */

@@ -28,6 +28,7 @@ data class GmailMessage(
 /** Recursive MIME part tree. */
 data class MessagePart(
     val mimeType: String?,
+    val filename: String?,
     val headers: List<Header>?,
     val body: MessagePartBody?,
     val parts: List<MessagePart>?
@@ -40,7 +41,8 @@ data class Header(
 
 data class MessagePartBody(
     val size: Int?,
-    val data: String?
+    val data: String?,
+    val attachmentId: String?
 )
 
 /** Gmail user profile. */
