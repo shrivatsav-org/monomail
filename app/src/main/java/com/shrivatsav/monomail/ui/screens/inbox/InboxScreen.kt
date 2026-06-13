@@ -111,6 +111,11 @@ fun InboxScreen(
     var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
     val hapticFeedback = LocalHapticFeedback.current
 
+    val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
+    LaunchedEffect(currentTab) {
+        listState.scrollToItem(0)
+    }
+
     // Local search filtering
     val localFilteredThreads by remember(searchQuery, currentThreads) {
         derivedStateOf {

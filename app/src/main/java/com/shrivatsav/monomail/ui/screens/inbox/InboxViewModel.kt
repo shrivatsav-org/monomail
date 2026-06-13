@@ -56,15 +56,16 @@ class InboxViewModel(
     val toastState = _toastState.asStateFlow()
 
     // State flow based on the DB flow of the current tab
-    val state: StateFlow<InboxState> = combine(
-        _currentTab.flatMapLatest { tab -> repository.getInboxThreadsFlow(tab) },
-        _currentTab,
-        _isRefreshing,
-        _nextPageToken,
-        pendingHideIds
-    ) { threads, tab, isRefreshing, nextPageToken, hiddenIds ->
-        val filteredThreads = threads.filter { it.threadId !in hiddenIds }
-        InboxState.Success(filteredThreads, tab, isRefreshing, nextPageToken)
+    val state: StateFlow<InboxState> = _currentTab.flatMapLatest { tab ->
+        combine(
+            repository.getInboxThreadsFlow(tab),
+            _isRefreshing,
+            _nextPageToken,
+            pendingHideIds
+        ) { threads, isRefreshing, nextPageToken, hiddenIds ->
+            val filteredThreads = threads.filter { it.threadId !in hiddenIds }
+            InboxState.Success(filteredThreads, tab, isRefreshing, nextPageToken)
+        }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
