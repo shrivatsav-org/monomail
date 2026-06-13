@@ -6,6 +6,8 @@ import retrofit2.http.POST
 import retrofit2.http.Path
 import retrofit2.http.Query
 
+import retrofit2.http.DELETE
+
 interface GmailApi {
 
     @GET("users/me/messages")
@@ -55,5 +57,10 @@ interface GmailApi {
     suspend fun modifyThread(
         @Path("id") id: String,
         @Body request: ModifyThreadRequest
+    ): GmailThread
+
+    @POST("users/me/threads/{id}/trash")
+    suspend fun trashThread(
+        @Path("id") id: String
     ): GmailThread
 }

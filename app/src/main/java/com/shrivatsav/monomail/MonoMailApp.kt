@@ -5,6 +5,7 @@ import android.app.Application
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.TokenManager
+import com.shrivatsav.monomail.data.local.AppDatabase
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
@@ -55,6 +56,7 @@ class MonoMailApp : Application() {
                 }
             }
         )
-        emailRepository = EmailRepository(retrofitClient.gmailApi, this)
+        val database = AppDatabase.getDatabase(this)
+        emailRepository = EmailRepository(retrofitClient.gmailApi, database, this)
     }
 }

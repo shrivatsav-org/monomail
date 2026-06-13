@@ -30,6 +30,7 @@ import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -68,6 +69,7 @@ fun EmailDetailScreen(
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> }
 ) {
     val state by viewModel.state.collectAsState()
+    val isStarred by viewModel.isStarred.collectAsState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -84,11 +86,11 @@ fun EmailDetailScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { /* star */ }) {
+                    IconButton(onClick = { viewModel.toggleStar() }) {
                         Icon(
-                            imageVector = Icons.Outlined.StarOutline,
-                            contentDescription = "Star",
-                            tint = MaterialTheme.colorScheme.onSurface
+                            imageVector = if (isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                            contentDescription = if (isStarred) "Unstar" else "Star",
+                            tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     }
                     IconButton(onClick = { /* more */ }) {

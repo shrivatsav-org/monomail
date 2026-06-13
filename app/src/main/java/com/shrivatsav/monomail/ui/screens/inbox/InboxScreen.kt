@@ -3,6 +3,7 @@ package com.shrivatsav.monomail.ui.screens.inbox
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -79,6 +80,13 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.StarOutline
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.MarkEmailUnread
 import coil.compose.AsyncImage
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
@@ -100,6 +108,8 @@ fun InboxScreen(
 
     var searchQuery by remember { mutableStateOf("") }
     val currentThreads = (state as? InboxState.Success)?.threads ?: emptyList()
+    var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
+    val hapticFeedback = LocalHapticFeedback.current
 
     // Local search filtering
     val localFilteredThreads by remember(searchQuery, currentThreads) {
@@ -147,30 +157,6 @@ fun InboxScreen(
 
     val isRefreshing = (state as? InboxState.Success)?.isRefreshing == true
 
-    // ── Reveal offset: follows the pull gesture, settles based on refresh state ──
-    val loaderHeight = 56.dp
-    val density = LocalDensity.current
-    val loaderHeightPx = with(density) { loaderHeight.toPx() }
-
-    val revealOffset = remember { Animatable(0f) }
-
-    // While actively pulling, follow the gesture's progress (clamped to loader height)
-    LaunchedEffect(pullToRefreshState.distanceFraction) {
-        if (!isRefreshing) {
-            val target = min(pullToRefreshState.distanceFraction, 1f) * loaderHeightPx
-            revealOffset.snapTo(target)
-        }
-    }
-
-    // When refreshing starts/ends, animate to the resting position
-    LaunchedEffect(isRefreshing) {
-        if (isRefreshing) {
-            revealOffset.animateTo(loaderHeightPx, animationSpec = tween(250))
-        } else {
-            revealOffset.animateTo(0f, animationSpec = tween(250))
-        }
-    }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
@@ -179,31 +165,23 @@ fun InboxScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // Loader anchored at the top, sits behind the shifting content
+            // Main content wrapper with blur when context menu is open
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .height(loaderHeight)
-                    .align(Alignment.TopCenter),
-                contentAlignment = Alignment.Center
-            ) {
-                if (revealOffset.value > 0f) {
-                    LoadingIndicator(
-                        modifier = Modifier.size(36.dp),
-                        color = MaterialTheme.colorScheme.onSurface
+                    .fillMaxSize()
+                    .then(
+                        if (longPressedThread != null) Modifier.blur(12.dp)
+                        else Modifier
                     )
-                }
-            }
-
-            // Main content — search bar + list — shifts down to reveal the loader
+            ) {
+            // Main content — search bar + list
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .graphicsLayer {
-                        translationY = revealOffset.value
-                    }
                     .background(MaterialTheme.colorScheme.background)
             ) {
+                val toastState by viewModel.toastState.collectAsState()
+                
                 InboxSearchBar(
                     userProfile = userProfile,
                     query = searchQuery,
@@ -211,7 +189,10 @@ fun InboxScreen(
                     onServerSearch = { viewModel.searchServer(it) },
                     onSignOut = onSignOut,
                     onMarkAllRead = { viewModel.markAllAsRead() },
-                    onStarredClick = { viewModel.switchTab(InboxTab.STARRED) }
+                    onStarredClick = { viewModel.switchTab(InboxTab.STARRED) },
+                    isRefreshing = isRefreshing,
+                    toastState = toastState,
+                    onUndo = { viewModel.undoAction() }
                 )
 
                 when (val s = state) {
@@ -237,7 +218,7 @@ fun InboxScreen(
                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                 )
                                 Button(
-                                    onClick = { viewModel.loadInbox() },
+                                    onClick = { viewModel.refresh() },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.onSurface,
                                         contentColor = MaterialTheme.colorScheme.background
@@ -253,7 +234,7 @@ fun InboxScreen(
                     is InboxState.Success -> {
                         val threadsToDisplay = localFilteredThreads ?: s.threads
                         val isSearchActive = localFilteredThreads != null
-                        val grouped = groupThreadsByDate(threadsToDisplay)
+                        val grouped = remember(threadsToDisplay) { groupThreadsByDate(threadsToDisplay) }
 
                         PullToRefreshBox(
                             isRefreshing = s.isRefreshing,
@@ -314,15 +295,20 @@ fun InboxScreen(
                                             val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
                                             val dismissState = rememberSwipeToDismissBoxState(
                                                 confirmValueChange = { value ->
-                                                    if (value == SwipeToDismissBoxValue.StartToEnd || value == SwipeToDismissBoxValue.EndToStart) {
-                                                        if (currentTab == InboxTab.ARCHIVED) {
-                                                            viewModel.unarchiveThread(thread.threadId)
-                                                        } else {
-                                                            viewModel.archiveThread(thread.threadId)
+                                                    when (value) {
+                                                        SwipeToDismissBoxValue.StartToEnd -> {
+                                                            if (currentTab == InboxTab.ARCHIVED) {
+                                                                viewModel.unarchiveThread(thread.threadId)
+                                                            } else {
+                                                                viewModel.archiveThread(thread.threadId)
+                                                            }
+                                                            true
                                                         }
-                                                        true
-                                                    } else {
-                                                        false
+                                                        SwipeToDismissBoxValue.EndToStart -> {
+                                                            viewModel.toggleStar(thread.threadId)
+                                                            false // Spring back, don't dismiss
+                                                        }
+                                                        else -> false
                                                     }
                                                 }
                                             )
@@ -330,12 +316,14 @@ fun InboxScreen(
                                             SwipeToDismissBox(
                                                 state = dismissState,
                                                 modifier = Modifier.animateItem(),
-                                                enableDismissFromEndToStart = false,
+                                                enableDismissFromEndToStart = true,
+                                                enableDismissFromStartToEnd = true,
                                                 backgroundContent = {
                                                     val color by animateColorAsState(
                                                         when (dismissState.targetValue) {
-                                                            SwipeToDismissBoxValue.Settled -> Color.Transparent
-                                                            else -> MaterialTheme.colorScheme.primaryContainer
+                                                            SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                                                            SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.tertiaryContainer
+                                                            else -> Color.Transparent
                                                         }
                                                     )
                                                     Box(
@@ -343,22 +331,34 @@ fun InboxScreen(
                                                             .fillMaxSize()
                                                             .background(color)
                                                             .padding(horizontal = 20.dp),
-                                                        contentAlignment = Alignment.CenterStart
+                                                        contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                                                     ) {
-                                                        Icon(
-                                                            imageVector = if ((state as? InboxState.Success)?.currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
-                                                            contentDescription = if ((state as? InboxState.Success)?.currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
-                                                            tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                                        )
+                                                        if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
+                                                            Icon(
+                                                                imageVector = if (currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
+                                                                contentDescription = if (currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
+                                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                            )
+                                                        } else if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                                                            Icon(
+                                                                imageVector = if (thread.isStarred) Icons.Outlined.StarOutline else Icons.Filled.Star,
+                                                                contentDescription = if (thread.isStarred) "Unstar" else "Star",
+                                                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                                            )
+                                                        }
                                                     }
                                                 }
                                             ) {
                                                 EmailItem(
-                                                thread = thread,
-                                                onClick = { onEmailClick(thread.threadId) },
-                                                onStarClick = { viewModel.toggleStar(thread.threadId) },
-                                                modifier = Modifier.animateItem()
-                                            )}
+                                                    thread = thread,
+                                                    onClick = { onEmailClick(thread.threadId) },
+                                                    onLongClick = {
+                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        longPressedThread = thread
+                                                    },
+                                                    modifier = Modifier.animateItem()
+                                                )
+                                            }
                                         }
                                     }
 
@@ -386,16 +386,18 @@ fun InboxScreen(
                     }
                 }
             }
+            } // End blur Box
 
             // Custom Floating Docked Toolbar
-            val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            if (longPressedThread == null) {
+                val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                 // Pill-shaped navigation bar
                 androidx.compose.material3.Surface(
                     modifier = Modifier.height(64.dp),
@@ -437,7 +439,7 @@ fun InboxScreen(
                     onClick = onCompose,
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = androidx.compose.foundation.shape.CircleShape,
                     elevation = androidx.compose.material3.FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
                     modifier = Modifier.size(64.dp)
                 ) {
@@ -445,12 +447,206 @@ fun InboxScreen(
                 }
             }
         }
+
+        // ── Long-press context menu overlay ──────────────────────────
+        var displayedThreadForMenu by remember { mutableStateOf<EmailThread?>(null) }
+        LaunchedEffect(longPressedThread) {
+            if (longPressedThread != null) displayedThreadForMenu = longPressedThread
+        }
+
+        androidx.compose.animation.AnimatedVisibility(
+            visible = longPressedThread != null,
+            enter = androidx.compose.animation.fadeIn(androidx.compose.animation.core.tween(200)),
+            exit = androidx.compose.animation.fadeOut(androidx.compose.animation.core.tween(200))
+        ) {
+            val thread = displayedThreadForMenu ?: return@AnimatedVisibility
+            // Dismiss scrim
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.7f))
+                    .clickable(
+                        indication = null,
+                        interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                    ) { longPressedThread = null }
+            )
+
+            // Context menu card
+            Box(
+                modifier = Modifier
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .animateEnterExit(
+                            enter = androidx.compose.animation.scaleIn(
+                                initialScale = 0.9f, 
+                                animationSpec = androidx.compose.animation.core.tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing)
+                            ),
+                            exit = androidx.compose.animation.scaleOut(
+                                targetScale = 0.9f, 
+                                animationSpec = androidx.compose.animation.core.tween(200)
+                            )
+                        ),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    // The selected email preview
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        tonalElevation = 8.dp,
+                        shadowElevation = 8.dp
+                    ) {
+                        EmailItem(
+                            thread = thread,
+                            onClick = { 
+                                longPressedThread = null
+                                onEmailClick(thread.threadId) 
+                            },
+                            onLongClick = {},
+                            modifier = Modifier
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Action row
+                    androidx.compose.material3.Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainer,
+                        tonalElevation = 8.dp,
+                        shadowElevation = 8.dp
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 8.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Star
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        viewModel.toggleStar(thread.threadId)
+                                        longPressedThread = null
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (thread.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                    contentDescription = if (thread.isStarred) "Unstar" else "Star",
+                                    tint = if (thread.isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (thread.isStarred) "Unstar" else "Star",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            // Archive / Unarchive
+                            val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        if (currentTab == InboxTab.ARCHIVED) {
+                                            viewModel.unarchiveThread(thread.threadId)
+                                        } else {
+                                            viewModel.archiveThread(thread.threadId)
+                                        }
+                                        longPressedThread = null
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
+                                    contentDescription = "Archive",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            // Mark read / unread
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        if (thread.isRead) {
+                                            viewModel.markThreadAsUnread(thread.threadId)
+                                        } else {
+                                            viewModel.markThreadAsRead(thread.threadId)
+                                        }
+                                        longPressedThread = null
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (thread.isRead) Icons.Outlined.MarkEmailUnread else Icons.Outlined.CheckCircle,
+                                    contentDescription = if (thread.isRead) "Mark unread" else "Mark read",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (thread.isRead) "Unread" else "Read",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+
+                            // Delete
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        viewModel.deleteThread(thread.threadId)
+                                        longPressedThread = null
+                                    }
+                                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Delete,
+                                    contentDescription = "Delete",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "Delete",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
+}
+
 
 // ── Search bar ───────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun InboxSearchBar(
     userProfile: UserProfile?,
@@ -459,59 +655,131 @@ private fun InboxSearchBar(
     onServerSearch: (String) -> Unit,
     onSignOut: () -> Unit,
     onMarkAllRead: () -> Unit,
-    onStarredClick: () -> Unit
+    onStarredClick: () -> Unit,
+    isRefreshing: Boolean,
+    toastState: InboxViewModel.ToastState?,
+    onUndo: () -> Unit
 ) {
     var showProfileModal by remember { mutableStateOf(false) }
 
+    val containerColor by androidx.compose.animation.animateColorAsState(
+        targetValue = if (toastState != null) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
+        animationSpec = androidx.compose.animation.core.tween(300),
+        label = "SearchBarColor"
+    )
+
     SearchBar(
         inputField = {
-            SearchBarDefaults.InputField(
-                query = query,
-                onQueryChange = onQueryChange,
-                onSearch = { onServerSearch(query) },
-                expanded = false,
-                onExpandedChange = {},
-                placeholder = {
-                    Text(
-                        text = "Search in mail",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        imageVector = Icons.Outlined.Search,
-                        contentDescription = "Search",
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(start = 16.dp)
-                    )
-                },
-                trailingIcon = {
+            androidx.compose.animation.AnimatedContent(
+                targetState = toastState,
+                label = "SearchBarToastMorph",
+                transitionSpec = {
+                    androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(300)) togetherWith 
+                    androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(200))
+                }
+            ) { toast ->
+                if (toast != null) {
+                    val icon = when (toast.actionType) {
+                        InboxViewModel.ActionType.ARCHIVE -> Icons.Outlined.Archive
+                        InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
+                    }
                     Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        IconButton(
-                            onClick = onMarkAllRead,
-                            modifier = Modifier.size(36.dp)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.weight(1f)
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.CheckCircle,
-                                contentDescription = "Mark all as read",
-                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
                                 modifier = Modifier.size(20.dp)
                             )
+                            Text(
+                                text = toast.message,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
                         }
-
-                        Spacer(modifier = Modifier.width(4.dp))
-
-                        AvatarButton(
-                            userProfile = userProfile,
-                            onClick = { showProfileModal = true }
-                        )
+                        androidx.compose.material3.TextButton(
+                            onClick = onUndo,
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text(
+                                "Undo",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
+                } else {
+                    SearchBarDefaults.InputField(
+                        query = query,
+                        onQueryChange = onQueryChange,
+                        onSearch = { onServerSearch(query) },
+                        expanded = false,
+                        onExpandedChange = {},
+                        placeholder = {
+                            Text(
+                                text = if (isRefreshing) "Syncing..." else "Search in mail",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                            )
+                        },
+                        leadingIcon = {
+                            if (isRefreshing) {
+                                LoadingIndicator(
+                                    modifier = Modifier.padding(start = 16.dp).size(40.dp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.Outlined.Search,
+                                    contentDescription = "Search",
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(start = 16.dp)
+                                )
+                            }
+                        },
+                        trailingIcon = {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(end = 12.dp)
+                            ) {
+                                IconButton(
+                                    onClick = onMarkAllRead,
+                                    modifier = Modifier.size(40.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.CheckCircle,
+                                        contentDescription = "Mark all as read",
+                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                        modifier = Modifier.size(25.dp)
+                                    )
+                                }
+        
+                                Spacer(modifier = Modifier.width(4.dp))
+        
+                                AvatarButton(
+                                    userProfile = userProfile,
+                                    onClick = { showProfileModal = true }
+                                )
+                            }
+                        }
+                    )
                 }
-            )
+            } // closes AnimatedContent
         },
         expanded = false,
         onExpandedChange = {},
@@ -519,13 +787,13 @@ private fun InboxSearchBar(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp),
         colors = SearchBarDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
+            containerColor = containerColor
         ),
         shape = MaterialTheme.shapes.extraLarge,
         windowInsets = WindowInsets(0.dp)
     ) {}
 
-    if (showProfileModal) {
+    if (showProfileModal && userProfile != null) {
         ProfileModal(
             userProfile = userProfile,
             onDismiss = { showProfileModal = false },

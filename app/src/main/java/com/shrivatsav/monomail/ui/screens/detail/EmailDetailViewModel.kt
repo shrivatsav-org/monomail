@@ -4,9 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 sealed class EmailDetailState {
@@ -20,28 +21,43 @@ class EmailDetailViewModel(
     private val threadId: String
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow<EmailDetailState>(EmailDetailState.Loading)
-    val state: StateFlow<EmailDetailState> = _state.asStateFlow()
+    // Observe the specific thread from DB
+    val state: StateFlow<EmailDetailState> = repository.getThreadEmailsFlow(threadId)
+        .map { emails ->
+            if (emails.isNotEmpty()) {
+                val unreadIds = emails.filter { !it.isRead }.map { it.id }
+                if (unreadIds.isNotEmpty()) {
+                    repository.markEmailsAsRead(unreadIds)
+                }
+                EmailDetailState.Success(emails)
+            } else {
+                EmailDetailState.Loading
+            }
+        }.stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = EmailDetailState.Loading
+        )
+
+    val isStarred: StateFlow<Boolean> = repository.getThreadEmailsFlow(threadId)
+        .map { emails -> emails.any { it.isStarred } }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = false
+        )
 
     init {
-        loadThread()
+        // Trigger a background refresh to ensure we have the full thread details
+        viewModelScope.launch {
+            repository.markThreadAsRead(threadId)
+            repository.refreshThread(threadId)
+        }
     }
 
-    private fun loadThread() {
+    fun toggleStar() {
         viewModelScope.launch {
-            _state.value = EmailDetailState.Loading
-            val result = repository.getThread(threadId)
-            _state.value = result.fold(
-                onSuccess = { emails ->
-                    // Automatically mark unread messages as read
-                    val unreadIds = emails.filter { !it.isRead }.map { it.id }
-                    if (unreadIds.isNotEmpty()) {
-                        launch { repository.markEmailsAsRead(unreadIds) }
-                    }
-                    EmailDetailState.Success(emails)
-                },
-                onFailure = { EmailDetailState.Error(it.message ?: "Failed to load thread") }
-            )
+            repository.toggleStar(threadId, isStarred.value)
         }
     }
 }
