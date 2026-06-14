@@ -112,9 +112,11 @@ fun InboxScreen(
         initial = com.shrivatsav.monomail.data.settings.AppSettings()
     )
     val fontSizeScale = when (appSettings.fontScale) {
+        com.shrivatsav.monomail.data.settings.FontScale.EXTRA_SMALL -> 0.7f
         com.shrivatsav.monomail.data.settings.FontScale.SMALL -> 0.85f
         com.shrivatsav.monomail.data.settings.FontScale.DEFAULT -> 1f
         com.shrivatsav.monomail.data.settings.FontScale.LARGE -> 1.15f
+        com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE -> 1.3f
     }
     val listState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
@@ -382,8 +384,8 @@ fun InboxScreen(
                                                 }
                                                 if (appSettings.showDividers) {
                                                     HorizontalDivider(
-                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                                        thickness = 0.5.dp,
+                                                        color = MaterialTheme.colorScheme.outlineVariant,
+                                                        thickness = 1.dp,
                                                         modifier = Modifier.padding(horizontal = 20.dp)
                                                     )
                                                 }

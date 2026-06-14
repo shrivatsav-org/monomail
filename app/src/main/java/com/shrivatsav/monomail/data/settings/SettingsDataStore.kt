@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
-enum class FontScale { SMALL, DEFAULT, LARGE }
+enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
 enum class SwipeAction { ARCHIVE, STAR, DELETE }
 enum class DefaultReply { REPLY, REPLY_ALL }
 enum class SyncFrequency { MIN_15, MIN_30, HOUR_1, MANUAL }

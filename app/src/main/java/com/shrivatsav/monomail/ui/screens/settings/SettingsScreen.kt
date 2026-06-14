@@ -372,8 +372,8 @@ private fun FontSizeRow(
             Slider(
                 value = currentScale.ordinal.toFloat(),
                 onValueChange = { onScaleChanged(FontScale.entries[it.toInt()]) },
-                valueRange = 0f..2f,
-                steps = 1,
+                valueRange = 0f..4f,
+                steps = 3,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
                     thumbColor = MaterialTheme.colorScheme.primary,
@@ -509,9 +509,11 @@ private fun ThemeMode.displayName() = when (this) {
 }
 
 private fun FontScale.displayName() = when (this) {
+    FontScale.EXTRA_SMALL -> "Extra Small"
     FontScale.SMALL -> "Small"
     FontScale.DEFAULT -> "Default"
     FontScale.LARGE -> "Large"
+    FontScale.EXTRA_LARGE -> "Extra Large"
 }
 
 private fun SwipeAction.displayName() = when (this) {
