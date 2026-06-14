@@ -11,26 +11,29 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class RetrofitClient(
-    private val tokenProvider: (provider: String) -> String?,
-    private val tokenRefresher: (provider: String) -> String?,
+    private val tokenProvider: () -> String?,
+    private val tokenRefresher: () -> String?,
 ) {
 
-    private fun createAuthInterceptor(provider: String) = Interceptor { chain ->
-        val token = tokenProvider(provider)
-        val request = if (token != null) {
-            chain.request().newBuilder()
-                .addHeader("Authorization", "Bearer $token")
+    private fun createAuthInterceptor() = Interceptor { chain ->
+        val request = chain.request()
+        val token = tokenProvider()
+        
+        val newRequest = if (token != null) {
+            request.newBuilder()
+                .header("Authorization", "Bearer $token")
                 .build()
         } else {
-            chain.request()
+            request
         }
-        val response = chain.proceed(request)
+        
+        val response = chain.proceed(newRequest)
 
         if (response.code == 401) {
-            response.close()
-            val newToken = tokenRefresher(provider)
+            val newToken = tokenRefresher()
             if (newToken != null) {
-                val retryRequest = chain.request().newBuilder()
+                response.close()
+                val retryRequest = request.newBuilder()
                     .header("Authorization", "Bearer $newToken")
                     .build()
                 return@Interceptor chain.proceed(retryRequest)
@@ -44,12 +47,12 @@ class RetrofitClient(
     }
 
     private val gmailHttpClient = OkHttpClient.Builder()
-        .addInterceptor(createAuthInterceptor("gmail"))
+        .addInterceptor(createAuthInterceptor())
         .addInterceptor(loggingInterceptor)
         .build()
 
     private val outlookHttpClient = OkHttpClient.Builder()
-        .addInterceptor(createAuthInterceptor("outlook"))
+        .addInterceptor(createAuthInterceptor())
         .addInterceptor(loggingInterceptor)
         .build()
 

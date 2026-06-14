@@ -18,7 +18,7 @@ import kotlin.coroutines.resumeWithException
 
 class MicrosoftAuthManager(private val context: Context, private val accountManager: AccountManager) {
 
-    private var msalApp: MultipleAccountPublicClientApplication? = null
+    private var msalApp: com.microsoft.identity.client.IMultipleAccountPublicClientApplication? = null
 
     // Scopes required for Microsoft Graph API to read/send emails
     // offline_access is requested automatically by MSAL
@@ -35,7 +35,7 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
             R.raw.msal_config,
             object : IPublicClientApplication.IMultipleAccountApplicationCreatedListener {
                 override fun onCreated(application: com.microsoft.identity.client.IMultipleAccountPublicClientApplication) {
-                    msalApp = application as? MultipleAccountPublicClientApplication
+                    msalApp = application
                     continuation.resume(true)
                 }
 
