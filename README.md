@@ -38,6 +38,7 @@ The architecture is offline-first: all reads and writes go through a local Room 
 **Account**
 - Google and Microsoft Sign-In, credentials never leave the device
 - Profile modal with account switching support and multi-provider "Add Account" dialog
+- Support for up to 10 connected accounts simultaneously
 
 **Settings**
 - Configurable swipe gesture actions
@@ -102,6 +103,12 @@ Pull requests are welcome. For significant changes, open an issue first to discu
 ```
 Fork → Branch → Commit → Pull Request
 ```
+
+## Support
+
+If you like this project and want to support its development, consider buying me a coffee! It's a great help for a student working on open source.
+
+<a href='https://ko-fi.com/N4N2W53M5' target='_blank'><img height='36' style='border:0px;height:36px;' src='https://storage.ko-fi.com/cdn/kofi3.png?v=6' border='0' alt='Buy Me a Coffee at ko-fi.com' /></a>
 
 ## License
 
