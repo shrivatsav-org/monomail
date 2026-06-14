@@ -67,9 +67,14 @@ private val DarkColors = darkColorScheme(
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MonoMailTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    themeMode: String = "SYSTEM", // "SYSTEM", "LIGHT", "DARK"
     content: @Composable () -> Unit
 ) {
+    val darkTheme = when (themeMode) {
+        "LIGHT" -> false
+        "DARK" -> true
+        else -> isSystemInDarkTheme()
+    }
     MaterialExpressiveTheme(
         colorScheme  = if (darkTheme) DarkColors else LightColors,
         typography   = AppTypography,

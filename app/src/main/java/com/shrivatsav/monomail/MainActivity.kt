@@ -9,8 +9,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.shrivatsav.monomail.data.settings.AppSettings
 import com.shrivatsav.monomail.ui.navigation.NavGraph
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
 
@@ -22,6 +25,10 @@ class MainActivity : ComponentActivity() {
 
     private val emailRepository by lazy {
         (application as MonoMailApp).emailRepository
+    }
+
+    private val settingsDataStore by lazy {
+        (application as MonoMailApp).settingsDataStore
     }
 
     private val requestPermissionLauncher = registerForActivityResult(
@@ -36,7 +43,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MonoMailTheme {
+            val settings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
+            MonoMailTheme(themeMode = settings.themeMode.name) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

@@ -9,6 +9,7 @@ import com.shrivatsav.monomail.data.local.AppDatabase
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import kotlinx.coroutines.runBlocking
 
 class MonoMailApp : Application() {
@@ -25,11 +26,15 @@ class MonoMailApp : Application() {
     lateinit var contactSuggestionProvider: ContactSuggestionProvider
         private set
 
+    lateinit var settingsDataStore: SettingsDataStore
+        private set
+
     override fun onCreate() {
         super.onCreate()
         tokenManager = TokenManager(this)
         authManager = AuthManager(this, tokenManager)
         contactSuggestionProvider = ContactSuggestionProvider()
+        settingsDataStore = SettingsDataStore(this)
 
         val retrofitClient = RetrofitClient(
             tokenProvider = { authManager.currentUser?.accessToken },

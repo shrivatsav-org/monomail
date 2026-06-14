@@ -40,6 +40,9 @@ fun EmailItem(
     thread: EmailThread,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
+    showSnippet: Boolean = true,
+    compactMode: Boolean = false,
+    fontSizeScale: Float = 1f,
     modifier: Modifier = Modifier
 ) {
     val isUnread = !thread.isRead
@@ -49,6 +52,8 @@ fun EmailItem(
     val domain = extractDomain(thread.fromEmail)
     val backgroundColor = if (isUnread) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.background
 
+    val verticalPad = if (compactMode) 7.dp else 11.dp
+
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -57,7 +62,7 @@ fun EmailItem(
                 onClick = onClick,
                 onLongClick = onLongClick
             )
-            .padding(horizontal = 20.dp, vertical = 11.dp),
+            .padding(horizontal = 20.dp, vertical = verticalPad),
         verticalAlignment = Alignment.Top
     ) {
         Box {
@@ -144,13 +149,17 @@ fun EmailItem(
             )
 
             // Snippet
-            Text(
-                text = thread.snippet,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (showSnippet) {
+                Text(
+                    text = thread.snippet,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontSize = MaterialTheme.typography.bodySmall.fontSize * fontSizeScale
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
