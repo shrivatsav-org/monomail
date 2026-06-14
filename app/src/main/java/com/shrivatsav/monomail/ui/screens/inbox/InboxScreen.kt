@@ -332,54 +332,54 @@ fun InboxScreen(
                                                 }
                                             )
                                             
-                                            SwipeToDismissBox(
-                                                state = dismissState,
-                                                modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null),
-                                                enableDismissFromEndToStart = true,
-                                                enableDismissFromStartToEnd = true,
-                                                backgroundContent = {
-                                                    val color by animateColorAsState(
-                                                        when (dismissState.targetValue) {
-                                                            SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
-                                                            SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.tertiaryContainer
-                                                            else -> Color.Transparent
-                                                        }
-                                                    )
-                                                    Box(
-                                                        modifier = Modifier
-                                                            .fillMaxSize()
-                                                            .background(color)
-                                                            .padding(horizontal = 20.dp),
-                                                        contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
-                                                    ) {
-                                                        if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
-                                                            Icon(
-                                                                imageVector = if (currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
-                                                                contentDescription = if (currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
-                                                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                                            )
-                                                        } else if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
-                                                            Icon(
-                                                                imageVector = if (thread.isStarred) Icons.Outlined.StarOutline else Icons.Filled.Star,
-                                                                contentDescription = if (thread.isStarred) "Unstar" else "Star",
-                                                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                                                            )
+                                            Column(modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)) {
+                                                SwipeToDismissBox(
+                                                    state = dismissState,
+                                                    enableDismissFromEndToStart = true,
+                                                    enableDismissFromStartToEnd = true,
+                                                    backgroundContent = {
+                                                        val color by animateColorAsState(
+                                                            when (dismissState.targetValue) {
+                                                                SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
+                                                                SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.tertiaryContainer
+                                                                else -> Color.Transparent
+                                                            }
+                                                        )
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .fillMaxSize()
+                                                                .background(color)
+                                                                .padding(horizontal = 20.dp),
+                                                            contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
+                                                        ) {
+                                                            if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
+                                                                Icon(
+                                                                    imageVector = if (currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
+                                                                    contentDescription = if (currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
+                                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                                )
+                                                            } else if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
+                                                                Icon(
+                                                                    imageVector = if (thread.isStarred) Icons.Outlined.StarOutline else Icons.Filled.Star,
+                                                                    contentDescription = if (thread.isStarred) "Unstar" else "Star",
+                                                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                                                )
+                                                            }
                                                         }
                                                     }
+                                                ) {
+                                                    EmailItem(
+                                                        thread = thread,
+                                                        onClick = { onEmailClick(thread.threadId) },
+                                                        onLongClick = {
+                                                            hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            longPressedThread = thread
+                                                        },
+                                                        showSnippet = appSettings.showSnippet,
+                                                        compactMode = appSettings.compactList,
+                                                        fontSizeScale = fontSizeScale
+                                                    )
                                                 }
-                                            ) {
-                                                EmailItem(
-                                                    thread = thread,
-                                                    onClick = { onEmailClick(thread.threadId) },
-                                                    onLongClick = {
-                                                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                        longPressedThread = thread
-                                                    },
-                                                    showSnippet = appSettings.showSnippet,
-                                                    compactMode = appSettings.compactList,
-                                                    fontSizeScale = fontSizeScale,
-                                                    modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)
-                                                )
                                                 if (appSettings.showDividers) {
                                                     HorizontalDivider(
                                                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
