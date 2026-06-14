@@ -87,6 +87,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.MarkEmailUnread
+import androidx.compose.material.icons.outlined.Restore
 import coil.compose.AsyncImage
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
@@ -107,6 +108,7 @@ fun InboxScreen(
 
     // Collect appearance settings
     val context = androidx.compose.ui.platform.LocalContext.current
+    var threadToDelete by remember { mutableStateOf<String?>(null) }
     val app = context.applicationContext as com.shrivatsav.monomail.MonoMailApp
     val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
         initial = com.shrivatsav.monomail.data.settings.AppSettings()
@@ -210,6 +212,7 @@ fun InboxScreen(
                 onSignOut = onSignOut,
                 onMarkAllRead = { viewModel.markAllAsRead() },
                 onStarredClick = { viewModel.switchTab(com.shrivatsav.monomail.ui.screens.inbox.InboxTab.STARRED) },
+                onTrashClick = { viewModel.switchTab(com.shrivatsav.monomail.ui.screens.inbox.InboxTab.TRASH) },
                 isRefreshing = isRefreshing,
                 toastState = toastState,
                 onUndo = { viewModel.undoAction() },
@@ -316,19 +319,29 @@ fun InboxScreen(
                                             val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
                                             val dismissState = rememberSwipeToDismissBoxState(
                                                 confirmValueChange = { value ->
-                                                    when (value) {
-                                                        SwipeToDismissBoxValue.StartToEnd -> {
-                                                            if (currentTab == InboxTab.ARCHIVED) {
-                                                                viewModel.unarchiveThread(thread.threadId)
-                                                            } else {
-                                                                viewModel.archiveThread(thread.threadId)
+                                                    val executeAction = { action: com.shrivatsav.monomail.data.settings.SwipeAction ->
+                                                        when (action) {
+                                                            com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> {
+                                                                if (currentTab == InboxTab.ARCHIVED) {
+                                                                    viewModel.unarchiveThread(thread.threadId)
+                                                                } else {
+                                                                    viewModel.archiveThread(thread.threadId)
+                                                                }
+                                                                true
                                                             }
-                                                            true
+                                                            com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> {
+                                                                viewModel.toggleStar(thread.threadId)
+                                                                false
+                                                            }
+                                                            com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> {
+                                                                threadToDelete = thread.threadId
+                                                                false
+                                                            }
                                                         }
-                                                        SwipeToDismissBoxValue.EndToStart -> {
-                                                            viewModel.toggleStar(thread.threadId)
-                                                            false // Spring back, don't dismiss
-                                                        }
+                                                    }
+                                                    when (value) {
+                                                        SwipeToDismissBoxValue.StartToEnd -> executeAction(appSettings.swipeRightAction)
+                                                        SwipeToDismissBoxValue.EndToStart -> executeAction(appSettings.swipeLeftAction)
                                                         else -> false
                                                     }
                                                 }
@@ -340,10 +353,20 @@ fun InboxScreen(
                                                     enableDismissFromEndToStart = true,
                                                     enableDismissFromStartToEnd = true,
                                                     backgroundContent = {
+                                                        val getAction = { value: SwipeToDismissBoxValue ->
+                                                            when (value) {
+                                                                SwipeToDismissBoxValue.StartToEnd -> appSettings.swipeRightAction
+                                                                SwipeToDismissBoxValue.EndToStart -> appSettings.swipeLeftAction
+                                                                else -> null
+                                                            }
+                                                        }
+                                                        val action = getAction(dismissState.targetValue) ?: getAction(dismissState.dismissDirection)
+                                                        
                                                         val color by animateColorAsState(
-                                                            when (dismissState.targetValue) {
-                                                                SwipeToDismissBoxValue.StartToEnd -> MaterialTheme.colorScheme.primaryContainer
-                                                                SwipeToDismissBoxValue.EndToStart -> MaterialTheme.colorScheme.tertiaryContainer
+                                                            when (action) {
+                                                                com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.primaryContainer
+                                                                com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> MaterialTheme.colorScheme.tertiaryContainer
+                                                                com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> MaterialTheme.colorScheme.errorContainer
                                                                 else -> Color.Transparent
                                                             }
                                                         )
@@ -354,18 +377,29 @@ fun InboxScreen(
                                                                 .padding(horizontal = 20.dp),
                                                             contentAlignment = if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) Alignment.CenterStart else Alignment.CenterEnd
                                                         ) {
-                                                            if (dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd) {
-                                                                Icon(
-                                                                    imageVector = if (currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
-                                                                    contentDescription = if (currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
-                                                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                                                )
-                                                            } else if (dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart) {
-                                                                Icon(
-                                                                    imageVector = if (thread.isStarred) Icons.Outlined.StarOutline else Icons.Filled.Star,
-                                                                    contentDescription = if (thread.isStarred) "Unstar" else "Star",
-                                                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
-                                                                )
+                                                            when (action) {
+                                                                com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> {
+                                                                    Icon(
+                                                                        imageVector = if (currentTab == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
+                                                                        contentDescription = if (currentTab == InboxTab.ARCHIVED) "Unarchive" else "Archive",
+                                                                        tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                                                    )
+                                                                }
+                                                                com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> {
+                                                                    Icon(
+                                                                        imageVector = if (thread.isStarred) Icons.Outlined.StarOutline else Icons.Filled.Star,
+                                                                        contentDescription = if (thread.isStarred) "Unstar" else "Star",
+                                                                        tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                                                    )
+                                                                }
+                                                                com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> {
+                                                                    Icon(
+                                                                        imageVector = Icons.Outlined.Delete,
+                                                                        contentDescription = "Delete",
+                                                                        tint = MaterialTheme.colorScheme.onErrorContainer
+                                                                    )
+                                                                }
+                                                                else -> {}
                                                             }
                                                         }
                                                     }
@@ -641,28 +675,32 @@ fun InboxScreen(
                                 )
                             }
 
-                            // Delete
+                            // Delete / Restore
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .clickable {
-                                        viewModel.deleteThread(thread.threadId)
+                                        if (currentTab == InboxTab.TRASH) {
+                                            viewModel.restoreThread(thread.threadId)
+                                        } else {
+                                            threadToDelete = thread.threadId
+                                        }
                                         longPressedThread = null
                                     }
                                     .padding(horizontal = 12.dp, vertical = 10.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Outlined.Delete,
-                                    contentDescription = "Delete",
-                                    tint = MaterialTheme.colorScheme.error,
+                                    imageVector = if (currentTab == InboxTab.TRASH) Icons.Outlined.Restore else Icons.Outlined.Delete,
+                                    contentDescription = if (currentTab == InboxTab.TRASH) "Restore" else "Delete",
+                                    tint = if (currentTab == InboxTab.TRASH) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(22.dp)
                                 )
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "Delete",
+                                    text = if (currentTab == InboxTab.TRASH) "Restore" else "Delete",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.error
+                                    color = if (currentTab == InboxTab.TRASH) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                                 )
                             }
                         }
@@ -671,9 +709,29 @@ fun InboxScreen(
             }
         }
     }
-}
-}
 
+    if (threadToDelete != null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { threadToDelete = null },
+            title = { androidx.compose.material3.Text("Move to Trash?") },
+            text = { androidx.compose.material3.Text("Are you sure you want to move this conversation to the trash?") },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = {
+                    viewModel.deleteThread(threadToDelete!!)
+                    threadToDelete = null
+                }) {
+                    androidx.compose.material3.Text("Move to Trash")
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(onClick = { threadToDelete = null }) {
+                    androidx.compose.material3.Text("Cancel")
+                }
+            }
+        )
+    }
+}
+}
 
 // ── Search bar ───────────────────────────────────────────────────────────────
 
@@ -687,6 +745,7 @@ private fun InboxSearchBar(
     onSignOut: () -> Unit,
     onMarkAllRead: () -> Unit,
     onStarredClick: () -> Unit,
+    onTrashClick: () -> Unit,
     isRefreshing: Boolean,
     toastState: InboxViewModel.ToastState?,
     onUndo: () -> Unit,
@@ -834,6 +893,10 @@ private fun InboxSearchBar(
                 showProfileModal = false
                 onSignOut()
             },
+            onTrashClick = {
+                showProfileModal = false
+                onTrashClick()
+            },
             onStarredClick = {
                 showProfileModal = false
                 onStarredClick()
@@ -888,6 +951,7 @@ private fun ProfileModal(
     userProfile: UserProfile,
     onDismiss: () -> Unit,
     onSignOut: () -> Unit,
+    onTrashClick: () -> Unit,
     onStarredClick: () -> Unit,
     onSettings: () -> Unit = {}
 ) {
@@ -991,6 +1055,13 @@ private fun ProfileModal(
                         icon = Icons.Outlined.Star,
                         label = "Starred",
                         onClick = onStarredClick
+                    )
+
+                    // Trash
+                    ProfileMenuItem(
+                        icon = Icons.Outlined.Delete,
+                        label = "Trash",
+                        onClick = onTrashClick
                     )
 
                     // Settings

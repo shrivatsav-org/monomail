@@ -17,7 +17,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 
-enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED }
+enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH }
 
 sealed class InboxState {
     object Loading : InboxState()
@@ -38,7 +38,8 @@ class InboxViewModel(
 
     private val _currentTab = MutableStateFlow(InboxTab.INBOX)
     private val _isRefreshing = MutableStateFlow(false)
-    private val _nextPageToken = MutableStateFlow<String?>(null)
+    private val pageTokens = mutableMapOf<String, String?>()
+    private fun getPageTokenKey(): String = "${_currentTab.value.name}_${currentServerQuery ?: ""}"
     private var currentServerQuery: String? = null
     private var isLoadingMore = false
 
@@ -60,11 +61,10 @@ class InboxViewModel(
         combine(
             repository.getInboxThreadsFlow(tab),
             _isRefreshing,
-            _nextPageToken,
             pendingHideIds
-        ) { threads, isRefreshing, nextPageToken, hiddenIds ->
+        ) { threads, isRefreshing, hiddenIds ->
             val filteredThreads = threads.filter { it.threadId !in hiddenIds }
-            InboxState.Success(filteredThreads, tab, isRefreshing, nextPageToken)
+            InboxState.Success(filteredThreads, tab, isRefreshing, pageTokens[getPageTokenKey()])
         }
     }.stateIn(
         scope = viewModelScope,
@@ -113,7 +113,11 @@ class InboxViewModel(
             val query = currentServerQuery // Use query if searching
             val result = repository.refreshInbox(_currentTab.value, query = query)
             result.onSuccess { token ->
-                _nextPageToken.value = token
+                if (token != null) {
+                    pageTokens[getPageTokenKey()] = token
+                } else {
+                    pageTokens.remove(getPageTokenKey())
+                }
             }
             if (showLoader) _isRefreshing.value = false
         }
@@ -125,14 +129,19 @@ class InboxViewModel(
     }
 
     fun loadMore() {
-        val token = _nextPageToken.value ?: return
+        val key = getPageTokenKey()
+        val token = pageTokens[key] ?: return
         if (isLoadingMore) return
         isLoadingMore = true
 
         viewModelScope.launch {
             val result = repository.refreshInbox(_currentTab.value, pageToken = token, query = currentServerQuery)
             result.onSuccess { newToken ->
-                _nextPageToken.value = newToken
+                if (newToken != null) {
+                    pageTokens[key] = newToken
+                } else {
+                    pageTokens.remove(key)
+                }
             }
             isLoadingMore = false
         }
@@ -163,6 +172,10 @@ class InboxViewModel(
 
     fun deleteThread(threadId: String) {
         queueAction(threadId, ActionType.DELETE, "Conversation deleted")
+    }
+
+    fun restoreThread(threadId: String) {
+        viewModelScope.launch { repository.restoreThread(threadId) }
     }
 
     fun unarchiveThread(threadId: String) {

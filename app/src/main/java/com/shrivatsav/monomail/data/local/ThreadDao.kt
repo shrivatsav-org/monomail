@@ -21,6 +21,9 @@ interface ThreadDao {
     @Query("SELECT * FROM threads WHERE isStarred = 1 ORDER BY date DESC")
     fun getStarredThreads(): Flow<List<ThreadEntity>>
 
+    @Query("SELECT * FROM threads WHERE inTrash = 1 ORDER BY date DESC")
+    fun getTrashThreads(): Flow<List<ThreadEntity>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertThreads(threads: List<ThreadEntity>)
 
@@ -38,6 +41,12 @@ interface ThreadDao {
 
     @Query("DELETE FROM threads WHERE threadId = :threadId")
     suspend fun deleteThread(threadId: String)
+
+    @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId")
+    suspend fun moveToTrash(threadId: String)
+
+    @Query("UPDATE threads SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId")
+    suspend fun restoreFromTrash(threadId: String)
     
     @Query("DELETE FROM threads")
     suspend fun clearAll()

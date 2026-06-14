@@ -57,6 +57,9 @@ class SyncWorker(
                 ACTION_DELETE -> {
                     api.trashThread(threadId!!)
                 }
+                ACTION_RESTORE -> {
+                    api.untrashThread(threadId!!)
+                }
             }
             Result.success()
         } catch (e: Exception) {
@@ -79,5 +82,6 @@ class SyncWorker(
         const val ACTION_ARCHIVE = "archive"
         const val ACTION_UNARCHIVE = "unarchive"
         const val ACTION_DELETE = "delete"
+        const val ACTION_RESTORE = "restore"
     }
 }

@@ -66,6 +66,9 @@ sealed class Screen(val route: String) {
         }
     }
     object Settings : Screen("settings")
+    object Legal : Screen("legal/{type}") {
+        fun createRoute(type: String) = "legal/$type"
+    }
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -148,6 +151,9 @@ fun NavGraph(
                     navController.navigate(Screen.Inbox.route) {
                         popUpTo(Screen.SignIn.route) { inclusive = true }
                     }
+                },
+                onNavigateToLegal = { type ->
+                    navController.navigate(Screen.Legal.createRoute(type))
                 }
             )
         }
@@ -172,6 +178,7 @@ fun NavGraph(
                 onSignOut = {
                     scope.launch {
                         authManager.signOut()
+                        emailRepository.clearLocalData()
                         navController.navigate(Screen.SignIn.route) {
                             popUpTo(0) { inclusive = true }
                         }
@@ -188,18 +195,32 @@ fun NavGraph(
 
         // ── Settings ─────────────────────────────────────────────────
         composable(Screen.Settings.route) {
-            val settingsDataStore = app.settingsDataStore
-            val vm: SettingsViewModel = viewModel(
+            val app = context.applicationContext as MonoMailApp
+            val settingsViewModel: SettingsViewModel = viewModel(
                 factory = object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return SettingsViewModel(settingsDataStore) as T
+                        return SettingsViewModel(app.settingsDataStore) as T
                     }
                 }
             )
             SettingsScreen(
-                viewModel = vm,
-                onBack = { navController.popBackStack() }
+                viewModel = settingsViewModel,
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToLegal = { type ->
+                    navController.navigate(Screen.Legal.createRoute(type))
+                }
+            )
+        }
+
+        composable(
+            route = Screen.Legal.route,
+            arguments = listOf(navArgument("type") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val type = backStackEntry.arguments?.getString("type") ?: "privacy"
+            com.shrivatsav.monomail.ui.screens.settings.LegalScreen(
+                type = type,
+                onNavigateBack = { navController.popBackStack() }
             )
         }
 
@@ -290,4 +311,4 @@ fun NavGraph(
             )
         }
     }
-}
+}

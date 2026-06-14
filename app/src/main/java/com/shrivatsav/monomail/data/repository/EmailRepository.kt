@@ -58,6 +58,7 @@ class EmailRepository(
             InboxTab.SENT -> threadDao.getSentThreads()
             InboxTab.ARCHIVED -> threadDao.getArchivedThreads()
             InboxTab.STARRED -> threadDao.getStarredThreads()
+            InboxTab.TRASH -> threadDao.getTrashThreads()
         }.map { list -> list.map { it.toDomainModel() } }
     }
 
@@ -78,6 +79,7 @@ class EmailRepository(
                 tab == InboxTab.INBOX -> "INBOX"
                 tab == InboxTab.SENT -> "SENT"
                 tab == InboxTab.STARRED -> "STARRED"
+                tab == InboxTab.TRASH -> "TRASH"
                 tab == InboxTab.ARCHIVED -> null // Archived is typically -label:inbox but we handle it manually or query
                 else -> "INBOX"
             }
@@ -96,8 +98,15 @@ class EmailRepository(
             if (threadRefs.isNotEmpty()) {
                 val rawThreads = coroutineScope {
                     threadRefs.map { ref ->
-                        async { api.getThread(ref.id) }
-                    }.awaitAll()
+                        async { 
+                            try {
+                                api.getThread(ref.id)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                null
+                            }
+                        }
+                    }.awaitAll().filterNotNull()
                 }
 
                 // Insert into DB
@@ -108,7 +117,8 @@ class EmailRepository(
                     domainThread.toEntity(
                         inInbox = "INBOX" in labels || (tab == InboxTab.INBOX),
                         inSent = "SENT" in labels || (tab == InboxTab.SENT),
-                        inArchived = tab == InboxTab.ARCHIVED
+                        inArchived = tab == InboxTab.ARCHIVED,
+                        inTrash = "TRASH" in labels || (tab == InboxTab.TRASH)
                     )
                 }
                 threadDao.insertThreads(entities)
@@ -206,15 +216,30 @@ class EmailRepository(
     }
 
     suspend fun deleteThread(threadId: String) {
-        // Optimistic update
-        threadDao.deleteThread(threadId)
-        emailDao.deleteThreadEmails(threadId)
+        // Move to trash locally so UI reflects it immediately
+        threadDao.moveToTrash(threadId)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_DELETE)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
+    }
+
+    suspend fun restoreThread(threadId: String) {
+        // Optimistic update
+        threadDao.restoreFromTrash(threadId)
+        
+        val data = Data.Builder()
+            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_RESTORE)
+            .putString(SyncWorker.KEY_THREAD_ID, threadId)
+            .build()
+        enqueueSync(data)
+    }
+
+    suspend fun clearLocalData() {
+        threadDao.clearAll()
+        emailDao.clearAll()
     }
 
     suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {

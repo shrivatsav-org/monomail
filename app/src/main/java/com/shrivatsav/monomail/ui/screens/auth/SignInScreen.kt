@@ -8,6 +8,7 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.Image
+import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Mail
 import androidx.compose.material3.Button
@@ -37,14 +40,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.shrivatsav.monomail.R
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SignInScreen(
     viewModel: SignInViewModel,
-    onSignInSuccess: () -> Unit
+    onSignInSuccess: () -> Unit,
+    onNavigateToLegal: (String) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -106,11 +112,10 @@ fun SignInScreen(
             verticalArrangement = Arrangement.Center
         ) {
             // mail icon
-            Icon(
-                imageVector = Icons.Rounded.Mail,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.onBackground
+            AsyncImage(
+                model = R.mipmap.ic_launcher,
+                contentDescription = "Monomail Icon",
+                modifier = Modifier.size(96.dp)
             )
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -159,6 +164,31 @@ fun SignInScreen(
                         style = MaterialTheme.typography.labelLarge
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            androidx.compose.foundation.layout.Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "Privacy Policy",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onNavigateToLegal("privacy") }
+                )
+                Text(
+                    text = " • ",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+                Text(
+                    text = "Terms of Service",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onNavigateToLegal("tos") }
+                )
             }
         }
 

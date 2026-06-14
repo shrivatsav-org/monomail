@@ -69,4 +69,9 @@ interface GmailApi {
     suspend fun trashThread(
         @Path("id") id: String
     ): GmailThread
+
+    @POST("users/me/threads/{id}/untrash")
+    suspend fun untrashThread(
+        @Path("id") id: String
+    ): GmailThread
 }

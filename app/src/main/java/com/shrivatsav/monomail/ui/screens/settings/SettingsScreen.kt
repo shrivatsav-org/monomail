@@ -26,7 +26,8 @@ import com.shrivatsav.monomail.data.settings.*
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    onBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToLegal: (String) -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
 
@@ -42,7 +43,7 @@ fun SettingsScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
                             contentDescription = "Back",
@@ -175,6 +176,20 @@ fun SettingsScreen(
                 icon = Icons.Outlined.Info,
                 title = "Version",
                 value = "1.0.4"
+            )
+
+            InfoRow(
+                icon = Icons.Outlined.PrivacyTip,
+                title = "Privacy Policy",
+                value = "Read our privacy policy",
+                onClick = { onNavigateToLegal("privacy") }
+            )
+
+            InfoRow(
+                icon = Icons.Outlined.Gavel,
+                title = "Terms of Service",
+                value = "Read our terms of service",
+                onClick = { onNavigateToLegal("tos") }
             )
 
             InfoRow(
@@ -469,11 +484,13 @@ private fun PickerRow(
 private fun InfoRow(
     icon: ImageVector,
     title: String,
-    value: String
+    value: String,
+    onClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
