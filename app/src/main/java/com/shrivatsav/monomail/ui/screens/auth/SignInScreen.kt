@@ -1,6 +1,8 @@
 package com.shrivatsav.monomail.ui.screens.auth
 
 import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
@@ -372,7 +374,13 @@ fun ProviderSelectionDialog(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Button(
-                    onClick = { viewModel.signInMicrosoft(context as Activity) },
+                    onClick = { 
+                        context.findActivity()?.let { activity ->
+                            viewModel.signInMicrosoft(activity)
+                        } ?: run {
+                            android.widget.Toast.makeText(context, "Activity not found", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    },
                     enabled = state !is SignInState.Loading,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -408,4 +416,10 @@ fun ProviderSelectionDialog(
             }
         }
     }
+}
+
+fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
