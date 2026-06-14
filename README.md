@@ -1,6 +1,6 @@
 # Monomail
 
-A pure black-and-white Gmail client for Android, built with Jetpack Compose and Material 3. No colour accents, no noise — just email.
+A pure black-and-white Gmail client for Android, built with Jetpack Compose and Material 3. No colour accents, no noise, just email.
 
 **[Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest)**
 
@@ -8,7 +8,7 @@ A pure black-and-white Gmail client for Android, built with Jetpack Compose and 
 
 ## Overview
 
-Monomail is an open-source Android email client that connects to Gmail via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome — every screen uses only black, white, and greyscale — built on top of Material 3 Expressive with Google Sans and Roboto.
+Monomail is an open-source Android email client that connects to Gmail via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome, every screen uses only black, white, and greyscale, built on top of Material 3 Expressive with Google Sans and Roboto.
 
 The architecture is offline-first: all reads and writes go through a local Room database first, and background sync via WorkManager keeps the remote state consistent without blocking the UI.
 
@@ -30,7 +30,7 @@ The architecture is offline-first: all reads and writes go through a local Room 
 - Online search falling back to the Gmail API
 
 **Account**
-- Google Sign-In via Credential Manager — credentials never leave the device
+- Google Sign-In via Credential Manager, credentials never leave the device
 - Profile modal with account switching support
 
 **Settings**
