@@ -27,7 +27,8 @@ data class AppSettings(
     val defaultReply: DefaultReply = DefaultReply.REPLY,
     val emailNotifications: Boolean = true,
     val syncFrequency: SyncFrequency = SyncFrequency.MIN_15,
-    val unifiedInboxEnabled: Boolean = false
+    val unifiedInboxEnabled: Boolean = false,
+    val hasSeenDonationPrompt: Boolean = false
 )
 
 class SettingsDataStore(private val context: Context) {
@@ -45,6 +46,7 @@ class SettingsDataStore(private val context: Context) {
         val EMAIL_NOTIFICATIONS = booleanPreferencesKey("email_notifications")
         val SYNC_FREQUENCY = stringPreferencesKey("sync_frequency")
         val UNIFIED_INBOX_ENABLED = booleanPreferencesKey("unified_inbox_enabled")
+        val HAS_SEEN_DONATION_PROMPT = booleanPreferencesKey("has_seen_donation_prompt")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -60,7 +62,8 @@ class SettingsDataStore(private val context: Context) {
             defaultReply = prefs[Keys.DEFAULT_REPLY]?.let { DefaultReply.valueOf(it) } ?: DefaultReply.REPLY,
             emailNotifications = prefs[Keys.EMAIL_NOTIFICATIONS] ?: true,
             syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15,
-            unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false
+            unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false,
+            hasSeenDonationPrompt = prefs[Keys.HAS_SEEN_DONATION_PROMPT] ?: false
         )
     }
 
@@ -110,5 +113,9 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setUnifiedInboxEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.UNIFIED_INBOX_ENABLED] = enabled }
+    }
+
+    suspend fun setHasSeenDonationPrompt(seen: Boolean) {
+        context.dataStore.edit { it[Keys.HAS_SEEN_DONATION_PROMPT] = seen }
     }
 }
