@@ -130,7 +130,7 @@ class InboxViewModel(
     private fun startForegroundPolling() {
         viewModelScope.launch {
             while (true) {
-                delay(15_000) // Poll every 15 seconds silently
+                delay(60_000) // Poll every 60 seconds silently
                 // Poll the Inbox specifically as it's the most critical
                 repository.refreshInbox(InboxTab.INBOX)
                 if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {

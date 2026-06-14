@@ -61,24 +61,33 @@ class AccountManager(private val context: Context) {
     }
 
     suspend fun addAccount(profile: UserProfile) {
-        val accounts = getAccounts().toMutableList()
-        // Replace if already exists (same email + provider)
-        val index = accounts.indexOfFirst { it.email == profile.email && it.provider == profile.provider }
-        if (index != -1) {
-            accounts[index] = profile
-        } else {
-            accounts.add(profile)
-        }
-        
         context.dataStore.edit { prefs ->
+            val json = prefs[KEY_ACCOUNTS_JSON]
+            val accounts = if (json != null) {
+                gson.fromJson(json, Array<UserProfile>::class.java).toMutableList()
+            } else {
+                mutableListOf()
+            }
+            
+            // Replace if already exists (same email + provider)
+            val index = accounts.indexOfFirst { it.email == profile.email && it.provider == profile.provider }
+            if (index != -1) {
+                accounts[index] = profile
+            } else {
+                accounts.add(profile)
+            }
             prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
         }
     }
 
     suspend fun removeAccount(accountId: String) {
-        val accounts = getAccounts().filterNot { it.id == accountId }
         context.dataStore.edit { prefs ->
-            prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
+            val json = prefs[KEY_ACCOUNTS_JSON]
+            if (json != null) {
+                val accounts = gson.fromJson(json, Array<UserProfile>::class.java).toMutableList()
+                accounts.removeAll { it.id == accountId }
+                prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
+            }
             if (prefs[KEY_ACTIVE_ACCOUNT_ID] == accountId) {
                 prefs.remove(KEY_ACTIVE_ACCOUNT_ID)
             }
@@ -102,12 +111,15 @@ class AccountManager(private val context: Context) {
     }
 
     suspend fun updateAccountToken(accountId: String, newToken: String) {
-        val accounts = getAccounts().toMutableList()
-        val index = accounts.indexOfFirst { it.id == accountId }
-        if (index != -1) {
-            accounts[index] = accounts[index].copy(accessToken = newToken)
-            context.dataStore.edit { prefs ->
-                prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
+        context.dataStore.edit { prefs ->
+            val json = prefs[KEY_ACCOUNTS_JSON]
+            if (json != null) {
+                val accounts = gson.fromJson(json, Array<UserProfile>::class.java).toMutableList()
+                val index = accounts.indexOfFirst { it.id == accountId }
+                if (index != -1) {
+                    accounts[index] = accounts[index].copy(accessToken = newToken)
+                    prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
+                }
             }
         }
     }

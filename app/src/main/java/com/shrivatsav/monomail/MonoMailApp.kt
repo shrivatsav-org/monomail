@@ -40,56 +40,51 @@ class MonoMailApp : Application() {
         contactSuggestionProvider = ContactSuggestionProvider()
         settingsDataStore = SettingsDataStore(this)
 
-        val retrofitClient = RetrofitClient(
-            tokenProvider = { providerName -> 
-                val profile = authManager.currentUser
-                if (profile?.provider == providerName) profile.accessToken else null
-            },
-            tokenRefresher = { providerName ->
-                // Invalidate old token & fetch fresh one
-                val profile = authManager.currentUser ?: return@RetrofitClient null
-                if (profile.provider != providerName) return@RetrofitClient null
-                try {
-                    if (profile.provider == "gmail") {
-                        val oldToken = profile.accessToken
-                        if (oldToken.isNotEmpty()) {
-                            GoogleAuthUtil.clearToken(this@MonoMailApp, oldToken)
-                        }
-                        val newToken = GoogleAuthUtil.getToken(
-                            this@MonoMailApp,
-                            Account(profile.email, "com.google"),
-                            AuthManager.GMAIL_SCOPE
-                        )
-                        // Update stored profile with new token
-                        val updated = profile.copy(accessToken = newToken)
-                        runBlocking { authManager.updateAccessToken(updated) }
-                        newToken
-                    } else if (profile.provider == "outlook") {
-                        // Microsoft token refresh
-                        val newToken = runBlocking {
-                            authManager.microsoftAuthManager.getAccessTokenSilently(profile.id)
-                        }
-                        if (newToken != null) {
-                            val updated = profile.copy(accessToken = newToken)
-                            runBlocking { authManager.updateAccessToken(updated) }
-                        }
-                        newToken
-                    } else {
-                        null
-                    }
-                } catch (e: Exception) {
-                    null
-                }
-            }
-        )
-
         val database = AppDatabase.getDatabase(this)
 
         val providerFactory: (UserProfile) -> EmailProvider = { profile ->
+            val profileRetrofit = RetrofitClient(
+                tokenProvider = { 
+                    runBlocking { accountManager.getAccounts().find { it.id == profile.id } }?.accessToken
+                },
+                tokenRefresher = {
+                    val currentProfile = runBlocking { accountManager.getAccounts().find { it.id == profile.id } } ?: return@RetrofitClient null
+                    try {
+                        if (currentProfile.provider == "gmail") {
+                            val oldToken = currentProfile.accessToken
+                            if (oldToken.isNotEmpty()) {
+                                GoogleAuthUtil.clearToken(this@MonoMailApp, oldToken)
+                            }
+                            val newToken = GoogleAuthUtil.getToken(
+                                this@MonoMailApp,
+                                Account(currentProfile.email, "com.google"),
+                                AuthManager.GMAIL_SCOPE
+                            )
+                            val updated = currentProfile.copy(accessToken = newToken)
+                            runBlocking { authManager.updateAccessToken(updated) }
+                            newToken
+                        } else if (currentProfile.provider == "outlook") {
+                            val newToken = runBlocking {
+                                authManager.microsoftAuthManager.getAccessTokenSilently(currentProfile.id)
+                            }
+                            if (newToken != null) {
+                                val updated = currentProfile.copy(accessToken = newToken)
+                                runBlocking { authManager.updateAccessToken(updated) }
+                            }
+                            newToken
+                        } else {
+                            null
+                        }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            )
+
             when (profile.provider) {
-                "gmail" -> GmailProvider(retrofitClient.gmailApi, this)
-                "outlook" -> OutlookProvider(retrofitClient.outlookApi, this)
-                else -> GmailProvider(retrofitClient.gmailApi, this) // Default fallback
+                "gmail" -> GmailProvider(profileRetrofit.gmailApi, this)
+                "outlook" -> OutlookProvider(profileRetrofit.outlookApi, this)
+                else -> GmailProvider(profileRetrofit.gmailApi, this) // Default fallback
             }
         }
 

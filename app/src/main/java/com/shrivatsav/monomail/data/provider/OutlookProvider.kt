@@ -228,6 +228,10 @@ class OutlookProvider(
 
         val draftAttachments = attachments.mapNotNull { att ->
             context.contentResolver.openInputStream(att.uri)?.use { stream ->
+                val size = stream.available()
+                if (size > 3 * 1024 * 1024) {
+                    throw IllegalArgumentException("Attachment ${att.name} exceeds the 3MB limit for Outlook.")
+                }
                 val bytes = stream.readBytes()
                 val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
                 OutlookDraftAttachment(
