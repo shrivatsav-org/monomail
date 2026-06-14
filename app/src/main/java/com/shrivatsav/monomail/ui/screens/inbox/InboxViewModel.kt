@@ -25,6 +25,7 @@ sealed class InboxState {
         val threads: List<EmailThread>,
         val currentTab: InboxTab = InboxTab.INBOX,
         val isRefreshing: Boolean = false,
+        val isLoadingMore: Boolean = false,
         val nextPageToken: String? = null
     ) : InboxState()
     data class Error(val message: String) : InboxState()
@@ -41,7 +42,7 @@ class InboxViewModel(
     private val pageTokens = mutableMapOf<String, String?>()
     private fun getPageTokenKey(): String = "${_currentTab.value.name}_${currentServerQuery ?: ""}"
     private var currentServerQuery: String? = null
-    private var isLoadingMore = false
+    private val _isLoadingMore = MutableStateFlow(false)
 
     private val pendingHideIds = MutableStateFlow<Set<String>>(emptySet())
     private val pendingActionJobs = mutableMapOf<String, Job>()
@@ -61,10 +62,11 @@ class InboxViewModel(
         combine(
             repository.getInboxThreadsFlow(tab),
             _isRefreshing,
+            _isLoadingMore,
             pendingHideIds
-        ) { threads, isRefreshing, hiddenIds ->
+        ) { threads, isRefreshing, isLoadingMore, hiddenIds ->
             val filteredThreads = threads.filter { it.threadId !in hiddenIds }
-            InboxState.Success(filteredThreads, tab, isRefreshing, pageTokens[getPageTokenKey()])
+            InboxState.Success(filteredThreads, tab, isRefreshing, isLoadingMore, pageTokens[getPageTokenKey()])
         }
     }.stateIn(
         scope = viewModelScope,
@@ -131,8 +133,8 @@ class InboxViewModel(
     fun loadMore() {
         val key = getPageTokenKey()
         val token = pageTokens[key] ?: return
-        if (isLoadingMore) return
-        isLoadingMore = true
+        if (_isLoadingMore.value) return
+        _isLoadingMore.value = true
 
         viewModelScope.launch {
             val result = repository.refreshInbox(_currentTab.value, pageToken = token, query = currentServerQuery)
@@ -143,7 +145,7 @@ class InboxViewModel(
                     pageTokens.remove(key)
                 }
             }
-            isLoadingMore = false
+            _isLoadingMore.value = false
         }
     }
 

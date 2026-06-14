@@ -445,6 +445,23 @@ fun InboxScreen(
                                             }
                                         }
                                     }
+                                    
+                                    if (s.isLoadingMore) {
+                                        item(key = "loading_more") {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                androidx.compose.material3.CircularProgressIndicator(
+                                                    modifier = Modifier.size(24.dp),
+                                                    color = MaterialTheme.colorScheme.primary,
+                                                    strokeWidth = 2.dp
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
