@@ -8,6 +8,7 @@ import com.shrivatsav.monomail.data.model.EmailThread
 @Entity(tableName = "threads")
 data class ThreadEntity(
     @PrimaryKey val threadId: String,
+    val accountId: String,
     val subject: String,
     val fromName: String,
     val fromEmail: String,
@@ -42,6 +43,7 @@ data class ThreadEntity(
 @Entity(tableName = "emails")
 data class EmailEntity(
     @PrimaryKey val id: String,
+    val accountId: String,
     val threadId: String,
     val subject: String,
     val fromName: String,
@@ -75,12 +77,14 @@ data class EmailEntity(
 }
 
 fun EmailThread.toEntity(
+    accountId: String,
     inInbox: Boolean = false,
     inSent: Boolean = false,
     inArchived: Boolean = false,
     inTrash: Boolean = false
 ) = ThreadEntity(
     threadId = threadId,
+    accountId = accountId,
     subject = subject,
     fromName = from,
     fromEmail = fromEmail,
@@ -97,8 +101,9 @@ fun EmailThread.toEntity(
     inTrash = inTrash
 )
 
-fun Email.toEntity() = EmailEntity(
+fun Email.toEntity(accountId: String) = EmailEntity(
     id = id,
+    accountId = accountId,
     threadId = threadId,
     subject = subject,
     fromName = from,

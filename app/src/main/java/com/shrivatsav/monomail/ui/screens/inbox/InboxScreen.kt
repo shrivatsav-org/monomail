@@ -24,6 +24,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CheckCircle
@@ -34,6 +36,7 @@ import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.BottomSheetDefaults
@@ -102,9 +105,11 @@ fun InboxScreen(
     onEmailClick: (String) -> Unit,
     onSignOut: () -> Unit,
     onCompose: () -> Unit = {},
-    onSettings: () -> Unit = {}
+    onSettings: () -> Unit = {},
+    onAddAccount: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
+    val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
 
     // Collect appearance settings
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -203,13 +208,19 @@ fun InboxScreen(
                     .background(MaterialTheme.colorScheme.background)
             ) {
                 val toastState by viewModel.toastState.collectAsState()
+                val accounts by viewModel.accounts.collectAsState()
                 
             InboxSearchBar(
                 userProfile = userProfile,
+                accounts = accounts,
                 query = searchQuery,
                 onQueryChange = { searchQuery = it },
                 onServerSearch = { viewModel.searchServer(it) },
                 onSignOut = onSignOut,
+                onSwitchAccount = { accountId -> viewModel.switchAccount(accountId) },
+                onAddAccount = {
+                    onAddAccount()
+                },
                 onMarkAllRead = { viewModel.markAllAsRead() },
                 onStarredClick = { viewModel.switchTab(com.shrivatsav.monomail.ui.screens.inbox.InboxTab.STARRED) },
                 onTrashClick = { viewModel.switchTab(com.shrivatsav.monomail.ui.screens.inbox.InboxTab.TRASH) },
@@ -492,10 +503,19 @@ fun InboxScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        if (unifiedInboxEnabled) {
+                            IconButton(onClick = { viewModel.switchTab(InboxTab.UNIFIED) }) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Inbox, 
+                                    contentDescription = "Unified Inbox",
+                                    tint = if (currentTab == InboxTab.UNIFIED) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
                         IconButton(onClick = { viewModel.switchTab(InboxTab.INBOX) }) {
                             Icon(
-                                imageVector = Icons.Outlined.Inbox, 
-                                contentDescription = "Inbox",
+                                imageVector = if (unifiedInboxEnabled) Icons.Outlined.AccountCircle else Icons.Outlined.Inbox, 
+                                contentDescription = "Primary Inbox",
                                 tint = if (currentTab == InboxTab.INBOX) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                             )
                         }
@@ -756,10 +776,13 @@ fun InboxScreen(
 @Composable
 private fun InboxSearchBar(
     userProfile: UserProfile?,
+    accounts: List<UserProfile>,
     query: String,
     onQueryChange: (String) -> Unit,
     onServerSearch: (String) -> Unit,
     onSignOut: () -> Unit,
+    onSwitchAccount: (String) -> Unit,
+    onAddAccount: () -> Unit,
     onMarkAllRead: () -> Unit,
     onStarredClick: () -> Unit,
     onTrashClick: () -> Unit,
@@ -769,6 +792,7 @@ private fun InboxSearchBar(
     onSettings: () -> Unit = {}
 ) {
     var showProfileModal by remember { mutableStateOf(false) }
+    var showSwitchAccountDialog by remember { mutableStateOf(false) }
 
     val containerColor by androidx.compose.animation.animateColorAsState(
         targetValue = if (toastState != null) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
@@ -882,6 +906,22 @@ private fun InboxSearchBar(
         
                                 AvatarButton(
                                     userProfile = userProfile,
+                                    modifier = Modifier.pointerInput(accounts, userProfile) {
+                                        detectVerticalDragGestures { change, dragAmount ->
+                                            change.consume()
+                                            if (Math.abs(dragAmount) > 10f && accounts.size > 1 && userProfile != null) {
+                                                val currentIndex = accounts.indexOfFirst { it.id == userProfile.id }
+                                                if (currentIndex != -1) {
+                                                    val newIndex = if (dragAmount > 0) {
+                                                        (currentIndex + 1) % accounts.size
+                                                    } else {
+                                                        if (currentIndex - 1 < 0) accounts.size - 1 else currentIndex - 1
+                                                    }
+                                                    onSwitchAccount(accounts[newIndex].id)
+                                                }
+                                            }
+                                        }
+                                    },
                                     onClick = { showProfileModal = true }
                                 )
                             }
@@ -905,10 +945,17 @@ private fun InboxSearchBar(
     if (showProfileModal && userProfile != null) {
         ProfileModal(
             userProfile = userProfile,
+            accounts = accounts,
             onDismiss = { showProfileModal = false },
             onSignOut = {
                 showProfileModal = false
                 onSignOut()
+            },
+            onSwitchAccount = onSwitchAccount,
+            onAddAccount = onAddAccount,
+            onSwitchAccountClick = {
+                showProfileModal = false
+                showSwitchAccountDialog = true
             },
             onTrashClick = {
                 showProfileModal = false
@@ -924,6 +971,22 @@ private fun InboxSearchBar(
             }
         )
     }
+
+    if (showSwitchAccountDialog && userProfile != null) {
+        SwitchAccountDialog(
+            userProfile = userProfile,
+            accounts = accounts,
+            onDismiss = { showSwitchAccountDialog = false },
+            onSwitchAccount = { accountId ->
+                showSwitchAccountDialog = false
+                onSwitchAccount(accountId)
+            },
+            onAddAccount = {
+                showSwitchAccountDialog = false
+                onAddAccount()
+            }
+        )
+    }
 }
 
 // ── Avatar button ────────────────────────────────────────────────────────────
@@ -931,13 +994,14 @@ private fun InboxSearchBar(
 @Composable
 private fun AvatarButton(
     userProfile: UserProfile?,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     if (userProfile != null && !userProfile.photoUrl.isNullOrEmpty()) {
         AsyncImage(
             model = userProfile.photoUrl,
             contentDescription = "Profile",
-            modifier = Modifier
+            modifier = modifier
                 .size(30.dp)
                 .clip(CircleShape)
                 .clickable(onClick = onClick)
@@ -945,7 +1009,7 @@ private fun AvatarButton(
     } else {
         val initial = userProfile?.displayName?.firstOrNull()?.uppercase() ?: "?"
         Box(
-            modifier = Modifier
+            modifier = modifier
                 .size(30.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.onSurface)
@@ -961,13 +1025,155 @@ private fun AvatarButton(
     }
 }
 
+// ── Switch Account Dialog ──────────────────────────────────────────────────
+
+@Composable
+private fun SwitchAccountDialog(
+    userProfile: UserProfile,
+    accounts: List<UserProfile>,
+    onDismiss: () -> Unit,
+    onSwitchAccount: (String) -> Unit,
+    onAddAccount: () -> Unit
+) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth(0.92f),
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            tonalElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 28.dp, bottom = 20.dp),
+            ) {
+                Text(
+                    text = "Switch Account",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                ) {
+                    accounts.forEach { account ->
+                        val isCurrent = account.id == userProfile.id
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { if (!isCurrent) onSwitchAccount(account.id) }
+                                .background(if (isCurrent) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (!account.photoUrl.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = account.photoUrl,
+                                    contentDescription = "Profile photo",
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                )
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = account.displayName.firstOrNull()?.uppercase() ?: "?",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = if (isCurrent) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.background
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = account.displayName,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium,
+                                    color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = account.email,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            if (isCurrent) {
+                                Icon(
+                                    imageVector = Icons.Outlined.CheckCircle,
+                                    contentDescription = "Current account",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                    thickness = 0.5.dp,
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .clickable(onClick = onAddAccount)
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Text(
+                        text = "Add another account",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
 // ── Profile Modal ────────────────────────────────────────────────────────────
 
 @Composable
 private fun ProfileModal(
     userProfile: UserProfile,
+    accounts: List<UserProfile>,
     onDismiss: () -> Unit,
     onSignOut: () -> Unit,
+    onSwitchAccount: (String) -> Unit,
+    onAddAccount: () -> Unit,
+    onSwitchAccountClick: () -> Unit,
     onTrashClick: () -> Unit,
     onStarredClick: () -> Unit,
     onSettings: () -> Unit = {}
@@ -1061,6 +1267,8 @@ private fun ProfileModal(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+
+
                 // ── Menu Items ───────────────────────────────────────────
                 Column(
                     modifier = Modifier
@@ -1088,11 +1296,14 @@ private fun ProfileModal(
                         onClick = onSettings
                     )
 
-                    // Help & feedback
+                    // Switch account
                     ProfileMenuItem(
-                        icon = Icons.Outlined.AccountCircle,
-                        label = "Manage account",
-                        onClick = { /* TODO */ }
+                        icon = Icons.Outlined.AccountCircle, // Use a profile icon
+                        label = "Switch account",
+                        onClick = {
+                            onDismiss()
+                            onSwitchAccountClick()
+                        }
                     )
                 }
 

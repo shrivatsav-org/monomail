@@ -11,12 +11,12 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 class RetrofitClient(
-    private val tokenProvider: () -> String?,
-    private val tokenRefresher: () -> String?,
+    private val tokenProvider: (provider: String) -> String?,
+    private val tokenRefresher: (provider: String) -> String?,
 ) {
 
-    private val authInterceptor = Interceptor { chain ->
-        val token = tokenProvider()
+    private fun createAuthInterceptor(provider: String) = Interceptor { chain ->
+        val token = tokenProvider(provider)
         val request = if (token != null) {
             chain.request().newBuilder()
                 .addHeader("Authorization", "Bearer $token")
@@ -26,10 +26,9 @@ class RetrofitClient(
         }
         val response = chain.proceed(request)
 
-        // If 401, try refreshing the token and retry once
         if (response.code == 401) {
             response.close()
-            val newToken = tokenRefresher()
+            val newToken = tokenRefresher(provider)
             if (newToken != null) {
                 val retryRequest = chain.request().newBuilder()
                     .header("Authorization", "Bearer $newToken")
@@ -37,7 +36,6 @@ class RetrofitClient(
                 return@Interceptor chain.proceed(retryRequest)
             }
         }
-
         response
     }
 
@@ -45,16 +43,28 @@ class RetrofitClient(
         level = HttpLoggingInterceptor.Level.BODY
     }
 
-    private val okHttpClient = OkHttpClient.Builder()
-        .addInterceptor(authInterceptor)
+    private val gmailHttpClient = OkHttpClient.Builder()
+        .addInterceptor(createAuthInterceptor("gmail"))
         .addInterceptor(loggingInterceptor)
         .build()
 
-    private val retrofit = Retrofit.Builder()
+    private val outlookHttpClient = OkHttpClient.Builder()
+        .addInterceptor(createAuthInterceptor("outlook"))
+        .addInterceptor(loggingInterceptor)
+        .build()
+
+    private val gmailRetrofit = Retrofit.Builder()
         .baseUrl("https://gmail.googleapis.com/gmail/v1/")
-        .client(okHttpClient)
+        .client(gmailHttpClient)
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
-    val gmailApi: GmailApi = retrofit.create(GmailApi::class.java)
+    private val outlookRetrofit = Retrofit.Builder()
+        .baseUrl("https://graph.microsoft.com/v1.0/")
+        .client(outlookHttpClient)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+
+    val gmailApi: GmailApi = gmailRetrofit.create(GmailApi::class.java)
+    val outlookApi: OutlookApi = outlookRetrofit.create(OutlookApi::class.java)
 }

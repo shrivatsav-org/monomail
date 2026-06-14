@@ -26,7 +26,8 @@ data class AppSettings(
     val confirmBeforeSending: Boolean = false,
     val defaultReply: DefaultReply = DefaultReply.REPLY,
     val emailNotifications: Boolean = true,
-    val syncFrequency: SyncFrequency = SyncFrequency.MIN_15
+    val syncFrequency: SyncFrequency = SyncFrequency.MIN_15,
+    val unifiedInboxEnabled: Boolean = false
 )
 
 class SettingsDataStore(private val context: Context) {
@@ -43,6 +44,7 @@ class SettingsDataStore(private val context: Context) {
         val DEFAULT_REPLY = stringPreferencesKey("default_reply")
         val EMAIL_NOTIFICATIONS = booleanPreferencesKey("email_notifications")
         val SYNC_FREQUENCY = stringPreferencesKey("sync_frequency")
+        val UNIFIED_INBOX_ENABLED = booleanPreferencesKey("unified_inbox_enabled")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -57,7 +59,8 @@ class SettingsDataStore(private val context: Context) {
             confirmBeforeSending = prefs[Keys.CONFIRM_SEND] ?: false,
             defaultReply = prefs[Keys.DEFAULT_REPLY]?.let { DefaultReply.valueOf(it) } ?: DefaultReply.REPLY,
             emailNotifications = prefs[Keys.EMAIL_NOTIFICATIONS] ?: true,
-            syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15
+            syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15,
+            unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false
         )
     }
 
@@ -103,5 +106,9 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setSyncFrequency(freq: SyncFrequency) {
         context.dataStore.edit { it[Keys.SYNC_FREQUENCY] = freq.name }
+    }
+
+    suspend fun setUnifiedInboxEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.UNIFIED_INBOX_ENABLED] = enabled }
     }
 }

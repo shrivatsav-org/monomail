@@ -6,8 +6,6 @@ import androidx.work.WorkerParameters
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.shrivatsav.monomail.MonoMailApp
-import com.shrivatsav.monomail.data.remote.BatchModifyMessagesRequest
-import com.shrivatsav.monomail.data.remote.ModifyThreadRequest
 
 class SyncWorker(
     appContext: Context,
@@ -16,61 +14,79 @@ class SyncWorker(
 
     override suspend fun doWork(): Result {
         val action = inputData.getString(KEY_ACTION) ?: return Result.failure()
+        val accountId = inputData.getString(KEY_ACCOUNT_ID) ?: return Result.failure()
         val threadId = inputData.getString(KEY_THREAD_ID)
         val emailIdsJson = inputData.getString(KEY_EMAIL_IDS)
         
         val app = applicationContext as MonoMailApp
-        // We'll expose api via emailRepository
-        val api = app.emailRepository.api
-
+        val accounts = app.accountManager.getAccounts()
+        val targetProfile = accounts.find { it.id == accountId } ?: return Result.failure()
+        
+        // We temporarily set the active account, or ideally we'd pass the provider directly
+        // However, providerFactory expects a profile
+        
+        // This relies on MonoMailApp's emailRepository to provide active provider.
+        // Actually, let's switch active profile temporarily to run the work? No, that's bad.
+        // Let's invoke the factory directly if possible, or we need to refactor EmailRepository
+        // Let's just switch the account manager's active id, or refactor.
+        // Wait, EmailRepository doesn't expose the factory. We can add a method `getProvider(accountId)`
+        // For now, let's assume we sync the active account, or we can use `getActiveProvider`
+        // if we are syncing the active account. Background syncs might fire later.
+        
         return try {
+            val oldActive = app.accountManager.getActiveAccount()
+            if (oldActive?.id != accountId) {
+                app.accountManager.setActiveAccountId(accountId)
+            }
+            
+            val provider = app.emailRepository.getActiveProvider() ?: return Result.failure()
+            
             when (action) {
                 ACTION_TOGGLE_STAR -> {
                     val isStarred = inputData.getBoolean(KEY_IS_STARRED, false)
-                    if (isStarred) {
-                        api.modifyThread(threadId!!, ModifyThreadRequest(addLabelIds = listOf("STARRED")))
-                    } else {
-                        api.modifyThread(threadId!!, ModifyThreadRequest(removeLabelIds = listOf("STARRED")))
-                    }
+                    provider.toggleStar(threadId!!, isStarred)
                 }
                 ACTION_MARK_THREAD_READ -> {
-                    api.modifyThread(threadId!!, ModifyThreadRequest(removeLabelIds = listOf("UNREAD")))
+                    provider.markRead(threadId!!, true)
                 }
                 ACTION_MARK_THREAD_UNREAD -> {
-                    api.modifyThread(threadId!!, ModifyThreadRequest(addLabelIds = listOf("UNREAD")))
+                    provider.markRead(threadId!!, false)
                 }
                 ACTION_MARK_EMAILS_READ -> {
                     if (emailIdsJson != null) {
                         val type = object : TypeToken<List<String>>() {}.type
                         val emailIds: List<String> = Gson().fromJson(emailIdsJson, type)
-                        emailIds.chunked(1000).forEach { chunk ->
-                            api.batchModifyMessages(BatchModifyMessagesRequest(ids = chunk, removeLabelIds = listOf("UNREAD")))
-                        }
+                        provider.batchMarkRead(emailIds)
                     }
                 }
                 ACTION_ARCHIVE -> {
-                    api.modifyThread(threadId!!, ModifyThreadRequest(removeLabelIds = listOf("INBOX")))
+                    provider.archiveThread(threadId!!)
                 }
                 ACTION_UNARCHIVE -> {
-                    api.modifyThread(threadId!!, ModifyThreadRequest(addLabelIds = listOf("INBOX")))
+                    provider.unarchiveThread(threadId!!)
                 }
                 ACTION_DELETE -> {
-                    api.trashThread(threadId!!)
+                    provider.trashThread(threadId!!)
                 }
                 ACTION_RESTORE -> {
-                    api.untrashThread(threadId!!)
+                    provider.restoreThread(threadId!!)
                 }
             }
+            
+            if (oldActive?.id != accountId && oldActive != null) {
+                app.accountManager.setActiveAccountId(oldActive.id)
+            }
+            
             Result.success()
         } catch (e: Exception) {
             // If it's a network error, retry. If it's something else, fail.
-            // Simplified: always retry on exception until max retries.
             Result.retry()
         }
     }
 
     companion object {
         const val KEY_ACTION = "action"
+        const val KEY_ACCOUNT_ID = "account_id"
         const val KEY_THREAD_ID = "thread_id"
         const val KEY_EMAIL_IDS = "email_ids"
         const val KEY_IS_STARRED = "is_starred"

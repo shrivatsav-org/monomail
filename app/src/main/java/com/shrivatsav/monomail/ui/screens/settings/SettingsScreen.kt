@@ -110,6 +110,15 @@ fun SettingsScreen(
             // ── Behavior ────────────────────────────────────────────
             SectionHeader(icon = Icons.Outlined.TouchApp, title = "Behavior")
 
+            // Unified Inbox
+            SettingsToggleRow(
+                icon = Icons.Outlined.Inbox,
+                title = "Unified Inbox",
+                subtitle = "Show emails from all accounts in one tab",
+                checked = settings.unifiedInboxEnabled,
+                onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) }
+            )
+
             // Swipe Left Action
             PickerRow(
                 icon = Icons.Outlined.SwipeLeft,

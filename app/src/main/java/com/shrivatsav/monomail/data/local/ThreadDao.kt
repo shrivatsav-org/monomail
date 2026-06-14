@@ -9,45 +9,51 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface ThreadDao {
 
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC")
+    fun getInboxThreads(accountId: String): Flow<List<ThreadEntity>>
+
     @Query("SELECT * FROM threads WHERE inInbox = 1 ORDER BY date DESC")
-    fun getInboxThreads(): Flow<List<ThreadEntity>>
+    fun getAllInboxThreads(): Flow<List<ThreadEntity>>
 
-    @Query("SELECT * FROM threads WHERE inSent = 1 ORDER BY date DESC")
-    fun getSentThreads(): Flow<List<ThreadEntity>>
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 1")
+    suspend fun getLatestInboxThread(accountId: String): ThreadEntity?
 
-    @Query("SELECT * FROM threads WHERE inArchived = 1 ORDER BY date DESC")
-    fun getArchivedThreads(): Flow<List<ThreadEntity>>
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC")
+    fun getSentThreads(accountId: String): Flow<List<ThreadEntity>>
 
-    @Query("SELECT * FROM threads WHERE isStarred = 1 ORDER BY date DESC")
-    fun getStarredThreads(): Flow<List<ThreadEntity>>
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC")
+    fun getArchivedThreads(accountId: String): Flow<List<ThreadEntity>>
 
-    @Query("SELECT * FROM threads WHERE inTrash = 1 ORDER BY date DESC")
-    fun getTrashThreads(): Flow<List<ThreadEntity>>
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC")
+    fun getStarredThreads(accountId: String): Flow<List<ThreadEntity>>
+
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC")
+    fun getTrashThreads(accountId: String): Flow<List<ThreadEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertThreads(threads: List<ThreadEntity>)
 
-    @Query("UPDATE threads SET isStarred = :isStarred WHERE threadId = :threadId")
-    suspend fun updateThreadStarred(threadId: String, isStarred: Boolean)
+    @Query("UPDATE threads SET isStarred = :isStarred WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun updateThreadStarred(threadId: String, accountId: String, isStarred: Boolean)
 
-    @Query("UPDATE threads SET inInbox = 0, inArchived = 1 WHERE threadId = :threadId")
-    suspend fun archiveThread(threadId: String)
+    @Query("UPDATE threads SET inInbox = 0, inArchived = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun archiveThread(threadId: String, accountId: String)
 
-    @Query("UPDATE threads SET inInbox = 1, inArchived = 0 WHERE threadId = :threadId")
-    suspend fun unarchiveThread(threadId: String)
+    @Query("UPDATE threads SET inInbox = 1, inArchived = 0 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun unarchiveThread(threadId: String, accountId: String)
 
-    @Query("UPDATE threads SET isRead = :isRead WHERE threadId = :threadId")
-    suspend fun updateThreadReadStatus(threadId: String, isRead: Boolean)
+    @Query("UPDATE threads SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun updateThreadReadStatus(threadId: String, accountId: String, isRead: Boolean)
 
-    @Query("DELETE FROM threads WHERE threadId = :threadId")
-    suspend fun deleteThread(threadId: String)
+    @Query("DELETE FROM threads WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun deleteThread(threadId: String, accountId: String)
 
-    @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId")
-    suspend fun moveToTrash(threadId: String)
+    @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun moveToTrash(threadId: String, accountId: String)
 
-    @Query("UPDATE threads SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId")
-    suspend fun restoreFromTrash(threadId: String)
+    @Query("UPDATE threads SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun restoreFromTrash(threadId: String, accountId: String)
     
-    @Query("DELETE FROM threads")
-    suspend fun clearAll()
+    @Query("DELETE FROM threads WHERE accountId = :accountId")
+    suspend fun clearForAccount(accountId: String)
 }

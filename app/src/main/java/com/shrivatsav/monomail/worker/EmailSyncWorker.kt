@@ -31,41 +31,45 @@ class EmailSyncWorker(
     override suspend fun doWork(): Result {
         val app = applicationContext as? MonoMailApp ?: return Result.failure()
         val repository = app.emailRepository
-        val tokenManager = app.tokenManager
+        val accountManager = app.accountManager
 
-        // Skip if not logged in
-        if (app.authManager.currentUser == null) return Result.success()
+        val accounts = accountManager.getAccounts()
+        if (accounts.isEmpty()) return Result.success()
 
-        val lastKnownId = tokenManager.getLastKnownEmailId()
+        var hasFailure = false
 
-        // Fetch latest emails from network and update DB
-        val result = repository.refreshInbox(InboxTab.INBOX)
-        if (result.isFailure) {
-            return Result.retry()
+        val database = app.emailRepository.getDatabase() // I need to expose this
+        // Actually, just add getLatestInboxThread(accountId) to EmailRepository
+
+        for (account in accounts) {
+            val accountId = account.id
+            val lastKnownId = accountManager.getLastKnownEmailId(accountId)
+
+            val result = repository.refreshInbox(InboxTab.INBOX, accountId = accountId)
+            if (result.isFailure) {
+                hasFailure = true
+                continue
+            }
+
+            val newestThread = repository.getLatestInboxThread(accountId)
+            if (newestThread != null) {
+                if (lastKnownId != null && newestThread.threadId != lastKnownId) {
+                    showNotification(
+                        title = newestThread.from,
+                        text = newestThread.subject,
+                        emailId = newestThread.threadId,
+                        notificationId = accountId.hashCode()
+                    )
+                }
+                accountManager.setLastKnownEmailId(accountId, newestThread.threadId)
+            }
         }
 
-        // Get the latest thread from DB
-        val threads = repository.getInboxThreadsFlow(InboxTab.INBOX).firstOrNull()
-        if (threads.isNullOrEmpty()) return Result.success()
-
-        val newestThread = threads.first()
-
-        if (lastKnownId != null && newestThread.threadId != lastKnownId) {
-            // New email arrived!
-            showNotification(
-                title = newestThread.from,
-                text = newestThread.subject,
-                emailId = newestThread.threadId
-            )
-        }
-
-        // Update the last known ID
-        tokenManager.setLastKnownEmailId(newestThread.threadId)
-
-        return Result.success()
+        // Return retry if ANY account failed
+        return if (hasFailure) Result.retry() else Result.success()
     }
 
-    private fun showNotification(title: String, text: String, emailId: String) {
+    private fun showNotification(title: String, text: String, emailId: String, notificationId: Int) {
         val context = applicationContext
 
         // Check permission for Android 13+
@@ -96,7 +100,7 @@ class EmailSyncWorker(
             .setAutoCancel(true)
 
         with(NotificationManagerCompat.from(context)) {
-            notify(NOTIFICATION_ID, builder.build())
+            notify(notificationId, builder.build())
         }
     }
 

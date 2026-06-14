@@ -5,6 +5,7 @@ data class UserProfile(
     val displayName: String,
     val email: String,
     val photoUrl: String?,
-    val idToken: String,
-    val accessToken: String
+    val accessToken: String,
+    val provider: String,          // "gmail" or "outlook"
+    val refreshToken: String = ""  // Used by Outlook (MSAL), empty for Gmail
 )

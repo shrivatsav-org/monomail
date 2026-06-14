@@ -26,4 +26,5 @@ class SettingsViewModel(
     fun setDefaultReply(reply: DefaultReply) = viewModelScope.launch { settingsDataStore.setDefaultReply(reply) }
     fun setEmailNotifications(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setEmailNotifications(enabled) }
     fun setSyncFrequency(freq: SyncFrequency) = viewModelScope.launch { settingsDataStore.setSyncFrequency(freq) }
+    fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUnifiedInboxEnabled(enabled) }
 }

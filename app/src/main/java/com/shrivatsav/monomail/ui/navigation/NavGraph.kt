@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -26,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
@@ -69,6 +71,7 @@ sealed class Screen(val route: String) {
     object Legal : Screen("legal/{type}") {
         fun createRoute(type: String) = "legal/$type"
     }
+    object AddAccount : Screen("add_account")
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -158,26 +161,48 @@ fun NavGraph(
             )
         }
 
+        // ── Add Account (Dialog) ─────────────────────────────────────
+        dialog(Screen.AddAccount.route) {
+            val vm: SignInViewModel = viewModel(
+                factory = object : ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                        return SignInViewModel(authManager) as T
+                    }
+                }
+            )
+            com.shrivatsav.monomail.ui.screens.auth.ProviderSelectionDialog(
+                viewModel = vm,
+                onDismiss = { navController.popBackStack() },
+                onSuccess = { 
+                    // When success, just close the dialog. The new account will be available.
+                    navController.popBackStack() 
+                }
+            )
+        }
+
         // ── Inbox ────────────────────────────────────────────────────
         composable(Screen.Inbox.route) {
             val vm: InboxViewModel = viewModel(
                 factory = object : ViewModelProvider.Factory {
                     @Suppress("UNCHECKED_CAST")
                     override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return InboxViewModel(emailRepository, contactProvider) as T
+                        return InboxViewModel(emailRepository, contactProvider, authManager, app.settingsDataStore) as T
                     }
                 }
             )
             val scope = androidx.compose.runtime.rememberCoroutineScope()
+            val activeAccount by authManager.activeAccountFlow.collectAsState(initial = authManager.currentUser)
+            
             InboxScreen(
                 viewModel    = vm,
-                userProfile  = authManager.currentUser,
+                userProfile  = activeAccount,
                 onEmailClick = { threadId ->
                     navController.navigate(Screen.ThreadDetail.createRoute(threadId))
                 },
                 onSignOut = {
                     scope.launch {
-                        authManager.signOut()
+                        authManager.signOutAll()
                         emailRepository.clearLocalData()
                         navController.navigate(Screen.SignIn.route) {
                             popUpTo(0) { inclusive = true }
@@ -189,6 +214,9 @@ fun NavGraph(
                 },
                 onSettings = {
                     navController.navigate(Screen.Settings.route)
+                },
+                onAddAccount = {
+                    navController.navigate(Screen.AddAccount.route)
                 }
             )
         }

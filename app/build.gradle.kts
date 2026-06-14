@@ -100,6 +100,9 @@ dependencies {
     // Markdown
     implementation("io.noties.markwon:core:4.6.2")
 
+    // MSAL for Outlook Auth
+    implementation("com.microsoft.identity.client:msal:5.4.0")
+
     // Test
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

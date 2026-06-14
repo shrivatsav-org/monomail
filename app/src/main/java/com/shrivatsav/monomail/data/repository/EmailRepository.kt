@@ -1,38 +1,33 @@
 package com.shrivatsav.monomail.data.repository
 
 import android.content.Context
-import com.shrivatsav.monomail.data.local.AppDatabase
-import com.shrivatsav.monomail.data.local.toEntity
-import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmail
-import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmailList
-import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmailThread
-import com.shrivatsav.monomail.data.model.Email
-import com.shrivatsav.monomail.data.model.EmailAttachment
-import com.shrivatsav.monomail.data.model.EmailThread
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.google.gson.Gson
+import com.shrivatsav.monomail.auth.AccountManager
+import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.data.local.AppDatabase
+import com.shrivatsav.monomail.data.local.toEntity
+import com.shrivatsav.monomail.data.model.Email
+import com.shrivatsav.monomail.data.model.EmailAttachment
+import com.shrivatsav.monomail.data.model.EmailThread
+import com.shrivatsav.monomail.data.provider.EmailFolder
+import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.worker.SyncWorker
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.launch
-
-import com.shrivatsav.monomail.data.remote.GmailApi
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 
 class EmailRepository(
-    val api: GmailApi, 
+    private val providerFactory: (UserProfile) -> EmailProvider,
     private val database: AppDatabase,
-    private val context: Context
+    private val context: Context,
+    private val accountManager: AccountManager
 ) {
     private val threadDao = database.threadDao()
     private val emailDao = database.emailDao()
@@ -41,6 +36,26 @@ class EmailRepository(
     private val networkConstraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
+
+    suspend fun getActiveProvider(): EmailProvider? {
+        val activeAccount = accountManager.getActiveAccount() ?: return null
+        return providerFactory(activeAccount)
+    }
+    
+    fun getDatabase(): AppDatabase = database
+
+    suspend fun getActiveAccountId(): String {
+        return accountManager.getActiveAccount()?.id ?: "gmail_unknown"
+    }
+
+    suspend fun getLatestInboxThread(accountId: String): EmailThread? {
+        return threadDao.getLatestInboxThread(accountId)?.toDomainModel()
+    }
+
+    suspend fun getProviderForAccount(accountId: String): EmailProvider? {
+        val account = accountManager.getAccounts().find { it.id == accountId } ?: return null
+        return providerFactory(account)
+    }
 
     private fun enqueueSync(data: Data) {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
@@ -52,73 +67,89 @@ class EmailRepository(
 
     // ── Local Database Flows ─────────────────────────────────────────
 
-    fun getInboxThreadsFlow(tab: InboxTab): Flow<List<EmailThread>> {
-        return when (tab) {
-            InboxTab.INBOX -> threadDao.getInboxThreads()
-            InboxTab.SENT -> threadDao.getSentThreads()
-            InboxTab.ARCHIVED -> threadDao.getArchivedThreads()
-            InboxTab.STARRED -> threadDao.getStarredThreads()
-            InboxTab.TRASH -> threadDao.getTrashThreads()
+    fun getInboxThreadsFlow(tab: InboxTab): Flow<List<EmailThread>> = flow {
+        val activeAccountId = accountManager.getActiveAccount()?.id ?: "gmail_unknown"
+        val dbFlow = when (tab) {
+            InboxTab.INBOX -> threadDao.getInboxThreads(activeAccountId)
+            InboxTab.SENT -> threadDao.getSentThreads(activeAccountId)
+            InboxTab.ARCHIVED -> threadDao.getArchivedThreads(activeAccountId)
+            InboxTab.STARRED -> threadDao.getStarredThreads(activeAccountId)
+            InboxTab.TRASH -> threadDao.getTrashThreads(activeAccountId)
+            InboxTab.UNIFIED -> threadDao.getAllInboxThreads()
         }.map { list -> list.map { it.toDomainModel() } }
+        emitAll(dbFlow)
+    }
+
+    fun getAllInboxThreadsFlow(): Flow<List<EmailThread>> {
+        return threadDao.getAllInboxThreads().map { list -> list.map { it.toDomainModel() } }
     }
 
     suspend fun getEmailById(id: String): Email? {
-        return emailDao.getEmailById(id)?.toDomainModel()
+        val activeAccountId = getActiveAccountId()
+        return emailDao.getEmailById(id, activeAccountId)?.toDomainModel()
     }
 
-    fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> {
-        return emailDao.getEmailsForThread(threadId).map { list -> list.map { it.toDomainModel() } }
+    fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> = flow {
+        val activeAccountId = getActiveAccountId()
+        emitAll(emailDao.getEmailsForThread(threadId, activeAccountId).map { list -> list.map { it.toDomainModel() } })
     }
 
     // ── Sync with Network ────────────────────────────────────────────
 
-    suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null): Result<String?> {
+    suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> {
         return try {
-            val labelIds = when {
-                !query.isNullOrEmpty() -> null
-                tab == InboxTab.INBOX -> "INBOX"
-                tab == InboxTab.SENT -> "SENT"
-                tab == InboxTab.STARRED -> "STARRED"
-                tab == InboxTab.TRASH -> "TRASH"
-                tab == InboxTab.ARCHIVED -> null // Archived is typically -label:inbox but we handle it manually or query
-                else -> "INBOX"
-            }
+            val provider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
+            if (provider == null) return Result.failure(Exception("No active provider"))
             
-            // For archived, we might need a specific query if labelIds doesn't work out of the box
-            val finalQuery = if (tab == InboxTab.ARCHIVED && query.isNullOrEmpty()) "-label:inbox -label:trash -label:sent" else query
+            val targetAccountId = accountId ?: getActiveAccountId()
+            
+            val folder = when (tab) {
+                InboxTab.INBOX -> EmailFolder.INBOX
+                InboxTab.SENT -> EmailFolder.SENT
+                InboxTab.ARCHIVED -> EmailFolder.ARCHIVE
+                InboxTab.STARRED -> EmailFolder.STARRED
+                InboxTab.TRASH -> EmailFolder.TRASH
+                InboxTab.UNIFIED -> EmailFolder.INBOX // Fallback to Inbox
+            }
 
-            val listResponse = api.listThreads(
+            val listResponse = provider.listThreads(
+                folder = folder,
                 maxResults = 20,
-                pageToken  = pageToken,
-                labelIds   = labelIds,
-                query      = finalQuery
+                pageToken = pageToken,
+                query = query
             )
 
-            val threadRefs = listResponse.threads.orEmpty()
-            if (threadRefs.isNotEmpty()) {
-                val rawThreads = coroutineScope {
-                    threadRefs.map { ref ->
-                        async { 
-                            try {
-                                api.getThread(ref.id)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                null
-                            }
-                        }
-                    }.awaitAll().filterNotNull()
-                }
-
-                // Insert into DB
-                val entities = rawThreads.map { rawThread ->
-                    val domainThread = rawThread.toEmailThread()
-                    val labels = rawThread.messages.orEmpty().flatMap { it.labelIds.orEmpty() }.toSet()
+            if (listResponse.threads.isNotEmpty()) {
+                val entities = listResponse.threads.map { providerThread ->
+                    val messages = providerThread.messages
+                    val latest = messages.maxByOrNull { it.date }
                     
+                    val allFolders = messages.flatMap { it.folders }.toSet()
+                    
+                    val participants = messages.map { it.from }.distinct()
+                    val isRead = messages.all { it.isRead }
+                    val isStarred = messages.any { it.isStarred }
+
+                    val domainThread = EmailThread(
+                        threadId = providerThread.threadId,
+                        subject = latest?.subject ?: "(no subject)",
+                        from = latest?.from ?: "",
+                        fromEmail = latest?.fromEmail ?: "",
+                        snippet = latest?.snippet ?: "",
+                        date = latest?.date ?: 0L,
+                        messageCount = messages.size,
+                        isRead = isRead,
+                        isStarred = isStarred,
+                        latestMessageId = latest?.id ?: "",
+                        participants = participants
+                    )
+
                     domainThread.toEntity(
-                        inInbox = "INBOX" in labels || (tab == InboxTab.INBOX),
-                        inSent = "SENT" in labels || (tab == InboxTab.SENT),
-                        inArchived = tab == InboxTab.ARCHIVED,
-                        inTrash = "TRASH" in labels || (tab == InboxTab.TRASH)
+                        accountId = targetAccountId,
+                        inInbox = EmailFolder.INBOX in allFolders,
+                        inSent = EmailFolder.SENT in allFolders,
+                        inArchived = EmailFolder.ARCHIVE in allFolders,
+                        inTrash = EmailFolder.TRASH in allFolders
                     )
                 }
                 threadDao.insertThreads(entities)
@@ -132,9 +163,29 @@ class EmailRepository(
 
     suspend fun refreshThread(threadId: String): Result<Unit> {
         return try {
-            val threadResponse = api.getThread(threadId)
-            val emails = threadResponse.toEmailList()
-            emailDao.insertEmails(emails.map { it.toEntity() })
+            val provider = getActiveProvider() ?: return Result.failure(Exception("No active provider"))
+            val activeAccountId = getActiveAccountId()
+            
+            val threadResponse = provider.getThread(threadId)
+            val emails = threadResponse.messages.map { msg ->
+                val labels = msg.folders.map { it.name }
+                Email(
+                    id = msg.id,
+                    threadId = msg.threadId,
+                    subject = msg.subject,
+                    from = msg.from,
+                    fromEmail = msg.fromEmail,
+                    to = msg.to,
+                    snippet = msg.snippet,
+                    body = msg.body,
+                    date = msg.date,
+                    isRead = msg.isRead,
+                    isStarred = msg.isStarred,
+                    labels = labels,
+                    attachments = msg.attachments
+                )
+            }
+            emailDao.insertEmails(emails.map { it.toEntity(activeAccountId) })
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -145,13 +196,13 @@ class EmailRepository(
 
     suspend fun toggleStar(threadId: String, currentStarred: Boolean) {
         val newStarred = !currentStarred
-        // Optimistic update
-        threadDao.updateThreadStarred(threadId, newStarred)
-        emailDao.updateThreadStarred(threadId, newStarred)
+        val activeAccountId = getActiveAccountId()
+        threadDao.updateThreadStarred(threadId, activeAccountId, newStarred)
+        emailDao.updateThreadStarred(threadId, activeAccountId, newStarred)
 
-        // Enqueue background sync
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_TOGGLE_STAR)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .putBoolean(SyncWorker.KEY_IS_STARRED, newStarred)
             .build()
@@ -160,101 +211,96 @@ class EmailRepository(
 
     suspend fun markEmailsAsRead(emailIds: List<String>) {
         if (emailIds.isEmpty()) return
-        
-        // Optimistic update
-        emailDao.markEmailsAsRead(emailIds)
+        val activeAccountId = getActiveAccountId()
+        emailDao.markEmailsAsRead(emailIds, activeAccountId)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_EMAILS_READ)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_EMAIL_IDS, Gson().toJson(emailIds))
             .build()
         enqueueSync(data)
     }
 
     suspend fun markThreadAsRead(threadId: String) {
-        // Optimistic update
-        threadDao.updateThreadReadStatus(threadId, true)
+        val activeAccountId = getActiveAccountId()
+        threadDao.updateThreadReadStatus(threadId, activeAccountId, true)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_READ)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
     }
     
     suspend fun markThreadAsUnread(threadId: String) {
-        // Optimistic update
-        threadDao.updateThreadReadStatus(threadId, false)
+        val activeAccountId = getActiveAccountId()
+        threadDao.updateThreadReadStatus(threadId, activeAccountId, false)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_UNREAD)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
     }
 
     suspend fun archiveThread(threadId: String) {
-        // Optimistic update
-        threadDao.archiveThread(threadId)
+        val activeAccountId = getActiveAccountId()
+        threadDao.archiveThread(threadId, activeAccountId)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_ARCHIVE)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
     }
 
     suspend fun unarchiveThread(threadId: String) {
-        // Optimistic update
-        threadDao.unarchiveThread(threadId)
+        val activeAccountId = getActiveAccountId()
+        threadDao.unarchiveThread(threadId, activeAccountId)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_UNARCHIVE)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
     }
 
     suspend fun deleteThread(threadId: String) {
-        // Move to trash locally so UI reflects it immediately
-        threadDao.moveToTrash(threadId)
+        val activeAccountId = getActiveAccountId()
+        threadDao.moveToTrash(threadId, activeAccountId)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_DELETE)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
     }
 
     suspend fun restoreThread(threadId: String) {
-        // Optimistic update
-        threadDao.restoreFromTrash(threadId)
+        val activeAccountId = getActiveAccountId()
+        threadDao.restoreFromTrash(threadId, activeAccountId)
         
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_RESTORE)
+            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
     }
 
     suspend fun clearLocalData() {
-        threadDao.clearAll()
-        emailDao.clearAll()
+        database.clearAllTables()
     }
 
     suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
-        return withContext(Dispatchers.IO) {
-            try {
-                val part = api.getAttachment(messageId, attachmentId)
-                part.data?.let { data ->
-                    val base64 = data.replace("-", "+").replace("_", "/")
-                    android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                null
-            }
-        }
+        val provider = getActiveProvider() ?: return null
+        return provider.getAttachmentBytes(messageId, attachmentId)
     }
 
     suspend fun sendEmail(
@@ -268,64 +314,15 @@ class EmailRepository(
         attachments: List<EmailAttachment> = emptyList()
     ): Result<Unit> {
         return try {
-            val headers = buildString {
-                append("From: $from\r\n")
-                append("To: $to\r\n")
-                append("Subject: $subject\r\n")
-                append("MIME-Version: 1.0\r\n")
-                // Gmail API automatically handles threading if threadId is provided in the request body.
-                // We should NOT add In-Reply-To and References unless we have the RFC 2822 Message-ID (e.g. <...@mail.gmail.com>).
-                // Passing the 16-hex Gmail ID causes a 400 Bad Request.
-                if (attachments.isEmpty()) {
-                    append("Content-Type: text/html; charset=UTF-8\r\n")
-                    append("\r\n")
-                    append(body)
-                } else {
-                    val boundary = "==Multipart_Boundary_x${System.currentTimeMillis()}x"
-                    append("Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n")
-                    append("\r\n")
-                    
-                    append("--$boundary\r\n")
-                    append("Content-Type: text/html; charset=UTF-8\r\n")
-                    append("\r\n")
-                    append(body)
-                    append("\r\n")
-                    
-                    for (attachment in attachments) {
-                        append("--$boundary\r\n")
-                        append("Content-Type: ${attachment.mimeType}; name=\"${attachment.name}\"\r\n")
-                        append("Content-Disposition: attachment; filename=\"${attachment.name}\"\r\n")
-                        append("Content-Transfer-Encoding: base64\r\n")
-                        append("\r\n")
-                        
-                        val bytes = context.contentResolver.openInputStream(attachment.uri)?.use { it.readBytes() }
-                        if (bytes != null) {
-                            val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT).replace("\n", "\r\n")
-                            append(base64)
-                            if (!base64.endsWith("\n") && !base64.endsWith("\r\n")) {
-                                append("\r\n")
-                            }
-                        }
-                    }
-                    append("--$boundary--\r\n")
-                }
-            }
-            val raw = android.util.Base64.encodeToString(
-                headers.toByteArray(),
-                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
+            val provider = getActiveProvider() ?: return Result.failure(Exception("No active provider"))
+            provider.sendEmail(
+                from = from,
+                to = to,
+                subject = subject,
+                body = body,
+                threadId = threadId,
+                attachments = attachments
             )
-            api.sendMessage(
-                com.shrivatsav.monomail.data.remote.SendMessageRequest(
-                    raw = raw,
-                    threadId = threadId
-                )
-            )
-            
-            // Send & Archive
-            if (threadId != null) {
-                archiveThread(threadId)
-            }
-            
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

@@ -2,9 +2,12 @@ package com.shrivatsav.monomail.ui.screens.inbox
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shrivatsav.monomail.auth.AuthManager
+import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -17,7 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 
-enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH }
+enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED }
 
 sealed class InboxState {
     object Loading : InboxState()
@@ -34,7 +37,9 @@ sealed class InboxState {
 @OptIn(ExperimentalCoroutinesApi::class)
 class InboxViewModel(
     private val repository: EmailRepository,
-    private val contactProvider: ContactSuggestionProvider
+    private val contactProvider: ContactSuggestionProvider,
+    private val authManager: AuthManager,
+    private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
 
     private val _currentTab = MutableStateFlow(InboxTab.INBOX)
@@ -56,11 +61,21 @@ class InboxViewModel(
 
     private val _toastState = MutableStateFlow<ToastState?>(null)
     val toastState = _toastState.asStateFlow()
+    
+    private val _accounts = MutableStateFlow<List<UserProfile>>(emptyList())
+    val accounts = _accounts.asStateFlow()
+
+    private val _activeAccountId = MutableStateFlow<String?>(null)
+
+    private val _unifiedInboxEnabled = MutableStateFlow(false)
+    val unifiedInboxEnabled = _unifiedInboxEnabled.asStateFlow()
 
     // State flow based on the DB flow of the current tab
-    val state: StateFlow<InboxState> = _currentTab.flatMapLatest { tab ->
+    val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled) { tab, _, _ -> tab }
+        .flatMapLatest { tab ->
+        val flow = if (tab == InboxTab.UNIFIED) repository.getAllInboxThreadsFlow() else repository.getInboxThreadsFlow(tab)
         combine(
-            repository.getInboxThreadsFlow(tab),
+            flow,
             _isRefreshing,
             _isLoadingMore,
             pendingHideIds
@@ -75,17 +90,41 @@ class InboxViewModel(
     )
 
     init {
+        viewModelScope.launch {
+            settingsDataStore.settingsFlow.collect { settings ->
+                _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
+                if (!settings.unifiedInboxEnabled && _currentTab.value == InboxTab.UNIFIED) {
+                    _currentTab.value = InboxTab.INBOX
+                }
+            }
+        }
         refresh()
+        loadAccounts()
         // Immediately sync all other tabs silently in the background
         // so they are fully cached when the user switches pages
         viewModelScope.launch {
             InboxTab.values().forEach { tab ->
-                if (tab != _currentTab.value) {
+                if (tab != _currentTab.value && tab != InboxTab.UNIFIED) {
                     repository.refreshInbox(tab)
                 }
             }
         }
         startForegroundPolling()
+    }
+
+    fun loadAccounts() {
+        viewModelScope.launch {
+            _accounts.value = authManager.getAccounts()
+        }
+    }
+
+    fun switchAccount(accountId: String) {
+        viewModelScope.launch {
+            authManager.switchAccount(accountId)
+            _activeAccountId.value = accountId
+            loadAccounts()
+            refresh(showLoader = true)
+        }
     }
 
     private fun startForegroundPolling() {
@@ -94,7 +133,7 @@ class InboxViewModel(
                 delay(15_000) // Poll every 15 seconds silently
                 // Poll the Inbox specifically as it's the most critical
                 repository.refreshInbox(InboxTab.INBOX)
-                if (_currentTab.value != InboxTab.INBOX) {
+                if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
                     repository.refreshInbox(_currentTab.value)
                 }
             }
@@ -113,7 +152,11 @@ class InboxViewModel(
         viewModelScope.launch {
             if (showLoader) _isRefreshing.value = true
             val query = currentServerQuery // Use query if searching
-            val result = repository.refreshInbox(_currentTab.value, query = query)
+            val result = if (_currentTab.value == InboxTab.UNIFIED) {
+                repository.refreshInbox(InboxTab.INBOX)
+            } else {
+                repository.refreshInbox(_currentTab.value, query = query)
+            }
             result.onSuccess { token ->
                 if (token != null) {
                     pageTokens[getPageTokenKey()] = token

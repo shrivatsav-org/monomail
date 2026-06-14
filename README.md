@@ -8,7 +8,7 @@ A pure black-and-white Gmail client for Android, built with Jetpack Compose and 
 
 ## Overview
 
-Monomail is an open-source Android email client that connects to Gmail via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome, every screen uses only black, white, and greyscale, built on top of Material 3 Expressive with Google Sans and Roboto.
+Monomail is an open-source Android email client that connects to Gmail and Microsoft Outlook via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome, every screen uses only black, white, and greyscale, built on top of Material 3 Expressive with Google Sans and Roboto.
 
 The architecture is offline-first: all reads and writes go through a local Room database first, and background sync via WorkManager keeps the remote state consistent without blocking the UI.
 
@@ -27,11 +27,17 @@ The architecture is offline-first: all reads and writes go through a local Room 
 
 **Search**
 - Offline search across cached threads
-- Online search falling back to the Gmail API
+- Online search falling back to the Gmail and Outlook APIs
+
+**Multi-Account & Unified Inbox**
+- Support for multiple Gmail and Microsoft Outlook accounts simultaneously
+- Dedicated Unified Inbox view to see all emails from all accounts in one place
+- Quick account switching by swiping vertically on the profile avatar
+- Floating navigation bar to toggle between Primary Inbox and Unified Inbox
 
 **Account**
-- Google Sign-In via Credential Manager, credentials never leave the device
-- Profile modal with account switching support
+- Google and Microsoft Sign-In, credentials never leave the device
+- Profile modal with account switching support and multi-provider "Add Account" dialog
 
 **Settings**
 - Configurable swipe gesture actions
@@ -43,7 +49,7 @@ The architecture is offline-first: all reads and writes go through a local Room 
 |---|---|
 | UI | Jetpack Compose, Material 3 |
 | Language | Kotlin 100% |
-| Auth | Google Credential Manager, OAuth 2.0 |
+| Auth | Google Credential Manager, MSAL (Microsoft Authentication Library), OAuth 2.0 |
 | Networking | Retrofit, OkHttp |
 | Local storage | Room |
 | Background sync | WorkManager |
@@ -56,7 +62,8 @@ The architecture is offline-first: all reads and writes go through a local Room 
 
 - Android Studio Hedgehog or later
 - A Google Cloud project with the Gmail API enabled
-- An OAuth 2.0 Web Client ID
+- A Microsoft Azure App Registration with Outlook/Graph API scopes enabled
+- An OAuth 2.0 Web Client ID for Google and Client ID for Microsoft
 
 ### Setup
 
