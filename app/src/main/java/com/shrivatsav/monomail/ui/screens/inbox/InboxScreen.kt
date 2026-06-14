@@ -100,9 +100,22 @@ fun InboxScreen(
     userProfile: UserProfile?,
     onEmailClick: (String) -> Unit,
     onSignOut: () -> Unit,
-    onCompose: () -> Unit = {}
+    onCompose: () -> Unit = {},
+    onSettings: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
+
+    // Collect appearance settings
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val app = context.applicationContext as com.shrivatsav.monomail.MonoMailApp
+    val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
+        initial = com.shrivatsav.monomail.data.settings.AppSettings()
+    )
+    val fontSizeScale = when (appSettings.fontScale) {
+        com.shrivatsav.monomail.data.settings.FontScale.SMALL -> 0.85f
+        com.shrivatsav.monomail.data.settings.FontScale.DEFAULT -> 1f
+        com.shrivatsav.monomail.data.settings.FontScale.LARGE -> 1.15f
+    }
     val listState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
 
@@ -187,18 +200,19 @@ fun InboxScreen(
             ) {
                 val toastState by viewModel.toastState.collectAsState()
                 
-                InboxSearchBar(
-                    userProfile = userProfile,
-                    query = searchQuery,
-                    onQueryChange = { searchQuery = it },
-                    onServerSearch = { viewModel.searchServer(it) },
-                    onSignOut = onSignOut,
-                    onMarkAllRead = { viewModel.markAllAsRead() },
-                    onStarredClick = { viewModel.switchTab(InboxTab.STARRED) },
-                    isRefreshing = isRefreshing,
-                    toastState = toastState,
-                    onUndo = { viewModel.undoAction() }
-                )
+            InboxSearchBar(
+                userProfile = userProfile,
+                query = searchQuery,
+                onQueryChange = { searchQuery = it },
+                onServerSearch = { viewModel.searchServer(it) },
+                onSignOut = onSignOut,
+                onMarkAllRead = { viewModel.markAllAsRead() },
+                onStarredClick = { viewModel.switchTab(com.shrivatsav.monomail.ui.screens.inbox.InboxTab.STARRED) },
+                isRefreshing = isRefreshing,
+                toastState = toastState,
+                onUndo = { viewModel.undoAction() },
+                onSettings = onSettings
+            )
 
                 when (val s = state) {
                     is InboxState.Loading -> {
@@ -361,8 +375,18 @@ fun InboxScreen(
                                                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
                                                         longPressedThread = thread
                                                     },
+                                                    showSnippet = appSettings.showSnippet,
+                                                    compactMode = appSettings.compactList,
+                                                    fontSizeScale = fontSizeScale,
                                                     modifier = Modifier.animateItem(fadeInSpec = null, fadeOutSpec = null)
                                                 )
+                                                if (appSettings.showDividers) {
+                                                    HorizontalDivider(
+                                                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                                        thickness = 0.5.dp,
+                                                        modifier = Modifier.padding(horizontal = 20.dp)
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -663,7 +687,8 @@ private fun InboxSearchBar(
     onStarredClick: () -> Unit,
     isRefreshing: Boolean,
     toastState: InboxViewModel.ToastState?,
-    onUndo: () -> Unit
+    onUndo: () -> Unit,
+    onSettings: () -> Unit = {}
 ) {
     var showProfileModal by remember { mutableStateOf(false) }
 
@@ -810,6 +835,10 @@ private fun InboxSearchBar(
             onStarredClick = {
                 showProfileModal = false
                 onStarredClick()
+            },
+            onSettings = {
+                showProfileModal = false
+                onSettings()
             }
         )
     }
@@ -854,10 +883,11 @@ private fun AvatarButton(
 
 @Composable
 private fun ProfileModal(
-    userProfile: UserProfile?,
+    userProfile: UserProfile,
     onDismiss: () -> Unit,
     onSignOut: () -> Unit,
-    onStarredClick: () -> Unit
+    onStarredClick: () -> Unit,
+    onSettings: () -> Unit = {}
 ) {
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -965,7 +995,7 @@ private fun ProfileModal(
                     ProfileMenuItem(
                         icon = Icons.Outlined.Settings,
                         label = "Settings",
-                        onClick = { /* TODO */ }
+                        onClick = onSettings
                     )
 
                     // Help & feedback

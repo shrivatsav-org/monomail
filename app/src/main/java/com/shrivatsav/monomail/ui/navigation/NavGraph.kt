@@ -42,6 +42,8 @@ import com.shrivatsav.monomail.ui.screens.detail.EmailDetailScreen
 import com.shrivatsav.monomail.ui.screens.detail.EmailDetailViewModel
 import com.shrivatsav.monomail.ui.screens.inbox.InboxScreen
 import com.shrivatsav.monomail.ui.screens.inbox.InboxViewModel
+import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
+import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
 
@@ -63,6 +65,7 @@ sealed class Screen(val route: String) {
             return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}"
         }
     }
+    object Settings : Screen("settings")
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -176,7 +179,27 @@ fun NavGraph(
                 },
                 onCompose = {
                     navController.navigate(Screen.Compose.createRoute())
+                },
+                onSettings = {
+                    navController.navigate(Screen.Settings.route)
                 }
+            )
+        }
+
+        // ── Settings ─────────────────────────────────────────────────
+        composable(Screen.Settings.route) {
+            val settingsDataStore = app.settingsDataStore
+            val vm: SettingsViewModel = viewModel(
+                factory = object : ViewModelProvider.Factory {
+                    @Suppress("UNCHECKED_CAST")
+                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                        return SettingsViewModel(settingsDataStore) as T
+                    }
+                }
+            )
+            SettingsScreen(
+                viewModel = vm,
+                onBack = { navController.popBackStack() }
             )
         }
 
