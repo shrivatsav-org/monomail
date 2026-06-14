@@ -20,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.shrivatsav.monomail.data.settings.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -206,6 +207,30 @@ fun SettingsScreen(
                 title = "Open Source Licenses",
                 value = ""
             )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // ── Support ───────────────────────────────────────────────
+            SectionHeader(icon = Icons.Outlined.FavoriteBorder, title = "Support")
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                AsyncImage(
+                    model = "https://storage.ko-fi.com/cdn/kofi3.png?v=6",
+                    contentDescription = "Buy Me a Coffee",
+                    modifier = Modifier
+                        .height(46.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
+                            uriHandler.openUri("https://ko-fi.com/N4N2W53M5")
+                        }
+                )
+            }
 
             Spacer(modifier = Modifier.height(40.dp))
         }

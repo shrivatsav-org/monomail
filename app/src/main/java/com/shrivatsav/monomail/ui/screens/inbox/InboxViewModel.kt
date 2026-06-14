@@ -70,6 +70,9 @@ class InboxViewModel(
     private val _unifiedInboxEnabled = MutableStateFlow(false)
     val unifiedInboxEnabled = _unifiedInboxEnabled.asStateFlow()
 
+    private val _showDonationPrompt = MutableStateFlow(false)
+    val showDonationPrompt = _showDonationPrompt.asStateFlow()
+
     // State flow based on the DB flow of the current tab
     val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled) { tab, _, _ -> tab }
         .flatMapLatest { tab ->
@@ -93,6 +96,11 @@ class InboxViewModel(
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
+                
+                if (!settings.hasSeenDonationPrompt && authManager.currentUser != null) {
+                    _showDonationPrompt.value = true
+                }
+                
                 if (!settings.unifiedInboxEnabled && _currentTab.value == InboxTab.UNIFIED) {
                     _currentTab.value = InboxTab.INBOX
                 }
@@ -274,6 +282,13 @@ class InboxViewModel(
         viewModelScope.launch {
             executeAction(threadId, currentToast.actionType)
             _toastState.value = null
+        }
+    }
+
+    fun dismissDonationPrompt() {
+        viewModelScope.launch {
+            settingsDataStore.setHasSeenDonationPrompt(true)
+            _showDonationPrompt.value = false
         }
     }
 }

@@ -110,6 +110,7 @@ fun InboxScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
+    val showDonationPrompt by viewModel.showDonationPrompt.collectAsState()
 
     // Collect appearance settings
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -184,6 +185,37 @@ fun InboxScreen(
 
     val isRefreshing = (state as? InboxState.Success)?.isRefreshing == true
 
+    if (showDonationPrompt) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { viewModel.dismissDonationPrompt() },
+            title = { Text("Support Monomail") },
+            text = {
+                Column {
+                    Text("If you want to support this app please buy me a coffee! I am a student working on this as my side project contributing to OSS, it would be a great help.")
+                    Spacer(Modifier.height(16.dp))
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                        AsyncImage(
+                            model = "https://storage.ko-fi.com/cdn/kofi3.png?v=6",
+                            contentDescription = "Buy Me a Coffee",
+                            modifier = Modifier
+                                .height(46.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable {
+                                    uriHandler.openUri("https://ko-fi.com/N4N2W53M5")
+                                }
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { viewModel.dismissDonationPrompt() }) {
+                    Text("Close")
+                }
+            }
+        )
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
     ) { padding ->
@@ -219,7 +251,11 @@ fun InboxScreen(
                 onSignOut = onSignOut,
                 onSwitchAccount = { accountId -> viewModel.switchAccount(accountId) },
                 onAddAccount = {
-                    onAddAccount()
+                    if (accounts.size >= 10) {
+                        android.widget.Toast.makeText(context, "Maximum limit of 10 accounts reached.", android.widget.Toast.LENGTH_SHORT).show()
+                    } else {
+                        onAddAccount()
+                    }
                 },
                 onMarkAllRead = { viewModel.markAllAsRead() },
                 onStarredClick = { viewModel.switchTab(com.shrivatsav.monomail.ui.screens.inbox.InboxTab.STARRED) },
