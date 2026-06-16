@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.theme
-
 import android.util.LruCache
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.Font
@@ -8,17 +7,13 @@ import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import com.shrivatsav.monomail.R
-
 private val fontFamilyCache = LruCache<String, FontFamily>(10)
-
 @OptIn(ExperimentalTextApi::class)
 fun googleSansFlex(rond: Float = 0f): FontFamily {
     val key = "GoogleSansFlex_rond_$rond"
     fontFamilyCache.get(key)?.let { return it }
-
     val fonts = mutableListOf<Font>()
     for (weight in 100..900 step 100) {
-        // Normal
         fonts.add(
             Font(
                 resId = R.font.google_sans_flex,
@@ -30,7 +25,6 @@ fun googleSansFlex(rond: Float = 0f): FontFamily {
                 )
             )
         )
-        // Italic
         fonts.add(
             Font(
                 resId = R.font.google_sans_flex,
@@ -44,11 +38,9 @@ fun googleSansFlex(rond: Float = 0f): FontFamily {
             )
         )
     }
-
     val family = FontFamily(fonts)
     fontFamilyCache.put(key, family)
     return family
 }
-
 val GoogleSansFamily = googleSansFlex(0f)
 val GoogleSansRoundedFamily = googleSansFlex(100f)

@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.settings
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.data.settings.*
@@ -13,16 +12,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.URL
-
 enum class UpdateState { IDLE, CHECKING, UP_TO_DATE, UPDATE_AVAILABLE, ERROR }
-
 class SettingsViewModel(
     private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
-
     val settings: StateFlow<AppSettings> = settingsDataStore.settingsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
-
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { settingsDataStore.setThemeMode(mode) }
     fun setFontScale(scale: FontScale) = viewModelScope.launch { settingsDataStore.setFontScale(scale) }
     fun setShowDividers(show: Boolean) = viewModelScope.launch { settingsDataStore.setShowDividers(show) }
@@ -37,25 +32,19 @@ class SettingsViewModel(
     fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUnifiedInboxEnabled(enabled) }
     fun setSmartGroupingEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingEnabled(enabled) }
     fun setSmartGroupingRecentOnly(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingRecentOnly(enabled) }
-
     private val _updateState = MutableStateFlow(UpdateState.IDLE)
     val updateState = _updateState.asStateFlow()
-
     private val _latestVersionUrl = MutableStateFlow<String?>(null)
     val latestVersionUrl = _latestVersionUrl.asStateFlow()
-
     fun checkForUpdates(currentVersion: String) {
         if (_updateState.value == UpdateState.CHECKING) return
         _updateState.value = UpdateState.CHECKING
-
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                // Fetch the latest release from GitHub API
                 val response = URL("https://api.github.com/repos/shrivatsav-0/monomail/releases/latest").readText()
                 val json = JSONObject(response)
                 val tagName = json.getString("tag_name").removePrefix("v")
                 val htmlUrl = json.getString("html_url")
-
                 withContext(Dispatchers.Main) {
                     if (isVersionGreater(tagName, currentVersion)) {
                         _latestVersionUrl.value = htmlUrl
@@ -71,7 +60,6 @@ class SettingsViewModel(
             }
         }
     }
-
     private fun isVersionGreater(latest: String, current: String): Boolean {
         val lParts = latest.split(".").mapNotNull { it.toIntOrNull() }
         val cParts = current.split(".").mapNotNull { it.toIntOrNull() }

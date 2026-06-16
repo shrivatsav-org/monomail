@@ -1,18 +1,12 @@
 package com.shrivatsav.monomail.ui.theme
-
 import androidx.compose.ui.graphics.Color
-
 val Black = Color(0xFF000000)
 val White = Color(0xFFFFFFFF)
-
-// Light mode surfaces
 val LightBackground        = Color(0xFFFFFFFF)
 val LightSurface           = Color(0xFFFAFAFA)
 val LightSurfaceContainer  = Color(0xFFF3F3F3)
 val LightSurfaceContainerHigh = Color(0xFFEEEEEE)
 val LightOutlineVariant    = Color(0xFFE2E2E2)
-
-// Dark mode surfaces
 val DarkBackground         = Color(0xFF000000)
 val DarkSurface            = Color(0xFF0D0D0D)
 val DarkSurfaceContainer   = Color(0xFF141414)

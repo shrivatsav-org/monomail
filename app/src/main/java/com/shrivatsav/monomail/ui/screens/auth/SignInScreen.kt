@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.auth
-
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
@@ -55,7 +54,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.R
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun SignInScreen(
@@ -66,11 +64,8 @@ fun SignInScreen(
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
-    
     var showProviderSheet by remember { mutableStateOf(false) }
     val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
-
-    // consent launcher — fires when Gmail scope needs explicit approval
     val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -78,11 +73,8 @@ fun SignInScreen(
             viewModel.onConsentResult(context)
         }
     }
-
-    // entrance animation
     val scale = remember { Animatable(0.9f) }
     val alpha = remember { Animatable(0f) }
-
     LaunchedEffect(Unit) {
         scale.animateTo(
             targetValue = 1f,
@@ -98,8 +90,6 @@ fun SignInScreen(
             animationSpec = spring(stiffness = Spring.StiffnessLow)
         )
     }
-
-    // handle state changes
     LaunchedEffect(state) {
         when (state) {
             is SignInState.Success -> onSignInSuccess()
@@ -115,7 +105,6 @@ fun SignInScreen(
             else -> {}
         }
     }
-
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
@@ -127,36 +116,26 @@ fun SignInScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // mail icon
             AsyncImage(
                 model = R.mipmap.ic_launcher,
                 contentDescription = "Monomail Icon",
                 modifier = Modifier.size(96.dp)
             )
-
             Spacer(modifier = Modifier.height(24.dp))
-
-            // wordmark
             Text(
                 text = "Mono Mail",
                 style = MaterialTheme.typography.displaySmall,
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            // tagline
             Text(
                 text = "Your inbox, distilled.",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
                 textAlign = TextAlign.Center
             )
-
             Spacer(modifier = Modifier.height(64.dp))
-
-            // sign in button
             Button(
                 onClick = { showProviderSheet = true },
                 modifier = Modifier
@@ -173,9 +152,7 @@ fun SignInScreen(
                     style = MaterialTheme.typography.labelLarge
                 )
             }
-
             Spacer(modifier = Modifier.height(24.dp))
-
             androidx.compose.foundation.layout.Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Center
@@ -199,14 +176,12 @@ fun SignInScreen(
                 )
             }
         }
-
         SnackbarHost(
             hostState = snackbarHostState,
             modifier  = Modifier.align(Alignment.BottomCenter)
         ) {
             Snackbar(snackbarData = it)
         }
-
         if (showProviderSheet) {
             ModalBottomSheet(
                 onDismissRequest = {
@@ -228,9 +203,7 @@ fun SignInScreen(
                         text = "Choose your provider",
                         style = MaterialTheme.typography.titleMedium
                     )
-                    
                     Spacer(modifier = Modifier.height(24.dp))
-                    
                     Button(
                         onClick = { viewModel.signIn(context) },
                         enabled = state !is SignInState.Loading,
@@ -255,9 +228,7 @@ fun SignInScreen(
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.height(16.dp))
-
                     Button(
                         onClick = { viewModel.signInMicrosoft(context as Activity) },
                         enabled = state !is SignInState.Loading,
@@ -282,14 +253,12 @@ fun SignInScreen(
                             )
                         }
                     }
-
                     Spacer(modifier = Modifier.height(48.dp))
                 }
             }
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ProviderSelectionDialog(
@@ -299,7 +268,6 @@ fun ProviderSelectionDialog(
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
-    
     val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
@@ -307,7 +275,6 @@ fun ProviderSelectionDialog(
             viewModel.onConsentResult(context)
         }
     }
-
     LaunchedEffect(state) {
         when (state) {
             is SignInState.Success -> onSuccess()
@@ -335,17 +302,13 @@ fun ProviderSelectionDialog(
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
-            
             Spacer(modifier = Modifier.height(8.dp))
-            
             Text(
                 text = "Choose your provider",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
-            
             Spacer(modifier = Modifier.height(32.dp))
-            
             Button(
                 onClick = { viewModel.signIn(context) },
                 enabled = state !is SignInState.Loading,
@@ -370,9 +333,7 @@ fun ProviderSelectionDialog(
                     )
                 }
             }
-            
             Spacer(modifier = Modifier.height(12.dp))
-            
             Button(
                 onClick = { 
                     context.findActivity()?.let { activity ->
@@ -403,7 +364,6 @@ fun ProviderSelectionDialog(
                     )
                 }
             }
-            
             if (state is SignInState.Error) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -416,7 +376,6 @@ fun ProviderSelectionDialog(
         }
     }
 }
-
 fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()

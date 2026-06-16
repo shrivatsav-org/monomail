@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.inbox
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -34,7 +33,6 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-
 @Composable
 fun EmailItem(
     thread: EmailThread,
@@ -51,9 +49,7 @@ fun EmailItem(
     val senderInitial = thread.from.firstOrNull()?.uppercase() ?: "?"
     val domain = extractDomain(thread.fromEmail)
     val backgroundColor = if (isUnread) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.background
-
     val verticalPad = if (compactMode) 7.dp else 11.dp
-
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -66,14 +62,11 @@ fun EmailItem(
         verticalAlignment = Alignment.Top
     ) {
         Box {
-            // Sender favicon / initial avatar
             SenderAvatar(
                 domain = domain,
                 senderInitial = senderInitial,
                 modifier = Modifier.padding(top = 2.dp)
             )
-            
-            // Unread indicator dot as a badge on the avatar
             if (isUnread) {
                 Box(
                     modifier = Modifier
@@ -84,12 +77,8 @@ fun EmailItem(
                 )
             }
         }
-
         Spacer(modifier = Modifier.width(16.dp))
-
-        // Email text content
         Column(modifier = Modifier.weight(1f)) {
-            // Sender name + message count + timestamp
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -108,7 +97,6 @@ fun EmailItem(
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
                     )
-                    // Message count badge for threads with multiple messages
                     if (thread.messageCount > 1) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
@@ -135,8 +123,6 @@ fun EmailItem(
                     )
                 )
             }
-
-            // Subject
             Text(
                 text = thread.subject,
                 style = MaterialTheme.typography.bodyMedium,
@@ -147,8 +133,6 @@ fun EmailItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-
-            // Snippet
             if (showSnippet) {
                 Text(
                     text = thread.snippet,
@@ -161,7 +145,6 @@ fun EmailItem(
         }
     }
 }
-
 @Composable
 private fun SenderAvatar(
     domain: String?,
@@ -171,7 +154,6 @@ private fun SenderAvatar(
     val avatarModifier = modifier
         .size(40.dp)
         .clip(CircleShape)
-
     val fallback: @Composable () -> Unit = {
         Box(
             modifier = Modifier
@@ -186,7 +168,6 @@ private fun SenderAvatar(
             )
         }
     }
-
     if (domain != null) {
         val context = LocalContext.current
         SubcomposeAsyncImage(
@@ -207,15 +188,10 @@ private fun SenderAvatar(
         Box(modifier = avatarModifier) { fallback() }
     }
 }
-
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Extract a friendly display name from "Name <email>" or plain email. */
 private fun displayName(from: String): String {
     val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
-
 private fun formatTimestamp(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
     val now = System.currentTimeMillis()
@@ -234,7 +210,6 @@ private fun formatTimestamp(epochMillis: Long): String {
             SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMillis))
     }
 }
-
 private fun extractDomain(fromEmail: String): String? {
     val parts = fromEmail.split("@")
     return if (parts.size == 2) parts[1].trim() else null

@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.inbox
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.auth.AuthManager
@@ -21,9 +20,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-
 enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED }
-
 sealed class InboxState {
     object Loading : InboxState()
     data class Success(
@@ -35,7 +32,6 @@ sealed class InboxState {
     ) : InboxState()
     data class Error(val message: String) : InboxState()
 }
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class InboxViewModel(
     private val repository: EmailRepository,
@@ -43,42 +39,31 @@ class InboxViewModel(
     private val authManager: AuthManager,
     private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
-
     private val _currentTab = MutableStateFlow(InboxTab.INBOX)
     private val _isRefreshing = MutableStateFlow(false)
     private val pageTokens = mutableMapOf<String, String?>()
     private fun getPageTokenKey(): String = "${_currentTab.value.name}_${currentServerQuery ?: ""}"
     private var currentServerQuery: String? = null
     private val _isLoadingMore = MutableStateFlow(false)
-
     private val pendingHideIds = MutableStateFlow<Set<String>>(emptySet())
     private val pendingActionJobs = mutableMapOf<String, Job>()
-
     data class ToastState(
         val threadId: String,
         val message: String,
         val actionType: ActionType
     )
     enum class ActionType { ARCHIVE, DELETE }
-
     private val _toastState = MutableStateFlow<ToastState?>(null)
     val toastState = _toastState.asStateFlow()
-
     private val _uiError = MutableSharedFlow<String>()
     val uiError = _uiError.asSharedFlow()
-    
     private val _accounts = MutableStateFlow<List<UserProfile>>(emptyList())
     val accounts = _accounts.asStateFlow()
-
     private val _activeAccountId = MutableStateFlow<String?>(null)
-
     private val _unifiedInboxEnabled = MutableStateFlow(false)
     val unifiedInboxEnabled = _unifiedInboxEnabled.asStateFlow()
-
     private val _showDonationPrompt = MutableStateFlow(false)
     val showDonationPrompt = _showDonationPrompt.asStateFlow()
-
-    // State flow based on the DB flow of the current tab
     val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled) { tab, _, _ -> tab }
         .flatMapLatest { tab ->
         val flow = if (tab == InboxTab.UNIFIED) repository.getAllInboxThreadsFlow() else repository.getInboxThreadsFlow(tab)
@@ -96,16 +81,13 @@ class InboxViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = InboxState.Loading
     )
-
     init {
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
-                
                 if (!settings.hasSeenDonationPrompt && authManager.currentUser != null) {
                     _showDonationPrompt.value = true
                 }
-                
                 if (!settings.unifiedInboxEnabled && _currentTab.value == InboxTab.UNIFIED) {
                     _currentTab.value = InboxTab.INBOX
                 }
@@ -113,8 +95,6 @@ class InboxViewModel(
         }
         refresh()
         loadAccounts()
-        // Immediately sync all other tabs silently in the background
-        // so they are fully cached when the user switches pages
         viewModelScope.launch {
             InboxTab.values().forEach { tab ->
                 if (tab != _currentTab.value && tab != InboxTab.UNIFIED) {
@@ -124,13 +104,11 @@ class InboxViewModel(
         }
         startForegroundPolling()
     }
-
     fun loadAccounts() {
         viewModelScope.launch {
             _accounts.value = authManager.getAccounts()
         }
     }
-
     fun switchAccount(accountId: String) {
         viewModelScope.launch {
             authManager.switchAccount(accountId)
@@ -139,12 +117,10 @@ class InboxViewModel(
             refresh(showLoader = true)
         }
     }
-
     private fun startForegroundPolling() {
         viewModelScope.launch {
             while (true) {
-                delay(60_000) // Poll every 60 seconds silently
-                // Poll the Inbox specifically as it's the most critical
+                delay(60_000) 
                 repository.refreshInbox(InboxTab.INBOX)
                 if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
                     repository.refreshInbox(_currentTab.value)
@@ -152,19 +128,15 @@ class InboxViewModel(
             }
         }
     }
-
     fun switchTab(tab: InboxTab) {
         if (_currentTab.value == tab) return
         _currentTab.value = tab
         currentServerQuery = null
-        // Intentionally NOT calling refresh() here to avoid pop-in on page change.
-        // Sync is handled by background polling, pull-to-refresh, or app restart.
     }
-
     fun refresh(showLoader: Boolean = true) {
         viewModelScope.launch {
             if (showLoader) _isRefreshing.value = true
-            val query = currentServerQuery // Use query if searching
+            val query = currentServerQuery 
             val result = if (_currentTab.value == InboxTab.UNIFIED) {
                 repository.refreshInbox(InboxTab.INBOX)
             } else {
@@ -182,18 +154,15 @@ class InboxViewModel(
             if (showLoader) _isRefreshing.value = false
         }
     }
-
     fun searchServer(query: String) {
         currentServerQuery = query.takeIf { it.isNotBlank() }
         refresh()
     }
-
     fun loadMore() {
         val key = getPageTokenKey()
         val token = pageTokens[key] ?: return
         if (_isLoadingMore.value) return
         _isLoadingMore.value = true
-
         viewModelScope.launch {
             val result = repository.refreshInbox(_currentTab.value, pageToken = token, query = currentServerQuery)
             result.onSuccess { newToken ->
@@ -206,45 +175,35 @@ class InboxViewModel(
             _isLoadingMore.value = false
         }
     }
-
     fun markAllAsRead() {
         viewModelScope.launch {
             val currentState = state.value as? InboxState.Success ?: return@launch
             if (currentState.currentTab != InboxTab.INBOX) return@launch
             val unreadThreads = currentState.threads.filter { !it.isRead }
             if (unreadThreads.isEmpty()) return@launch
-
-            // Optimistically update threads in DB so UI updates instantly
             unreadThreads.forEach { thread ->
                 repository.markThreadAsRead(thread.threadId)
             }
         }
     }
-
     fun markThreadAsRead(threadId: String) {
         viewModelScope.launch { repository.markThreadAsRead(threadId) }
     }
-    
     fun markThreadAsUnread(threadId: String) {
         viewModelScope.launch { repository.markThreadAsUnread(threadId) }
     }
-
     fun archiveThread(threadId: String) {
         queueAction(threadId, ActionType.ARCHIVE, "Conversation archived")
     }
-
     fun deleteThread(threadId: String) {
         queueAction(threadId, ActionType.DELETE, "Conversation deleted")
     }
-
     fun restoreThread(threadId: String) {
         viewModelScope.launch { repository.restoreThread(threadId) }
     }
-
     fun unarchiveThread(threadId: String) {
         viewModelScope.launch { repository.unarchiveThread(threadId) }
     }
-
     fun toggleStar(threadId: String) {
         viewModelScope.launch {
             val currentState = state.value as? InboxState.Success ?: return@launch
@@ -252,11 +211,9 @@ class InboxViewModel(
             repository.toggleStar(threadId, thread.isStarred)
         }
     }
-
     private fun queueAction(threadId: String, type: ActionType, message: String) {
         pendingHideIds.value = pendingHideIds.value + threadId
         _toastState.value = ToastState(threadId, message, type)
-
         pendingActionJobs[threadId]?.cancel()
         pendingActionJobs[threadId] = viewModelScope.launch {
             delay(4000)
@@ -266,7 +223,6 @@ class InboxViewModel(
             }
         }
     }
-
     private suspend fun executeAction(threadId: String, type: ActionType) {
         pendingHideIds.value = pendingHideIds.value - threadId
         pendingActionJobs.remove(threadId)
@@ -275,7 +231,6 @@ class InboxViewModel(
             ActionType.DELETE -> repository.deleteThread(threadId)
         }
     }
-
     fun undoAction() {
         val currentToast = _toastState.value ?: return
         val threadId = currentToast.threadId
@@ -284,7 +239,6 @@ class InboxViewModel(
         pendingHideIds.value = pendingHideIds.value - threadId
         _toastState.value = null
     }
-
     fun dismissToast() {
         val currentToast = _toastState.value ?: return
         val threadId = currentToast.threadId
@@ -294,7 +248,6 @@ class InboxViewModel(
             _toastState.value = null
         }
     }
-
     fun dismissDonationPrompt() {
         viewModelScope.launch {
             settingsDataStore.setHasSeenDonationPrompt(true)

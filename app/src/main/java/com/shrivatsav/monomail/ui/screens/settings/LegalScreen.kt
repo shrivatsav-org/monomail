@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.settings
-
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
@@ -30,7 +29,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LegalScreen(
@@ -40,7 +38,6 @@ fun LegalScreen(
     val context = LocalContext.current
     var content by remember { mutableStateOf("Loading...") }
     val title = if (type == "privacy") "Privacy Policy" else "Terms of Service"
-
     LaunchedEffect(type) {
         val fileName = if (type == "privacy") "PRIVACY_POLICY.md" else "TERMS_OF_SERVICE.md"
         content = withContext(Dispatchers.IO) {
@@ -51,7 +48,6 @@ fun LegalScreen(
             }
         }
     }
-
     Scaffold(
         contentWindowInsets = WindowInsets(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
