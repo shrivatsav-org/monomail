@@ -42,6 +42,8 @@ The architecture is offline-first: all reads and writes go through a local Room 
 
 **Settings**
 - Configurable swipe gesture actions
+- Global font scaling support across the entire app interface
+- In-app update checker to directly download the latest GitHub releases
 - Notification preferences
 
 ## Tech Stack

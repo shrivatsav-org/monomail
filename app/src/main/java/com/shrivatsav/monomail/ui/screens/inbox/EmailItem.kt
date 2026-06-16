@@ -152,11 +152,9 @@ fun EmailItem(
             if (showSnippet) {
                 Text(
                     text = thread.snippet,
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontSize = MaterialTheme.typography.bodySmall.fontSize * fontSizeScale
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                    maxLines = 1,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    maxLines = if (compactMode) 1 else 2,
                     overflow = TextOverflow.Ellipsis
                 )
             }

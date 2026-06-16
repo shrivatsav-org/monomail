@@ -5,6 +5,8 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import com.shrivatsav.monomail.security.SecurityUtil
+import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
 @Database(
     entities = [ThreadEntity::class, EmailEntity::class],
@@ -22,11 +24,15 @@ abstract class AppDatabase : RoomDatabase() {
 
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
+                val passphrase = String(SecurityUtil.getDatabasePassphrase(context)).toByteArray()
+                val factory = SupportOpenHelperFactory(passphrase)
+                
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "monomail_database"
                 )
+                .openHelperFactory(factory)
                 .addMigrations(MIGRATION_2_3)
                 .fallbackToDestructiveMigration()
                 .build()

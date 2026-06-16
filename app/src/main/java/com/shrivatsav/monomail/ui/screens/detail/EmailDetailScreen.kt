@@ -12,13 +12,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -81,6 +87,10 @@ fun EmailDetailScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+            bottom = 0.dp
+        ),
         topBar = {
             TopAppBar(
                 title = {},
@@ -170,13 +180,12 @@ private fun ThreadConversationContent(
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
 ) {
-    val isDark = isSystemInDarkTheme()
-    val bgColor = if (isDark) "#121212" else "#FFFFFF"
-    val textColor = if (isDark) "#E6E6E6" else "#1A1A1A"
-    val linkColor = if (isDark) "#AAAAAA" else "#444444"
+    val bgColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.background.toArgb())
+    val textColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.onBackground.toArgb())
+    val linkColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.primary.toArgb())
 
     // Track which messages are expanded. Latest is expanded by default.
-    val expandedMap = remember(emails.size) {
+    val expandedMap = remember(emails) {
         mutableStateMapOf<String, Boolean>().apply {
             emails.forEachIndexed { index, email ->
                 put(email.id, index == emails.lastIndex)
@@ -186,11 +195,10 @@ private fun ThreadConversationContent(
 
     val subject = emails.firstOrNull()?.subject ?: "(no subject)"
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+    LazyColumn(
+        modifier = modifier.fillMaxSize()
     ) {
+        item {
         // Subject header (shared across thread)
         Text(
             text = subject,
@@ -208,12 +216,12 @@ private fun ThreadConversationContent(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp)
             )
+            Spacer(modifier = Modifier.height(12.dp))
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
+        } // Close item {
 
         // Each message in the conversation
-        emails.forEachIndexed { index, email ->
+        itemsIndexed(emails, key = { _, email -> email.id }) { index, email ->
             val isExpanded = expandedMap[email.id] ?: (index == emails.lastIndex)
 
             // Message header — always visible, tappable to expand/collapse
@@ -335,7 +343,10 @@ private fun ThreadConversationContent(
                                 <body>$cleanBody</body>
                                 </html>
                             """.trimIndent()
-                            webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                            if (webView.tag != html) {
+                                webView.tag = html
+                                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                            }
                         }
                     )
 
@@ -360,53 +371,55 @@ private fun ThreadConversationContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        item {
+            Spacer(modifier = Modifier.height(16.dp))
 
-        HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant,
-            modifier = Modifier.padding(horizontal = 20.dp)
-        )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
 
-        Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-        // Reply / Forward — applies to the latest message
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .padding(bottom = 32.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            OutlinedButton(
-                onClick = onReply,
+            // Reply / Forward — applies to the latest message
+            Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.extraLarge
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp)
+                    .padding(bottom = 32.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.Reply,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Reply", style = MaterialTheme.typography.labelLarge)
-            }
+                OutlinedButton(
+                    onClick = onReply,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Reply,
+                        contentDescription = "Reply",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Reply", style = MaterialTheme.typography.labelLarge)
+                }
 
-            OutlinedButton(
-                onClick = onForward,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(48.dp),
-                shape = MaterialTheme.shapes.extraLarge
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.Forward,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Forward", style = MaterialTheme.typography.labelLarge)
+                OutlinedButton(
+                    onClick = onForward,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = MaterialTheme.shapes.extraLarge
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Forward,
+                        contentDescription = "Forward",
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Forward", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
@@ -547,7 +560,7 @@ private fun ImageAttachmentCard(
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.AttachFile,
-                            contentDescription = null,
+                            contentDescription = "Attachment",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                             modifier = Modifier.size(28.dp)
                         )
@@ -576,7 +589,7 @@ private fun ImageAttachmentCard(
         ) {
             Icon(
                 imageVector = Icons.Outlined.Image,
-                contentDescription = null,
+                contentDescription = "Attachment Options",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                 modifier = Modifier.size(14.dp)
             )

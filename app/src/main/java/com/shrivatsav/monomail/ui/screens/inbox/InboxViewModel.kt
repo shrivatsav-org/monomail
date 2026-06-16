@@ -10,9 +10,11 @@ import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -61,6 +63,9 @@ class InboxViewModel(
 
     private val _toastState = MutableStateFlow<ToastState?>(null)
     val toastState = _toastState.asStateFlow()
+
+    private val _uiError = MutableSharedFlow<String>()
+    val uiError = _uiError.asSharedFlow()
     
     private val _accounts = MutableStateFlow<List<UserProfile>>(emptyList())
     val accounts = _accounts.asStateFlow()
@@ -171,6 +176,8 @@ class InboxViewModel(
                 } else {
                     pageTokens.remove(getPageTokenKey())
                 }
+            }.onFailure {
+                _uiError.emit(it.message ?: "Failed to refresh emails")
             }
             if (showLoader) _isRefreshing.value = false
         }
@@ -204,10 +211,13 @@ class InboxViewModel(
         viewModelScope.launch {
             val currentState = state.value as? InboxState.Success ?: return@launch
             if (currentState.currentTab != InboxTab.INBOX) return@launch
-            val unreadIds = currentState.threads.filter { !it.isRead }.map { it.latestMessageId }
-            if (unreadIds.isEmpty()) return@launch
+            val unreadThreads = currentState.threads.filter { !it.isRead }
+            if (unreadThreads.isEmpty()) return@launch
 
-            repository.markEmailsAsRead(unreadIds)
+            // Optimistically update threads in DB so UI updates instantly
+            unreadThreads.forEach { thread ->
+                repository.markThreadAsRead(thread.threadId)
+            }
         }
     }
 

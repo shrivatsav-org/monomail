@@ -69,6 +69,9 @@ import androidx.activity.result.contract.ActivityResultContracts
 import coil.compose.AsyncImage
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import android.net.Uri
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -124,6 +127,10 @@ fun ComposeScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+            bottom = 0.dp
+        ),
         topBar = {
             TopAppBar(
                 title = {

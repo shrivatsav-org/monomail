@@ -19,9 +19,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import coil.compose.AsyncImage
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Mail
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -65,7 +68,7 @@ fun SignInScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     
     var showProviderSheet by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // consent launcher — fires when Gmail scope needs explicit approval
     val consentLauncher = rememberLauncherForActivityResult(
@@ -117,6 +120,7 @@ fun SignInScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp)
                 .scale(scale.value)
                 .alpha(alpha.value),
@@ -313,106 +317,101 @@ fun ProviderSelectionDialog(
             else -> {}
         }
     }
-
-    androidx.compose.ui.window.Dialog(
-        onDismissRequest = { if (state !is SignInState.Loading) onDismiss() }
+    androidx.compose.material3.Surface(
+        modifier = Modifier.fillMaxWidth(0.9f),
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        shadowElevation = 32.dp
     ) {
-        androidx.compose.material3.Surface(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge,
-            color = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.onSurface,
-            tonalElevation = 6.dp
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
+            Text(
+                text = "Add Account",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = "Choose your provider",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            )
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            Button(
+                onClick = { viewModel.signIn(context) },
+                enabled = state !is SignInState.Loading,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor   = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
-                Text(
-                    text = "Add Account",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                
-                Spacer(modifier = Modifier.height(8.dp))
-                
-                Text(
-                    text = "Choose your provider",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                
-                Spacer(modifier = Modifier.height(32.dp))
-                
-                Button(
-                    onClick = { viewModel.signIn(context) },
-                    enabled = state !is SignInState.Loading,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = MaterialTheme.shapes.large,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor   = MaterialTheme.colorScheme.onPrimary
+                if (state is SignInState.Loading) {
+                    LoadingIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
-                ) {
-                    if (state is SignInState.Loading) {
-                        LoadingIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onPrimary
-                        )
-                    } else {
-                        Text(
-                            text = "Sign in with Google",
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = { 
-                        context.findActivity()?.let { activity ->
-                            viewModel.signInMicrosoft(activity)
-                        } ?: run {
-                            android.widget.Toast.makeText(context, "Activity not found", android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                    enabled = state !is SignInState.Loading,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = MaterialTheme.shapes.large,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor   = MaterialTheme.colorScheme.onSecondary
-                    )
-                ) {
-                    if (state is SignInState.Loading) {
-                        LoadingIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.onSecondary
-                        )
-                    } else {
-                        Text(
-                            text = "Sign in with Microsoft",
-                            style = MaterialTheme.typography.labelLarge
-                        )
-                    }
-                }
-                
-                if (state is SignInState.Error) {
-                    Spacer(modifier = Modifier.height(16.dp))
+                } else {
                     Text(
-                        text = (state as SignInState.Error).message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center
+                        text = "Sign in with Google",
+                        style = MaterialTheme.typography.labelLarge
                     )
                 }
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Button(
+                onClick = { 
+                    context.findActivity()?.let { activity ->
+                        viewModel.signInMicrosoft(activity)
+                    } ?: run {
+                        android.widget.Toast.makeText(context, "Activity not found", android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                },
+                enabled = state !is SignInState.Loading,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor   = MaterialTheme.colorScheme.onSecondary
+                )
+            ) {
+                if (state is SignInState.Loading) {
+                    LoadingIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onSecondary
+                    )
+                } else {
+                    Text(
+                        text = "Sign in with Microsoft",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
+            }
+            
+            if (state is SignInState.Error) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = (state as SignInState.Error).message,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center
+                )
             }
         }
     }
