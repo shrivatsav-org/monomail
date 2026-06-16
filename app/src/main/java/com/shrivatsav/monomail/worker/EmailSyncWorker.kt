@@ -34,7 +34,7 @@ class EmailSyncWorker(
         val database = app.emailRepository.getDatabase() 
         for (account in accounts) {
             val accountId = account.id
-            val lastKnownId = accountManager.getLastKnownEmailId(accountId)
+            val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
             val result = repository.refreshInbox(InboxTab.INBOX, accountId = accountId)
             if (result.isFailure) {
                 hasFailure = true
@@ -42,7 +42,8 @@ class EmailSyncWorker(
             }
             val newestThread = repository.getLatestInboxThread(accountId)
             if (newestThread != null) {
-                if (lastKnownId != null && newestThread.threadId != lastKnownId) {
+                val newTimestamp = newestThread.date.toString()
+                if (lastKnownTimestamp != null && newTimestamp != lastKnownTimestamp) {
                     showNotification(
                         title = newestThread.from,
                         text = newestThread.subject,
@@ -50,7 +51,7 @@ class EmailSyncWorker(
                         notificationId = accountId.hashCode()
                     )
                 }
-                accountManager.setLastKnownEmailId(accountId, newestThread.threadId)
+                accountManager.setLastKnownEmailId(accountId, newTimestamp)
             }
         }
         return if (hasFailure) Result.retry() else Result.success()

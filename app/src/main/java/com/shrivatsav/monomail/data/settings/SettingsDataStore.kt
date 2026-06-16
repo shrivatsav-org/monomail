@@ -26,7 +26,8 @@ data class AppSettings(
     val unifiedInboxEnabled: Boolean = false,
     val hasSeenDonationPrompt: Boolean = false,
     val smartGroupingEnabled: Boolean = true,
-    val smartGroupingRecentOnly: Boolean = false
+    val smartGroupingRecentOnly: Boolean = false,
+    val organizeByThread: Boolean = true
 )
 class SettingsDataStore(private val context: Context) {
     private object Keys {
@@ -45,6 +46,7 @@ class SettingsDataStore(private val context: Context) {
         val HAS_SEEN_DONATION_PROMPT = booleanPreferencesKey("has_seen_donation_prompt")
         val SMART_GROUPING_ENABLED = booleanPreferencesKey("smart_grouping_enabled")
         val SMART_GROUPING_RECENT_ONLY = booleanPreferencesKey("smart_grouping_recent_only")
+        val ORGANIZE_BY_THREAD = booleanPreferencesKey("organize_by_thread")
     }
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -62,7 +64,8 @@ class SettingsDataStore(private val context: Context) {
             unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false,
             hasSeenDonationPrompt = prefs[Keys.HAS_SEEN_DONATION_PROMPT] ?: false,
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
-            smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: false
+            smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: false,
+            organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true
         )
     }
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -109,5 +112,8 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setSmartGroupingRecentOnly(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SMART_GROUPING_RECENT_ONLY] = enabled }
+    }
+    suspend fun setOrganizeByThread(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ORGANIZE_BY_THREAD] = enabled }
     }
 }

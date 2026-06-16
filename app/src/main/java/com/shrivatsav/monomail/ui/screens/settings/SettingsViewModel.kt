@@ -32,6 +32,7 @@ class SettingsViewModel(
     fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUnifiedInboxEnabled(enabled) }
     fun setSmartGroupingEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingEnabled(enabled) }
     fun setSmartGroupingRecentOnly(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingRecentOnly(enabled) }
+    fun setOrganizeByThread(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setOrganizeByThread(enabled) }
     private val _updateState = MutableStateFlow(UpdateState.IDLE)
     val updateState = _updateState.asStateFlow()
     private val _latestVersionUrl = MutableStateFlow<String?>(null)

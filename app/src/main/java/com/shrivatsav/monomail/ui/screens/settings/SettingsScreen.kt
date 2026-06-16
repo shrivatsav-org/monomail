@@ -120,6 +120,14 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
+                    icon = Icons.Outlined.Forum,
+                    title = if (settings.organizeByThread) "Conversation View" else "Message Chain",
+                    subtitle = if (settings.organizeByThread) "Collapsible grouped threads in detail view" else "All messages expanded as a chain",
+                    checked = settings.organizeByThread,
+                    onCheckedChange = { viewModel.setOrganizeByThread(it) }
+                )
+                CardDivider()
+                SettingsToggleRow(
                     icon = Icons.Outlined.FolderSpecial,
                     title = "Smart Grouping",
                     subtitle = "Group frequent senders into folders",

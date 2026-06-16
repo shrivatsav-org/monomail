@@ -20,4 +20,36 @@ interface EmailDao {
     suspend fun deleteThreadEmails(threadId: String, accountId: String)
     @Query("DELETE FROM emails WHERE accountId = :accountId")
     suspend fun clearForAccount(accountId: String)
+
+    @Query("UPDATE emails SET inInbox = 0, inArchived = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun archiveThreadEmails(threadId: String, accountId: String)
+
+    @Query("UPDATE emails SET inInbox = 1, inArchived = 0 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun unarchiveThreadEmails(threadId: String, accountId: String)
+
+    @Query("UPDATE emails SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun updateThreadEmailsReadStatus(threadId: String, accountId: String, isRead: Boolean)
+
+    @Query("UPDATE emails SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun moveThreadEmailsToTrash(threadId: String, accountId: String)
+
+    @Query("UPDATE emails SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun restoreThreadEmailsFromTrash(threadId: String, accountId: String)
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC")
+    fun getInboxEmails(accountId: String): Flow<List<EmailEntity>>
+
+    @Query("SELECT * FROM emails WHERE inInbox = 1 ORDER BY date DESC")
+    fun getAllInboxEmails(): Flow<List<EmailEntity>>
+
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC")
+    fun getSentEmails(accountId: String): Flow<List<EmailEntity>>
+
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC")
+    fun getArchivedEmails(accountId: String): Flow<List<EmailEntity>>
+
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC")
+    fun getStarredEmails(accountId: String): Flow<List<EmailEntity>>
+
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC")
+    fun getTrashEmails(accountId: String): Flow<List<EmailEntity>>
 }

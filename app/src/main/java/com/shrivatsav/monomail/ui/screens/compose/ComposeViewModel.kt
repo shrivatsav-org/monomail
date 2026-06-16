@@ -46,8 +46,8 @@ class ComposeViewModel(
                 else -> ""
             },
             subject = when (mode) {
-                ComposeMode.REPLY -> "Re: ${originalSubject?.removePrefix("Re: ")?.removePrefix("Fwd: ") ?: ""}"
-                ComposeMode.FORWARD -> "Fwd: ${originalSubject?.removePrefix("Re: ")?.removePrefix("Fwd: ") ?: ""}"
+                ComposeMode.REPLY -> "Re: ${originalSubject?.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "") ?: ""}"
+                ComposeMode.FORWARD -> "Fwd: ${originalSubject?.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "") ?: ""}"
                 else -> ""
             },
             body = "",
