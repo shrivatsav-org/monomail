@@ -1,6 +1,6 @@
-# Monomail
+# MonoMail
 
-A monochrome Gmail client for Android, built with Jetpack Compose and Material 3. No colour accents, no noise, just email.
+A monochrome email client for Android, built with Jetpack Compose and Material 3. No colour accents, no noise, just email.
 
 [Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest)
 
@@ -8,82 +8,127 @@ A monochrome Gmail client for Android, built with Jetpack Compose and Material 3
 
 ## Overview
 
-Monomail is an open-source Android email client that connects to Gmail and Microsoft Outlook via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome — every screen uses only black, white, and greyscale, built on top of Material 3 Expressive with Google Sans and Roboto.
+MonoMail is an open-source Android email client that connects to Gmail and Microsoft Outlook via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome -- every screen uses only black, white, and greyscale, built on top of Material 3 Expressive.
 
-The architecture is offline-first: all reads and writes go through a local Room database first, and background sync via WorkManager keeps the remote state consistent without blocking the UI.
+The architecture is offline-first: all reads and writes go through a local Room database encrypted with SQLCipher, and background sync via WorkManager keeps the remote state consistent without blocking the UI.
 
 ## Features
 
-**Inbox**
-- Pull-to-reveal loader that physically shifts inbox content to expose a refresh indicator.
-- Swipe right to archive or unarchive a thread.
-- Swipe left to star or unstar a thread.
-- Long-press contextual menu to star, archive, mark unread, or delete.
-- Smart undo toast with a 4-second window that cancels the network request if triggered.
-- Configurable inbox grouping by sender with expandable group headers.
-- Message count badge displayed next to sender name for threads with multiple messages.
+### Inbox
+- Six folder tabs: Inbox, Sent, Archived, Starred, Trash, and Unified Inbox (when enabled).
+- Pull-to-refresh to sync the current folder.
+- Infinite scroll with pagination for large mailboxes.
+- Date headers ("Today", "Yesterday", "Earlier") to organise the list chronologically.
+- Smart grouping: auto-collapses threads from the same sender (threshold: 3 emails within 24 hours or 3 days) into expandable group headers showing sender name, count, and unread badge.
+- Swipe-to-dismiss gestures on each thread: left and right swipe actions are independently configurable (archive, star, delete, mark read/unread), with colour-coded backgrounds.
+- Long-press contextual overlay with blurred background and four action buttons: star/unstar, archive/unarchive (context-aware), mark read/unread, and delete/restore (context-aware).
+- Undo toast with a 4-second window for archive and delete actions; dismiss to execute immediately.
+- Mark all as read button in the search bar.
+- Sender avatar with domain favicon (loaded via Coil with initial fallback).
+- Unread indicator: blue dot on avatar, bold sender/subject text, background tint.
+- Message count badge next to sender name for threads with multiple messages.
+- Relative timestamps: time (today), day name (this week), date (this year), full date (older).
+- Font scaling (5 levels) and compact list mode.
 
-**Conversation and Chain Views**
-- Toggle between conversation view (collapsible grouped threads) and message chain view (all messages expanded inline) in Settings.
-- Conversation view groups emails by subject with collapsible dropdowns per message.
-- Chain view renders all messages in a thread as a single scrollable list with sender avatars, names, and timestamps.
-- Unread indicators in chain view: blue dot on sender avatar, bold sender name, and blue bullet on date.
-- Message count badge displayed next to sender name in chain view.
+### Conversation and Chain Views
+- Toggle in Settings between Conversation View (default) and Message Chain view.
+- Conversation View: collapsible message list. Only the latest message is expanded; older messages show a snippet and expand on tap with animated transitions. Subject and message count displayed at the top.
+- Message Chain View: all messages expanded inline as a continuous scrollable list with full sender information for each message.
+- Unread indicators in chain view: blue dot on avatar, bold sender name, blue bullet on date.
+- Message count badge next to sender name in chain view.
 
-**Email View**
-- Full thread rendering with inline attachments.
-- Distraction-free compose with reply and forward support.
-- Case-insensitive subject prefix stripping (Re:, Fwd:, Fw:) when replying and forwarding.
-- Attachments displayed as clickable chips with file size and MIME type info.
-- HTML rendering via WebView with dark mode support.
+### Search
+- Local client-side search filters threads by subject, sender name, or snippet in real time.
+- Server-side search triggers the Gmail or Outlook API, with paginated results and a "Search server for older emails" prompt when no local results are found.
 
-**Search**
-- Offline search across cached threads.
-- Online search falling back to the Gmail and Outlook APIs.
+### Multi-Account and Unified Inbox
+- Support for up to 10 Gmail and Microsoft Outlook accounts simultaneously.
+- Unified Inbox toggle in Settings to see all accounts in a single combined tab.
+- Quick account switching: vertical drag gesture on the profile avatar, or via the account switch modal.
+- Profile card with avatar, display name, email, linked accounts count, and quick links to Starred, Trash, Settings, and sign out.
 
-**Multi-Account and Unified Inbox**
-- Support for multiple Gmail and Microsoft Outlook accounts simultaneously.
-- Dedicated Unified Inbox view to see all emails from all accounts in one place.
-- Quick account switching by swiping vertically on the profile avatar.
-- Floating navigation bar to toggle between Primary Inbox and Unified Inbox.
+### Compose
+- New email, reply, and forward modes with pre-filled recipient and subject fields.
+- Contact auto-suggestions indexed from threads and messages (debounced, max 5 results, case-insensitive matching).
+- File attachments via system file picker (any MIME type), displayed as preview cards with thumbnails for images and icon with filename for other files. Removable via close button.
+- Attachments are base64-encoded and sent as multipart MIME.
+- Validation: recipient required, body cannot be empty.
+- Confirmation-before-send option in Settings.
+- Default reply mode (Reply / Reply All) configurable in Settings.
 
-**Account**
-- Google and Microsoft Sign-In; credentials never leave the device.
-- Profile modal with account switching support and multi-provider "Add Account" dialog.
-- Support for up to 10 connected accounts simultaneously.
+### Settings
+Accessible from the profile card. All settings are persisted via DataStore Preferences.
 
-**Notifications**
-- Background polling via WorkManager with notification on new emails.
-- Notification detects replies in existing threads (timestamp-based comparison).
-- Configurable notification preferences per account.
+**Appearance:**
+- Theme: System, Light, or Dark with animated transitions.
+- Font Size: Extra Small, Small, Default, Large, Extra Large (0.7x to 1.3x scaling) with live preview.
+- Show Dividers: toggle lines between email items.
+- Compact List: reduce spacing in the email list.
+- Show Snippet Preview: display preview text below sender in the inbox.
 
-**Settings**
-- Conversation view toggle (collapsible grouped threads vs. expanded message chain).
-- Configurable swipe gesture actions (archive, star, delete, mark read/unread).
-- Smart grouping toggle to auto-group inbox threads by sender.
-- Show/hide email snippets and list dividers.
-- Compact list mode and global font scaling across the entire app interface.
-- In-app update checker to directly download the latest GitHub releases.
-- Notification preferences per account.
+**Behavior:**
+- Unified Inbox: combine all accounts into one tab.
+- Conversation View / Message Chain: toggle between collapsible threads and expanded chain view in email detail.
+- Smart Grouping: auto-group threads by sender in the inbox.
+- Group Recent Only: restrict smart grouping to the last 24 hours (otherwise 3 days).
+- Swipe Left / Swipe Right: independently configure gesture actions (Archive, Star, Delete, Mark Read/Unread) via bottom sheet pickers.
+- Confirm Before Sending: show a confirmation dialog before sending each email.
+- Default Reply: Reply or Reply All.
 
-**Performance and Stability**
-- Coil-based avatar loading with favicon fallback for sender domain.
-- Optimised Room queries with proper indexes on threadId, date, and tab.
-- In-memory deduplication and ID-based keying for lazy lists.
-- Haptic feedback on long-press interactions
+**Notifications:**
+- Email Notifications: master toggle for notification alerts.
+- Sync Frequency: 15 minutes, 30 minutes, 1 hour, or Manual (polling only; no push).
+
+**Updates:**
+- Check for Updates: queries the GitHub releases API and shows status (Checking, Up to Date, Update Available). Tapping opens the download page.
+
+**About:**
+- Version (1.2.5), Privacy Policy, Terms of Service, and Open Source Licenses.
+
+**Support:**
+- Link to Ko-fi donation page.
+
+### Account Management
+- Google Sign-In via Android Credential Manager and Google Identity Services.
+- Microsoft Sign-In via MSAL (Microsoft Authentication Library).
+- Account credentials stored encrypted with AES-GCM via Android KeyStore and EncryptedSharedPreferences.
+- Session restoration on app launch.
+- Provider-specific sign-out (clears Google Credential Manager or MSAL session independently).
+- Add account dialog with Google and Microsoft provider selection.
+
+### Notifications
+- Background periodic sync via WorkManager (respects the configured sync frequency).
+- New email notification per account with sender name, subject, and system email icon.
+- Android 13+ respects POST_NOTIFICATIONS permission.
+- Notification channel: "New Emails".
+- Timestamp-based detection to notify on replies within existing threads.
+
+### Email Detail
+- HTML body rendering via WebView with JavaScript disabled.
+- Quoted text removal: strips Gmail, Yahoo, and Mozilla quoting blocks, "On ... wrote:" patterns, and `>` quoted lines.
+- Custom CSS injection for consistent typography and dark mode.
+- Inline image attachments decoded and displayed as previews (max 280dp height) with loading spinner; click to open in system app.
+- File attachments displayed in a 2-column grid with file extension badge, name, and size; download and open via FileProvider.
+- Top bar actions: back, star/unstar, overflow menu (mark unread, archive, move to trash) -- each navigates back after action.
+- Reply and Forward buttons at the bottom.
+
+### Donation Prompt
+- One-time overlay shown on first install linking to the Ko-fi page, dismissible via a close button.
 
 ## Tech Stack
 
 | Layer | Library |
 |---|---|
-| UI | Jetpack Compose, Material 3 |
-| Language | Kotlin 100% |
-| Auth | Google Credential Manager, MSAL (Microsoft Authentication Library), OAuth 2.0 |
-| Networking | Retrofit, OkHttp |
-| Local storage | Room |
-| Background sync | WorkManager |
-| Image loading | Coil |
+| UI | Jetpack Compose, Material 3, Navigation Compose |
+| Language | Kotlin |
+| Authentication | Google Credential Manager, MSAL 5.4.0, Google Play Services Auth |
+| Networking | Retrofit 2, OkHttp 3 |
+| Local Database | Room with SQLCipher encryption |
+| Background Sync | WorkManager |
+| Image Loading | Coil Compose |
 | Async | Kotlin Coroutines, Flow |
+| Secure Storage | AndroidX Security Crypto (EncryptedSharedPreferences), Android KeyStore |
+| Markdown Rendering | Markwon 4.6.2 |
 
 ## Getting Started
 
@@ -91,7 +136,7 @@ The architecture is offline-first: all reads and writes go through a local Room 
 
 - Android Studio Hedgehog or later.
 - A Google Cloud project with the Gmail API enabled.
-- A Microsoft Azure App Registration with Outlook/Graph API scopes enabled.
+- A Microsoft Azure App Registration with Outlook / Graph API scopes enabled.
 - An OAuth 2.0 Web Client ID for Google and Client ID for Microsoft.
 
 ### Setup
@@ -140,7 +185,7 @@ If you like this project and want to support its development, consider buying me
 
 ## License
 
-[GPL-3.0](./LICENSE) — free to use, modify, and distribute under the same terms.
+[GPL-3.0](./LICENSE) -- free to use, modify, and distribute under the same terms.
 
 ---
 
