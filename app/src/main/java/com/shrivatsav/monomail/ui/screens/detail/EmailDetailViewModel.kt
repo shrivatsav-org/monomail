@@ -21,23 +21,33 @@ class EmailDetailViewModel(
     private val threadId: String
 ) : ViewModel() {
 
+    private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
+    private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
     // Observe the specific thread from DB
-    val state: StateFlow<EmailDetailState> = repository.getThreadEmailsFlow(threadId)
-        .map { emails ->
-            if (emails.isNotEmpty()) {
-                val unreadIds = emails.filter { !it.isRead }.map { it.id }
-                if (unreadIds.isNotEmpty()) {
-                    repository.markEmailsAsRead(unreadIds)
-                }
-                EmailDetailState.Success(emails)
-            } else {
-                EmailDetailState.Loading
+    val state: StateFlow<EmailDetailState> = kotlinx.coroutines.flow.combine(
+        repository.getThreadEmailsFlow(threadId),
+        _isLoading,
+        _error
+    ) { emails, isLoading, error ->
+        if (emails.isNotEmpty()) {
+            val unreadIds = emails.filter { !it.isRead }.map { it.id }
+            if (unreadIds.isNotEmpty()) {
+                repository.markEmailsAsRead(unreadIds)
             }
-        }.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = EmailDetailState.Loading
-        )
+            EmailDetailState.Success(emails)
+        } else if (error != null) {
+            EmailDetailState.Error(error)
+        } else if (!isLoading) {
+            EmailDetailState.Error("Email thread not found.")
+        } else {
+            EmailDetailState.Loading
+        }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = EmailDetailState.Loading
+    )
 
     val isStarred: StateFlow<Boolean> = repository.getThreadEmailsFlow(threadId)
         .map { emails -> emails.any { it.isStarred } }
@@ -51,7 +61,12 @@ class EmailDetailViewModel(
         // Trigger a background refresh to ensure we have the full thread details
         viewModelScope.launch {
             repository.markThreadAsRead(threadId)
-            repository.refreshThread(threadId)
+            _isLoading.value = true
+            val result = repository.refreshThread(threadId)
+            _isLoading.value = false
+            result.onFailure {
+                _error.value = it.message ?: "Failed to refresh thread"
+            }
         }
     }
 

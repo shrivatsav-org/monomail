@@ -1,5 +1,8 @@
 package com.shrivatsav.monomail.ui.screens.settings
 
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -50,6 +53,10 @@ fun LegalScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+            bottom = 0.dp
+        ),
         topBar = {
             TopAppBar(
                 title = { Text(title) },

@@ -1,0 +1,10 @@
+Monomail v1.2.5
+
+Features
+- Added an in-app update checker to directly download the latest GitHub releases.
+- Implemented global font scaling support across the entire application interface.
+
+Fixes
+- Corrected application name spacing in strings.xml to "Monomail".
+- Resolved an issue with the read/unread state capturing an old closure when performing repeated swipe gestures.
+- Addressed a visual bug where the swipe undo action would get stuck on the item's background color.

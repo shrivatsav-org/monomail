@@ -42,17 +42,40 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+        }
+
         setContent {
             val settings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
-            MonoMailTheme(themeMode = settings.themeMode.name) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    NavGraph(
-                        authManager = authManager,
-                        emailRepository = emailRepository
-                    )
+            
+            val fontScaleMultiplier = when (settings.fontScale) {
+                com.shrivatsav.monomail.data.settings.FontScale.EXTRA_SMALL -> 0.8f
+                com.shrivatsav.monomail.data.settings.FontScale.SMALL       -> 0.9f
+                com.shrivatsav.monomail.data.settings.FontScale.DEFAULT     -> 1.0f
+                com.shrivatsav.monomail.data.settings.FontScale.LARGE       -> 1.15f
+                com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE -> 1.3f
+            }
+            
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
+                    density = density.density,
+                    fontScale = density.fontScale * fontScaleMultiplier
+                )
+            ) {
+                MonoMailTheme(themeMode = settings.themeMode.name) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        NavGraph(
+                            authManager = authManager,
+                            emailRepository = emailRepository
+                        )
+                    }
                 }
             }
         }

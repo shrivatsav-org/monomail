@@ -11,7 +11,7 @@ private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(na
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
-enum class SwipeAction { ARCHIVE, STAR, DELETE }
+enum class SwipeAction { ARCHIVE, STAR, DELETE, READ_UNREAD }
 enum class DefaultReply { REPLY, REPLY_ALL }
 enum class SyncFrequency { MIN_15, MIN_30, HOUR_1, MANUAL }
 
@@ -28,7 +28,9 @@ data class AppSettings(
     val emailNotifications: Boolean = true,
     val syncFrequency: SyncFrequency = SyncFrequency.MIN_15,
     val unifiedInboxEnabled: Boolean = false,
-    val hasSeenDonationPrompt: Boolean = false
+    val hasSeenDonationPrompt: Boolean = false,
+    val smartGroupingEnabled: Boolean = true,
+    val smartGroupingRecentOnly: Boolean = false
 )
 
 class SettingsDataStore(private val context: Context) {
@@ -47,6 +49,8 @@ class SettingsDataStore(private val context: Context) {
         val SYNC_FREQUENCY = stringPreferencesKey("sync_frequency")
         val UNIFIED_INBOX_ENABLED = booleanPreferencesKey("unified_inbox_enabled")
         val HAS_SEEN_DONATION_PROMPT = booleanPreferencesKey("has_seen_donation_prompt")
+        val SMART_GROUPING_ENABLED = booleanPreferencesKey("smart_grouping_enabled")
+        val SMART_GROUPING_RECENT_ONLY = booleanPreferencesKey("smart_grouping_recent_only")
     }
 
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -63,7 +67,9 @@ class SettingsDataStore(private val context: Context) {
             emailNotifications = prefs[Keys.EMAIL_NOTIFICATIONS] ?: true,
             syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15,
             unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false,
-            hasSeenDonationPrompt = prefs[Keys.HAS_SEEN_DONATION_PROMPT] ?: false
+            hasSeenDonationPrompt = prefs[Keys.HAS_SEEN_DONATION_PROMPT] ?: false,
+            smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
+            smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: false
         )
     }
 
@@ -117,5 +123,13 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setHasSeenDonationPrompt(seen: Boolean) {
         context.dataStore.edit { it[Keys.HAS_SEEN_DONATION_PROMPT] = seen }
+    }
+
+    suspend fun setSmartGroupingEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SMART_GROUPING_ENABLED] = enabled }
+    }
+
+    suspend fun setSmartGroupingRecentOnly(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SMART_GROUPING_RECENT_ONLY] = enabled }
     }
 }

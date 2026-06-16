@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -71,7 +72,6 @@ sealed class Screen(val route: String) {
     object Legal : Screen("legal/{type}") {
         fun createRoute(type: String) = "legal/$type"
     }
-    object AddAccount : Screen("add_account")
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
@@ -110,233 +110,228 @@ fun NavGraph(
         Screen.SignIn.route
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = startDestination,
-        enterTransition = {
-            slideIntoContainer(
-                AnimatedContentTransitionScope.SlideDirection.Left,
-                animationSpec = tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(400))
-        },
-        exitTransition = {
-            slideOutOfContainer(
-                AnimatedContentTransitionScope.SlideDirection.Left,
-                animationSpec = tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(400))
-        },
-        popEnterTransition = {
-            slideIntoContainer(
-                AnimatedContentTransitionScope.SlideDirection.Right,
-                animationSpec = tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(400))
-        },
-        popExitTransition = {
-            slideOutOfContainer(
-                AnimatedContentTransitionScope.SlideDirection.Right,
-                animationSpec = tween(400, easing = androidx.compose.animation.core.FastOutSlowInEasing)
-            ) + fadeOut(animationSpec = tween(400))
-        }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        // ── Sign In ──────────────────────────────────────────────────
-        composable(Screen.SignIn.route) {
-            val vm: SignInViewModel = viewModel(
-                factory = object : ViewModelProvider.Factory {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return SignInViewModel(authManager) as T
+        NavHost(
+            navController = navController,
+            startDestination = startDestination,
+            enterTransition = {
+                when {
+                    targetState.destination.route?.startsWith("compose") == true -> {
+                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400))
                     }
-                }
-            )
-            SignInScreen(
-                viewModel      = vm,
-                onSignInSuccess = {
-                    navController.navigate(Screen.Inbox.route) {
-                        popUpTo(Screen.SignIn.route) { inclusive = true }
+                    targetState.destination.route?.startsWith("thread") == true || targetState.destination.route?.startsWith("settings") == true -> {
+                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400))
                     }
-                },
-                onNavigateToLegal = { type ->
-                    navController.navigate(Screen.Legal.createRoute(type))
+                    else -> fadeIn(animationSpec = tween(400))
                 }
-            )
-        }
-
-        // ── Add Account (Dialog) ─────────────────────────────────────
-        dialog(Screen.AddAccount.route) {
-            val vm: SignInViewModel = viewModel(
-                factory = object : ViewModelProvider.Factory {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return SignInViewModel(authManager) as T
+            },
+            exitTransition = {
+                when {
+                    initialState.destination.route?.startsWith("compose") == true -> {
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
                     }
-                }
-            )
-            com.shrivatsav.monomail.ui.screens.auth.ProviderSelectionDialog(
-                viewModel = vm,
-                onDismiss = { navController.popBackStack() },
-                onSuccess = { 
-                    // When success, just close the dialog. The new account will be available.
-                    navController.popBackStack() 
-                }
-            )
-        }
-
-        // ── Inbox ────────────────────────────────────────────────────
-        composable(Screen.Inbox.route) {
-            val vm: InboxViewModel = viewModel(
-                factory = object : ViewModelProvider.Factory {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return InboxViewModel(emailRepository, contactProvider, authManager, app.settingsDataStore) as T
+                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true -> {
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
                     }
+                    else -> fadeOut(animationSpec = tween(400))
                 }
-            )
-            val scope = androidx.compose.runtime.rememberCoroutineScope()
-            val activeAccount by authManager.activeAccountFlow.collectAsState(initial = authManager.currentUser)
-            
-            InboxScreen(
-                viewModel    = vm,
-                userProfile  = activeAccount,
-                onEmailClick = { threadId ->
-                    navController.navigate(Screen.ThreadDetail.createRoute(threadId))
-                },
-                onSignOut = {
-                    scope.launch {
-                        authManager.signOutAll()
-                        emailRepository.clearLocalData()
-                        navController.navigate(Screen.SignIn.route) {
-                            popUpTo(0) { inclusive = true }
+            },
+            popEnterTransition = {
+                fadeIn(animationSpec = tween(400))
+            },
+            popExitTransition = {
+                when {
+                    initialState.destination.route?.startsWith("compose") == true -> {
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+                    }
+                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true -> {
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+                    }
+                    else -> fadeOut(animationSpec = tween(400))
+                }
+            }
+        ) {
+            // ── Sign In ──────────────────────────────────────────────────
+            composable(Screen.SignIn.route) {
+                val vm: SignInViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return SignInViewModel(authManager) as T
                         }
                     }
-                },
-                onCompose = {
-                    navController.navigate(Screen.Compose.createRoute())
-                },
-                onSettings = {
-                    navController.navigate(Screen.Settings.route)
-                },
-                onAddAccount = {
-                    navController.navigate(Screen.AddAccount.route)
-                }
-            )
-        }
-
-        // ── Settings ─────────────────────────────────────────────────
-        composable(Screen.Settings.route) {
-            val app = context.applicationContext as MonoMailApp
-            val settingsViewModel: SettingsViewModel = viewModel(
-                factory = object : ViewModelProvider.Factory {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return SettingsViewModel(app.settingsDataStore) as T
+                )
+                SignInScreen(
+                    viewModel      = vm,
+                    onSignInSuccess = {
+                        navController.navigate(Screen.Inbox.route) {
+                            popUpTo(Screen.SignIn.route) { inclusive = true }
+                        }
+                    },
+                    onNavigateToLegal = { type ->
+                        navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
                     }
-                }
-            )
-            SettingsScreen(
-                viewModel = settingsViewModel,
-                onNavigateBack = { navController.popBackStack() },
-                onNavigateToLegal = { type ->
-                    navController.navigate(Screen.Legal.createRoute(type))
-                }
-            )
-        }
+                )
+            }
 
-        composable(
-            route = Screen.Legal.route,
-            arguments = listOf(navArgument("type") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val type = backStackEntry.arguments?.getString("type") ?: "privacy"
-            com.shrivatsav.monomail.ui.screens.settings.LegalScreen(
-                type = type,
-                onNavigateBack = { navController.popBackStack() }
-            )
-        }
-
-        // ── Thread Detail (conversation view) ────────────────────────
-        composable(
-            route = Screen.ThreadDetail.route,
-            arguments = listOf(navArgument("threadId") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val threadId = backStackEntry.arguments?.getString("threadId") ?: return@composable
-            val vm: EmailDetailViewModel = viewModel(
-                factory = object : ViewModelProvider.Factory {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return EmailDetailViewModel(emailRepository, threadId) as T
+            // ── Inbox ────────────────────────────────────────────────────
+            composable(Screen.Inbox.route) {
+                val vm: InboxViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return InboxViewModel(emailRepository, contactProvider, authManager, app.settingsDataStore) as T
+                        }
                     }
-                }
-            )
-            EmailDetailScreen(
-                viewModel = vm,
-                onBack    = { navController.popBackStack() },
-                onReply   = { to, subject, body, tid, messageId ->
-                    navController.navigate(
-                        Screen.Compose.createRoute(
-                            mode = ComposeMode.REPLY,
-                            to = to,
-                            subject = subject,
-                            threadId = tid,
-                            messageId = messageId
+                )
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                val activeAccount by authManager.activeAccountFlow.collectAsState(initial = authManager.currentUser)
+
+                InboxScreen(
+                    viewModel    = vm,
+                    userProfile  = activeAccount,
+                    onEmailClick = { threadId ->
+                        navController.navigate(Screen.ThreadDetail.createRoute(threadId)) { launchSingleTop = true }
+                    },
+                    onSignOut = {
+                        scope.launch {
+                            authManager.signOutAll()
+                            emailRepository.clearLocalData()
+                            navController.navigate(Screen.SignIn.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
+                        }
+                    },
+                    onCompose = {
+                        navController.navigate(Screen.Compose.createRoute()) { launchSingleTop = true }
+                    },
+                    onSettings = {
+                        navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                    }
+                )
+            }
+
+            // ── Settings ─────────────────────────────────────────────────
+            composable(Screen.Settings.route) {
+                val app = context.applicationContext as MonoMailApp
+                val settingsViewModel: SettingsViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return SettingsViewModel(app.settingsDataStore) as T
+                        }
+                    }
+                )
+                SettingsScreen(
+                    viewModel = settingsViewModel,
+                    onNavigateBack = { navController.popBackStack() },
+                    onNavigateToLegal = { type ->
+                        navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
+                    }
+                )
+            }
+
+            composable(
+                route = Screen.Legal.route,
+                arguments = listOf(navArgument("type") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val type = backStackEntry.arguments?.getString("type") ?: "privacy"
+                com.shrivatsav.monomail.ui.screens.settings.LegalScreen(
+                    type = type,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            // ── Thread Detail (conversation view) ────────────────────────
+            composable(
+                route = Screen.ThreadDetail.route,
+                arguments = listOf(navArgument("threadId") { type = NavType.StringType })
+            ) { backStackEntry ->
+                val threadId = backStackEntry.arguments?.getString("threadId") ?: return@composable
+                val vm: EmailDetailViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return EmailDetailViewModel(emailRepository, threadId) as T
+                        }
+                    }
+                )
+                EmailDetailScreen(
+                    viewModel = vm,
+                    onBack    = { navController.popBackStack() },
+                    onReply   = { to, subject, body, tid, messageId ->
+                        navController.navigate(
+                            Screen.Compose.createRoute(
+                                mode = ComposeMode.REPLY,
+                                to = to,
+                                subject = subject,
+                                threadId = tid,
+                                messageId = messageId
+                            )
                         )
-                    )
-                },
-                onForward = { subject, body, tid, messageId ->
-                    navController.navigate(
-                        Screen.Compose.createRoute(
-                            mode = ComposeMode.FORWARD,
-                            to = "",
-                            subject = subject,
-                            threadId = tid,
-                            messageId = messageId
+                    },
+                    onForward = { subject, body, tid, messageId ->
+                        navController.navigate(
+                            Screen.Compose.createRoute(
+                                mode = ComposeMode.FORWARD,
+                                to = "",
+                                subject = subject,
+                                threadId = tid,
+                                messageId = messageId
+                            )
                         )
-                    )
-                }
-            )
-        }
-
-        // ── Compose / Reply / Forward ────────────────────────────────
-        composable(
-            route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}",
-            arguments = listOf(
-                navArgument("mode") { type = NavType.StringType; defaultValue = "NEW" },
-                navArgument("to") { type = NavType.StringType; defaultValue = "" },
-                navArgument("subject") { type = NavType.StringType; defaultValue = "" },
-                navArgument("threadId") { type = NavType.StringType; defaultValue = "" },
-                navArgument("messageId") { type = NavType.StringType; defaultValue = "" }
-            )
-        ) { backStackEntry ->
-            val dec = { s: String -> URLDecoder.decode(s, "UTF-8") }
-            val mode = ComposeMode.valueOf(
-                backStackEntry.arguments?.getString("mode") ?: "NEW"
-            )
-            val to = dec(backStackEntry.arguments?.getString("to") ?: "")
-            val subject = dec(backStackEntry.arguments?.getString("subject") ?: "")
-            val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
-            val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
-            val fromEmail = authManager.currentUser?.email ?: ""
-
-            val vm: ComposeViewModel = viewModel(
-                factory = object : ViewModelProvider.Factory {
-                    @Suppress("UNCHECKED_CAST")
-                    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                        return ComposeViewModel(
-                            repository = emailRepository,
-                            contactProvider = contactProvider,
-                            fromEmail = fromEmail,
-                            mode = mode,
-                            replyTo = to,
-                            originalSubject = subject,
-                            threadId = threadId,
-                            messageId = messageId
-                        ) as T
                     }
-                }
-            )
-            ComposeScreen(
-                viewModel = vm,
-                onBack = { navController.popBackStack() },
-                onSent = { navController.popBackStack() }
-            )
+                )
+            }
+
+            // ── Compose / Reply / Forward ────────────────────────────────
+            composable(
+                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}",
+                arguments = listOf(
+                    navArgument("mode") { type = NavType.StringType; defaultValue = "NEW" },
+                    navArgument("to") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("subject") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("threadId") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("messageId") { type = NavType.StringType; defaultValue = "" }
+                )
+            ) { backStackEntry ->
+                val dec = { s: String -> URLDecoder.decode(s, "UTF-8") }
+                val mode = ComposeMode.valueOf(
+                    backStackEntry.arguments?.getString("mode") ?: "NEW"
+                )
+                val to = dec(backStackEntry.arguments?.getString("to") ?: "")
+                val subject = dec(backStackEntry.arguments?.getString("subject") ?: "")
+                val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
+                val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
+                val fromEmail = authManager.currentUser?.email ?: ""
+
+                val vm: ComposeViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return ComposeViewModel(
+                                repository = emailRepository,
+                                contactProvider = contactProvider,
+                                fromEmail = fromEmail,
+                                mode = mode,
+                                replyTo = to,
+                                originalSubject = subject,
+                                threadId = threadId,
+                                messageId = messageId
+                            ) as T
+                        }
+                    }
+                )
+                ComposeScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() },
+                    onSent = { navController.popBackStack() }
+                )
+            }
         }
     }
-}
+}

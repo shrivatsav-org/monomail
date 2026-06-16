@@ -11,6 +11,7 @@ import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import com.shrivatsav.monomail.security.SecurityUtil
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "auth_prefs")
 
@@ -35,8 +36,13 @@ class AccountManager(private val context: Context) {
         val prefs = context.dataStore.data.first()
         val json = prefs[KEY_ACCOUNTS_JSON]
         if (json != null) {
+            val decryptedJson = SecurityUtil.decryptString(json) ?: json
             val type = object : TypeToken<List<UserProfile>>() {}.type
-            return gson.fromJson(json, type)
+            try {
+                return gson.fromJson(decryptedJson, type)
+            } catch (e: Exception) {
+                return emptyList()
+            }
         }
         
         // Migration from legacy v1 format
@@ -53,7 +59,7 @@ class AccountManager(private val context: Context) {
                 refreshToken = ""
             )
             // Save migrated
-            context.dataStore.edit { it[KEY_ACCOUNTS_JSON] = gson.toJson(listOf(profile)) }
+            context.dataStore.edit { it[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(listOf(profile))) }
             return listOf(profile)
         }
         
@@ -64,7 +70,8 @@ class AccountManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             val json = prefs[KEY_ACCOUNTS_JSON]
             val accounts = if (json != null) {
-                gson.fromJson(json, Array<UserProfile>::class.java).toMutableList()
+                val decryptedJson = SecurityUtil.decryptString(json) ?: json
+                gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
             } else {
                 mutableListOf()
             }
@@ -76,7 +83,7 @@ class AccountManager(private val context: Context) {
             } else {
                 accounts.add(profile)
             }
-            prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
+            prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts))
         }
     }
 
@@ -84,9 +91,10 @@ class AccountManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             val json = prefs[KEY_ACCOUNTS_JSON]
             if (json != null) {
-                val accounts = gson.fromJson(json, Array<UserProfile>::class.java).toMutableList()
+                val decryptedJson = SecurityUtil.decryptString(json) ?: json
+                val accounts = gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
                 accounts.removeAll { it.id == accountId }
-                prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
+                prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts))
             }
             if (prefs[KEY_ACTIVE_ACCOUNT_ID] == accountId) {
                 prefs.remove(KEY_ACTIVE_ACCOUNT_ID)
@@ -114,11 +122,12 @@ class AccountManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             val json = prefs[KEY_ACCOUNTS_JSON]
             if (json != null) {
-                val accounts = gson.fromJson(json, Array<UserProfile>::class.java).toMutableList()
+                val decryptedJson = SecurityUtil.decryptString(json) ?: json
+                val accounts = gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
                 val index = accounts.indexOfFirst { it.id == accountId }
                 if (index != -1) {
                     accounts[index] = accounts[index].copy(accessToken = newToken)
-                    prefs[KEY_ACCOUNTS_JSON] = gson.toJson(accounts)
+                    prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts))
                 }
             }
         }
@@ -143,8 +152,9 @@ class AccountManager(private val context: Context) {
     // Listen to changes in the active account
     val activeAccountFlow: Flow<UserProfile?> = context.dataStore.data.map { prefs ->
         val json = prefs[KEY_ACCOUNTS_JSON] ?: return@map null
+        val decryptedJson = SecurityUtil.decryptString(json) ?: json
         val type = object : TypeToken<List<UserProfile>>() {}.type
-        val accounts: List<UserProfile> = gson.fromJson(json, type)
+        val accounts: List<UserProfile> = try { gson.fromJson(decryptedJson, type) } catch (e: Exception) { emptyList() }
         if (accounts.isEmpty()) return@map null
         
         val activeId = prefs[KEY_ACTIVE_ACCOUNT_ID]

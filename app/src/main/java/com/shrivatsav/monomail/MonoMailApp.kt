@@ -35,6 +35,7 @@ class MonoMailApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        System.loadLibrary("sqlcipher")
         accountManager = AccountManager(this)
         authManager = AuthManager(this, accountManager)
         contactSuggestionProvider = ContactSuggestionProvider()

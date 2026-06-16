@@ -1,17 +1,20 @@
 package com.shrivatsav.monomail.ui.screens.settings
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Reply
+import androidx.compose.material.icons.automirrored.outlined.ShortText
 import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.SystemUpdate
+import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.shrivatsav.monomail.data.settings.*
 
@@ -31,9 +35,14 @@ fun SettingsScreen(
     onNavigateToLegal: (String) -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
+    val scrollState = rememberScrollState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = WindowInsets(
+            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
+            bottom = 0.dp
+        ),
         topBar = {
             TopAppBar(
                 title = {
@@ -62,206 +71,326 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(scrollState)
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            Spacer(Modifier.height(4.dp))
+
             // ── Appearance ──────────────────────────────────────────
-            SectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
+            SettingsCard {
+                SectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
 
-            // Theme
-            ThemeSelectorRow(
-                currentTheme = settings.themeMode,
-                onThemeSelected = { viewModel.setThemeMode(it) }
-            )
+                ThemeSelectorRow(
+                    currentTheme = settings.themeMode,
+                    onThemeSelected = { viewModel.setThemeMode(it) }
+                )
 
-            // Font Size
-            FontSizeRow(
-                currentScale = settings.fontScale,
-                onScaleChanged = { viewModel.setFontScale(it) }
-            )
+                CardDivider()
 
-            // Dividers
-            SettingsToggleRow(
-                icon = Icons.Outlined.HorizontalRule,
-                title = "Show Dividers",
-                subtitle = "Show lines between emails in list",
-                checked = settings.showDividers,
-                onCheckedChange = { viewModel.setShowDividers(it) }
-            )
+                FontSizeRow(
+                    currentScale = settings.fontScale,
+                    onScaleChanged = { viewModel.setFontScale(it) }
+                )
 
-            // Compact List
-            SettingsToggleRow(
-                icon = Icons.Outlined.DensitySmall,
-                title = "Compact List",
-                subtitle = "Reduce spacing in email list",
-                checked = settings.compactList,
-                onCheckedChange = { viewModel.setCompactList(it) }
-            )
+                CardDivider()
 
-            // Snippet Preview
-            SettingsToggleRow(
-                icon = Icons.Outlined.ShortText,
-                title = "Show Snippet Preview",
-                subtitle = "Display preview text below sender",
-                checked = settings.showSnippet,
-                onCheckedChange = { viewModel.setShowSnippet(it) }
-            )
+                SettingsToggleRow(
+                    icon = Icons.Outlined.HorizontalRule,
+                    title = "Show Dividers",
+                    subtitle = "Show lines between emails",
+                    checked = settings.showDividers,
+                    onCheckedChange = { viewModel.setShowDividers(it) }
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                CardDivider()
 
-            // ── Behavior ────────────────────────────────────────────
-            SectionHeader(icon = Icons.Outlined.TouchApp, title = "Behavior")
+                SettingsToggleRow(
+                    icon = Icons.Outlined.DensitySmall,
+                    title = "Compact List",
+                    subtitle = "Reduce spacing in email list",
+                    checked = settings.compactList,
+                    onCheckedChange = { viewModel.setCompactList(it) }
+                )
 
-            // Unified Inbox
-            SettingsToggleRow(
-                icon = Icons.Outlined.Inbox,
-                title = "Unified Inbox",
-                subtitle = "Show emails from all accounts in one tab",
-                checked = settings.unifiedInboxEnabled,
-                onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) }
-            )
+                CardDivider()
 
-            // Swipe Left Action
-            PickerRow(
-                icon = Icons.Outlined.SwipeLeft,
-                title = "Swipe Left Action",
-                currentValue = settings.swipeLeftAction.displayName(),
-                options = SwipeAction.entries.map { it.displayName() },
-                onSelected = { idx -> viewModel.setSwipeLeftAction(SwipeAction.entries[idx]) }
-            )
-
-            // Swipe Right Action
-            PickerRow(
-                icon = Icons.Outlined.SwipeRight,
-                title = "Swipe Right Action",
-                currentValue = settings.swipeRightAction.displayName(),
-                options = SwipeAction.entries.map { it.displayName() },
-                onSelected = { idx -> viewModel.setSwipeRightAction(SwipeAction.entries[idx]) }
-            )
-
-            // Confirm Before Sending
-            SettingsToggleRow(
-                icon = Icons.Outlined.CheckCircle,
-                title = "Confirm Before Sending",
-                subtitle = "Show confirmation dialog before send",
-                checked = settings.confirmBeforeSending,
-                onCheckedChange = { viewModel.setConfirmBeforeSending(it) }
-            )
-
-            // Default Reply
-            PickerRow(
-                icon = Icons.Outlined.Reply,
-                title = "Default Reply Action",
-                currentValue = settings.defaultReply.displayName(),
-                options = DefaultReply.entries.map { it.displayName() },
-                onSelected = { idx -> viewModel.setDefaultReply(DefaultReply.entries[idx]) }
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Notifications ───────────────────────────────────────
-            SectionHeader(icon = Icons.Outlined.Notifications, title = "Notifications")
-
-            SettingsToggleRow(
-                icon = Icons.Outlined.NotificationsActive,
-                title = "Email Notifications",
-                subtitle = "Receive push notifications for new emails",
-                checked = settings.emailNotifications,
-                onCheckedChange = { viewModel.setEmailNotifications(it) }
-            )
-
-            PickerRow(
-                icon = Icons.Outlined.Sync,
-                title = "Sync Frequency",
-                currentValue = settings.syncFrequency.displayName(),
-                options = SyncFrequency.entries.map { it.displayName() },
-                onSelected = { idx -> viewModel.setSyncFrequency(SyncFrequency.entries[idx]) }
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── About ───────────────────────────────────────────────
-            SectionHeader(icon = Icons.Outlined.Info, title = "About")
-
-            InfoRow(
-                icon = Icons.Outlined.Info,
-                title = "Version",
-                value = "1.0.4"
-            )
-
-            InfoRow(
-                icon = Icons.Outlined.PrivacyTip,
-                title = "Privacy Policy",
-                value = "Read our privacy policy",
-                onClick = { onNavigateToLegal("privacy") }
-            )
-
-            InfoRow(
-                icon = Icons.Outlined.Gavel,
-                title = "Terms of Service",
-                value = "Read our terms of service",
-                onClick = { onNavigateToLegal("tos") }
-            )
-
-            InfoRow(
-                icon = Icons.Outlined.Description,
-                title = "Open Source Licenses",
-                value = ""
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // ── Support ───────────────────────────────────────────────
-            SectionHeader(icon = Icons.Outlined.FavoriteBorder, title = "Support")
-
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                AsyncImage(
-                    model = "https://storage.ko-fi.com/cdn/kofi3.png?v=6",
-                    contentDescription = "Buy Me a Coffee",
-                    modifier = Modifier
-                        .height(46.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable {
-                            uriHandler.openUri("https://ko-fi.com/N4N2W53M5")
-                        }
+                SettingsToggleRow(
+                    icon = Icons.AutoMirrored.Outlined.ShortText,
+                    title = "Show Snippet Preview",
+                    subtitle = "Display preview text below sender",
+                    checked = settings.showSnippet,
+                    onCheckedChange = { viewModel.setShowSnippet(it) }
                 )
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            // ── Behavior ────────────────────────────────────────────
+            SettingsCard {
+                SectionHeader(icon = Icons.Outlined.TouchApp, title = "Behavior")
+
+                SettingsToggleRow(
+                    icon = Icons.Outlined.Inbox,
+                    title = "Unified Inbox",
+                    subtitle = "Show emails from all accounts in one tab",
+                    checked = settings.unifiedInboxEnabled,
+                    onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) }
+                )
+
+                CardDivider()
+
+                SettingsToggleRow(
+                    icon = Icons.Outlined.FolderSpecial,
+                    title = "Smart Grouping",
+                    subtitle = "Group frequent senders into folders",
+                    checked = settings.smartGroupingEnabled,
+                    onCheckedChange = { viewModel.setSmartGroupingEnabled(it) }
+                )
+
+                AnimatedVisibility(
+                    visible = settings.smartGroupingEnabled,
+                    enter = expandVertically(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessMedium
+                        )
+                    ) + fadeIn(tween(200)),
+                    exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
+                ) {
+                    Column {
+                        CardDivider()
+                        SettingsToggleRow(
+                            icon = Icons.Outlined.Schedule,
+                            title = "Group Recent Only",
+                            subtitle = "Only group emails from the last 24 hours",
+                            checked = settings.smartGroupingRecentOnly,
+                            onCheckedChange = { viewModel.setSmartGroupingRecentOnly(it) },
+                            indented = true
+                        )
+                    }
+                }
+
+                CardDivider()
+
+                BottomSheetPickerRow(
+                    icon = Icons.Outlined.SwipeLeft,
+                    title = "Swipe Left",
+                    currentValue = settings.swipeLeftAction.displayName(),
+                    options = SwipeAction.entries.map { it.displayName() },
+                    onSelected = { idx -> viewModel.setSwipeLeftAction(SwipeAction.entries[idx]) }
+                )
+
+                CardDivider()
+
+                BottomSheetPickerRow(
+                    icon = Icons.Outlined.SwipeRight,
+                    title = "Swipe Right",
+                    currentValue = settings.swipeRightAction.displayName(),
+                    options = SwipeAction.entries.map { it.displayName() },
+                    onSelected = { idx -> viewModel.setSwipeRightAction(SwipeAction.entries[idx]) }
+                )
+
+                CardDivider()
+
+                SettingsToggleRow(
+                    icon = Icons.Outlined.CheckCircle,
+                    title = "Confirm Before Sending",
+                    subtitle = "Show confirmation before send",
+                    checked = settings.confirmBeforeSending,
+                    onCheckedChange = { viewModel.setConfirmBeforeSending(it) }
+                )
+
+                CardDivider()
+
+                BottomSheetPickerRow(
+                    icon = Icons.AutoMirrored.Outlined.Reply,
+                    title = "Default Reply",
+                    currentValue = settings.defaultReply.displayName(),
+                    options = DefaultReply.entries.map { it.displayName() },
+                    onSelected = { idx -> viewModel.setDefaultReply(DefaultReply.entries[idx]) }
+                )
+            }
+
+            // ── Notifications ───────────────────────────────────────
+            SettingsCard {
+                SectionHeader(icon = Icons.Outlined.Notifications, title = "Notifications")
+
+                SettingsToggleRow(
+                    icon = Icons.Outlined.NotificationsActive,
+                    title = "Email Notifications",
+                    subtitle = "Receive push notifications for new emails",
+                    checked = settings.emailNotifications,
+                    onCheckedChange = { viewModel.setEmailNotifications(it) }
+                )
+
+                CardDivider()
+
+                BottomSheetPickerRow(
+                    icon = Icons.Outlined.Sync,
+                    title = "Sync Frequency",
+                    currentValue = settings.syncFrequency.displayName(),
+                    options = SyncFrequency.entries.map { it.displayName() },
+                    onSelected = { idx -> viewModel.setSyncFrequency(SyncFrequency.entries[idx]) }
+                )
+            }
+
+            // ── Updates ───────────────────────────────────────────────
+            val updateState by viewModel.updateState.collectAsState()
+            val latestUrl by viewModel.latestVersionUrl.collectAsState()
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
+            SettingsCard {
+                SectionHeader(icon = Icons.Outlined.SystemUpdate, title = "Updates")
+
+                val updateText = when (updateState) {
+                    UpdateState.IDLE -> "Check for Updates"
+                    UpdateState.CHECKING -> "Checking..."
+                    UpdateState.UP_TO_DATE -> "You are up to date!"
+                    UpdateState.UPDATE_AVAILABLE -> "Update Available! Tap to download."
+                    UpdateState.ERROR -> "Error checking for updates."
+                }
+                
+                InfoRow(
+                    icon = if (updateState == UpdateState.UPDATE_AVAILABLE) Icons.Outlined.Download else Icons.Outlined.Refresh,
+                    title = updateText,
+                    value = "",
+                    onClick = {
+                        if (updateState == UpdateState.UPDATE_AVAILABLE && latestUrl != null) {
+                            uriHandler.openUri(latestUrl!!)
+                        } else {
+                            viewModel.checkForUpdates(com.shrivatsav.monomail.BuildConfig.VERSION_NAME)
+                        }
+                    }
+                )
+            }
+
+            // ── About ───────────────────────────────────────────────
+            SettingsCard {
+                SectionHeader(icon = Icons.Outlined.Info, title = "About")
+
+                InfoRow(
+                    icon = Icons.Outlined.Info,
+                    title = "Version",
+                    value = com.shrivatsav.monomail.BuildConfig.VERSION_NAME
+                )
+
+                CardDivider()
+
+                InfoRow(
+                    icon = Icons.Outlined.PrivacyTip,
+                    title = "Privacy Policy",
+                    value = "",
+                    onClick = { onNavigateToLegal("privacy") }
+                )
+
+                CardDivider()
+
+                InfoRow(
+                    icon = Icons.Outlined.Gavel,
+                    title = "Terms of Service",
+                    value = "",
+                    onClick = { onNavigateToLegal("tos") }
+                )
+
+                CardDivider()
+
+                InfoRow(
+                    icon = Icons.Outlined.Description,
+                    title = "Open Source Licenses",
+                    value = ""
+                )
+            }
+
+            // ── Support ─────────────────────────────────────────────
+            SettingsCard {
+                SectionHeader(icon = Icons.Outlined.FavoriteBorder, title = "Support")
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+                    AsyncImage(
+                        model = "https://storage.ko-fi.com/cdn/kofi3.png?v=6",
+                        contentDescription = "Buy Me a Coffee",
+                        modifier = Modifier
+                            .height(46.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
 
-// ── Components ──────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// SettingsCard wrapper
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        tonalElevation = 0.dp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = Spring.StiffnessMedium
+                )
+            )
+    ) {
+        Column(content = content)
+    }
+}
+
+@Composable
+private fun CardDivider() {
+    HorizontalDivider(
+        modifier = Modifier.padding(horizontal = 16.dp),
+        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+        thickness = 0.5.dp
+    )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section header
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun SectionHeader(icon: ImageVector, title: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(18.dp)
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(22.dp)
         )
-        Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.titleSmall,
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Toggle row
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun SettingsToggleRow(
@@ -269,33 +398,42 @@ private fun SettingsToggleRow(
     title: String,
     subtitle: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    indented: Boolean = false
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onCheckedChange(!checked) }
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(
+                start = if (indented) 32.dp else 16.dp,
+                end = 16.dp,
+                top = 14.dp,
+                bottom = 14.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.size(22.dp)
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
+            if (subtitle.isNotEmpty()) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
         Spacer(modifier = Modifier.width(8.dp))
         Switch(
@@ -309,6 +447,10 @@ private fun SettingsToggleRow(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Theme selector
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun ThemeSelectorRow(
     currentTheme: ThemeMode,
@@ -317,28 +459,28 @@ private fun ThemeSelectorRow(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Outlined.DarkMode,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                modifier = Modifier.size(22.dp)
+                contentDescription = "Theme",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = "Theme",
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
-
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -346,14 +488,15 @@ private fun ThemeSelectorRow(
             ThemeMode.entries.forEach { mode ->
                 val isSelected = currentTheme == mode
                 val bgColor by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    animationSpec = tween(250)
+                    if (isSelected) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+                    animationSpec = tween(250), label = "themeBg"
                 )
                 val textColor by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    animationSpec = tween(250)
+                    if (isSelected) MaterialTheme.colorScheme.surface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(250), label = "themeText"
                 )
-
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -372,51 +515,85 @@ private fun ThemeSelectorRow(
                 }
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Font size row
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun FontSizeRow(
     currentScale: FontScale,
     onScaleChanged: (FontScale) -> Unit
 ) {
+    val previewSize by animateFloatAsState(
+        targetValue = when (currentScale) {
+            FontScale.EXTRA_SMALL -> 11f
+            FontScale.SMALL       -> 13f
+            FontScale.DEFAULT     -> 15f
+            FontScale.LARGE       -> 17f
+            FontScale.EXTRA_LARGE -> 20f
+        },
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "fontSize"
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 imageVector = Icons.Outlined.FormatSize,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                modifier = Modifier.size(22.dp)
+                contentDescription = "Font Size",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Text(
                 text = "Font Size",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
             )
-            Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = currentScale.displayName(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Live preview
+        Surface(
+            shape = RoundedCornerShape(10.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "The quick brown fox jumps over the lazy dog",
+                fontSize = previewSize.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                maxLines = 2
+            )
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text(
                 text = "A",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Slider(
                 value = currentScale.ordinal.toFloat(),
@@ -425,94 +602,130 @@ private fun FontSizeRow(
                 steps = 3,
                 modifier = Modifier.weight(1f),
                 colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary
+                    thumbColor = MaterialTheme.colorScheme.onSurface,
+                    activeTrackColor = MaterialTheme.colorScheme.onSurface,
+                    inactiveTrackColor = MaterialTheme.colorScheme.surfaceContainerHigh
                 )
             )
             Text(
                 text = "A",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Spacer(modifier = Modifier.height(4.dp))
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Bottom sheet picker row
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun PickerRow(
+private fun BottomSheetPickerRow(
     icon: ImageVector,
     title: String,
     currentValue: String,
     options: List<String>,
     onSelected: (Int) -> Unit
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var showSheet by remember { mutableStateOf(false) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { expanded = true }
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .clickable { showSheet = true }
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.size(22.dp)
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
         Text(
             text = currentValue,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
-            imageVector = Icons.Outlined.ExpandMore,
+            imageVector = Icons.Outlined.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.size(18.dp)
         )
+    }
 
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
         ) {
-            options.forEachIndexed { index, option ->
-                DropdownMenuItem(
-                    text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                options.forEachIndexed { index, option ->
+                    val isSelected = option == currentValue
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSelected(index)
+                                showSheet = false
+                            }
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
                             text = option,
-                            fontWeight = if (option == currentValue) FontWeight.Bold else FontWeight.Normal
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
                         )
-                    },
-                    onClick = {
-                        onSelected(index)
-                        expanded = false
-                    },
-                    trailingIcon = if (option == currentValue) {
-                        {
+                        if (isSelected) {
                             Icon(
                                 imageVector = Icons.Outlined.Check,
                                 contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(18.dp)
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                    } else null
-                )
+                    }
+                }
             }
         }
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Info row
+// ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
 private fun InfoRow(
@@ -525,62 +738,75 @@ private fun InfoRow(
         modifier = Modifier
             .fillMaxWidth()
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
-            .padding(horizontal = 20.dp, vertical = 14.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-            modifier = Modifier.size(22.dp)
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Text(
             text = title,
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.weight(1f)
         )
         if (value.isNotEmpty()) {
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        if (onClick != null) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(
+                imageVector = Icons.Outlined.ChevronRight,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(18.dp)
             )
         }
     }
 }
 
-// ── Extension display names ─────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Display name extensions
+// ─────────────────────────────────────────────────────────────────────────────
 
 private fun ThemeMode.displayName() = when (this) {
     ThemeMode.SYSTEM -> "System"
-    ThemeMode.LIGHT -> "Light"
-    ThemeMode.DARK -> "Dark"
+    ThemeMode.LIGHT  -> "Light"
+    ThemeMode.DARK   -> "Dark"
 }
 
 private fun FontScale.displayName() = when (this) {
-    FontScale.EXTRA_SMALL -> "Extra Small"
-    FontScale.SMALL -> "Small"
-    FontScale.DEFAULT -> "Default"
-    FontScale.LARGE -> "Large"
-    FontScale.EXTRA_LARGE -> "Extra Large"
+    FontScale.EXTRA_SMALL -> "XS"
+    FontScale.SMALL       -> "Small"
+    FontScale.DEFAULT     -> "Default"
+    FontScale.LARGE       -> "Large"
+    FontScale.EXTRA_LARGE -> "XL"
 }
 
 private fun SwipeAction.displayName() = when (this) {
-    SwipeAction.ARCHIVE -> "Archive"
-    SwipeAction.STAR -> "Star"
-    SwipeAction.DELETE -> "Delete"
+    SwipeAction.ARCHIVE    -> "Archive"
+    SwipeAction.STAR       -> "Star"
+    SwipeAction.DELETE     -> "Delete"
+    SwipeAction.READ_UNREAD -> "Mark Read/Unread"
 }
 
 private fun DefaultReply.displayName() = when (this) {
-    DefaultReply.REPLY -> "Reply"
+    DefaultReply.REPLY     -> "Reply"
     DefaultReply.REPLY_ALL -> "Reply All"
 }
 
 private fun SyncFrequency.displayName() = when (this) {
-    SyncFrequency.MIN_15 -> "15 minutes"
-    SyncFrequency.MIN_30 -> "30 minutes"
-    SyncFrequency.HOUR_1 -> "1 hour"
-    SyncFrequency.MANUAL -> "Manual"
+    SyncFrequency.MIN_15  -> "15 minutes"
+    SyncFrequency.MIN_30  -> "30 minutes"
+    SyncFrequency.HOUR_1  -> "1 hour"
+    SyncFrequency.MANUAL  -> "Manual"
 }
