@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.security
-
 import android.content.Context
 import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
@@ -13,7 +12,6 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-
 object SecurityUtil {
     private const val KEY_ALIAS = "monomail_data_keystore_alias"
     private const val PREFS_NAME = "monomail_secure_prefs"
@@ -21,12 +19,10 @@ object SecurityUtil {
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val IV_LENGTH = 12
-
     private fun getSecurePrefs(context: Context): SharedPreferences {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
             .build()
-            
         return EncryptedSharedPreferences.create(
             context,
             PREFS_NAME,
@@ -35,7 +31,6 @@ object SecurityUtil {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     }
-
     fun getDatabasePassphrase(context: Context): CharArray {
         val prefs = getSecurePrefs(context)
         var passphrase = prefs.getString(DB_PASSPHRASE_KEY, null)
@@ -45,19 +40,16 @@ object SecurityUtil {
         }
         return passphrase.toCharArray()
     }
-    
     private fun generateRandomPassphrase(): String {
         val random = SecureRandom()
         val bytes = ByteArray(32)
         random.nextBytes(bytes)
         return Base64.encodeToString(bytes, Base64.NO_WRAP)
     }
-
     private fun getSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         return keyStore.getKey(KEY_ALIAS, null) as? SecretKey ?: generateSecretKey()
     }
-
     private fun generateSecretKey(): SecretKey {
         val keyGenerator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, ANDROID_KEYSTORE)
         val keyGenParameterSpec = KeyGenParameterSpec.Builder(
@@ -70,32 +62,25 @@ object SecurityUtil {
         keyGenerator.init(keyGenParameterSpec)
         return keyGenerator.generateKey()
     }
-
     fun encryptString(data: String): String {
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, getSecretKey())
         val iv = cipher.iv
         val encryptedData = cipher.doFinal(data.toByteArray(Charsets.UTF_8))
-        
         val combined = ByteArray(iv.size + encryptedData.size)
         System.arraycopy(iv, 0, combined, 0, iv.size)
         System.arraycopy(encryptedData, 0, combined, iv.size, encryptedData.size)
-        
         return Base64.encodeToString(combined, Base64.NO_WRAP)
     }
-
     fun decryptString(encryptedBase64: String): String? {
         return try {
             val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
             if (combined.size < IV_LENGTH) return null
-            
             val iv = ByteArray(IV_LENGTH)
             System.arraycopy(combined, 0, iv, 0, iv.size)
             val spec = GCMParameterSpec(128, iv)
-            
             val encryptedData = ByteArray(combined.size - iv.size)
             System.arraycopy(combined, iv.size, encryptedData, 0, encryptedData.size)
-            
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.DECRYPT_MODE, getSecretKey(), spec)
             val decryptedData = cipher.doFinal(encryptedData)

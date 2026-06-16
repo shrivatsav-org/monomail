@@ -1,17 +1,13 @@
 package com.shrivatsav.monomail.data.provider
-
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
-
 data class ProviderThreadListResult(
     val threads: List<ProviderThread>,
     val nextPageToken: String?
 )
-
 data class ProviderThread(
     val threadId: String,
     val messages: List<ProviderMessage>
 )
-
 data class ProviderMessage(
     val id: String, 
     val threadId: String,

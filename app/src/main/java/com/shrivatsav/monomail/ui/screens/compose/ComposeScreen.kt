@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.compose
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -72,7 +71,6 @@ import android.net.Uri
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ComposeScreen(
@@ -83,7 +81,6 @@ fun ComposeScreen(
     val state by viewModel.state.collectAsState()
     val suggestions by viewModel.suggestions.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    
     val context = LocalContext.current
     val contentResolver = context.contentResolver
     val launcher = rememberLauncherForActivityResult(
@@ -111,20 +108,15 @@ fun ComposeScreen(
             viewModel.addAttachment(EmailAttachment(uri, name, size, mimeType))
         }
     }
-
-    // Navigate back after successful send
     LaunchedEffect(state.isSent) {
         if (state.isSent) onSent()
     }
-
-    // Show error
     LaunchedEffect(state.error) {
         state.error?.let {
             snackbarHostState.showSnackbar(it)
             viewModel.dismissError()
         }
     }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -160,8 +152,6 @@ fun ComposeScreen(
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
-
-                    // Send button or loading indicator
                     if (state.isSending) {
                         LoadingIndicator(
                             modifier = Modifier
@@ -203,7 +193,6 @@ fun ComposeScreen(
                 .imePadding()
                 .verticalScroll(rememberScrollState())
         ) {
-            // To field
             ComposeTextField(
                 value = state.to,
                 onValueChange = viewModel::updateTo,
@@ -213,8 +202,6 @@ fun ComposeScreen(
                 ),
                 enabled = state.mode != ComposeMode.REPLY
             )
-
-            // Autocomplete suggestions dropdown
             AnimatedVisibility(
                 visible = suggestions.isNotEmpty(),
                 enter = fadeIn() + expandVertically(),
@@ -252,13 +239,10 @@ fun ComposeScreen(
                     }
                 }
             }
-
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
-
-            // Subject field
             ComposeTextField(
                 value = state.subject,
                 onValueChange = viewModel::updateSubject,
@@ -267,13 +251,10 @@ fun ComposeScreen(
                     color = MaterialTheme.colorScheme.onSurface
                 )
             )
-
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
-
-            // Attachments Preview
             AnimatedVisibility(visible = state.attachments.isNotEmpty()) {
                 LazyRow(
                     modifier = Modifier
@@ -289,17 +270,13 @@ fun ComposeScreen(
                     }
                 }
             }
-
             if (state.attachments.isNotEmpty()) {
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant,
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
             }
-
             Spacer(modifier = Modifier.height(8.dp))
-
-            // Body field — takes remaining space
             ComposeTextField(
                 value = state.body,
                 onValueChange = viewModel::updateBody,
@@ -310,8 +287,6 @@ fun ComposeScreen(
                 singleLine = false,
                 minHeight = 300
             )
-
-            // Show original message for reply/forward
             if (state.originalBody != null) {
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant,
@@ -327,7 +302,6 @@ fun ComposeScreen(
         }
     }
 }
-
 @Composable
 private fun ComposeTextField(
     value: String,
@@ -366,14 +340,12 @@ private fun ComposeTextField(
         }
     )
 }
-
 @Composable
 private fun AttachmentPreview(
     attachment: EmailAttachment,
     onRemove: () -> Unit
 ) {
     val isImage = attachment.mimeType.startsWith("image/")
-
     Box(
         modifier = Modifier
             .size(100.dp)
@@ -411,8 +383,6 @@ private fun AttachmentPreview(
                 )
             }
         }
-
-        // Remove button
         IconButton(
             onClick = onRemove,
             modifier = Modifier

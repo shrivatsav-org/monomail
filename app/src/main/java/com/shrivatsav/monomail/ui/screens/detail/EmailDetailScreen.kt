@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.detail
-
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
@@ -72,7 +71,6 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun EmailDetailScreen(
@@ -84,7 +82,6 @@ fun EmailDetailScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -111,7 +108,7 @@ fun EmailDetailScreen(
                             tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    IconButton(onClick = { /* more */ }) {
+                    IconButton(onClick = {  }) {
                         Icon(
                             imageVector = Icons.Outlined.MoreVert,
                             contentDescription = "More",
@@ -139,7 +136,6 @@ fun EmailDetailScreen(
                     )
                 }
             }
-
             is EmailDetailState.Error -> {
                 Box(
                     modifier = Modifier
@@ -155,11 +151,9 @@ fun EmailDetailScreen(
                     )
                 }
             }
-
             is EmailDetailState.Success -> {
                 val emails = s.emails
                 val latestEmail = emails.lastOrNull() ?: return@Scaffold
-
                 ThreadConversationContent(
                     emails = emails,
                     modifier = Modifier.padding(padding),
@@ -171,7 +165,6 @@ fun EmailDetailScreen(
         }
     }
 }
-
 @Composable
 private fun ThreadConversationContent(
     emails: List<Email>,
@@ -183,8 +176,6 @@ private fun ThreadConversationContent(
     val bgColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.background.toArgb())
     val textColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.onBackground.toArgb())
     val linkColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.primary.toArgb())
-
-    // Track which messages are expanded. Latest is expanded by default.
     val expandedMap = remember(emails) {
         mutableStateMapOf<String, Boolean>().apply {
             emails.forEachIndexed { index, email ->
@@ -192,14 +183,11 @@ private fun ThreadConversationContent(
             }
         }
     }
-
     val subject = emails.firstOrNull()?.subject ?: "(no subject)"
-
     LazyColumn(
         modifier = modifier.fillMaxSize()
     ) {
         item {
-        // Subject header (shared across thread)
         Text(
             text = subject,
             style = MaterialTheme.typography.headlineSmall,
@@ -207,8 +195,6 @@ private fun ThreadConversationContent(
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
         )
-
-        // Message count
         if (emails.size > 1) {
             Text(
                 text = "${emails.size} messages",
@@ -218,13 +204,9 @@ private fun ThreadConversationContent(
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
-        } // Close item {
-
-        // Each message in the conversation
+        } 
         itemsIndexed(emails, key = { _, email -> email.id }) { index, email ->
             val isExpanded = expandedMap[email.id] ?: (index == emails.lastIndex)
-
-            // Message header — always visible, tappable to expand/collapse
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -232,7 +214,6 @@ private fun ThreadConversationContent(
                     .padding(horizontal = 20.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Avatar
                 val initial = email.from.firstOrNull()?.uppercase() ?: "?"
                 Box(
                     modifier = Modifier
@@ -247,9 +228,7 @@ private fun ThreadConversationContent(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-
                 Spacer(modifier = Modifier.width(12.dp))
-
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = displayName(email.from),
@@ -260,7 +239,6 @@ private fun ThreadConversationContent(
                         overflow = TextOverflow.Ellipsis
                     )
                     if (!isExpanded) {
-                        // Show snippet when collapsed
                         Text(
                             text = email.snippet,
                             style = MaterialTheme.typography.bodySmall,
@@ -276,7 +254,6 @@ private fun ThreadConversationContent(
                         )
                     }
                 }
-
                 Icon(
                     imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                     contentDescription = if (isExpanded) "Collapse" else "Expand",
@@ -284,15 +261,12 @@ private fun ThreadConversationContent(
                     modifier = Modifier.size(20.dp)
                 )
             }
-
-            // Expanded body
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically(),
                 exit = shrinkVertically()
             ) {
                 Column {
-                    // Email body rendered in WebView
                     AndroidView(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -349,10 +323,7 @@ private fun ThreadConversationContent(
                             }
                         }
                     )
-
                     Spacer(modifier = Modifier.height(12.dp))
-
-                    // Attachments Section
                     if (email.attachments.isNotEmpty()) {
                         AttachmentsSection(
                             attachments = email.attachments,
@@ -361,8 +332,6 @@ private fun ThreadConversationContent(
                     }
                 }
             }
-
-            // Divider between messages (not after last)
             if (index < emails.lastIndex) {
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
@@ -370,18 +339,13 @@ private fun ThreadConversationContent(
                 )
             }
         }
-
         item {
             Spacer(modifier = Modifier.height(16.dp))
-
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 modifier = Modifier.padding(horizontal = 20.dp)
             )
-
             Spacer(modifier = Modifier.height(16.dp))
-
-            // Reply / Forward — applies to the latest message
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -404,7 +368,6 @@ private fun ThreadConversationContent(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Reply", style = MaterialTheme.typography.labelLarge)
                 }
-
                 OutlinedButton(
                     onClick = onForward,
                     modifier = Modifier
@@ -424,9 +387,6 @@ private fun ThreadConversationContent(
         }
     }
 }
-
-// -- Attachments --------------------------------------------------------------
-
 private fun openAttachment(context: android.content.Context, attachment: EmailAttachmentInfo, bytes: ByteArray?) {
     if (bytes == null) return
     try {
@@ -434,7 +394,6 @@ private fun openAttachment(context: android.content.Context, attachment: EmailAt
         attachmentsDir.mkdirs()
         val file = java.io.File(attachmentsDir, attachment.name)
         file.writeBytes(bytes)
-        
         val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
             setDataAndType(uri, attachment.mimeType)
@@ -445,7 +404,6 @@ private fun openAttachment(context: android.content.Context, attachment: EmailAt
         e.printStackTrace()
     }
 }
-
 private fun isImageAttachment(attachment: EmailAttachmentInfo): Boolean {
     val lowerName = attachment.name.lowercase()
     return attachment.mimeType.startsWith("image/") ||
@@ -453,7 +411,6 @@ private fun isImageAttachment(attachment: EmailAttachmentInfo): Boolean {
         lowerName.endsWith(".jpeg") || lowerName.endsWith(".gif") ||
         lowerName.endsWith(".webp")
 }
-
 private fun formatFileSize(bytes: Long): String {
     return when {
         bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
@@ -461,7 +418,6 @@ private fun formatFileSize(bytes: Long): String {
         else -> "$bytes B"
     }
 }
-
 @Composable
 private fun AttachmentsSection(
     attachments: List<EmailAttachmentInfo>,
@@ -480,18 +436,13 @@ private fun AttachmentsSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 2.dp)
         )
-
         val (imageAttachments, fileAttachments) = attachments.partition { isImageAttachment(it) }
-
-        // Images: full-width preview cards, stacked
         imageAttachments.forEach { attachment ->
             ImageAttachmentCard(
                 attachment = attachment,
                 onFetchAttachment = onFetchAttachment
             )
         }
-
-        // Files: compact chip cards, 2 per row
         if (fileAttachments.isNotEmpty()) {
             fileAttachments.chunked(2).forEach { rowItems ->
                 Row(
@@ -505,7 +456,6 @@ private fun AttachmentsSection(
                             modifier = Modifier.weight(1f)
                         )
                     }
-                    // Pad odd row so the single item doesn't stretch full width
                     if (rowItems.size == 1) {
                         Spacer(modifier = Modifier.weight(1f))
                     }
@@ -514,7 +464,6 @@ private fun AttachmentsSection(
         }
     }
 }
-
 @Composable
 private fun ImageAttachmentCard(
     attachment: EmailAttachmentInfo,
@@ -525,7 +474,6 @@ private fun ImageAttachmentCard(
     androidx.compose.runtime.LaunchedEffect(attachment.id) {
         imageBytes = onFetchAttachment(attachment.messageId, attachment.id)
     }
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -579,8 +527,6 @@ private fun ImageAttachmentCard(
                 }
             }
         }
-
-        // Caption strip
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -610,7 +556,6 @@ private fun ImageAttachmentCard(
         }
     }
 }
-
 @Composable
 private fun FileAttachmentCard(
     attachment: EmailAttachmentInfo,
@@ -621,7 +566,6 @@ private fun FileAttachmentCard(
     var isFetching by remember { androidx.compose.runtime.mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     val ext = attachment.name.substringAfterLast('.', "").uppercase()
-
     Row(
         modifier = modifier
             .clip(MaterialTheme.shapes.medium)
@@ -653,9 +597,7 @@ private fun FileAttachmentCard(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
         }
-
         Spacer(modifier = Modifier.width(10.dp))
-
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = attachment.name,
@@ -673,39 +615,21 @@ private fun FileAttachmentCard(
         }
     }
 }
-
-// -- Helpers ------------------------------------------------------------------
-
 private fun displayName(from: String): String {
     val nameMatch = Regex("""^"?([^"<]+?)"\s*<""").find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
-
 private fun formatDetailDate(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
     return SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault()).format(Date(epochMillis))
 }
-
-/**
- * Strip quoted / forwarded text from an HTML email body.
- * Removes "On ... wrote:" blocks, "> " prefixed lines, and forwarded headers.
- */
 private fun stripQuotedText(html: String): String {
     var result = html
-
-    // Remove <blockquote> tags and their content
     result = result.replace(Regex("<blockquote[^>]*>[\\s\\S]*?</blockquote>", RegexOption.IGNORE_CASE), "")
-
-    // Remove Gmail-style quoted divs
     result = result.replace(Regex("<div\\s+class=\"gmail_quote\"[^>]*>[\\s\\S]*?</div>", RegexOption.IGNORE_CASE), "")
     result = result.replace(Regex("<div\\s+class=\"gmail_extra\"[^>]*>[\\s\\S]*?</div>", RegexOption.IGNORE_CASE), "")
-
-    // Remove "On ... wrote:" line (plain text in HTML)
     result = result.replace(Regex("<br>\\s*On .{10,80} wrote:\\s*<br>", RegexOption.IGNORE_CASE), "")
     result = result.replace(Regex("\\n\\s*On .{10,80} wrote:\\s*\\n", RegexOption.IGNORE_CASE), "")
-
-    // Remove lines starting with "> " (plain-text quoting)
     result = result.replace(Regex("(^|<br>)(&gt;|>)\\s?.*", RegexOption.IGNORE_CASE), "")
-
     return result.trim()
 }

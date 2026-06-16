@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.theme
-
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.MaterialExpressiveTheme
@@ -7,7 +6,6 @@ import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
-
 private val LightColors = lightColorScheme(
     primary                = Black,
     onPrimary              = White,
@@ -35,7 +33,6 @@ private val LightColors = lightColorScheme(
     inverseOnSurface       = White,
     scrim                  = Black,
 )
-
 private val DarkColors = darkColorScheme(
     primary                = White,
     onPrimary              = Black,
@@ -63,11 +60,10 @@ private val DarkColors = darkColorScheme(
     inverseOnSurface       = Black,
     scrim                  = Black,
 )
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun MonoMailTheme(
-    themeMode: String = "SYSTEM", // "SYSTEM", "LIGHT", "DARK"
+    themeMode: String = "SYSTEM", 
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {

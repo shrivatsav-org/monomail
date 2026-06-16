@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.detail
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.data.model.Email
@@ -9,22 +8,17 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-
 sealed class EmailDetailState {
     object Loading : EmailDetailState()
     data class Success(val emails: List<Email>) : EmailDetailState()
     data class Error(val message: String) : EmailDetailState()
 }
-
 class EmailDetailViewModel(
     private val repository: EmailRepository,
     private val threadId: String
 ) : ViewModel() {
-
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
-
-    // Observe the specific thread from DB
     val state: StateFlow<EmailDetailState> = kotlinx.coroutines.flow.combine(
         repository.getThreadEmailsFlow(threadId),
         _isLoading,
@@ -48,7 +42,6 @@ class EmailDetailViewModel(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = EmailDetailState.Loading
     )
-
     val isStarred: StateFlow<Boolean> = repository.getThreadEmailsFlow(threadId)
         .map { emails -> emails.any { it.isStarred } }
         .stateIn(
@@ -56,9 +49,7 @@ class EmailDetailViewModel(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = false
         )
-
     init {
-        // Trigger a background refresh to ensure we have the full thread details
         viewModelScope.launch {
             repository.markThreadAsRead(threadId)
             _isLoading.value = true
@@ -69,13 +60,11 @@ class EmailDetailViewModel(
             }
         }
     }
-
     fun toggleStar() {
         viewModelScope.launch {
             repository.toggleStar(threadId, isStarred.value)
         }
     }
-
     suspend fun fetchAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
         return repository.getAttachmentBytes(messageId, attachmentId)
     }

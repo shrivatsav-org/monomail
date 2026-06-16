@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.navigation
-
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -49,7 +48,6 @@ import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
-
 sealed class Screen(val route: String) {
     object SignIn       : Screen("sign_in")
     object Inbox        : Screen("inbox")
@@ -73,7 +71,6 @@ sealed class Screen(val route: String) {
         fun createRoute(type: String) = "legal/$type"
     }
 }
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NavGraph(
@@ -84,16 +81,12 @@ fun NavGraph(
     val context = LocalContext.current
     val app = context.applicationContext as MonoMailApp
     val contactProvider = app.contactSuggestionProvider
-
-    // Restore persisted session before deciding start destination
     var isLoading by remember { mutableStateOf(true) }
     var isAuthenticated by remember { mutableStateOf(false) }
-
     LaunchedEffect(Unit) {
         isAuthenticated = authManager.restoreSession()
         isLoading = false
     }
-
     if (isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             LoadingIndicator(
@@ -103,13 +96,11 @@ fun NavGraph(
         }
         return
     }
-
     val startDestination = if (isAuthenticated) {
         Screen.Inbox.route
     } else {
         Screen.SignIn.route
     }
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -155,7 +146,6 @@ fun NavGraph(
                 }
             }
         ) {
-            // ── Sign In ──────────────────────────────────────────────────
             composable(Screen.SignIn.route) {
                 val vm: SignInViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
@@ -177,8 +167,6 @@ fun NavGraph(
                     }
                 )
             }
-
-            // ── Inbox ────────────────────────────────────────────────────
             composable(Screen.Inbox.route) {
                 val vm: InboxViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
@@ -190,7 +178,6 @@ fun NavGraph(
                 )
                 val scope = androidx.compose.runtime.rememberCoroutineScope()
                 val activeAccount by authManager.activeAccountFlow.collectAsState(initial = authManager.currentUser)
-
                 InboxScreen(
                     viewModel    = vm,
                     userProfile  = activeAccount,
@@ -214,8 +201,6 @@ fun NavGraph(
                     }
                 )
             }
-
-            // ── Settings ─────────────────────────────────────────────────
             composable(Screen.Settings.route) {
                 val app = context.applicationContext as MonoMailApp
                 val settingsViewModel: SettingsViewModel = viewModel(
@@ -234,7 +219,6 @@ fun NavGraph(
                     }
                 )
             }
-
             composable(
                 route = Screen.Legal.route,
                 arguments = listOf(navArgument("type") { type = NavType.StringType })
@@ -245,8 +229,6 @@ fun NavGraph(
                     onNavigateBack = { navController.popBackStack() }
                 )
             }
-
-            // ── Thread Detail (conversation view) ────────────────────────
             composable(
                 route = Screen.ThreadDetail.route,
                 arguments = listOf(navArgument("threadId") { type = NavType.StringType })
@@ -287,8 +269,6 @@ fun NavGraph(
                     }
                 )
             }
-
-            // ── Compose / Reply / Forward ────────────────────────────────
             composable(
                 route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}",
                 arguments = listOf(
@@ -308,7 +288,6 @@ fun NavGraph(
                 val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
                 val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
                 val fromEmail = authManager.currentUser?.email ?: ""
-
                 val vm: ComposeViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")

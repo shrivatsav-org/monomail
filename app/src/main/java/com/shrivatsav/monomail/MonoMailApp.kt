@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail
-
 import android.accounts.Account
 import android.app.Application
 import com.google.android.gms.auth.GoogleAuthUtil
@@ -15,24 +14,17 @@ import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import kotlinx.coroutines.runBlocking
-
 class MonoMailApp : Application() {
-
     lateinit var accountManager: AccountManager
         private set
-
     lateinit var authManager: AuthManager
         private set
-
     lateinit var emailRepository: EmailRepository
         private set
-
     lateinit var contactSuggestionProvider: ContactSuggestionProvider
         private set
-
     lateinit var settingsDataStore: SettingsDataStore
         private set
-
     override fun onCreate() {
         super.onCreate()
         System.loadLibrary("sqlcipher")
@@ -40,9 +32,7 @@ class MonoMailApp : Application() {
         authManager = AuthManager(this, accountManager)
         contactSuggestionProvider = ContactSuggestionProvider()
         settingsDataStore = SettingsDataStore(this)
-
         val database = AppDatabase.getDatabase(this)
-
         val providerFactory: (UserProfile) -> EmailProvider = { profile ->
             val profileRetrofit = RetrofitClient(
                 tokenProvider = { 
@@ -81,14 +71,12 @@ class MonoMailApp : Application() {
                     }
                 }
             )
-
             when (profile.provider) {
                 "gmail" -> GmailProvider(profileRetrofit.gmailApi, this)
                 "outlook" -> OutlookProvider(profileRetrofit.outlookApi, this)
-                else -> GmailProvider(profileRetrofit.gmailApi, this) // Default fallback
+                else -> GmailProvider(profileRetrofit.gmailApi, this) 
             }
         }
-
         emailRepository = EmailRepository(
             providerFactory = providerFactory,
             database = database,

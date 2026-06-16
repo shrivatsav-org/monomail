@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.data.local
-
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
@@ -7,7 +6,6 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
-
 @Database(
     entities = [ThreadEntity::class, EmailEntity::class],
     version = 3,
@@ -17,16 +15,13 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 abstract class AppDatabase : RoomDatabase() {
     abstract fun threadDao(): ThreadDao
     abstract fun emailDao(): EmailDao
-
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
-
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val passphrase = String(SecurityUtil.getDatabasePassphrase(context)).toByteArray()
                 val factory = SupportOpenHelperFactory(passphrase)
-                
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
@@ -42,7 +37,6 @@ abstract class AppDatabase : RoomDatabase() {
         }
     }
 }
-
 val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE threads ADD COLUMN accountId TEXT NOT NULL DEFAULT 'gmail_unknown'")

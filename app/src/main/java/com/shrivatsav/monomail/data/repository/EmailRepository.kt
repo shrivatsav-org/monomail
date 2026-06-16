@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.data.repository
-
 import android.content.Context
 import androidx.work.Constraints
 import androidx.work.Data
@@ -22,7 +21,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
-
 class EmailRepository(
     private val providerFactory: (UserProfile) -> EmailProvider,
     private val database: AppDatabase,
@@ -31,32 +29,25 @@ class EmailRepository(
 ) {
     private val threadDao = database.threadDao()
     private val emailDao = database.emailDao()
-    
     private val workManager = WorkManager.getInstance(context)
     private val networkConstraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
-
     suspend fun getActiveProvider(): EmailProvider? {
         val activeAccount = accountManager.getActiveAccount() ?: return null
         return providerFactory(activeAccount)
     }
-    
     fun getDatabase(): AppDatabase = database
-
     suspend fun getActiveAccountId(): String {
         return accountManager.getActiveAccount()?.id ?: "gmail_unknown"
     }
-
     suspend fun getLatestInboxThread(accountId: String): EmailThread? {
         return threadDao.getLatestInboxThread(accountId)?.toDomainModel()
     }
-
     suspend fun getProviderForAccount(accountId: String): EmailProvider? {
         val account = accountManager.getAccounts().find { it.id == accountId } ?: return null
         return providerFactory(account)
     }
-
     private fun enqueueSync(data: Data) {
         val request = OneTimeWorkRequestBuilder<SyncWorker>()
             .setConstraints(networkConstraints)
@@ -64,9 +55,6 @@ class EmailRepository(
             .build()
         workManager.enqueue(request)
     }
-
-    // ── Local Database Flows ─────────────────────────────────────────
-
     fun getInboxThreadsFlow(tab: InboxTab): Flow<List<EmailThread>> = flow {
         val activeAccountId = accountManager.getActiveAccount()?.id ?: "gmail_unknown"
         val dbFlow = when (tab) {
@@ -79,57 +67,44 @@ class EmailRepository(
         }.map { list -> list.map { it.toDomainModel() } }
         emitAll(dbFlow)
     }
-
     fun getAllInboxThreadsFlow(): Flow<List<EmailThread>> {
         return threadDao.getAllInboxThreads().map { list -> list.map { it.toDomainModel() } }
     }
-
     suspend fun getEmailById(id: String): Email? {
         val activeAccountId = getActiveAccountId()
         return emailDao.getEmailById(id, activeAccountId)?.toDomainModel()
     }
-
     fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> = flow {
         val activeAccountId = getActiveAccountId()
         emitAll(emailDao.getEmailsForThread(threadId, activeAccountId).map { list -> list.map { it.toDomainModel() } })
     }
-
-    // ── Sync with Network ────────────────────────────────────────────
-
     suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> {
         return try {
             val provider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
             if (provider == null) return Result.failure(Exception("No active provider"))
-            
             val targetAccountId = accountId ?: getActiveAccountId()
-            
             val folder = when (tab) {
                 InboxTab.INBOX -> EmailFolder.INBOX
                 InboxTab.SENT -> EmailFolder.SENT
                 InboxTab.ARCHIVED -> EmailFolder.ARCHIVE
                 InboxTab.STARRED -> EmailFolder.STARRED
                 InboxTab.TRASH -> EmailFolder.TRASH
-                InboxTab.UNIFIED -> EmailFolder.INBOX // Fallback to Inbox
+                InboxTab.UNIFIED -> EmailFolder.INBOX 
             }
-
             val listResponse = provider.listThreads(
                 folder = folder,
                 maxResults = 20,
                 pageToken = pageToken,
                 query = query
             )
-
             if (listResponse.threads.isNotEmpty()) {
                 val entities = listResponse.threads.map { providerThread ->
                     val messages = providerThread.messages
                     val latest = messages.maxByOrNull { it.date }
-                    
                     val allFolders = messages.flatMap { it.folders }.toSet()
-                    
                     val participants = messages.map { it.from }.distinct()
                     val isRead = messages.all { it.isRead }
                     val isStarred = messages.any { it.isStarred }
-
                     val domainThread = EmailThread(
                         threadId = providerThread.threadId,
                         subject = latest?.subject ?: "(no subject)",
@@ -143,7 +118,6 @@ class EmailRepository(
                         latestMessageId = latest?.id ?: "",
                         participants = participants
                     )
-
                     domainThread.toEntity(
                         accountId = targetAccountId,
                         inInbox = EmailFolder.INBOX in allFolders,
@@ -154,18 +128,15 @@ class EmailRepository(
                 }
                 threadDao.insertThreads(entities)
             }
-
             Result.success(listResponse.nextPageToken)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
-
     suspend fun refreshThread(threadId: String): Result<Unit> {
         return try {
             val provider = getActiveProvider() ?: return Result.failure(Exception("No active provider"))
             val activeAccountId = getActiveAccountId()
-            
             val threadResponse = provider.getThread(threadId)
             val emails = threadResponse.messages.map { msg ->
                 val labels = msg.folders.map { it.name }
@@ -191,15 +162,11 @@ class EmailRepository(
             Result.failure(e)
         }
     }
-
-    // ── Optimistic UI Actions ────────────────────────────────────────
-
     suspend fun toggleStar(threadId: String, currentStarred: Boolean) {
         val newStarred = !currentStarred
         val activeAccountId = getActiveAccountId()
         threadDao.updateThreadStarred(threadId, activeAccountId, newStarred)
         emailDao.updateThreadStarred(threadId, activeAccountId, newStarred)
-
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_TOGGLE_STAR)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -208,12 +175,10 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-
     suspend fun markEmailsAsRead(emailIds: List<String>) {
         if (emailIds.isEmpty()) return
         val activeAccountId = getActiveAccountId()
         emailDao.markEmailsAsRead(emailIds, activeAccountId)
-        
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_EMAILS_READ)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -221,11 +186,9 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-
     suspend fun markThreadAsRead(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.updateThreadReadStatus(threadId, activeAccountId, true)
-        
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_READ)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -233,11 +196,9 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-    
     suspend fun markThreadAsUnread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.updateThreadReadStatus(threadId, activeAccountId, false)
-        
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_UNREAD)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -245,11 +206,9 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-
     suspend fun archiveThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.archiveThread(threadId, activeAccountId)
-        
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_ARCHIVE)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -257,11 +216,9 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-
     suspend fun unarchiveThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.unarchiveThread(threadId, activeAccountId)
-        
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_UNARCHIVE)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -269,11 +226,9 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-
     suspend fun deleteThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.moveToTrash(threadId, activeAccountId)
-        
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_DELETE)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -281,11 +236,9 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-
     suspend fun restoreThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.restoreFromTrash(threadId, activeAccountId)
-        
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_RESTORE)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
@@ -293,16 +246,13 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
-
     suspend fun clearLocalData() {
         database.clearAllTables()
     }
-
     suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
         val provider = getActiveProvider() ?: return null
         return provider.getAttachmentBytes(messageId, attachmentId)
     }
-
     suspend fun sendEmail(
         from: String,
         to: String,

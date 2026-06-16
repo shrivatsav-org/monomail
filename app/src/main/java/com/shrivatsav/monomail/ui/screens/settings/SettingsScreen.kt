@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.settings
-
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -26,7 +25,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.shrivatsav.monomail.data.settings.*
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -36,7 +34,6 @@ fun SettingsScreen(
 ) {
     val settings by viewModel.settings.collectAsState()
     val scrollState = rememberScrollState()
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -76,25 +73,18 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(Modifier.height(4.dp))
-
-            // ── Appearance ──────────────────────────────────────────
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
-
                 ThemeSelectorRow(
                     currentTheme = settings.themeMode,
                     onThemeSelected = { viewModel.setThemeMode(it) }
                 )
-
                 CardDivider()
-
                 FontSizeRow(
                     currentScale = settings.fontScale,
                     onScaleChanged = { viewModel.setFontScale(it) }
                 )
-
                 CardDivider()
-
                 SettingsToggleRow(
                     icon = Icons.Outlined.HorizontalRule,
                     title = "Show Dividers",
@@ -102,9 +92,7 @@ fun SettingsScreen(
                     checked = settings.showDividers,
                     onCheckedChange = { viewModel.setShowDividers(it) }
                 )
-
                 CardDivider()
-
                 SettingsToggleRow(
                     icon = Icons.Outlined.DensitySmall,
                     title = "Compact List",
@@ -112,9 +100,7 @@ fun SettingsScreen(
                     checked = settings.compactList,
                     onCheckedChange = { viewModel.setCompactList(it) }
                 )
-
                 CardDivider()
-
                 SettingsToggleRow(
                     icon = Icons.AutoMirrored.Outlined.ShortText,
                     title = "Show Snippet Preview",
@@ -123,11 +109,8 @@ fun SettingsScreen(
                     onCheckedChange = { viewModel.setShowSnippet(it) }
                 )
             }
-
-            // ── Behavior ────────────────────────────────────────────
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.TouchApp, title = "Behavior")
-
                 SettingsToggleRow(
                     icon = Icons.Outlined.Inbox,
                     title = "Unified Inbox",
@@ -135,9 +118,7 @@ fun SettingsScreen(
                     checked = settings.unifiedInboxEnabled,
                     onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) }
                 )
-
                 CardDivider()
-
                 SettingsToggleRow(
                     icon = Icons.Outlined.FolderSpecial,
                     title = "Smart Grouping",
@@ -145,7 +126,6 @@ fun SettingsScreen(
                     checked = settings.smartGroupingEnabled,
                     onCheckedChange = { viewModel.setSmartGroupingEnabled(it) }
                 )
-
                 AnimatedVisibility(
                     visible = settings.smartGroupingEnabled,
                     enter = expandVertically(
@@ -168,9 +148,7 @@ fun SettingsScreen(
                         )
                     }
                 }
-
                 CardDivider()
-
                 BottomSheetPickerRow(
                     icon = Icons.Outlined.SwipeLeft,
                     title = "Swipe Left",
@@ -178,9 +156,7 @@ fun SettingsScreen(
                     options = SwipeAction.entries.map { it.displayName() },
                     onSelected = { idx -> viewModel.setSwipeLeftAction(SwipeAction.entries[idx]) }
                 )
-
                 CardDivider()
-
                 BottomSheetPickerRow(
                     icon = Icons.Outlined.SwipeRight,
                     title = "Swipe Right",
@@ -188,9 +164,7 @@ fun SettingsScreen(
                     options = SwipeAction.entries.map { it.displayName() },
                     onSelected = { idx -> viewModel.setSwipeRightAction(SwipeAction.entries[idx]) }
                 )
-
                 CardDivider()
-
                 SettingsToggleRow(
                     icon = Icons.Outlined.CheckCircle,
                     title = "Confirm Before Sending",
@@ -198,9 +172,7 @@ fun SettingsScreen(
                     checked = settings.confirmBeforeSending,
                     onCheckedChange = { viewModel.setConfirmBeforeSending(it) }
                 )
-
                 CardDivider()
-
                 BottomSheetPickerRow(
                     icon = Icons.AutoMirrored.Outlined.Reply,
                     title = "Default Reply",
@@ -209,11 +181,8 @@ fun SettingsScreen(
                     onSelected = { idx -> viewModel.setDefaultReply(DefaultReply.entries[idx]) }
                 )
             }
-
-            // ── Notifications ───────────────────────────────────────
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.Notifications, title = "Notifications")
-
                 SettingsToggleRow(
                     icon = Icons.Outlined.NotificationsActive,
                     title = "Email Notifications",
@@ -221,9 +190,7 @@ fun SettingsScreen(
                     checked = settings.emailNotifications,
                     onCheckedChange = { viewModel.setEmailNotifications(it) }
                 )
-
                 CardDivider()
-
                 BottomSheetPickerRow(
                     icon = Icons.Outlined.Sync,
                     title = "Sync Frequency",
@@ -232,16 +199,12 @@ fun SettingsScreen(
                     onSelected = { idx -> viewModel.setSyncFrequency(SyncFrequency.entries[idx]) }
                 )
             }
-
-            // ── Updates ───────────────────────────────────────────────
             val updateState by viewModel.updateState.collectAsState()
             val latestUrl by viewModel.latestVersionUrl.collectAsState()
             val context = androidx.compose.ui.platform.LocalContext.current
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.SystemUpdate, title = "Updates")
-
                 val updateText = when (updateState) {
                     UpdateState.IDLE -> "Check for Updates"
                     UpdateState.CHECKING -> "Checking..."
@@ -249,7 +212,6 @@ fun SettingsScreen(
                     UpdateState.UPDATE_AVAILABLE -> "Update Available! Tap to download."
                     UpdateState.ERROR -> "Error checking for updates."
                 }
-                
                 InfoRow(
                     icon = if (updateState == UpdateState.UPDATE_AVAILABLE) Icons.Outlined.Download else Icons.Outlined.Refresh,
                     title = updateText,
@@ -263,48 +225,36 @@ fun SettingsScreen(
                     }
                 )
             }
-
-            // ── About ───────────────────────────────────────────────
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.Info, title = "About")
-
                 InfoRow(
                     icon = Icons.Outlined.Info,
                     title = "Version",
                     value = com.shrivatsav.monomail.BuildConfig.VERSION_NAME
                 )
-
                 CardDivider()
-
                 InfoRow(
                     icon = Icons.Outlined.PrivacyTip,
                     title = "Privacy Policy",
                     value = "",
                     onClick = { onNavigateToLegal("privacy") }
                 )
-
                 CardDivider()
-
                 InfoRow(
                     icon = Icons.Outlined.Gavel,
                     title = "Terms of Service",
                     value = "",
                     onClick = { onNavigateToLegal("tos") }
                 )
-
                 CardDivider()
-
                 InfoRow(
                     icon = Icons.Outlined.Description,
                     title = "Open Source Licenses",
                     value = ""
                 )
             }
-
-            // ── Support ─────────────────────────────────────────────
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.FavoriteBorder, title = "Support")
-
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -322,16 +272,10 @@ fun SettingsScreen(
                     )
                 }
             }
-
             Spacer(Modifier.height(24.dp))
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SettingsCard wrapper
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
@@ -350,7 +294,6 @@ private fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
         Column(content = content)
     }
 }
-
 @Composable
 private fun CardDivider() {
     HorizontalDivider(
@@ -359,11 +302,6 @@ private fun CardDivider() {
         thickness = 0.5.dp
     )
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Section header
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun SectionHeader(icon: ImageVector, title: String) {
     Row(
@@ -387,11 +325,6 @@ private fun SectionHeader(icon: ImageVector, title: String) {
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Toggle row
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun SettingsToggleRow(
     icon: ImageVector,
@@ -446,11 +379,6 @@ private fun SettingsToggleRow(
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Theme selector
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ThemeSelectorRow(
     currentTheme: ThemeMode,
@@ -517,11 +445,6 @@ private fun ThemeSelectorRow(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Font size row
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun FontSizeRow(
     currentScale: FontScale,
@@ -538,7 +461,6 @@ private fun FontSizeRow(
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
         label = "fontSize"
     )
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -565,10 +487,7 @@ private fun FontSizeRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-
         Spacer(modifier = Modifier.height(10.dp))
-
-        // Live preview
         Surface(
             shape = RoundedCornerShape(10.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -582,9 +501,7 @@ private fun FontSizeRow(
                 maxLines = 2
             )
         }
-
         Spacer(modifier = Modifier.height(8.dp))
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -615,11 +532,6 @@ private fun FontSizeRow(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Bottom sheet picker row
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun BottomSheetPickerRow(
@@ -630,7 +542,6 @@ private fun BottomSheetPickerRow(
     onSelected: (Int) -> Unit
 ) {
     var showSheet by remember { mutableStateOf(false) }
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -665,7 +576,6 @@ private fun BottomSheetPickerRow(
             modifier = Modifier.size(18.dp)
         )
     }
-
     if (showSheet) {
         ModalBottomSheet(
             onDismissRequest = { showSheet = false },
@@ -722,11 +632,6 @@ private fun BottomSheetPickerRow(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Info row
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun InfoRow(
     icon: ImageVector,
@@ -773,17 +678,11 @@ private fun InfoRow(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Display name extensions
-// ─────────────────────────────────────────────────────────────────────────────
-
 private fun ThemeMode.displayName() = when (this) {
     ThemeMode.SYSTEM -> "System"
     ThemeMode.LIGHT  -> "Light"
     ThemeMode.DARK   -> "Dark"
 }
-
 private fun FontScale.displayName() = when (this) {
     FontScale.EXTRA_SMALL -> "XS"
     FontScale.SMALL       -> "Small"
@@ -791,19 +690,16 @@ private fun FontScale.displayName() = when (this) {
     FontScale.LARGE       -> "Large"
     FontScale.EXTRA_LARGE -> "XL"
 }
-
 private fun SwipeAction.displayName() = when (this) {
     SwipeAction.ARCHIVE    -> "Archive"
     SwipeAction.STAR       -> "Star"
     SwipeAction.DELETE     -> "Delete"
     SwipeAction.READ_UNREAD -> "Mark Read/Unread"
 }
-
 private fun DefaultReply.displayName() = when (this) {
     DefaultReply.REPLY     -> "Reply"
     DefaultReply.REPLY_ALL -> "Reply All"
 }
-
 private fun SyncFrequency.displayName() = when (this) {
     SyncFrequency.MIN_15  -> "15 minutes"
     SyncFrequency.MIN_30  -> "30 minutes"

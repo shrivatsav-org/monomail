@@ -1,10 +1,8 @@
 package com.shrivatsav.monomail.data.local
-
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
-
 @Entity(tableName = "threads")
 data class ThreadEntity(
     @PrimaryKey val threadId: String,
@@ -19,7 +17,6 @@ data class ThreadEntity(
     val isStarred: Boolean,
     val latestMessageId: String,
     val participants: List<String>,
-    // These boolean flags represent which tab the thread belongs to
     val inInbox: Boolean,
     val inSent: Boolean,
     val inArchived: Boolean,
@@ -39,7 +36,6 @@ data class ThreadEntity(
         participants = participants
     )
 }
-
 @Entity(tableName = "emails")
 data class EmailEntity(
     @PrimaryKey val id: String,
@@ -75,7 +71,6 @@ data class EmailEntity(
         } catch(e: Exception) { emptyList() }
     )
 }
-
 fun EmailThread.toEntity(
     accountId: String,
     inInbox: Boolean = false,
@@ -100,7 +95,6 @@ fun EmailThread.toEntity(
     inArchived = inArchived,
     inTrash = inTrash
 )
-
 fun Email.toEntity(accountId: String) = EmailEntity(
     id = id,
     accountId = accountId,

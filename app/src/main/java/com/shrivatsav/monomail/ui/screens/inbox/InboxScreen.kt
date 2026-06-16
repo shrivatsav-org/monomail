@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.screens.inbox
-
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -40,15 +39,7 @@ import coil.compose.AsyncImage
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import java.util.Calendar
-
-// ── Modal state ──────────────────────────────────────────────────────────────
-
 private enum class ModalType { PROFILE, SWITCH_ACCOUNT, ADD_ACCOUNT }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// InboxScreen
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun InboxScreen(
@@ -63,7 +54,6 @@ fun InboxScreen(
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
     val showDonationPrompt by viewModel.showDonationPrompt.collectAsState()
-
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
     val app = context.applicationContext as com.shrivatsav.monomail.MonoMailApp
@@ -77,20 +67,15 @@ fun InboxScreen(
         com.shrivatsav.monomail.data.settings.FontScale.LARGE        -> 1.15f
         com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE  -> 1.3f
     }
-
     val listState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
     var searchQuery by remember { mutableStateOf("") }
     val currentThreads = (state as? InboxState.Success)?.threads ?: emptyList()
     var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
     val hapticFeedback = LocalHapticFeedback.current
-
-    // ── Modal state ──
     var activeModal by remember { mutableStateOf<ModalType?>(null) }
-
     val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
     LaunchedEffect(currentTab) { listState.scrollToItem(0) }
-
     val localFilteredThreads by remember(searchQuery, currentThreads) {
         derivedStateOf {
             if (searchQuery.isEmpty()) null
@@ -101,7 +86,6 @@ fun InboxScreen(
             }
         }
     }
-
     val shouldLoadMore by remember {
         derivedStateOf {
             val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
@@ -112,7 +96,6 @@ fun InboxScreen(
     LaunchedEffect(Unit) {
         snapshotFlow { shouldLoadMore }.collect { if (it) viewModel.loadMore() }
     }
-
     var blurForModal by remember { mutableStateOf(false) }
     LaunchedEffect(activeModal) {
         if (activeModal != null) {
@@ -122,8 +105,6 @@ fun InboxScreen(
             blurForModal = false
         }
     }
-
-
     var isFabExpanded by remember { mutableStateOf(true) }
     val nestedScrollConnection = remember {
         object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
@@ -134,25 +115,21 @@ fun InboxScreen(
             }
         }
     }
-
     val isRefreshing = (state as? InboxState.Success)?.isRefreshing == true
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-
     val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    
     LaunchedEffect(viewModel) {
         viewModel.uiError.collect { errorMsg ->
             snackbarHostState.showSnackbar(errorMsg)
         }
     }
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { androidx.compose.material3.SnackbarHost(snackbarHostState) },
         contentWindowInsets = WindowInsets(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
-            bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            bottom = 0.dp
         )
     ) { padding ->
         Box(
@@ -160,8 +137,6 @@ fun InboxScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // ── Main content — blurred when any overlay is active ──
-            // ── CHANGE THIS ──
             val shouldBlur = longPressedThread != null || blurForModal || threadToDelete != null || showDonationPrompt
             Box(
                 modifier = Modifier
@@ -175,7 +150,6 @@ fun InboxScreen(
                 ) {
                     val toastState by viewModel.toastState.collectAsState()
                     val accounts by viewModel.accounts.collectAsState()
-
                     InboxSearchBar(
                         userProfile = userProfile,
                         accounts = accounts,
@@ -200,7 +174,6 @@ fun InboxScreen(
                         onSettings = onSettings,
                         onOpenProfile = { activeModal = ModalType.PROFILE }
                     )
-
                     when (val s = state) {
                         is InboxState.Loading -> {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -237,16 +210,13 @@ fun InboxScreen(
                             val threadsToDisplay = localFilteredThreads ?: s.threads
                             val isSearchActive = localFilteredThreads != null
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(emptyList<String>()) }
-                            
                             val inboxStructure = remember(threadsToDisplay, appSettings.smartGroupingEnabled, appSettings.smartGroupingRecentOnly, currentTab) {
                                 val useGrouping = appSettings.smartGroupingEnabled && !isSearchActive && currentTab == InboxTab.INBOX
                                 computeInboxStructure(threadsToDisplay, useGrouping, appSettings.smartGroupingRecentOnly)
                             }
-                            
                             val displayItems = remember(inboxStructure, expandedGroupsList) {
                                 flattenDisplayItems(inboxStructure, expandedGroupsList.toSet())
                             }
-
                             PullToRefreshBox(
                                 isRefreshing = s.isRefreshing,
                                 onRefresh = { viewModel.refresh() },
@@ -382,9 +352,7 @@ fun InboxScreen(
                         }
                     }
                 }
-            } // end blur box
-
-            // ── Floating dock (hidden when any overlay is open) ──
+            } 
             AnimatedVisibility(
                 visible = longPressedThread == null && activeModal == null,
                 enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.9f),
@@ -464,8 +432,6 @@ fun InboxScreen(
                     }
                 }
             }
-
-            // ── Donation prompt ──
             com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
                 visible = showDonationPrompt,
                 onDismiss = { viewModel.dismissDonationPrompt() }
@@ -514,13 +480,10 @@ fun InboxScreen(
                     }
                 }
             }
-
-            // ── Long-press context menu overlay ──
             var displayedThread by remember { mutableStateOf<EmailThread?>(null) }
             LaunchedEffect(longPressedThread) {
                 if (longPressedThread != null) displayedThread = longPressedThread
             }
-
             AnimatedVisibility(
                 visible = longPressedThread != null,
                 enter = fadeIn(tween(200)),
@@ -528,7 +491,6 @@ fun InboxScreen(
             ) {
                 val thread = displayedThread ?: return@AnimatedVisibility
                 BackHandler { longPressedThread = null }
-
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -576,14 +538,12 @@ fun InboxScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Star
                                 LongPressAction(
                                     icon = if (thread.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
                                     label = if (thread.isStarred) "Unstar" else "Star",
                                     tint = if (thread.isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                                     onClick = { viewModel.toggleStar(thread.threadId); longPressedThread = null }
                                 )
-                                // Archive
                                 LongPressAction(
                                     icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
                                     label = if (tabForMenu == InboxTab.ARCHIVED) "Unarchive" else "Archive",
@@ -594,7 +554,6 @@ fun InboxScreen(
                                         longPressedThread = null
                                     }
                                 )
-                                // Read/Unread
                                 LongPressAction(
                                     icon = if (thread.isRead) Icons.Outlined.MarkEmailUnread else Icons.Outlined.CheckCircle,
                                     label = if (thread.isRead) "Unread" else "Read",
@@ -605,7 +564,6 @@ fun InboxScreen(
                                         longPressedThread = null
                                     }
                                 )
-                                // Delete/Restore
                                 LongPressAction(
                                     icon = if (tabForMenu == InboxTab.TRASH) Icons.Outlined.Restore else Icons.Outlined.Delete,
                                     label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
@@ -621,8 +579,6 @@ fun InboxScreen(
                     }
                 }
             }
-
-            // ── Profile / Account modal overlay ──
             val accounts by viewModel.accounts.collectAsState()
             ModalOverlay(
                 activeModal = activeModal,
@@ -646,8 +602,6 @@ fun InboxScreen(
             )
         }
     }
-
-    // ── Delete confirm dialog ──
     com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
         visible = threadToDelete != null,
         onDismiss = { threadToDelete = null }
@@ -691,11 +645,6 @@ fun InboxScreen(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Long press action button
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun LongPressAction(
     icon: ImageVector,
@@ -722,11 +671,6 @@ private fun LongPressAction(
         Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Modal overlay host
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ModalOverlay(
     activeModal: ModalType?,
@@ -742,11 +686,8 @@ private fun ModalOverlay(
     onStarredClick: () -> Unit,
     onSettings: () -> Unit,
 ) {
-    // Remember last modal so exit animation has content
     var displayed by remember { mutableStateOf<ModalType?>(null) }
     displayed = activeModal ?: displayed
-
-    // Back handler: switch account → back to profile; profile → dismiss
     if (activeModal != null) {
         BackHandler {
             when (activeModal) {
@@ -756,13 +697,11 @@ private fun ModalOverlay(
             }
         }
     }
-
     AnimatedVisibility(
         visible = activeModal != null,
         enter = fadeIn(tween(220)),
         exit  = fadeOut(tween(180)),
     ) {
-        // Scrim — tap outside dismisses
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -787,7 +726,6 @@ private fun ModalOverlay(
                 },
                 label = "ModalContent"
             ) { modal ->
-                // Stop clicks from propagating to scrim
                 Box(
                     modifier = Modifier
                         .clickable(
@@ -856,11 +794,6 @@ private fun ModalOverlay(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Profile card
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ProfileCard(
     userProfile: UserProfile,
@@ -875,22 +808,17 @@ private fun ProfileCard(
     Surface(
         modifier = Modifier.fillMaxWidth(0.88f),
         shape = RoundedCornerShape(28.dp),
-        // Pure white / pure black — no tonal surface separation
         color = MaterialTheme.colorScheme.background,
         shadowElevation = 32.dp,
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-
-            // ── Avatar + name + email ─────────────────────────────────────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(top = 28.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Avatar with optional stacked others behind
                 Box(contentAlignment = Alignment.Center) {
-                    // Stacked ghost avatars for other accounts
                     if (accounts.size > 1) {
                         Row(
                             horizontalArrangement = Arrangement.spacedBy((-16).dp),
@@ -913,7 +841,6 @@ private fun ProfileCard(
                             }
                         }
                     }
-                    // Main avatar
                     Box(
                         modifier = Modifier
                             .border(3.dp, MaterialTheme.colorScheme.background, CircleShape)
@@ -926,9 +853,7 @@ private fun ProfileCard(
                         )
                     }
                 }
-
                 Spacer(Modifier.height(14.dp))
-
                 Text(
                     text = userProfile.displayName,
                     style = MaterialTheme.typography.titleLarge,
@@ -945,8 +870,6 @@ private fun ProfileCard(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(horizontal = 24.dp)
                 )
-
-                // Account switcher pill (only if multiple)
                 if (accounts.size > 1) {
                     Spacer(Modifier.height(12.dp))
                     Surface(
@@ -975,13 +898,10 @@ private fun ProfileCard(
                     }
                 }
             }
-
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
                 thickness = 0.5.dp
             )
-
-            // ── Menu items ────────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -995,13 +915,10 @@ private fun ProfileCard(
                     ProfileMenuItem(Icons.Outlined.AccountCircle, "Switch account", onShowSwitchAccount)
                 }
             }
-
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
                 thickness = 0.5.dp
             )
-
-            // ── Bottom action row ─────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1038,11 +955,6 @@ private fun ProfileCard(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Switch Account card
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun SwitchAccountCard(
     userProfile: UserProfile,
@@ -1058,8 +970,6 @@ private fun SwitchAccountCard(
         shadowElevation = 32.dp,
     ) {
         Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-
-            // ── Header with back button ───────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1080,8 +990,6 @@ private fun SwitchAccountCard(
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
-
-            // ── Account list ──────────────────────────────────────────────
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1136,14 +1044,11 @@ private fun SwitchAccountCard(
                     }
                 }
             }
-
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
                 thickness = 0.5.dp,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
-
-            // ── Add account ───────────────────────────────────────────────
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1177,16 +1082,10 @@ private fun SwitchAccountCard(
                     color = MaterialTheme.colorScheme.onBackground
                 )
             }
-
             Spacer(Modifier.height(6.dp))
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared: AvatarCircle
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 fun AvatarCircle(
     photoUrl: String?,
@@ -1217,11 +1116,6 @@ fun AvatarCircle(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared: Profile menu item
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun ProfileMenuItem(
     icon: ImageVector,
@@ -1251,11 +1145,6 @@ private fun ProfileMenuItem(
         )
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// InboxSearchBar
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun InboxSearchBar(
@@ -1284,7 +1173,6 @@ private fun InboxSearchBar(
         animationSpec = tween(300),
         label = "SearchBarColor"
     )
-
     SearchBar(
         inputField = {
             AnimatedContent(
@@ -1411,11 +1299,6 @@ private fun InboxSearchBar(
         windowInsets = WindowInsets(0.dp)
     ) {}
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AvatarButton (search bar trailing)
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun AvatarButton(
     userProfile: UserProfile?,
@@ -1445,11 +1328,6 @@ private fun AvatarButton(
         }
     }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Group Header & Swipeable Email Item
-// ─────────────────────────────────────────────────────────────────────────────
-
 @Composable
 private fun GroupHeaderItem(
     groupName: String,
@@ -1508,7 +1386,6 @@ private fun GroupHeaderItem(
         )
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SwipeableEmailItem(
@@ -1525,7 +1402,6 @@ private fun SwipeableEmailItem(
 ) {
     var optIsRead by remember(thread.isRead) { mutableStateOf(thread.isRead) }
     var optIsStarred by remember(thread.isStarred) { mutableStateOf(thread.isStarred) }
-
     val dismissState = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             val doAction = { action: com.shrivatsav.monomail.data.settings.SwipeAction ->
@@ -1557,14 +1433,11 @@ private fun SwipeableEmailItem(
             }
         }
     )
-
-    // Reset stuck swipe state when the item reappears (e.g. on Undo)
     LaunchedEffect(Unit) {
         if (dismissState.currentValue != SwipeToDismissBoxValue.Settled) {
             dismissState.snapTo(SwipeToDismissBoxValue.Settled)
         }
     }
-
     Column(modifier = modifier
         .let { if (isNested) it.padding(start = 32.dp) else it }
     ) {

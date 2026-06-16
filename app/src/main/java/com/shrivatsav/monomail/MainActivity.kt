@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail
-
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -16,21 +15,16 @@ import androidx.compose.ui.Modifier
 import com.shrivatsav.monomail.data.settings.AppSettings
 import com.shrivatsav.monomail.ui.navigation.NavGraph
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
-
 class MainActivity : ComponentActivity() {
-
     private val authManager by lazy {
         (application as MonoMailApp).authManager
     }
-
     private val emailRepository by lazy {
         (application as MonoMailApp).emailRepository
     }
-
     private val settingsDataStore by lazy {
         (application as MonoMailApp).settingsDataStore
     }
-
     private val requestPermissionLauncher = registerForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -38,20 +32,16 @@ class MainActivity : ComponentActivity() {
             scheduleBackgroundSync()
         }
     }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         window.navigationBarColor = android.graphics.Color.TRANSPARENT
         window.statusBarColor = android.graphics.Color.TRANSPARENT
-
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
         }
-
         setContent {
             val settings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
-            
             val fontScaleMultiplier = when (settings.fontScale) {
                 com.shrivatsav.monomail.data.settings.FontScale.EXTRA_SMALL -> 0.8f
                 com.shrivatsav.monomail.data.settings.FontScale.SMALL       -> 0.9f
@@ -59,7 +49,6 @@ class MainActivity : ComponentActivity() {
                 com.shrivatsav.monomail.data.settings.FontScale.LARGE       -> 1.15f
                 com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE -> 1.3f
             }
-            
             val density = androidx.compose.ui.platform.LocalDensity.current
             androidx.compose.runtime.CompositionLocalProvider(
                 androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(
@@ -79,10 +68,8 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        
         requestNotificationPermissionAndScheduleSync()
     }
-
     private fun requestNotificationPermissionAndScheduleSync() {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             when {
@@ -97,11 +84,9 @@ class MainActivity : ComponentActivity() {
                 }
             }
         } else {
-            // Permission not required for API < 33
             scheduleBackgroundSync()
         }
     }
-
     private fun scheduleBackgroundSync() {
         val workRequest = androidx.work.PeriodicWorkRequestBuilder<com.shrivatsav.monomail.worker.EmailSyncWorker>(
             15, java.util.concurrent.TimeUnit.MINUTES
@@ -112,7 +97,6 @@ class MainActivity : ComponentActivity() {
                     .build()
             )
             .build()
-
         androidx.work.WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "EmailSyncWork",
             androidx.work.ExistingPeriodicWorkPolicy.KEEP,

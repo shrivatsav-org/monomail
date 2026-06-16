@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.components
-
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -14,7 +13,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-
 @Composable
 fun BlurredModalOverlay(
     visible: Boolean,
