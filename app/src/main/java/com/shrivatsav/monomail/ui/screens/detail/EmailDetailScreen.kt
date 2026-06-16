@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -76,6 +77,7 @@ import java.util.Locale
 fun EmailDetailScreen(
     viewModel: EmailDetailViewModel,
     onBack: () -> Unit,
+    isConversationView: Boolean = true,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _, _ -> },
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> },
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -108,12 +110,32 @@ fun EmailDetailScreen(
                             tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    IconButton(onClick = {  }) {
-                        Icon(
-                            imageVector = Icons.Outlined.MoreVert,
-                            contentDescription = "More",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                    var showMenu by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(
+                                imageVector = Icons.Outlined.MoreVert,
+                                contentDescription = "More",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false }
+                        ) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Mark Unread") },
+                                onClick = { showMenu = false; viewModel.markUnread(onComplete = { onBack() }) }
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Archive") },
+                                onClick = { showMenu = false; viewModel.archiveThread(onComplete = { onBack() }) }
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Move to Trash") },
+                                onClick = { showMenu = false; viewModel.trashThread(onComplete = { onBack() }) }
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -157,6 +179,7 @@ fun EmailDetailScreen(
                 ThreadConversationContent(
                     emails = emails,
                     modifier = Modifier.padding(padding),
+                    isConversationView = isConversationView,
                     onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
                     onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
                     onFetchAttachment = { msgId, attId -> viewModel.fetchAttachmentBytes(msgId, attId) }
@@ -169,6 +192,7 @@ fun EmailDetailScreen(
 private fun ThreadConversationContent(
     emails: List<Email>,
     modifier: Modifier = Modifier,
+    isConversationView: Boolean = true,
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -177,9 +201,15 @@ private fun ThreadConversationContent(
     val textColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.onBackground.toArgb())
     val linkColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.primary.toArgb())
     val expandedMap = remember(emails) {
-        mutableStateMapOf<String, Boolean>().apply {
-            emails.forEachIndexed { index, email ->
-                put(email.id, index == emails.lastIndex)
+        if (isConversationView) {
+            mutableStateMapOf<String, Boolean>().apply {
+                emails.forEachIndexed { index, email ->
+                    put(email.id, index == emails.lastIndex)
+                }
+            }
+        } else {
+            mutableStateMapOf<String, Boolean>().apply {
+                emails.forEach { put(it.id, true) }
             }
         }
     }
@@ -206,131 +236,85 @@ private fun ThreadConversationContent(
         }
         } 
         itemsIndexed(emails, key = { _, email -> email.id }) { index, email ->
-            val isExpanded = expandedMap[email.id] ?: (index == emails.lastIndex)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { expandedMap[email.id] = !isExpanded }
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val initial = email.from.firstOrNull()?.uppercase() ?: "?"
-                Box(
+            val isExpanded = expandedMap[email.id] ?: true
+            if (isConversationView) {
+                Row(
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                    contentAlignment = Alignment.Center
+                        .fillMaxWidth()
+                        .clickable { expandedMap[email.id] = !isExpanded }
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = initial,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = displayName(email.from),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (!isExpanded) {
+                    val initial = email.from.firstOrNull()?.uppercase() ?: "?"
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Text(
-                            text = email.snippet,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            text = initial,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = displayName(email.from),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                    } else {
-                        Text(
-                            text = formatDetailDate(email.date),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                    modifier = Modifier.size(20.dp)
-                )
-            }
-            AnimatedVisibility(
-                visible = isExpanded,
-                enter = expandVertically(),
-                exit = shrinkVertically()
-            ) {
-                Column {
-                    AndroidView(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 4.dp),
-                        factory = { context ->
-                            WebView(context).apply {
-                                settings.javaScriptEnabled = false
-                                settings.loadWithOverviewMode = true
-                                settings.useWideViewPort = true
-                                settings.cacheMode = WebSettings.LOAD_NO_CACHE
-                                settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                                settings.loadsImagesAutomatically = true
-                                setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                                isVerticalScrollBarEnabled = false
-                                isHorizontalScrollBarEnabled = false
-                            }
-                        },
-                        update = { webView ->
-                            val cleanBody = stripQuotedText(email.body)
-                            val html = """
-                                <!DOCTYPE html>
-                                <html>
-                                <head>
-                                    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-                                    <style>
-                                        * { box-sizing: border-box; }
-                                        body {
-                                            font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-                                            font-size: 15px;
-                                            line-height: 1.6;
-                                            margin: 12px 16px 0 16px;
-                                            padding: 0;
-                                            background-color: $bgColor;
-                                            color: $textColor;
-                                            word-break: break-word;
-                                            overflow-wrap: break-word;
-                                        }
-                                        img { max-width: 100%; height: auto; display: block; }
-                                        a { color: $linkColor; }
-                                        table { max-width: 100%; word-break: break-word; }
-                                        pre, code { white-space: pre-wrap; font-size: 13px; }
-                                        /* Hide quoted / forwarded content */
-                                        blockquote, .gmail_quote, .gmail_extra,
-                                        .yahoo_quoted, .moz-cite-prefix,
-                                        [name="quoted-content"] { display: none !important; }
-                                    </style>
-                                </head>
-                                <body>$cleanBody</body>
-                                </html>
-                            """.trimIndent()
-                            if (webView.tag != html) {
-                                webView.tag = html
-                                webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
-                            }
+                        if (!isExpanded) {
+                            Text(
+                                text = email.snippet,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        } else {
+                            Text(
+                                text = formatDetailDate(email.date),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                            )
                         }
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    if (email.attachments.isNotEmpty()) {
-                        AttachmentsSection(
-                            attachments = email.attachments,
-                            onFetchAttachment = onFetchAttachment
-                        )
                     }
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
+                AnimatedVisibility(
+                    visible = isExpanded,
+                    enter = expandVertically(),
+                    exit = shrinkVertically()
+                ) {
+                    MessageBody(
+                        email = email,
+                        bgColor = bgColor,
+                        textColor = textColor,
+                        linkColor = linkColor,
+                        onFetchAttachment = onFetchAttachment
+                    )
+                }
+            } else {
+                MessageBody(
+                    email = email,
+                    bgColor = bgColor,
+                    textColor = textColor,
+                    linkColor = linkColor,
+                    onFetchAttachment = onFetchAttachment,
+                    showSender = true,
+                    messageCount = emails.size
+                )
             }
             if (index < emails.lastIndex) {
                 HorizontalDivider(
@@ -387,6 +371,161 @@ private fun ThreadConversationContent(
         }
     }
 }
+@Composable
+private fun MessageBody(
+    email: Email,
+    bgColor: String,
+    textColor: String,
+    linkColor: String,
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    showSender: Boolean = false,
+    messageCount: Int = 0
+) {
+    Column {
+        if (showSender) {
+            val isMsgUnread = !email.isRead
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val initial = email.from.firstOrNull()?.uppercase() ?: "?"
+                Box {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initial,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (isMsgUnread) {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .size(12.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.primary)
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = displayName(email.from),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (isMsgUnread) FontWeight.ExtraBold else FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (messageCount > 1) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "$messageCount",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                                modifier = Modifier
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                        shape = RoundedCornerShape(4.dp)
+                                    )
+                                    .padding(horizontal = 5.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isMsgUnread) {
+                            Text(
+                                text = "\u2022  ",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Text(
+                            text = formatDetailDate(email.date),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        )
+                    }
+                }
+            }
+        }
+        AndroidView(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            factory = { context ->
+                WebView(context).apply {
+                    settings.javaScriptEnabled = false
+                    settings.loadWithOverviewMode = true
+                    settings.useWideViewPort = true
+                    settings.cacheMode = WebSettings.LOAD_NO_CACHE
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    settings.loadsImagesAutomatically = true
+                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                    isVerticalScrollBarEnabled = false
+                    isHorizontalScrollBarEnabled = false
+                }
+            },
+            update = { webView ->
+                val cleanBody = stripQuotedText(email.body)
+                val html = """
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+                        <style>
+                            * { box-sizing: border-box; }
+                            body {
+                                font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+                                font-size: 15px;
+                                line-height: 1.6;
+                                margin: 12px 16px 0 16px;
+                                padding: 0;
+                                background-color: $bgColor;
+                                color: $textColor;
+                                word-break: break-word;
+                                overflow-wrap: break-word;
+                            }
+                            img { max-width: 100%; height: auto; display: block; }
+                            a { color: $linkColor; }
+                            table { max-width: 100%; word-break: break-word; }
+                            pre, code { white-space: pre-wrap; font-size: 13px; }
+                            blockquote, .gmail_quote, .gmail_extra,
+                            .yahoo_quoted, .moz-cite-prefix,
+                            [name="quoted-content"] { display: none !important; }
+                        </style>
+                    </head>
+                    <body>$cleanBody</body>
+                    </html>
+                """.trimIndent()
+                if (webView.tag != html) {
+                    webView.tag = html
+                    webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                }
+            }
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        if (email.attachments.isNotEmpty()) {
+            AttachmentsSection(
+                attachments = email.attachments,
+                onFetchAttachment = onFetchAttachment
+            )
+        }
+    }
+}
+
 private fun openAttachment(context: android.content.Context, attachment: EmailAttachmentInfo, bytes: ByteArray?) {
     if (bytes == null) return
     try {

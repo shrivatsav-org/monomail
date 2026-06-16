@@ -6,6 +6,9 @@ import com.shrivatsav.monomail.data.remote.GmailMessage
 import com.shrivatsav.monomail.data.remote.GmailThread
 import com.shrivatsav.monomail.data.remote.MessagePart
 object EmailMapper {
+    private fun cleanSubject(subject: String): String {
+        return subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "")
+    }
     fun GmailMessage.toEmail(): Email {
         val headers = payload?.headers.orEmpty()
         val subject  = headers.firstOrNull { it.name.equals("Subject", true) }?.value ?: "(no subject)"
@@ -55,7 +58,7 @@ object EmailMapper {
         }.distinct()
         return EmailThread(
             threadId        = id,
-            subject         = subject.removePrefix("Re: ").removePrefix("Fwd: "),
+            subject         = cleanSubject(subject),
             from            = fromName,
             fromEmail       = fromEmail,
             snippet         = latest?.snippet?.decodeHtmlEntities() ?: "",

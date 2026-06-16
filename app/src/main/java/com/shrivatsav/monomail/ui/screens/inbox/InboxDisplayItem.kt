@@ -47,34 +47,18 @@ fun computeInboxStructure(
         return InboxStructure(emptyList(), sortedSingles)
     }
     val MIN_GROUP_SIZE = 3
-    val groupingRules = mapOf(
-        "Reddit" to listOf("reddit.com", "redditmail.com"),
-        "GitHub" to listOf("github.com"),
-        "Twitter / X" to listOf("twitter.com", "x.com"),
-        "LinkedIn" to listOf("linkedin.com"),
-        "Google" to listOf("google.com"),
-        "Amazon" to listOf("amazon.com", "amazon.in")
-    )
     val now = System.currentTimeMillis()
     val oneDayMillis = 24L * 60 * 60 * 1000
     val threeDaysMillis = 3L * oneDayMillis
     val groupedThreadsMap = mutableMapOf<String, MutableList<EmailThread>>()
     val remainingThreads = mutableListOf<EmailThread>()
     for (thread in threads) {
-        var matchedGroup: String? = null
         val isWithin24Hrs = thread.date >= (now - oneDayMillis)
         val isWithin3Days = thread.date >= (now - threeDaysMillis)
         val canGroup = if (recentOnly) isWithin24Hrs else isWithin3Days
         if (canGroup) {
-            for ((groupName, domains) in groupingRules) {
-                if (domains.any { thread.fromEmail.contains(it, ignoreCase = true) }) {
-                    matchedGroup = groupName
-                    break
-                }
-            }
-        }
-        if (matchedGroup != null) {
-            groupedThreadsMap.getOrPut(matchedGroup) { mutableListOf() }.add(thread)
+            val senderName = extractSenderName(thread.from)
+            groupedThreadsMap.getOrPut(senderName) { mutableListOf() }.add(thread)
         } else {
             remainingThreads.add(thread)
         }
@@ -139,3 +123,9 @@ fun flattenDisplayItems(
 fun isSameDay(a: Calendar, b: Calendar) =
     a.get(Calendar.YEAR) == b.get(Calendar.YEAR) &&
             a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
+
+private fun extractSenderName(from: String): String {
+    val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)
+    val name = nameMatch?.groupValues?.get(1)?.trim() ?: from.substringBefore("<").trim()
+    return name.takeIf { it.isNotBlank() } ?: "Unknown Sender"
+}

@@ -51,7 +51,11 @@ data class EmailEntity(
     val isRead: Boolean,
     val isStarred: Boolean,
     val labels: List<String>,
-    val attachmentsJson: String = "[]"
+    val attachmentsJson: String = "[]",
+    val inInbox: Boolean = false,
+    val inSent: Boolean = false,
+    val inArchived: Boolean = false,
+    val inTrash: Boolean = false
 ) {
     fun toDomainModel() = Email(
         id = id,
@@ -109,5 +113,9 @@ fun Email.toEntity(accountId: String) = EmailEntity(
     isRead = isRead,
     isStarred = isStarred,
     labels = labels,
-    attachmentsJson = com.google.gson.Gson().toJson(attachments)
+    attachmentsJson = com.google.gson.Gson().toJson(attachments),
+    inInbox = labels.contains("INBOX"),
+    inSent = labels.contains("SENT"),
+    inArchived = !labels.contains("INBOX") && !labels.contains("TRASH") && !labels.contains("SENT"),
+    inTrash = labels.contains("TRASH")
 )

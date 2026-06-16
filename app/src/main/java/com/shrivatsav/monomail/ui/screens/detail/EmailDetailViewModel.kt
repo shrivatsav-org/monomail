@@ -65,6 +65,24 @@ class EmailDetailViewModel(
             repository.toggleStar(threadId, isStarred.value)
         }
     }
+    fun markUnread(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.markThreadAsUnread(threadId)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
+        }
+    }
+    fun archiveThread(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.archiveThread(threadId)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
+        }
+    }
+    fun trashThread(onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.deleteThread(threadId)
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
+        }
+    }
     suspend fun fetchAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
         return repository.getAttachmentBytes(messageId, attachmentId)
     }

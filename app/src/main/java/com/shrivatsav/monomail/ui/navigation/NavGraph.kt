@@ -234,6 +234,9 @@ fun NavGraph(
                 arguments = listOf(navArgument("threadId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val threadId = backStackEntry.arguments?.getString("threadId") ?: return@composable
+                val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
+                    initial = com.shrivatsav.monomail.data.settings.AppSettings()
+                )
                 val vm: EmailDetailViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
@@ -245,6 +248,7 @@ fun NavGraph(
                 EmailDetailScreen(
                     viewModel = vm,
                     onBack    = { navController.popBackStack() },
+                    isConversationView = appSettings.organizeByThread,
                     onReply   = { to, subject, body, tid, messageId ->
                         navController.navigate(
                             Screen.Compose.createRoute(

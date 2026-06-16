@@ -3,6 +3,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
@@ -17,6 +18,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -62,11 +64,34 @@ class InboxViewModel(
     private val _activeAccountId = MutableStateFlow<String?>(null)
     private val _unifiedInboxEnabled = MutableStateFlow(false)
     val unifiedInboxEnabled = _unifiedInboxEnabled.asStateFlow()
+    private val _organizeByThread = MutableStateFlow(true)
+    val organizeByThread = _organizeByThread.asStateFlow()
     private val _showDonationPrompt = MutableStateFlow(false)
     val showDonationPrompt = _showDonationPrompt.asStateFlow()
-    val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled) { tab, _, _ -> tab }
-        .flatMapLatest { tab ->
-        val flow = if (tab == InboxTab.UNIFIED) repository.getAllInboxThreadsFlow() else repository.getInboxThreadsFlow(tab)
+    val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, _, _, organize -> Pair(tab, organize) }
+        .flatMapLatest { (tab, organize) ->
+        val flow = if (organize) {
+            if (tab == InboxTab.UNIFIED) repository.getAllInboxThreadsFlow() else repository.getInboxThreadsFlow(tab)
+        } else {
+            repository.getInboxEmailsFlow(tab).map { emails ->
+                emails.groupBy { it.threadId }.map { (_, threadEmails) ->
+                    val latest = threadEmails.maxBy { it.date }
+                    EmailThread(
+                        threadId = latest.threadId,
+                        subject = latest.subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), ""),
+                        from = latest.from,
+                        fromEmail = latest.fromEmail,
+                        snippet = latest.snippet,
+                        date = latest.date,
+                        messageCount = threadEmails.size,
+                        isRead = threadEmails.all { it.isRead },
+                        isStarred = threadEmails.any { it.isStarred },
+                        latestMessageId = latest.id,
+                        participants = threadEmails.map { it.from }.distinct()
+                    )
+                }
+            }
+        }
         combine(
             flow,
             _isRefreshing,
@@ -85,6 +110,7 @@ class InboxViewModel(
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
+                _organizeByThread.value = settings.organizeByThread
                 if (!settings.hasSeenDonationPrompt && authManager.currentUser != null) {
                     _showDonationPrompt.value = true
                 }
