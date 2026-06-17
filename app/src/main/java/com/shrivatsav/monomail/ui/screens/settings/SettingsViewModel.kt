@@ -33,6 +33,7 @@ class SettingsViewModel(
     fun setSmartGroupingEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingEnabled(enabled) }
     fun setSmartGroupingRecentOnly(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingRecentOnly(enabled) }
     fun setOrganizeByThread(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setOrganizeByThread(enabled) }
+    fun setNavScale(scale: Float) = viewModelScope.launch { settingsDataStore.setNavScale(scale) }
     private val _updateState = MutableStateFlow(UpdateState.IDLE)
     val updateState = _updateState.asStateFlow()
     private val _latestVersionUrl = MutableStateFlow<String?>(null)

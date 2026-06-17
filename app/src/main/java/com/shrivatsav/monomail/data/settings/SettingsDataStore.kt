@@ -27,7 +27,8 @@ data class AppSettings(
     val hasSeenDonationPrompt: Boolean = false,
     val smartGroupingEnabled: Boolean = true,
     val smartGroupingRecentOnly: Boolean = false,
-    val organizeByThread: Boolean = true
+    val organizeByThread: Boolean = true,
+    val navScale: Float = 1f
 )
 class SettingsDataStore(private val context: Context) {
     private object Keys {
@@ -47,6 +48,7 @@ class SettingsDataStore(private val context: Context) {
         val SMART_GROUPING_ENABLED = booleanPreferencesKey("smart_grouping_enabled")
         val SMART_GROUPING_RECENT_ONLY = booleanPreferencesKey("smart_grouping_recent_only")
         val ORGANIZE_BY_THREAD = booleanPreferencesKey("organize_by_thread")
+        val NAV_SCALE = floatPreferencesKey("nav_scale")
     }
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -65,7 +67,8 @@ class SettingsDataStore(private val context: Context) {
             hasSeenDonationPrompt = prefs[Keys.HAS_SEEN_DONATION_PROMPT] ?: false,
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
             smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: false,
-            organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true
+            organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true,
+            navScale = prefs[Keys.NAV_SCALE] ?: 1f
         )
     }
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -115,5 +118,8 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setOrganizeByThread(enabled: Boolean) {
         context.dataStore.edit { it[Keys.ORGANIZE_BY_THREAD] = enabled }
+    }
+    suspend fun setNavScale(scale: Float) {
+        context.dataStore.edit { it[Keys.NAV_SCALE] = scale }
     }
 }

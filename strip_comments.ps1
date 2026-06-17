@@ -1,12 +1,18 @@
+$sourceDirs = @(
+    "$PSScriptRoot\app\src\main\java",
+    "$PSScriptRoot\app\src\main\res",
+    "$PSScriptRoot\app\src\test",
+    "$PSScriptRoot\app\src\androidTest"
+)
+
 $extensions = @("*.kt", "*.java", "*.xml")
-$targetDir = "$PSScriptRoot\app\src"
 $count = 0
 
 function Strip-KotlinComments($code) {
     $out = New-Object System.Text.StringBuilder
     $i = 0
     $len = $code.Length
-    $state = "CODE"  # CODE, LINE_COMMENT, BLOCK_COMMENT, STRING, RAW_STRING, CHAR
+    $state = "CODE"
 
     while ($i -lt $len) {
         $ch = $code[$i]
@@ -23,19 +29,22 @@ function Strip-KotlinComments($code) {
                     $i += 2
                     continue
                 }
-            } elseif ($ch -eq '"' -and $i + 2 -lt $len) {
+            }
+            if ($ch -eq '"' -and $i + 2 -lt $len) {
                 if ($code[$i + 1] -eq '"' -and $code[$i + 2] -eq '"') {
                     $state = "RAW_STRING"
                     [void]$out.Append('"""')
                     $i += 3
                     continue
                 }
-            } elseif ($ch -eq '"') {
+            }
+            if ($ch -eq '"') {
                 $state = "STRING"
                 [void]$out.Append('"')
                 $i += 1
                 continue
-            } elseif ($ch -eq "'") {
+            }
+            if ($ch -eq "'") {
                 $state = "CHAR"
                 [void]$out.Append("'")
                 $i += 1
@@ -103,22 +112,29 @@ function Strip-KotlinComments($code) {
     return $out.ToString()
 }
 
-Get-ChildItem $targetDir -Recurse -Include $extensions -File | ForEach-Object {
-    $content = Get-Content $_.FullName -Raw
-    $original = $content
-    $ext = $_.Extension.ToLower()
+foreach ($dir in $sourceDirs) {
+    if (-not (Test-Path -LiteralPath $dir)) { continue }
+    Get-ChildItem -LiteralPath $dir -Recurse -Include $extensions -File | ForEach-Object {
+        $content = Get-Content $_.FullName -Raw
+        $original = $content
+        $ext = $_.Extension.ToLower()
 
-    if ($ext -eq ".xml") {
-        $content = $content -replace '<!--[\s\S]*?-->', ''
-    } elseif ($ext -in @(".kt", ".java")) {
-        $content = Strip-KotlinComments $content
-    }
+        if ($ext -eq ".xml") {
+            $content = $content -replace '<!--[\s\S]*?-->', ''
+        } elseif ($ext -in @(".kt", ".java")) {
+            $content = Strip-KotlinComments $content
+        }
 
-    if ($content -ne $original) {
-        $content = $content.TrimEnd() + "`r`n"
-        [System.IO.File]::WriteAllText($_.FullName, $content, [System.Text.UTF8Encoding]::new($false))
-        $count++
+        if ($content -ne $original) {
+            $content = $content.TrimEnd() + "`r`n"
+            [System.IO.File]::WriteAllText($_.FullName, $content, [System.Text.UTF8Encoding]::new($false))
+            $count++
+            Write-Host "  Stripped: $($_.FullName)"
+        }
     }
 }
 
-Write-Host "Stripped comments from $count files."
+Write-Host "`nStripped comments from $count files."
+if ($count -eq 0) {
+    Write-Host "No comments found to strip."
+}

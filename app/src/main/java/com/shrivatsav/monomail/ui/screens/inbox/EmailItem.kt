@@ -17,6 +17,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -33,6 +36,9 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
+private val displayNameRegex = Regex("""^"?([^"<]+?)"?\s*<""")
+private val domainRegex = Regex("@(.+)$")
+
 @Composable
 fun EmailItem(
     thread: EmailThread,
@@ -47,7 +53,9 @@ fun EmailItem(
     val senderWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Medium
     val subjectWeight = if (isUnread) FontWeight.Bold else FontWeight.Normal
     val senderInitial = thread.from.firstOrNull()?.uppercase() ?: "?"
-    val domain = extractDomain(thread.fromEmail)
+    val domain by remember(thread.fromEmail) {
+        derivedStateOf { domainRegex.find(thread.fromEmail)?.groupValues?.get(1)?.trim() }
+    }
     val backgroundColor = if (isUnread) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.background
     val verticalPad = if (compactMode) 7.dp else 11.dp
     Row(
@@ -172,7 +180,7 @@ private fun SenderAvatar(
     ) {
         if (imageSuccess) {
             Image(
-                painter = painter!!,
+                painter = painter,
                 contentDescription = "Sender avatar",
                 modifier = Modifier.fillMaxSize()
             )
@@ -186,9 +194,14 @@ private fun SenderAvatar(
     }
 }
 private fun displayName(from: String): String {
-    val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)
+    val nameMatch = displayNameRegex.find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
+private val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+private val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
+private val dateFormat = SimpleDateFormat("MMM d", Locale.getDefault())
+private val fullDateFormat = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+
 private fun formatTimestamp(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
     val now = System.currentTimeMillis()
@@ -198,13 +211,13 @@ private fun formatTimestamp(epochMillis: Long): String {
     return when {
         cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
                 cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) ->
-            SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(epochMillis))
+            timeFormat.format(Date(epochMillis))
         diff < TimeUnit.DAYS.toMillis(7) ->
-            SimpleDateFormat("EEE", Locale.getDefault()).format(Date(epochMillis))
+            dayFormat.format(Date(epochMillis))
         cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) ->
-            SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(epochMillis))
+            dateFormat.format(Date(epochMillis))
         else ->
-            SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date(epochMillis))
+            fullDateFormat.format(Date(epochMillis))
     }
 }
 private fun extractDomain(fromEmail: String): String? {

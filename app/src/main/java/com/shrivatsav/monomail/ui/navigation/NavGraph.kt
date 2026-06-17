@@ -186,12 +186,10 @@ fun NavGraph(
                     },
                     onSignOut = {
                         scope.launch {
-                            authManager.signOutActiveAccount()
-                            if (authManager.getAccounts().isEmpty()) {
-                                emailRepository.clearLocalData()
-                                navController.navigate(Screen.SignIn.route) {
-                                    popUpTo(0) { inclusive = true }
-                                }
+                            authManager.signOutAll()
+                            emailRepository.clearLocalData()
+                            navController.navigate(Screen.SignIn.route) {
+                                popUpTo(0) { inclusive = true }
                             }
                         }
                     },

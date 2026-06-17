@@ -461,6 +461,39 @@ private fun MessageBody(
                 }
             }
         }
+        val htmlContent = remember(email.id, bgColor, textColor, linkColor) {
+            val cleanBody = stripQuotedText(email.body)
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+                <style>
+                    * { box-sizing: border-box; }
+                    body {
+                        font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+                        font-size: 15px;
+                        line-height: 1.6;
+                        margin: 12px 16px 0 16px;
+                        padding: 0;
+                        background-color: $bgColor;
+                        color: $textColor;
+                        word-break: break-word;
+                        overflow-wrap: break-word;
+                    }
+                    img { max-width: 100%; height: auto; display: block; }
+                    a { color: $linkColor; }
+                    table { max-width: 100%; word-break: break-word; }
+                    pre, code { white-space: pre-wrap; font-size: 13px; }
+                    blockquote, .gmail_quote, .gmail_extra,
+                    .yahoo_quoted, .moz-cite-prefix,
+                    [name="quoted-content"] { display: none !important; }
+                </style>
+            </head>
+            <body>$cleanBody</body>
+            </html>
+            """.trimIndent()
+        }
         AndroidView(
             modifier = Modifier
                 .fillMaxWidth()
@@ -479,40 +512,9 @@ private fun MessageBody(
                 }
             },
             update = { webView ->
-                val cleanBody = stripQuotedText(email.body)
-                val html = """
-                    <!DOCTYPE html>
-                    <html>
-                    <head>
-                        <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-                        <style>
-                            * { box-sizing: border-box; }
-                            body {
-                                font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-                                font-size: 15px;
-                                line-height: 1.6;
-                                margin: 12px 16px 0 16px;
-                                padding: 0;
-                                background-color: $bgColor;
-                                color: $textColor;
-                                word-break: break-word;
-                                overflow-wrap: break-word;
-                            }
-                            img { max-width: 100%; height: auto; display: block; }
-                            a { color: $linkColor; }
-                            table { max-width: 100%; word-break: break-word; }
-                            pre, code { white-space: pre-wrap; font-size: 13px; }
-                            blockquote, .gmail_quote, .gmail_extra,
-                            .yahoo_quoted, .moz-cite-prefix,
-                            [name="quoted-content"] { display: none !important; }
-                        </style>
-                    </head>
-                    <body>$cleanBody</body>
-                    </html>
-                """.trimIndent()
-                if (webView.tag != html) {
-                    webView.tag = html
-                    webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null)
+                if (webView.tag != htmlContent) {
+                    webView.tag = htmlContent
+                    webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                 }
             }
         )
@@ -754,13 +756,15 @@ private fun FileAttachmentCard(
         }
     }
 }
+private val detailDateFormat = SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault())
+
 private fun displayName(from: String): String {
     val nameMatch = Regex("""^"?([^"<]+?)"\s*<""").find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
 private fun formatDetailDate(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
-    return SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault()).format(Date(epochMillis))
+    return detailDateFormat.format(Date(epochMillis))
 }
 private fun stripQuotedText(html: String): String {
     var result = html

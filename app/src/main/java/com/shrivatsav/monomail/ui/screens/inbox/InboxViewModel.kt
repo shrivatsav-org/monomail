@@ -42,6 +42,7 @@ class InboxViewModel(
     private val settingsDataStore: SettingsDataStore
 ) : ViewModel() {
     private val _currentTab = MutableStateFlow(InboxTab.INBOX)
+    val currentTab: StateFlow<InboxTab> = _currentTab.asStateFlow()
     private val _isRefreshing = MutableStateFlow(false)
     private val pageTokens = mutableMapOf<String, String?>()
     private fun getPageTokenKey(): String = "${_currentTab.value.name}_${currentServerQuery ?: ""}"
