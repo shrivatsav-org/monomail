@@ -25,7 +25,6 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
@@ -113,31 +112,29 @@ fun InboxScreen(
         }
     }
 
-    var isFabExpanded by remember { mutableStateOf(true) }
-    val nestedScrollConnection = remember {
-        object : androidx.compose.ui.input.nestedscroll.NestedScrollConnection {
-            override fun onPreScroll(
-                available: androidx.compose.ui.geometry.Offset,
-                source: androidx.compose.ui.input.nestedscroll.NestedScrollSource
-            ): androidx.compose.ui.geometry.Offset {
-                if (available.y < -5f) isFabExpanded = false
-                if (available.y > 5f) isFabExpanded = true
-                return androidx.compose.ui.geometry.Offset.Zero
-            }
-        }
-    }
-
     val isRefreshing = (state as? InboxState.Success)?.isRefreshing == true
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
+
+    var dockAnimationsEnabled by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(16)
+        dockAnimationsEnabled = true
+    }
+
+    BackHandler(enabled = searchQuery.isNotEmpty()) {
+        searchQuery = ""
+    }
+    BackHandler(enabled = currentTab != InboxTab.INBOX && searchQuery.isEmpty()) {
+        viewModel.switchTab(InboxTab.INBOX)
+    }
 
     LaunchedEffect(viewModel) {
         viewModel.uiError.collect { errorMsg ->
             snackbarHostState.showSnackbar(errorMsg)
         }
     }
-
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -286,8 +283,7 @@ fun InboxScreen(
                                     LazyColumn(
                                         state = listState,
                                         modifier = Modifier
-                                            .fillMaxSize()
-                                            .nestedScroll(nestedScrollConnection),
+                                            .fillMaxSize(),
                                         contentPadding = PaddingValues(bottom = 100.dp)
                                     ) {
                                         items(displayItems, key = { it.key }) { displayItem ->
@@ -1028,9 +1024,6 @@ private fun ProfileCard(
                 ProfileMenuItem(Icons.Outlined.Star, "Starred", onStarredClick)
                 ProfileMenuItem(Icons.Outlined.Delete, "Trash", onTrashClick)
                 ProfileMenuItem(Icons.Outlined.Settings, "Settings", onSettings)
-                if (accounts.size > 1) {
-                    ProfileMenuItem(Icons.Outlined.AccountCircle, "Switch account", onShowSwitchAccount)
-                }
             }
 
             HorizontalDivider(
