@@ -34,6 +34,7 @@ class AuthManager(
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
     private var _userProfile: UserProfile? = null
     val currentUser: UserProfile? get() = _userProfile
+    val accountsFlow = accountManager.accountsFlow
     val activeAccountFlow = accountManager.activeAccountFlow
     suspend fun restoreSession(): Boolean {
         val profile = accountManager.getActiveAccount() ?: return false

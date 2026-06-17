@@ -122,6 +122,12 @@ class AccountManager(private val context: Context) {
             prefs[stringPreferencesKey("last_email_$accountId")] = emailId
         }
     }
+    val accountsFlow: Flow<List<UserProfile>> = context.dataStore.data.map { prefs ->
+        val json = prefs[KEY_ACCOUNTS_JSON] ?: return@map emptyList()
+        val decryptedJson = SecurityUtil.decryptString(json) ?: json
+        val type = object : TypeToken<List<UserProfile>>() {}.type
+        try { gson.fromJson(decryptedJson, type) } catch (e: Exception) { emptyList() }
+    }
     val activeAccountFlow: Flow<UserProfile?> = context.dataStore.data.map { prefs ->
         val json = prefs[KEY_ACCOUNTS_JSON] ?: return@map null
         val decryptedJson = SecurityUtil.decryptString(json) ?: json

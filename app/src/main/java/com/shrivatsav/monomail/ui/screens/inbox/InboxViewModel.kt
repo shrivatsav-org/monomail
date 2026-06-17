@@ -59,8 +59,8 @@ class InboxViewModel(
     val toastState = _toastState.asStateFlow()
     private val _uiError = MutableSharedFlow<String>()
     val uiError = _uiError.asSharedFlow()
-    private val _accounts = MutableStateFlow<List<UserProfile>>(emptyList())
-    val accounts = _accounts.asStateFlow()
+    val accounts: StateFlow<List<UserProfile>> = authManager.accountsFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     private val _activeAccountId = MutableStateFlow<String?>(null)
     private val _unifiedInboxEnabled = MutableStateFlow(false)
     val unifiedInboxEnabled = _unifiedInboxEnabled.asStateFlow()
@@ -108,6 +108,11 @@ class InboxViewModel(
     )
     init {
         viewModelScope.launch {
+            authManager.activeAccountFlow.collect { profile ->
+                _activeAccountId.value = profile?.id
+            }
+        }
+        viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
@@ -120,7 +125,6 @@ class InboxViewModel(
             }
         }
         refresh()
-        loadAccounts()
         viewModelScope.launch {
             InboxTab.values().forEach { tab ->
                 if (tab != _currentTab.value && tab != InboxTab.UNIFIED) {
@@ -130,16 +134,10 @@ class InboxViewModel(
         }
         startForegroundPolling()
     }
-    fun loadAccounts() {
-        viewModelScope.launch {
-            _accounts.value = authManager.getAccounts()
-        }
-    }
     fun switchAccount(accountId: String) {
         viewModelScope.launch {
             authManager.switchAccount(accountId)
             _activeAccountId.value = accountId
-            loadAccounts()
             refresh(showLoader = true)
         }
     }

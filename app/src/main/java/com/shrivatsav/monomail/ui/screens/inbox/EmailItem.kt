@@ -1,4 +1,5 @@
 package com.shrivatsav.monomail.ui.screens.inbox
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,8 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImagePainter
-import coil.compose.SubcomposeAsyncImage
-import coil.compose.SubcomposeAsyncImageContent
+import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.shrivatsav.monomail.data.model.EmailThread
@@ -154,38 +154,35 @@ private fun SenderAvatar(
     val avatarModifier = modifier
         .size(40.dp)
         .clip(CircleShape)
-    val fallback: @Composable () -> Unit = {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center
-        ) {
+    val context = LocalContext.current
+    val painter = if (domain != null) {
+        rememberAsyncImagePainter(
+            model = ImageRequest.Builder(context)
+                .data("https://www.google.com/s2/favicons?domain=$domain&sz=128")
+                .crossfade(true)
+                .build(),
+            placeholder = null
+        )
+    } else null
+    val imageSuccess = painter?.state is AsyncImagePainter.State.Success
+    Box(
+        modifier = avatarModifier
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+        contentAlignment = Alignment.Center
+    ) {
+        if (imageSuccess) {
+            Image(
+                painter = painter!!,
+                contentDescription = "Sender avatar",
+                modifier = Modifier.fillMaxSize()
+            )
+        } else {
             Text(
                 text = senderInitial,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-    }
-    if (domain != null) {
-        val context = LocalContext.current
-        SubcomposeAsyncImage(
-            model = ImageRequest.Builder(context)
-                .data("https://www.google.com/s2/favicons?domain=$domain&sz=128")
-                .crossfade(true)
-                .build(),
-            contentDescription = "Sender avatar",
-            modifier = avatarModifier
-        ) {
-            when (painter.state) {
-                is AsyncImagePainter.State.Loading,
-                is AsyncImagePainter.State.Error -> fallback()
-                else -> SubcomposeAsyncImageContent()
-            }
-        }
-    } else {
-        Box(modifier = avatarModifier) { fallback() }
     }
 }
 private fun displayName(from: String): String {
