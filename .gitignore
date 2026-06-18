@@ -17,3 +17,5 @@ secrets.properties
 *.apk
 remove_ai_comments.ps1
 /CODEX.md
+keystore.properties
+app/monomail-release.keystore
