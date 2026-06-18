@@ -1,4 +1,4 @@
-# MonoMail 1.2.7 Release Notes
+# MonoMail 1.3.2 Release Notes
 
 ## New Features
 
