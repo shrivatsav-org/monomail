@@ -211,12 +211,14 @@ fun NavGraph(
                         }
                     }
                 )
+                val accounts by authManager.accountsFlow.collectAsState(initial = emptyList())
                 SettingsScreen(
                     viewModel = settingsViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToLegal = { type ->
                         navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
-                    }
+                    },
+                    accountCount = accounts.size
                 )
             }
             composable(

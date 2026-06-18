@@ -50,12 +50,13 @@ class InboxViewModel(
     private val _isLoadingMore = MutableStateFlow(false)
     private val pendingHideIds = MutableStateFlow<Set<String>>(emptySet())
     private val pendingActionJobs = mutableMapOf<String, Job>()
+    private val pendingHiddenTrashIds = mutableSetOf<String>()
     data class ToastState(
         val threadId: String,
         val message: String,
         val actionType: ActionType
     )
-    enum class ActionType { ARCHIVE, DELETE }
+    enum class ActionType { ARCHIVE, DELETE, EMPTY_TRASH }
     private val _toastState = MutableStateFlow<ToastState?>(null)
     val toastState = _toastState.asStateFlow()
     private val _uiError = MutableSharedFlow<String>()
@@ -225,7 +226,27 @@ class InboxViewModel(
     }
 
     fun emptyTrash() {
-        viewModelScope.launch { repository.emptyTrash() }
+        val currentState = state.value as? InboxState.Success ?: return
+        val trashIds = currentState.threads.map { it.threadId }.toSet()
+        if (trashIds.isEmpty()) return
+
+        val sentinelId = "empty_trash"
+        pendingHiddenTrashIds.clear()
+        pendingHiddenTrashIds.addAll(trashIds)
+        pendingHideIds.value = pendingHideIds.value + trashIds
+        _toastState.value = ToastState(sentinelId, "Trash emptied", ActionType.EMPTY_TRASH)
+
+        pendingActionJobs[sentinelId]?.cancel()
+        pendingActionJobs[sentinelId] = viewModelScope.launch {
+            delay(4000)
+            if (_toastState.value?.threadId == sentinelId) {
+                repository.emptyTrash()
+                _toastState.value = null
+                pendingHideIds.value = pendingHideIds.value - pendingHiddenTrashIds
+                pendingHiddenTrashIds.clear()
+                pendingActionJobs.remove(sentinelId)
+            }
+        }
     }
 
     fun restoreThread(threadId: String) {
@@ -259,22 +280,38 @@ class InboxViewModel(
         when (type) {
             ActionType.ARCHIVE -> repository.archiveThread(threadId)
             ActionType.DELETE -> repository.deleteThread(threadId)
+            ActionType.EMPTY_TRASH -> repository.emptyTrash()
         }
     }
     fun undoAction() {
         val currentToast = _toastState.value ?: return
         val threadId = currentToast.threadId
-        pendingActionJobs[threadId]?.cancel()
-        pendingActionJobs.remove(threadId)
-        pendingHideIds.value = pendingHideIds.value - threadId
-        _toastState.value = null
+        if (currentToast.actionType == ActionType.EMPTY_TRASH) {
+            pendingActionJobs[threadId]?.cancel()
+            pendingActionJobs.remove(threadId)
+            pendingHideIds.value = pendingHideIds.value - pendingHiddenTrashIds
+            pendingHiddenTrashIds.clear()
+            _toastState.value = null
+        } else {
+            pendingActionJobs[threadId]?.cancel()
+            pendingActionJobs.remove(threadId)
+            pendingHideIds.value = pendingHideIds.value - threadId
+            _toastState.value = null
+        }
     }
     fun dismissToast() {
         val currentToast = _toastState.value ?: return
         val threadId = currentToast.threadId
         pendingActionJobs[threadId]?.cancel()
         viewModelScope.launch {
-            executeAction(threadId, currentToast.actionType)
+            if (currentToast.actionType == ActionType.EMPTY_TRASH) {
+                repository.emptyTrash()
+                pendingActionJobs.remove(threadId)
+                pendingHideIds.value = pendingHideIds.value - pendingHiddenTrashIds
+                pendingHiddenTrashIds.clear()
+            } else {
+                executeAction(threadId, currentToast.actionType)
+            }
             _toastState.value = null
         }
     }

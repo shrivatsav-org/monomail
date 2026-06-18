@@ -31,7 +31,8 @@ import com.shrivatsav.monomail.data.settings.*
 fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
-    onNavigateToLegal: (String) -> Unit
+    onNavigateToLegal: (String) -> Unit,
+    accountCount: Int = 0
 ) {
     val settings by viewModel.settings.collectAsState()
     val scrollState = rememberScrollState()
@@ -120,9 +121,11 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Outlined.Inbox,
                     title = "Unified Inbox",
-                    subtitle = "Show emails from all accounts in one tab",
+                    subtitle = if (accountCount > 1) "Show emails from all accounts in one tab"
+                               else "Add another account to enable",
                     checked = settings.unifiedInboxEnabled,
-                    onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) }
+                    onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) },
+                    enabled = accountCount > 1
                 )
                 CardDivider()
                 SettingsToggleRow(
@@ -346,12 +349,14 @@ private fun SettingsToggleRow(
     subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
-    indented: Boolean = false
+    indented: Boolean = false,
+    enabled: Boolean = true
 ) {
+    val alpha = if (enabled) 1f else 0.4f
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onCheckedChange(!checked) }
+            .then(if (enabled) Modifier.clickable { onCheckedChange(!checked) } else Modifier)
             .padding(
                 start = if (indented) 32.dp else 16.dp,
                 end = 16.dp,
@@ -363,7 +368,7 @@ private fun SettingsToggleRow(
         Icon(
             imageVector = icon,
             contentDescription = title,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha),
             modifier = Modifier.size(20.dp)
         )
         Spacer(modifier = Modifier.width(14.dp))
@@ -372,24 +377,25 @@ private fun SettingsToggleRow(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
             )
             if (subtitle.isNotEmpty()) {
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = alpha)
                 )
             }
         }
         Spacer(modifier = Modifier.width(8.dp))
         Switch(
             checked = checked,
-            onCheckedChange = onCheckedChange,
+            onCheckedChange = if (enabled) onCheckedChange else null,
             colors = SwitchDefaults.colors(
                 checkedTrackColor = MaterialTheme.colorScheme.primary,
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary
-            )
+            ),
+            enabled = enabled
         )
     }
 }

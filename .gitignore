@@ -16,3 +16,4 @@ local.properties
 secrets.properties
 *.apk
 remove_ai_comments.ps1
+/CODEX.md

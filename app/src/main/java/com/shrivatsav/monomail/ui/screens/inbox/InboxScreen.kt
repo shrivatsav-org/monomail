@@ -4,7 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -60,6 +60,7 @@ fun InboxScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
     var showClearTrashWarning by remember { mutableStateOf(false) }
+    var isTrashCountdownActive by remember { mutableStateOf(false) }
     val app = context.applicationContext as com.shrivatsav.monomail.MonoMailApp
     val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
         initial = com.shrivatsav.monomail.data.settings.AppSettings()
@@ -644,6 +645,7 @@ fun InboxScreen(
                 onDismiss = { activeModal = null },
                 onSignOut = { activeModal = null; onSignOut() },
                 onSwitchAccount = { viewModel.switchAccount(it); activeModal = null },
+                onCycleAccount = { viewModel.switchAccount(it) },
                 onAddAccount = {
                     if (accounts.size >= 10) {
                         coroutineScope.launch {
@@ -758,8 +760,24 @@ fun InboxScreen(
 
     com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
         visible = showClearTrashWarning,
-        onDismiss = { showClearTrashWarning = false }
+        onDismiss = { showClearTrashWarning = false; isTrashCountdownActive = false }
     ) {
+        var trashCountdown by remember { mutableIntStateOf(5) }
+        LaunchedEffect(showClearTrashWarning) {
+            if (showClearTrashWarning) {
+                trashCountdown = 5
+                isTrashCountdownActive = true
+                while (trashCountdown > 0 && isTrashCountdownActive) {
+                    kotlinx.coroutines.delay(1000)
+                    trashCountdown--
+                }
+                if (isTrashCountdownActive) {
+                    viewModel.emptyTrash()
+                    showClearTrashWarning = false
+                }
+            }
+        }
+
         Surface(
             shape = RoundedCornerShape(28.dp),
             color = MaterialTheme.colorScheme.background,
@@ -780,26 +798,30 @@ fun InboxScreen(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                ) {
+                    Text(
+                        text = if (trashCountdown > 0) "Clearing trash in $trashCountdown..."
+                               else "Clearing trash...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(20.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = { showClearTrashWarning = false }) {
+                    TextButton(onClick = {
+                        isTrashCountdownActive = false
+                        showClearTrashWarning = false
+                    }) {
                         Text("Cancel")
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            viewModel.emptyTrash()
-                            showClearTrashWarning = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error,
-                            contentColor = MaterialTheme.colorScheme.onError
-                        )
-                    ) {
-                        Text("Clear Trash")
                     }
                 }
             }
@@ -853,6 +875,7 @@ private fun ModalOverlay(
     onAddAccount: () -> Unit,
     onShowSwitchAccount: () -> Unit,
     onBackToProfile: () -> Unit,
+    onCycleAccount: (String) -> Unit,
     onTrashClick: () -> Unit,
     onStarredClick: () -> Unit,
     onSettings: () -> Unit,
@@ -939,6 +962,7 @@ private fun ModalOverlay(
                                     accounts = accounts,
                                     onSignOut = onSignOut,
                                     onShowSwitchAccount = onShowSwitchAccount,
+                                    onCycleAccount = onCycleAccount,
                                     onTrashClick = onTrashClick,
                                     onStarredClick = onStarredClick,
                                     onSettings = onSettings,
@@ -977,6 +1001,7 @@ private fun ProfileCard(
     accounts: List<UserProfile>,
     onSignOut: () -> Unit,
     onShowSwitchAccount: () -> Unit,
+    onCycleAccount: (String) -> Unit,
     onTrashClick: () -> Unit,
     onStarredClick: () -> Unit,
     onSettings: () -> Unit,
@@ -995,57 +1020,96 @@ private fun ProfileCard(
                     .padding(top = 28.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    if (accounts.size > 1) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy((-16).dp),
-                            modifier = Modifier.offset(x = 28.dp)
-                        ) {
-                            accounts.filter { it.id != userProfile.id }.take(2).forEach { acc ->
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
-                                        .clip(CircleShape)
-                                        .alpha(0.45f)
-                                ) {
-                                    AvatarCircle(
-                                        acc.photoUrl,
-                                        acc.displayName,
-                                        44.dp,
-                                        MaterialTheme.typography.titleSmall
+                AnimatedContent(
+                    targetState = userProfile.id,
+                    transitionSpec = {
+                        (fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.9f)) togetherWith
+                        (fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f))
+                    },
+                    label = "profileContent"
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.pointerInput(accounts) {
+                                if (accounts.size > 1) {
+                                    var totalDrag = 0f
+                                    detectHorizontalDragGestures(
+                                        onDragStart = { totalDrag = 0f },
+                                        onHorizontalDrag = { change, dragAmount ->
+                                            change.consume()
+                                            totalDrag += dragAmount
+                                            if (kotlin.math.abs(totalDrag) > 60f) {
+                                                val currentIdx = accounts.indexOfFirst { it.id == userProfile.id }
+                                                if (currentIdx != -1) {
+                                                    val nextIdx = if (totalDrag > 0)
+                                                        (currentIdx + 1) % accounts.size
+                                                    else
+                                                        if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
+                                                    onCycleAccount(accounts[nextIdx].id)
+                                                }
+                                                totalDrag = 0f
+                                            }
+                                        }
                                     )
                                 }
                             }
+                        ) {
+                            if (accounts.size > 1) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy((-16).dp),
+                                    modifier = Modifier.offset(x = 28.dp)
+                                ) {
+                                    accounts.filter { it.id != userProfile.id }.take(2).forEach { acc ->
+                                        Box(
+                                            modifier = Modifier
+                                                .size(44.dp)
+                                                .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+                                                .clip(CircleShape)
+                                                .alpha(0.45f)
+                                        ) {
+                                            AvatarCircle(
+                                                acc.photoUrl,
+                                                acc.displayName,
+                                                44.dp,
+                                                MaterialTheme.typography.titleSmall
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Box(modifier = Modifier.border(3.dp, MaterialTheme.colorScheme.background, CircleShape)) {
+                                AvatarCircle(
+                                    photoUrl = userProfile.photoUrl,
+                                    displayName = userProfile.displayName,
+                                    size = 72.dp,
+                                    textStyle = MaterialTheme.typography.headlineSmall
+                                )
+                            }
                         }
-                    }
-                    Box(modifier = Modifier.border(3.dp, MaterialTheme.colorScheme.background, CircleShape)) {
-                        AvatarCircle(
-                            photoUrl = userProfile.photoUrl,
-                            displayName = userProfile.displayName,
-                            size = 72.dp,
-                            textStyle = MaterialTheme.typography.headlineSmall
+
+                        Spacer(Modifier.height(14.dp))
+                        Text(
+                            text = userProfile.displayName,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            maxLines = 1
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = userProfile.email,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 24.dp)
                         )
                     }
                 }
-
-                Spacer(Modifier.height(14.dp))
-                Text(
-                    text = userProfile.displayName,
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    maxLines = 1
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = userProfile.email,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
 
                 if (accounts.size > 1) {
                     Spacer(Modifier.height(12.dp))
@@ -1407,6 +1471,7 @@ private fun InboxSearchBar(
                         val icon = when (toast.actionType) {
                             InboxViewModel.ActionType.ARCHIVE -> Icons.Outlined.Archive
                             InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
+                            InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Outlined.Delete
                         }
                         Row(
                             modifier = Modifier
@@ -1490,22 +1555,6 @@ private fun InboxSearchBar(
                                     Spacer(Modifier.width(4.dp))
                                     AvatarButton(
                                         userProfile = userProfile,
-                                        modifier = Modifier.pointerInput(accounts, userProfile) {
-                                            detectVerticalDragGestures { change, dragAmount ->
-                                                change.consume()
-                                                if (Math.abs(dragAmount) > 10f && accounts.size > 1 && userProfile != null) {
-                                                    val idx =
-                                                        accounts.indexOfFirst { it.id == userProfile.id }
-                                                    if (idx != -1) {
-                                                        val newIdx = if (dragAmount > 0)
-                                                            (idx + 1) % accounts.size
-                                                        else
-                                                            if (idx - 1 < 0) accounts.size - 1 else idx - 1
-                                                        onSwitchAccount(accounts[newIdx].id)
-                                                    }
-                                                }
-                                            }
-                                        },
                                         onClick = onOpenProfile
                                     )
 
