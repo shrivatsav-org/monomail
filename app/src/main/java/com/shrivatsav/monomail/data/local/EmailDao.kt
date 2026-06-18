@@ -21,6 +21,9 @@ interface EmailDao {
     @Query("DELETE FROM emails WHERE accountId = :accountId")
     suspend fun clearForAccount(accountId: String)
 
+    @Query("DELETE FROM emails WHERE accountId = :accountId AND inTrash = 1")
+    suspend fun emptyTrash(accountId: String)
+
     @Query("UPDATE emails SET inInbox = 0, inArchived = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun archiveThreadEmails(threadId: String, accountId: String)
 

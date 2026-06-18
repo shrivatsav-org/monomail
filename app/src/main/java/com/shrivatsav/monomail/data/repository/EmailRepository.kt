@@ -265,6 +265,12 @@ class EmailRepository(
             .build()
         enqueueSync(data)
     }
+    suspend fun emptyTrash() {
+        val activeAccountId = getActiveAccountId()
+        threadDao.emptyTrash(activeAccountId)
+        emailDao.emptyTrash(activeAccountId)
+    }
+
     suspend fun deleteThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.moveToTrash(threadId, activeAccountId)

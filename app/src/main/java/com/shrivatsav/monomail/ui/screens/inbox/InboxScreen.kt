@@ -54,11 +54,12 @@ fun InboxScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
-    val showDonationPrompt by viewModel.showDonationPrompt.collectAsState()
+     val showDonationPrompt by viewModel.showDonationPrompt.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
+    var showClearTrashWarning by remember { mutableStateOf(false) }
     val app = context.applicationContext as com.shrivatsav.monomail.MonoMailApp
     val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
         initial = com.shrivatsav.monomail.data.settings.AppSettings()
@@ -114,12 +115,6 @@ fun InboxScreen(
         }
     }
 
-    var dockAnimationsEnabled by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        kotlinx.coroutines.delay(16)
-        dockAnimationsEnabled = true
-    }
-
     val isRefreshing = (state as? InboxState.Success)?.isRefreshing == true
     val navBarHeight = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -146,7 +141,7 @@ fun InboxScreen(
                 .padding(padding)
         ) {
             val shouldBlur =
-                longPressedThread != null || blurForModal || threadToDelete != null || showDonationPrompt
+                longPressedThread != null || blurForModal || threadToDelete != null || showDonationPrompt || showClearTrashWarning
 
             Box(
                 modifier = Modifier
@@ -417,7 +412,7 @@ fun InboxScreen(
                 exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                val tabForDock = immediateTab
+                val tabForDock by remember { derivedStateOf { immediateTab } }
                 Row(
                     modifier = Modifier.padding(bottom = navBarHeight + 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -444,8 +439,7 @@ fun InboxScreen(
                                     label = "Unified",
                                     contentDescription = "Unified Inbox",
                                     onClick = onUnifiedClick,
-                                    scale = appSettings.navScale,
-                                    animate = dockAnimationsEnabled
+                                    scale = appSettings.navScale
                                 )
                             }
                             DockTab(
@@ -454,8 +448,7 @@ fun InboxScreen(
                                 label = "Inbox",
                                 contentDescription = "Primary Inbox",
                                 onClick = onInboxClick,
-                                scale = appSettings.navScale,
-                                animate = dockAnimationsEnabled
+                                scale = appSettings.navScale
                             )
                             DockTab(
                                 isActive = tabForDock == InboxTab.SENT,
@@ -463,8 +456,7 @@ fun InboxScreen(
                                 label = "Sent",
                                 contentDescription = "Sent",
                                 onClick = onSentClick,
-                                scale = appSettings.navScale,
-                                animate = dockAnimationsEnabled
+                                scale = appSettings.navScale
                             )
                             DockTab(
                                 isActive = tabForDock == InboxTab.ARCHIVED,
@@ -472,20 +464,56 @@ fun InboxScreen(
                                 label = "Archived",
                                 contentDescription = "Archived",
                                 onClick = onArchiveClick,
-                                scale = appSettings.navScale,
-                                animate = dockAnimationsEnabled
+                                scale = appSettings.navScale
                             )
                         }
                     }
-                    FloatingActionButton(
-                        onClick = onCompose,
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        shape = CircleShape,
-                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                        modifier = Modifier.size((52 * appSettings.navScale).dp)
-                    ) {
-                        Icon(Icons.Outlined.Edit, contentDescription = "Compose")
+                    AnimatedContent(
+                        targetState = tabForDock == InboxTab.TRASH,
+                        label = "FabIconMorph",
+                        transitionSpec = {
+                            (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.85f)) togetherWith
+                                    (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f))
+                        }
+                    ) { isTrash ->
+                        if (isTrash) {
+                            FloatingActionButton(
+                                onClick = { showClearTrashWarning = true },
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                shape = CircleShape,
+                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                                modifier = Modifier.height((42 * appSettings.navScale).dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Delete,
+                                        contentDescription = "Empty Trash",
+                                        modifier = Modifier.size((22 * appSettings.navScale).dp)
+                                    )
+                                    Text(
+                                        text = "Empty",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        } else {
+                            FloatingActionButton(
+                                onClick = onCompose,
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                shape = CircleShape,
+                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                                modifier = Modifier.size((52 * appSettings.navScale).dp)
+                            ) {
+                                Icon(Icons.Outlined.Edit, contentDescription = "Compose")
+                            }
+                        }
                     }
                 }
             }
@@ -721,6 +749,56 @@ fun InboxScreen(
                         threadToDelete = null
                     }) {
                         Text("Move to Trash")
+                    }
+                }
+            }
+        }
+    }
+
+    com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
+        visible = showClearTrashWarning,
+        onDismiss = { showClearTrashWarning = false }
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            shadowElevation = 32.dp,
+            modifier = Modifier.fillMaxWidth(0.88f)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Clear Trash?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Are you sure you want to permanently delete all messages in the trash? This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = { showClearTrashWarning = false }) {
+                        Text("Cancel")
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            viewModel.emptyTrash()
+                            showClearTrashWarning = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Text("Clear Trash")
                     }
                 }
             }
@@ -1429,7 +1507,7 @@ private fun InboxSearchBar(
                                         },
                                         onClick = onOpenProfile
                                     )
-                                    
+
                                 }
                             }
                         )
@@ -1697,6 +1775,7 @@ private fun SwipeableEmailItem(
         }
     }
 }
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun DockTab(
     isActive: Boolean,
@@ -1704,39 +1783,9 @@ private fun DockTab(
     label: String,
     contentDescription: String,
     onClick: () -> Unit,
-    scale: Float = 1f,
-    animate: Boolean = true
+    scale: Float
 ) {
-    val hPad = (12 * scale).dp
-    val vPad = (10 * scale).dp
-    val iconSize = (22 * scale).dp
-    val spacing = (6 * scale).dp
-
-    if (animate) {
-        AnimatedDockTab(
-            isActive = isActive,
-            icon = icon,
-            label = label,
-            contentDescription = contentDescription,
-            onClick = onClick,
-            hPad = hPad,
-            vPad = vPad,
-            iconSize = iconSize,
-            spacing = spacing
-        )
-    } else {
-        StaticDockTab(
-            isActive = isActive,
-            icon = icon,
-            label = label,
-            contentDescription = contentDescription,
-            onClick = onClick,
-            hPad = hPad,
-            vPad = vPad,
-            iconSize = iconSize,
-            spacing = spacing
-        )
-    }
+    AnimatedDockTab(isActive, icon, label, contentDescription, onClick, scale)
 }
 
 @Composable
@@ -1746,96 +1795,53 @@ private fun AnimatedDockTab(
     label: String,
     contentDescription: String,
     onClick: () -> Unit,
-    hPad: androidx.compose.ui.unit.Dp,
-    vPad: androidx.compose.ui.unit.Dp,
-    iconSize: androidx.compose.ui.unit.Dp,
-    spacing: androidx.compose.ui.unit.Dp
+    scale: Float,
 ) {
-    val bgColor by animateColorAsState(
-        targetValue = if (isActive) MaterialTheme.colorScheme.secondaryContainer
-        else Color.Transparent,
-        animationSpec = tween(durationMillis = 200),
+    val transition = updateTransition(targetState = isActive, label = "dockTab")
+    val bgColor by transition.animateColor(
+        transitionSpec = { tween(200) },
         label = "dockTabBg"
-    )
-    val contentColor by animateColorAsState(
-        targetValue = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer
-        else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-        animationSpec = tween(durationMillis = 200),
+    ) { active -> if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent }
+    val contentColor by transition.animateColor(
+        transitionSpec = { tween(200) },
         label = "dockTabContent"
-    )
+    ) { active -> if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) }
 
-    Row(
+    Surface(
+        shape = CircleShape,
+        color = bgColor,
+        contentColor = contentColor,
+        onClick = onClick,
         modifier = Modifier
-            .clip(CircleShape)
-            .background(bgColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = hPad, vertical = vPad),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing)
+            .height((42 * scale).dp)
+            .semantics { this.contentDescription = contentDescription }
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = contentColor,
-            modifier = Modifier.size(iconSize)
-        )
-        AnimatedVisibility(
-            visible = isActive,
-            enter = fadeIn(tween(180)) +
-                    expandHorizontally(tween(220, easing = FastOutSlowInEasing)),
-            exit  = fadeOut(tween(140)) +
-                    shrinkHorizontally(tween(180, easing = FastOutSlowInEasing))
+        Row(
+            modifier = Modifier.padding(horizontal = (12 * scale).dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size((22 * scale).dp)
             )
-        }
-    }
-}
+            val labelWidth by transition.animateDp(
+                transitionSpec = { tween(220, easing = FastOutSlowInEasing) },
+                label = "labelWidth"
+            ) { active -> if (active) 72.dp else 0.dp }
+            val labelAlpha by transition.animateFloat(
+                transitionSpec = { tween(180) },
+                label = "labelAlpha"
+            ) { active -> if (active) 1f else 0f }
 
-@Composable
-private fun StaticDockTab(
-    isActive: Boolean,
-    icon: ImageVector,
-    label: String,
-    contentDescription: String,
-    onClick: () -> Unit,
-    hPad: androidx.compose.ui.unit.Dp,
-    vPad: androidx.compose.ui.unit.Dp,
-    iconSize: androidx.compose.ui.unit.Dp,
-    spacing: androidx.compose.ui.unit.Dp
-) {
-    val bgColor = if (isActive) MaterialTheme.colorScheme.secondaryContainer
-    else Color.Transparent
-    val contentColor = if (isActive) MaterialTheme.colorScheme.onSecondaryContainer
-    else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(bgColor)
-            .clickable(onClick = onClick)
-            .padding(horizontal = hPad, vertical = vPad),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = contentColor,
-            modifier = Modifier.size(iconSize)
-        )
-        if (isActive) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = labelAlpha),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = labelWidth)
             )
         }
     }

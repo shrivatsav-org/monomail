@@ -38,4 +38,7 @@ interface ThreadDao {
     suspend fun restoreFromTrash(threadId: String, accountId: String)
     @Query("DELETE FROM threads WHERE accountId = :accountId")
     suspend fun clearForAccount(accountId: String)
+
+    @Query("DELETE FROM threads WHERE accountId = :accountId AND inTrash = 1")
+    suspend fun emptyTrash(accountId: String)
 }

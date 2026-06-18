@@ -223,6 +223,11 @@ class InboxViewModel(
     fun deleteThread(threadId: String) {
         queueAction(threadId, ActionType.DELETE, "Conversation deleted")
     }
+
+    fun emptyTrash() {
+        viewModelScope.launch { repository.emptyTrash() }
+    }
+
     fun restoreThread(threadId: String) {
         viewModelScope.launch { repository.restoreThread(threadId) }
     }
