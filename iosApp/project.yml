@@ -1,0 +1,35 @@
+name: MonoMail
+options:
+  bundleIdPrefix: com.shrivatsav
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+
+packages:
+  Shared:
+    path: Shared
+
+targets:
+  MonoMail:
+    type: application
+    platform: iOS
+    sources:
+      - path: iosApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.shrivatsav.monomail
+        INFOPLIST_FILE: iosApp/Info.plist
+        DEVELOPMENT_TEAM: ""          # set your free-provisioning team
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+        ENABLE_USER_SCRIPT_SANDBOXING: NO
+    dependencies:
+      - package: Shared
+    # Builds the XCFramework before compiling Swift, so SPM has the binary to resolve.
+    preBuildScripts:
+      - name: Assemble shared XCFramework
+        script: |
+          cd "$SRCROOT/.."
+          ./gradlew :shared:assembleSharedDebugXCFramework
+        basedOnDependencyAnalysis: false

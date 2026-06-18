@@ -1,0 +1,147 @@
+CREATE TABLE threadEntity (
+    threadId TEXT NOT NULL PRIMARY KEY,
+    accountId TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    fromName TEXT NOT NULL,
+    fromEmail TEXT NOT NULL,
+    snippet TEXT NOT NULL,
+    date INTEGER NOT NULL,
+    messageCount INTEGER NOT NULL,
+    isRead INTEGER NOT NULL,
+    isStarred INTEGER NOT NULL,
+    latestMessageId TEXT NOT NULL,
+    participants TEXT NOT NULL,
+    inInbox INTEGER NOT NULL,
+    inSent INTEGER NOT NULL,
+    inArchived INTEGER NOT NULL,
+    inTrash INTEGER NOT NULL
+);
+
+CREATE TABLE emailEntity (
+    id TEXT NOT NULL PRIMARY KEY,
+    accountId TEXT NOT NULL,
+    threadId TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    fromName TEXT NOT NULL,
+    fromEmail TEXT NOT NULL,
+    toEmail TEXT NOT NULL,
+    snippet TEXT NOT NULL,
+    body TEXT NOT NULL,
+    date INTEGER NOT NULL,
+    isRead INTEGER NOT NULL,
+    isStarred INTEGER NOT NULL,
+    labels TEXT NOT NULL,
+    attachmentsJson TEXT NOT NULL DEFAULT '[]',
+    inInbox INTEGER NOT NULL DEFAULT 0,
+    inSent INTEGER NOT NULL DEFAULT 0,
+    inArchived INTEGER NOT NULL DEFAULT 0,
+    inTrash INTEGER NOT NULL DEFAULT 0
+);
+
+-- ThreadDao
+
+getInboxThreads:
+SELECT * FROM threadEntity WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC;
+
+getAllInboxThreads:
+SELECT * FROM threadEntity WHERE inInbox = 1 ORDER BY date DESC;
+
+getLatestInboxThread:
+SELECT * FROM threadEntity WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 1;
+
+getSentThreads:
+SELECT * FROM threadEntity WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC;
+
+getArchivedThreads:
+SELECT * FROM threadEntity WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC;
+
+getStarredThreads:
+SELECT * FROM threadEntity WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC;
+
+getTrashThreads:
+SELECT * FROM threadEntity WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC;
+
+insertThread:
+INSERT OR REPLACE INTO threadEntity(threadId, accountId, subject, fromName, fromEmail, snippet, date, messageCount, isRead, isStarred, latestMessageId, participants, inInbox, inSent, inArchived, inTrash)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateThreadStarred:
+UPDATE threadEntity SET isStarred = :isStarred WHERE threadId = :threadId AND accountId = :accountId;
+
+archiveThread:
+UPDATE threadEntity SET inInbox = 0, inArchived = 1 WHERE threadId = :threadId AND accountId = :accountId;
+
+unarchiveThread:
+UPDATE threadEntity SET inInbox = 1, inArchived = 0 WHERE threadId = :threadId AND accountId = :accountId;
+
+updateThreadReadStatus:
+UPDATE threadEntity SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId;
+
+deleteThread:
+DELETE FROM threadEntity WHERE threadId = :threadId AND accountId = :accountId;
+
+moveThreadToTrash:
+UPDATE threadEntity SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId;
+
+restoreThreadFromTrash:
+UPDATE threadEntity SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId;
+
+clearThreadsForAccount:
+DELETE FROM threadEntity WHERE accountId = :accountId;
+
+-- EmailDao
+
+getEmailsForThread:
+SELECT * FROM emailEntity WHERE threadId = :threadId AND accountId = :accountId ORDER BY date ASC;
+
+getEmailById:
+SELECT * FROM emailEntity WHERE id = :id AND accountId = :accountId LIMIT 1;
+
+insertEmail:
+INSERT OR REPLACE INTO emailEntity(id, accountId, threadId, subject, fromName, fromEmail, toEmail, snippet, body, date, isRead, isStarred, labels, attachmentsJson, inInbox, inSent, inArchived, inTrash)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+
+updateEmailThreadStarred:
+UPDATE emailEntity SET isStarred = :isStarred WHERE threadId = :threadId AND accountId = :accountId;
+
+markEmailAsRead:
+UPDATE emailEntity SET isRead = 1 WHERE id = :id AND accountId = :accountId;
+
+deleteThreadEmails:
+DELETE FROM emailEntity WHERE threadId = :threadId AND accountId = :accountId;
+
+clearEmailsForAccount:
+DELETE FROM emailEntity WHERE accountId = :accountId;
+
+archiveThreadEmails:
+UPDATE emailEntity SET inInbox = 0, inArchived = 1 WHERE threadId = :threadId AND accountId = :accountId;
+
+unarchiveThreadEmails:
+UPDATE emailEntity SET inInbox = 1, inArchived = 0 WHERE threadId = :threadId AND accountId = :accountId;
+
+updateThreadEmailsReadStatus:
+UPDATE emailEntity SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId;
+
+moveThreadEmailsToTrash:
+UPDATE emailEntity SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId;
+
+restoreThreadEmailsFromTrash:
+UPDATE emailEntity SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId;
+
+getInboxEmails:
+SELECT * FROM emailEntity WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC;
+
+getAllInboxEmails:
+SELECT * FROM emailEntity WHERE inInbox = 1 ORDER BY date DESC;
+
+getSentEmails:
+SELECT * FROM emailEntity WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC;
+
+getArchivedEmails:
+SELECT * FROM emailEntity WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC;
+
+getStarredEmails:
+SELECT * FROM emailEntity WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC;
+
+getTrashEmails:
+SELECT * FROM emailEntity WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC;

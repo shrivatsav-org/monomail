@@ -28,3 +28,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "Mono mail"
 include(":app")
+include(":shared")

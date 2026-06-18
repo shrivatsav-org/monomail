@@ -86,19 +86,11 @@ dependencies {
     implementation(libs.google.identity.googleid)
     implementation(libs.google.play.services.auth)
 
-    // Networking
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.gson)
-    implementation(libs.okhttp)
-    implementation(libs.okhttp.logging)
-
-    // Room
-    implementation(libs.androidx.room.runtime)
-    implementation(libs.androidx.room.ktx)
-    ksp(libs.androidx.room.compiler)
-
     // WorkManager
     implementation(libs.androidx.work.runtime)
+
+    // Shared KMP Module
+    implementation(project(":shared"))
 
     // Coil
     implementation(libs.coil.compose)

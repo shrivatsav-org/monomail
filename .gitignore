@@ -1,5 +1,6 @@
 *.iml
 .gradle
+.kotlin
 /local.properties
 /.idea/caches
 /.idea/libraries
@@ -9,6 +10,7 @@
 /.idea/assetWizardSettings.xml
 .DS_Store
 /build
+build/
 /captures
 .externalNativeBuild
 .cxx
@@ -16,3 +18,11 @@ local.properties
 secrets.properties
 *.apk
 strip_comments.ps1
+
+# iOS / Xcode (project is generated from project.yml via xcodegen)
+iosApp/**/*.xcodeproj
+xcuserdata/
+DerivedData/
+.build/
+Package.resolved
+*.xcframework
