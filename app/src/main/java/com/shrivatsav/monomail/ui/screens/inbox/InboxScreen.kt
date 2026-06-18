@@ -891,9 +891,9 @@ private fun ModalOverlay(
                         EnterTransition.None togetherWith ExitTransition.None
                     } else {
                         (scaleIn(
-                            tween(300, easing = FastOutSlowInEasing),
+                            tween(200, easing = FastOutSlowInEasing),
                             initialScale = 0.85f
-                        ) + fadeIn(tween(250))) togetherWith
+                        ) + fadeIn(tween(200))) togetherWith
                                 (scaleOut(tween(200), targetScale = 0.85f) +
                                         fadeOut(tween(180)))
                     }
@@ -1715,6 +1715,7 @@ private fun SwipeableEmailItem(
                         com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> MaterialTheme.colorScheme.secondaryContainer
                         else -> Color.Transparent
                     },
+                    animationSpec = tween(200),
                     label = "swipeBg"
                 )
                 Box(

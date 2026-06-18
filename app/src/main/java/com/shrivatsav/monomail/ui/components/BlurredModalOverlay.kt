@@ -41,7 +41,7 @@ fun BlurredModalOverlay(
                         interactionSource = remember { MutableInteractionSource() }
                     ) {}
                     .animateEnterExit(
-                        enter = androidx.compose.animation.scaleIn(tween(300, easing = androidx.compose.animation.core.FastOutSlowInEasing), initialScale = 0.8f),
+                        enter = androidx.compose.animation.scaleIn(tween(200, easing = androidx.compose.animation.core.FastOutSlowInEasing), initialScale = 0.8f),
                         exit = androidx.compose.animation.scaleOut(tween(200), targetScale = 0.8f)
                     ),
                 contentAlignment = Alignment.Center

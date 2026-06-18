@@ -112,37 +112,37 @@ fun NavGraph(
             enterTransition = {
                 when {
                     targetState.destination.route?.startsWith("compose") == true -> {
-                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400))
+                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
                     }
                     targetState.destination.route?.startsWith("thread") == true || targetState.destination.route?.startsWith("settings") == true -> {
-                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(400)) + fadeIn(animationSpec = tween(400))
+                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
                     }
-                    else -> fadeIn(animationSpec = tween(400))
+                    else -> fadeIn(animationSpec = tween(300))
                 }
             },
             exitTransition = {
                 when {
                     initialState.destination.route?.startsWith("compose") == true -> {
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
                     }
                     initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true -> {
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
                     }
-                    else -> fadeOut(animationSpec = tween(400))
+                    else -> fadeOut(animationSpec = tween(300))
                 }
             },
             popEnterTransition = {
-                fadeIn(animationSpec = tween(400))
+                fadeIn(animationSpec = tween(300))
             },
             popExitTransition = {
                 when {
                     initialState.destination.route?.startsWith("compose") == true -> {
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
                     }
                     initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true -> {
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(400)) + fadeOut(animationSpec = tween(400))
+                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
                     }
-                    else -> fadeOut(animationSpec = tween(400))
+                    else -> fadeOut(animationSpec = tween(300))
                 }
             }
         ) {

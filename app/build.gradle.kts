@@ -48,6 +48,10 @@ android {
         buildConfig = true
     }
 
+    composeCompiler {
+        enableStrongSkippingMode = true
+    }
+
     packaging {
         jniLibs {
             useLegacyPackaging = true
