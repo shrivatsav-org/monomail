@@ -124,8 +124,9 @@ fun isSameDay(a: Calendar, b: Calendar) =
     a.get(Calendar.YEAR) == b.get(Calendar.YEAR) &&
             a.get(Calendar.DAY_OF_YEAR) == b.get(Calendar.DAY_OF_YEAR)
 
+private val senderNameRegex = Regex("""^"?([^"<]+?)"?\s*<""")
 private fun extractSenderName(from: String): String {
-    val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)
+    val nameMatch = senderNameRegex.find(from)
     val name = nameMatch?.groupValues?.get(1)?.trim() ?: from.substringBefore("<").trim()
     return name.takeIf { it.isNotBlank() } ?: "Unknown Sender"
 }

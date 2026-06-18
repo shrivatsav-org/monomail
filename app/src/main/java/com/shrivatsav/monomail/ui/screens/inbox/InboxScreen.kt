@@ -223,19 +223,20 @@ fun InboxScreen(
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable {
                                 mutableStateOf(emptyList<String>())
                             }
-                            val inboxStructure = remember(
-                                threadsToDisplay,
-                                appSettings.smartGroupingEnabled,
-                                appSettings.smartGroupingRecentOnly,
-                                currentTab
-                            ) {
-                                val useGrouping = appSettings.smartGroupingEnabled &&
-                                        !isSearchActive && currentTab == InboxTab.INBOX
-                                computeInboxStructure(
-                                    threadsToDisplay,
-                                    useGrouping,
-                                    appSettings.smartGroupingRecentOnly
-                                )
+                            var inboxStructure by remember { mutableStateOf(InboxStructure(emptyList(), emptyList())) }
+                            LaunchedEffect(threadsToDisplay, appSettings.smartGroupingEnabled, appSettings.smartGroupingRecentOnly, currentTab) {
+                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                    val useGrouping = appSettings.smartGroupingEnabled &&
+                                            !isSearchActive && currentTab == InboxTab.INBOX
+                                    val result = computeInboxStructure(
+                                        threadsToDisplay,
+                                        useGrouping,
+                                        appSettings.smartGroupingRecentOnly
+                                    )
+                                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                        inboxStructure = result
+                                    }
+                                }
                             }
                             val displayItems = remember(inboxStructure, expandedGroupsList) {
                                 flattenDisplayItems(inboxStructure, expandedGroupsList.toSet())
@@ -1829,11 +1830,11 @@ private fun AnimatedDockTab(
             )
             val labelWidth by transition.animateDp(
                 transitionSpec = { tween(220, easing = FastOutSlowInEasing) },
-                label = "labelWidth"
+                label = "dockLabelWidth"
             ) { active -> if (active) 72.dp else 0.dp }
             val labelAlpha by transition.animateFloat(
                 transitionSpec = { tween(180) },
-                label = "labelAlpha"
+                label = "dockLabelAlpha"
             ) { active -> if (active) 1f else 0f }
 
             Text(
