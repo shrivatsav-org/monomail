@@ -14,6 +14,11 @@ if (secretsFile.exists()) {
 }
 val googleClientId = secrets.getProperty("GOOGLE_CLIENT_ID") ?: "\"\""
 
+val keystoreFile = rootProject.file("keystore.properties")
+val keystoreProps = Properties()
+if (keystoreFile.exists()) {
+    keystoreProps.load(FileInputStream(keystoreFile))
+}
 
 android {
     namespace = "com.shrivatsav.monomail"
@@ -30,11 +35,20 @@ android {
         buildConfigField("String", "GOOGLE_CLIENT_ID", googleClientId)
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file(keystoreProps.getProperty("storeFile", ""))
+            storePassword = keystoreProps.getProperty("storePassword", "")
+            keyAlias = keystoreProps.getProperty("keyAlias", "")
+            keyPassword = keystoreProps.getProperty("keyPassword", "")
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
