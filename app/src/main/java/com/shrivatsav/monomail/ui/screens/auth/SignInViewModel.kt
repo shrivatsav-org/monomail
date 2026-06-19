@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.SignInResult
 import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import android.content.Intent
 import android.app.Activity
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,7 +20,10 @@ sealed class SignInState {
     data class NeedsConsent(val intent: Intent)    : SignInState()
     data class Error(val message: String)          : SignInState()
 }
-class SignInViewModel(private val authManager: AuthManager) : ViewModel() {
+class SignInViewModel(
+    private val authManager: AuthManager,
+    private val emailRepository: EmailRepository
+) : ViewModel() {
     private val _state = MutableStateFlow<SignInState>(SignInState.Idle)
     val state: StateFlow<SignInState> = _state.asStateFlow()
     init {
@@ -29,10 +34,13 @@ class SignInViewModel(private val authManager: AuthManager) : ViewModel() {
     fun signIn(context: Context) {
         viewModelScope.launch {
             _state.value = SignInState.Loading
-            _state.value = when (val result = authManager.signIn(context)) {
-                is SignInResult.Success      -> SignInState.Success(result.profile)
-                is SignInResult.NeedsConsent -> SignInState.NeedsConsent(result.intent)
-                is SignInResult.Failure      -> SignInState.Error(
+            when (val result = authManager.signIn(context)) {
+                is SignInResult.Success -> {
+                    emailRepository.refreshInbox(InboxTab.INBOX)
+                    _state.value = SignInState.Success(result.profile)
+                }
+                is SignInResult.NeedsConsent -> _state.value = SignInState.NeedsConsent(result.intent)
+                is SignInResult.Failure -> _state.value = SignInState.Error(
                     result.error.message ?: "Sign in failed"
                 )
             }
@@ -49,7 +57,8 @@ class SignInViewModel(private val authManager: AuthManager) : ViewModel() {
             _state.value = when (val result = authManager.microsoftAuthManager.signIn(activity)) {
                 is SignInResult.Success -> {
                     authManager.addAccount(result.profile)
-                    authManager.switchAccount(result.profile.id) 
+                    authManager.switchAccount(result.profile.id)
+                    emailRepository.refreshInbox(InboxTab.INBOX)
                     SignInState.Success(result.profile)
                 }
                 is SignInResult.NeedsConsent -> SignInState.Error("Consent needed")

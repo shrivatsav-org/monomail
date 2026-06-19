@@ -944,7 +944,8 @@ private fun ModalOverlay(
                                             modelClass: Class<T>
                                         ): T =
                                             com.shrivatsav.monomail.ui.screens.auth.SignInViewModel(
-                                                a.authManager
+                                                a.authManager,
+                                                a.emailRepository
                                             ) as T
                                     }
                                 )
