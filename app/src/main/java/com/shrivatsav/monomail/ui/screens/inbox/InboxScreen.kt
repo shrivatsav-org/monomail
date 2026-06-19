@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail.ui.screens.inbox
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -36,6 +37,7 @@ import androidx.compose.ui.unit.*
 import coil.compose.AsyncImage
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
+import com.shrivatsav.monomail.ui.theme.MonoMailTheme
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
@@ -1063,6 +1065,7 @@ private fun ModalOverlay(
 
 
 
+@SuppressLint("UnusedContentLambdaTargetStateParameter")
 @Composable
 private fun ProfileCard(
     userProfile: UserProfile,
@@ -1926,7 +1929,7 @@ private fun DockTab(
 }
 
 @Composable
-private fun AnimatedDockTab(
+fun AnimatedDockTab(
     isActive: Boolean,
     icon: ImageVector,
     label: String,
@@ -1935,19 +1938,41 @@ private fun AnimatedDockTab(
     scale: Float,
 ) {
     val transition = updateTransition(targetState = isActive, label = "dockTab")
+
     val bgColor by transition.animateColor(
         transitionSpec = { tween(200) },
         label = "dockTabBg"
     ) { active -> if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent }
-    val contentColor by transition.animateColor(
+
+    // Icon stays visible at all times -> use the real two-tier contrast pair,
+    // never collapse this one to alpha 0.
+    val iconColor by transition.animateColor(
         transitionSpec = { tween(200) },
-        label = "dockTabContent"
-    ) { active -> if (active) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) }
+        label = "dockIconColor"
+    ) { active ->
+        if (active) MaterialTheme.colorScheme.onSurface
+        else MonoMailTheme.extendedColors.onSurfaceMuted
+    }
+
+    // Label is meant to disappear when inactive (collapses with width below),
+    // so this one IS allowed to go to alpha 0 — that's intentional, not a bug.
+    val labelColor by transition.animateColor(
+        transitionSpec = { tween(180) },
+        label = "dockLabelColor"
+    ) { active ->
+        if (active) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0f)
+    }
+
+    val labelWidth by transition.animateDp(
+        transitionSpec = { tween(220, easing = FastOutSlowInEasing) },
+        label = "dockLabelWidth"
+    ) { active -> if (active) 72.dp else 0.dp }
 
     Surface(
         shape = CircleShape,
         color = bgColor,
-        contentColor = contentColor,
+        contentColor = iconColor,
         onClick = onClick,
         modifier = Modifier
             .height((42 * scale).dp)
@@ -1961,21 +1986,14 @@ private fun AnimatedDockTab(
             Icon(
                 icon,
                 contentDescription = null,
+                tint = iconColor,
                 modifier = Modifier.size((22 * scale).dp)
             )
-            val labelWidth by transition.animateDp(
-                transitionSpec = { tween(220, easing = FastOutSlowInEasing) },
-                label = "dockLabelWidth"
-            ) { active -> if (active) 72.dp else 0.dp }
-            val labelAlpha by transition.animateFloat(
-                transitionSpec = { tween(180) },
-                label = "dockLabelAlpha"
-            ) { active -> if (active) 1f else 0f }
 
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = labelAlpha),
+                color = labelColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = labelWidth)
