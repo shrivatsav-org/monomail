@@ -54,7 +54,7 @@ fun InboxScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
-     val showDonationPrompt by viewModel.showDonationPrompt.collectAsState()
+     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -142,7 +142,7 @@ fun InboxScreen(
                 .padding(padding)
         ) {
             val shouldBlur =
-                longPressedThread != null || blurForModal || threadToDelete != null || showDonationPrompt || showClearTrashWarning
+                longPressedThread != null || blurForModal || threadToDelete != null || showWelcomePrompt || showClearTrashWarning
 
             Box(
                 modifier = Modifier
@@ -225,7 +225,9 @@ fun InboxScreen(
                                 mutableStateOf(emptyList<String>())
                             }
                             var inboxStructure by remember { mutableStateOf(InboxStructure(emptyList(), emptyList())) }
+                            var isComputingStructure by remember { mutableStateOf(true) }
                             LaunchedEffect(threadsToDisplay, appSettings.smartGroupingEnabled, appSettings.smartGroupingRecentOnly, currentTab) {
+                                isComputingStructure = true
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                                     val useGrouping = appSettings.smartGroupingEnabled &&
                                             !isSearchActive && currentTab == InboxTab.INBOX
@@ -236,6 +238,7 @@ fun InboxScreen(
                                     )
                                     kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                                         inboxStructure = result
+                                        isComputingStructure = false
                                     }
                                 }
                             }
@@ -270,6 +273,17 @@ fun InboxScreen(
                                                     shape = MaterialTheme.shapes.large
                                                 ) { Text("Search server") }
                                             }
+                                        }
+                                    }
+                                } else if (isComputingStructure && displayItems.isEmpty()) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(horizontal = 20.dp, vertical = 11.dp),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        repeat(10) {
+                                            ShimmerEmailItem()
                                         }
                                     }
                                 } else {
@@ -664,8 +678,8 @@ fun InboxScreen(
 
     
     com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
-        visible = showDonationPrompt,
-        onDismiss = { viewModel.dismissDonationPrompt() }
+        visible = showWelcomePrompt,
+        onDismiss = { viewModel.dismissWelcomePrompt() }
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),
@@ -674,39 +688,92 @@ fun InboxScreen(
             shadowElevation = 32.dp,
             modifier = Modifier.fillMaxWidth(0.88f)
         ) {
+            val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
             Column(modifier = Modifier.padding(24.dp)) {
                 Text(
-                    text = "Support Monomail",
+                    text = "Welcome to Monomail",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "If you want to support this app please buy me a coffee! I am a student working on this as my side project contributing to OSS, it would be a great help.",
+                    text = "Monomail is a free & open-source email client built with privacy in mind. If you find it useful, here are some ways to support the project:",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(20.dp))
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                    AsyncImage(
-                        model = "https://storage.ko-fi.com/cdn/kofi3.png?v=6",
-                        contentDescription = "Buy Me a Coffee",
-                        modifier = Modifier
-                            .fillMaxWidth(0.6f)
-                            .wrapContentHeight()
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }
+
+                val kofiIcon = remember {
+                    val bmp = android.graphics.BitmapFactory.decodeStream(
+                        context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi)
                     )
+                    if (bmp != null) androidx.compose.ui.graphics.painter.BitmapPainter(bmp.asImageBitmap())
+                    else null
                 }
-                Spacer(modifier = Modifier.height(24.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    WelcomeActionButton(
+                        label = "Buy me a coffee",
+                        onClick = { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }
+                    ) { modifier ->
+                        if (kofiIcon != null) Icon(painter = kofiIcon, contentDescription = null, modifier = modifier, tint = Color.Unspecified)
+                        else Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, modifier = modifier)
+                    }
+                    WelcomeActionButton(
+                        label = "Pay with UPI",
+                        onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }
+                    ) { modifier ->
+                        Icon(Icons.Outlined.Payments, contentDescription = null, modifier = modifier)
+                    }
+                    WelcomeActionButton(
+                        label = "Star on GitHub",
+                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }
+                    ) { modifier ->
+                        Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = modifier)
+                    }
+                    WelcomeActionButton(
+                        label = "Join Discord Server",
+                        onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }
+                    ) { modifier ->
+                        Icon(Icons.Outlined.HeadsetMic, contentDescription = null, modifier = modifier)
+                    }
+                    WelcomeActionButton(
+                        label = "Share Monomail",
+                        onClick = {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-0/monomail")
+                            }
+                            context.startActivity(android.content.Intent.createChooser(intent, "Share Monomail"))
+                        }
+                    ) { modifier ->
+                        Icon(Icons.Outlined.Share, contentDescription = null, modifier = modifier)
+                    }
+                    WelcomeActionButton(
+                        label = "Report Issue",
+                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }
+                    ) { modifier ->
+                        Icon(Icons.Outlined.BugReport, contentDescription = null, modifier = modifier)
+                    }
+                    WelcomeActionButton(
+                        label = "Donate Crypto (BASE)",
+                        onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crypto Address", "0xB27Ba9241de81F6DBCB322aDd76a9d9686462e9E"))
+                            android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                        }
+                    ) { modifier ->
+                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, modifier = modifier)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = { viewModel.dismissDonationPrompt() }) {
-                        Text("Close")
+                    TextButton(onClick = { viewModel.dismissWelcomePrompt() }) {
+                        Text("Get Started")
                     }
                 }
             }
@@ -1875,7 +1942,7 @@ private fun AnimatedDockTab(
     val contentColor by transition.animateColor(
         transitionSpec = { tween(200) },
         label = "dockTabContent"
-    ) { active -> if (active) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) }
+    ) { active -> if (active) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) }
 
     Surface(
         shape = CircleShape,
@@ -1908,11 +1975,101 @@ private fun AnimatedDockTab(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = labelAlpha),
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = labelAlpha),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = labelWidth)
             )
         }
+    }
+}
+
+@Composable
+private fun ShimmerEmailItem() {
+    val infiniteTransition = rememberInfiniteTransition(label = "shimmer")
+    val alpha by infiniteTransition.animateFloat(
+        initialValue = 0.3f,
+        targetValue = 0.7f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(800, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shimmerAlpha"
+    )
+    val color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 11.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .height(14.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color)
+            )
+            Spacer(Modifier.height(6.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(12.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color.copy(alpha = 0.5f))
+            )
+            Spacer(Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(0.6f)
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color.copy(alpha = 0.3f))
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(12.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(color.copy(alpha = 0.3f))
+        )
+    }
+}
+
+@Composable
+private fun WelcomeActionButton(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: @Composable (Modifier) -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        icon(Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium
+        )
     }
 }
