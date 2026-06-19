@@ -187,7 +187,7 @@ class OutlookProvider(
         bcc: String,
         threadId: String?,
         attachments: List<EmailAttachment>
-    ) {
+    ): String? {
         val recipients = to.split(",").map {
             OutlookRecipient(OutlookEmailAddress(null, it.trim()))
         }
@@ -221,5 +221,6 @@ class OutlookProvider(
             attachments = draftAttachments.takeIf { it.isNotEmpty() }
         )
         api.sendMail(OutlookSendMailRequest(msg))
+        return null
     }
 }

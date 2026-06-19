@@ -20,3 +20,4 @@ remove_ai_comments.ps1
 keystore.properties
 app/monomail-release.keystore
 /review.md
+.kotlin/sessions/

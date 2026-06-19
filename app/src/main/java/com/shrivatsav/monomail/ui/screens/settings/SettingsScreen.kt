@@ -201,6 +201,31 @@ fun SettingsScreen(
                     options = DefaultReply.entries.map { it.displayName() },
                     onSelected = { idx -> viewModel.setDefaultReply(DefaultReply.entries[idx]) }
                 )
+                CardDivider()
+                SettingsToggleRow(
+                    icon = Icons.Outlined.HistoryToggleOff,
+                    title = "Undo Send",
+                    subtitle = "Hold email for ${settings.undoSendWindow.seconds}s before sending",
+                    checked = settings.undoSendEnabled,
+                    onCheckedChange = { viewModel.setUndoSendEnabled(it) }
+                )
+                AnimatedVisibility(
+                    visible = settings.undoSendEnabled,
+                    enter = expandVertically() + fadeIn(tween(200)),
+                    exit = shrinkVertically(tween(200)) + fadeOut(tween(150))
+                ) {
+                    Column {
+                        CardDivider()
+                        BottomSheetPickerRow(
+                            icon = Icons.Outlined.Timer,
+                            title = "Undo Window",
+                            currentValue = settings.undoSendWindow.displayName(),
+                            options = UndoSendWindow.entries.map { it.displayName() },
+                            onSelected = { idx -> viewModel.setUndoSendWindow(UndoSendWindow.entries[idx]) },
+                            indented = true
+                        )
+                    }
+                }
             }
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.Notifications, title = "Notifications")
@@ -220,6 +245,7 @@ fun SettingsScreen(
                     onSelected = { idx -> viewModel.setSyncFrequency(SyncFrequency.entries[idx]) }
                 )
             }
+            TemplatesCard(viewModel = viewModel)
             val updateState by viewModel.updateState.collectAsState()
             val latestUrl by viewModel.latestVersionUrl.collectAsState()
             val context = androidx.compose.ui.platform.LocalContext.current
@@ -720,14 +746,15 @@ private fun BottomSheetPickerRow(
     title: String,
     currentValue: String,
     options: List<String>,
-    onSelected: (Int) -> Unit
+    onSelected: (Int) -> Unit,
+    indented: Boolean = false
 ) {
     var showSheet by remember { mutableStateOf(false) }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { showSheet = true }
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(start = if (indented) 32.dp else 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
@@ -886,6 +913,132 @@ private fun SyncFrequency.displayName() = when (this) {
     SyncFrequency.MIN_30  -> "30 minutes"
     SyncFrequency.HOUR_1  -> "1 hour"
     SyncFrequency.MANUAL  -> "Manual"
+}
+private fun UndoSendWindow.displayName() = "${seconds}s"
+
+@Composable
+private fun TemplatesCard(viewModel: SettingsViewModel) {
+    val templates by viewModel.templates.collectAsState()
+    var editingIndex by remember { mutableStateOf(-1) }
+    var showEditor by remember { mutableStateOf(false) }
+    var nameInput by remember { mutableStateOf("") }
+    var subjectInput by remember { mutableStateOf("") }
+    var bodyInput by remember { mutableStateOf("") }
+    SettingsCard {
+        SectionHeader(icon = Icons.Outlined.Description, title = "Templates")
+        if (templates.isEmpty()) {
+            Text(
+                text = "No templates yet",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+        } else {
+            templates.forEachIndexed { index, template ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = template.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = template.subject,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    }
+                    IconButton(onClick = {
+                        editingIndex = index
+                        nameInput = template.name
+                        subjectInput = template.subject
+                        bodyInput = template.body
+                        showEditor = true
+                    }) {
+                        Icon(Icons.Outlined.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
+                    }
+                    IconButton(onClick = {
+                        val updated = templates.toMutableList().apply { removeAt(index) }
+                        viewModel.saveTemplates(updated)
+                    }) {
+                        Icon(Icons.Outlined.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
+                    }
+                }
+                if (index < templates.lastIndex) CardDivider()
+            }
+        }
+        CardDivider()
+        TextButton(
+            onClick = {
+                editingIndex = -1
+                nameInput = ""
+                subjectInput = ""
+                bodyInput = ""
+                showEditor = true
+            },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        ) {
+            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Add Template")
+        }
+    }
+    if (showEditor) {
+        AlertDialog(
+            onDismissRequest = { showEditor = false },
+            title = { Text(if (editingIndex >= 0) "Edit Template" else "New Template", fontWeight = FontWeight.SemiBold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text("Name") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = subjectInput,
+                        onValueChange = { subjectInput = it },
+                        label = { Text("Subject") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = bodyInput,
+                        onValueChange = { bodyInput = it },
+                        label = { Text("Body") },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (nameInput.isNotBlank()) {
+                            val template = EmailTemplate(nameInput, subjectInput, bodyInput)
+                            val updated = templates.toMutableList()
+                            if (editingIndex >= 0) updated[editingIndex] = template
+                            else updated.add(template)
+                            viewModel.saveTemplates(updated)
+                            showEditor = false
+                        }
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditor = false }) { Text("Cancel") }
+            }
+        )
+    }
 }
 
 @Composable

@@ -168,7 +168,7 @@ class GmailProvider(
         bcc: String,
         threadId: String?,
         attachments: List<EmailAttachment>
-    ) {
+    ): String? {
         val headers = buildString {
             append("From: $from\r\n")
             append("To: $to\r\n")
@@ -211,11 +211,12 @@ class GmailProvider(
             headers.toByteArray(),
             android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
         )
-        api.sendMessage(
+        val response = api.sendMessage(
             SendMessageRequest(
                 raw = raw,
                 threadId = threadId
             )
         )
+        return response.threadId
     }
 }

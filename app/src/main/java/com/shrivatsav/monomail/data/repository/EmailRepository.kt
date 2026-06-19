@@ -315,10 +315,10 @@ class EmailRepository(
         inReplyToMessageId: String? = null,
         references: String? = null,
         attachments: List<EmailAttachment> = emptyList()
-    ): Result<Unit> {
+    ): Result<String?> {
         return try {
             val provider = getActiveProvider() ?: return Result.failure(Exception("No active provider"))
-            provider.sendEmail(
+            val sentThreadId = provider.sendEmail(
                 from = from,
                 to = to,
                 subject = subject,
@@ -328,7 +328,7 @@ class EmailRepository(
                 threadId = threadId,
                 attachments = attachments
             )
-            Result.success(Unit)
+            Result.success(sentThreadId)
         } catch (e: Exception) {
             Result.failure(e)
         }

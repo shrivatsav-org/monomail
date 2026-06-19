@@ -21,6 +21,6 @@ interface EmailProvider {
         from: String, to: String, subject: String, body: String,
         cc: String = "", bcc: String = "",
         threadId: String? = null, attachments: List<EmailAttachment> = emptyList()
-    )
+    ): String?
 }
 enum class EmailFolder { INBOX, SENT, ARCHIVE, STARRED, TRASH }

@@ -30,7 +30,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
@@ -41,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -61,7 +61,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -152,6 +151,80 @@ fun ComposeScreen(
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
                     }
+                    var showTemplates by remember { androidx.compose.runtime.mutableStateOf(false) }
+                    val templates by (context.applicationContext as com.shrivatsav.monomail.MonoMailApp)
+                        .settingsDataStore.templatesFlow
+                        .collectAsState(initial = emptyList())
+                    IconButton(onClick = { showTemplates = true }) {
+                        Icon(
+                            imageVector = Icons.Outlined.Description,
+                            contentDescription = "Templates",
+                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        )
+                    }
+                    if (showTemplates) {
+                        ModalBottomSheet(
+                            onDismissRequest = { showTemplates = false },
+                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 32.dp)
+                            ) {
+                                Text(
+                                    text = "Templates",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                                )
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                if (templates.isEmpty()) {
+                                    Text(
+                                        text = "No templates. Add them in Settings.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(24.dp)
+                                    )
+                                } else {
+                                    templates.forEach { template ->
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .clickable {
+                                                    viewModel.applyTemplate(template.subject, template.body)
+                                                    showTemplates = false
+                                                }
+                                                .padding(horizontal = 24.dp, vertical = 14.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    text = template.name,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    fontWeight = FontWeight.Medium,
+                                                    color = MaterialTheme.colorScheme.onSurface
+                                                )
+                                                if (template.subject.isNotEmpty()) {
+                                                    Text(
+                                                        text = template.subject,
+                                                        style = MaterialTheme.typography.bodySmall,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        HorizontalDivider(
+                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
+                                            modifier = Modifier.padding(horizontal = 24.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                     if (state.isSending) {
                         LoadingIndicator(
                             modifier = Modifier
@@ -160,14 +233,15 @@ fun ComposeScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     } else {
+                        val canSend = state.to.isNotBlank() && !state.isSent
                         IconButton(
                             onClick = { viewModel.send() },
-                            enabled = state.to.isNotBlank()
+                            enabled = canSend
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Outlined.Send,
                                 contentDescription = "Send",
-                                tint = if (state.to.isNotBlank())
+                                tint = if (canSend)
                                     MaterialTheme.colorScheme.onSurface
                                 else
                                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
@@ -342,6 +416,7 @@ fun ComposeScreen(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
                 )
             }
+
         }
     }
 }

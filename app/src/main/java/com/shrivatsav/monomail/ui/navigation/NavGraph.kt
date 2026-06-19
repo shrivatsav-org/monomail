@@ -172,7 +172,7 @@ fun NavGraph(
                     factory = object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return InboxViewModel(emailRepository, contactProvider, authManager, app.settingsDataStore) as T
+                            return InboxViewModel(emailRepository, contactProvider, authManager, app.settingsDataStore, app) as T
                         }
                     }
                 )
@@ -305,6 +305,7 @@ fun NavGraph(
                                 repository = emailRepository,
                                 contactProvider = contactProvider,
                                 fromEmail = fromEmail,
+                                app = app,
                                 mode = mode,
                                 replyTo = to,
                                 originalSubject = subject,
