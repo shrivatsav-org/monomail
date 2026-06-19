@@ -68,13 +68,15 @@ class OutlookProvider(
                     from = msg.from?.emailAddress?.name ?: msg.from?.emailAddress?.address ?: "Unknown",
                     fromEmail = msg.from?.emailAddress?.address ?: "",
                     to = msg.toRecipients?.joinToString(", ") { it.emailAddress.name ?: it.emailAddress.address } ?: "",
+                    cc = msg.ccRecipients?.joinToString(", ") { it.emailAddress.name ?: it.emailAddress.address } ?: "",
+                    bcc = msg.bccRecipients?.joinToString(", ") { it.emailAddress.name ?: it.emailAddress.address } ?: "",
                     snippet = msg.bodyPreview ?: "",
                     body = msg.body?.content ?: msg.bodyPreview ?: "",
                     date = date,
                     isRead = msg.isRead,
                     isStarred = msg.categories?.contains("Yellow category") == true,
                     folders = folders,
-                    attachments = emptyList() 
+                    attachments = emptyList()
                 )
             }
             ProviderThread(convId, providerMessages)
@@ -109,12 +111,14 @@ class OutlookProvider(
                 from = msg.from?.emailAddress?.name ?: msg.from?.emailAddress?.address ?: "Unknown",
                 fromEmail = msg.from?.emailAddress?.address ?: "",
                 to = msg.toRecipients?.joinToString(", ") { it.emailAddress.name ?: it.emailAddress.address } ?: "",
+                cc = msg.ccRecipients?.joinToString(", ") { it.emailAddress.name ?: it.emailAddress.address } ?: "",
+                bcc = msg.bccRecipients?.joinToString(", ") { it.emailAddress.name ?: it.emailAddress.address } ?: "",
                 snippet = msg.bodyPreview ?: "",
                 body = msg.body?.content ?: msg.bodyPreview ?: "",
                 date = date,
                 isRead = msg.isRead,
                 isStarred = msg.categories?.contains("Yellow category") == true,
-                folders = setOf(EmailFolder.INBOX), 
+                folders = setOf(EmailFolder.INBOX),
                 attachments = attachments
             )
         }
@@ -179,12 +183,20 @@ class OutlookProvider(
         to: String,
         subject: String,
         body: String,
+        cc: String,
+        bcc: String,
         threadId: String?,
         attachments: List<EmailAttachment>
     ) {
         val recipients = to.split(",").map {
             OutlookRecipient(OutlookEmailAddress(null, it.trim()))
         }
+        val ccRecipients = if (cc.isNotBlank()) {
+            cc.split(",").map { OutlookRecipient(OutlookEmailAddress(null, it.trim())) }
+        } else null
+        val bccRecipients = if (bcc.isNotBlank()) {
+            bcc.split(",").map { OutlookRecipient(OutlookEmailAddress(null, it.trim())) }
+        } else null
         val draftAttachments = attachments.mapNotNull { att ->
             context.contentResolver.openInputStream(att.uri)?.use { stream ->
                 val size = stream.available()
@@ -204,6 +216,8 @@ class OutlookProvider(
             subject = subject,
             body = OutlookBody("HTML", body),
             toRecipients = recipients,
+            ccRecipients = ccRecipients,
+            bccRecipients = bccRecipients,
             attachments = draftAttachments.takeIf { it.isNotEmpty() }
         )
         api.sendMail(OutlookSendMailRequest(msg))

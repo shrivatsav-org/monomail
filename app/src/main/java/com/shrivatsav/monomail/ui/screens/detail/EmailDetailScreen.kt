@@ -284,6 +284,20 @@ private fun ThreadConversationContent(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                             )
                         }
+                        if (email.cc.isNotBlank() || email.bcc.isNotBlank()) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = buildString {
+                                    if (email.cc.isNotBlank()) append("cc: ${email.cc}")
+                                    if (email.cc.isNotBlank() && email.bcc.isNotBlank()) append("  ")
+                                    if (email.bcc.isNotBlank()) append("bcc: ${email.bcc}")
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
                     Icon(
                         imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
@@ -456,6 +470,20 @@ private fun MessageBody(
                             text = formatDetailDate(email.date),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        )
+                    }
+                    if (email.cc.isNotBlank() || email.bcc.isNotBlank()) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = buildString {
+                                if (email.cc.isNotBlank()) append("cc: ${email.cc}")
+                                if (email.cc.isNotBlank() && email.bcc.isNotBlank()) append("  ")
+                                if (email.bcc.isNotBlank()) append("bcc: ${email.bcc}")
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

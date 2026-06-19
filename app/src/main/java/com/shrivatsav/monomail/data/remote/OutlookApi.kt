@@ -60,6 +60,8 @@ data class OutlookMessage(
     val subject: String?,
     val from: OutlookRecipient?,
     val toRecipients: List<OutlookRecipient>?,
+    val ccRecipients: List<OutlookRecipient>? = null,
+    val bccRecipients: List<OutlookRecipient>? = null,
     val bodyPreview: String?,
     val body: OutlookBody?,
     val receivedDateTime: String,
@@ -102,6 +104,8 @@ data class OutlookDraftMessage(
     val subject: String,
     val body: OutlookBody,
     val toRecipients: List<OutlookRecipient>,
+    val ccRecipients: List<OutlookRecipient>? = null,
+    val bccRecipients: List<OutlookRecipient>? = null,
     val attachments: List<OutlookDraftAttachment>? = null
 )
 data class OutlookDraftAttachment(

@@ -309,6 +309,8 @@ class EmailRepository(
         to: String,
         subject: String,
         body: String,
+        cc: String = "",
+        bcc: String = "",
         threadId: String? = null,
         inReplyToMessageId: String? = null,
         references: String? = null,
@@ -321,6 +323,8 @@ class EmailRepository(
                 to = to,
                 subject = subject,
                 body = body,
+                cc = cc,
+                bcc = bcc,
                 threadId = threadId,
                 attachments = attachments
             )

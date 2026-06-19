@@ -19,6 +19,7 @@ interface EmailProvider {
     suspend fun batchMarkRead(messageIds: List<String>)
     suspend fun sendEmail(
         from: String, to: String, subject: String, body: String,
+        cc: String = "", bcc: String = "",
         threadId: String? = null, attachments: List<EmailAttachment> = emptyList()
     )
 }
