@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail.worker
 import android.Manifest
+import android.util.Log
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -37,6 +38,7 @@ class EmailSyncWorker(
             val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
             val result = repository.refreshInbox(InboxTab.INBOX, accountId = accountId)
             if (result.isFailure) {
+                Log.e("EmailSyncWorker", "refreshInbox failed for account $accountId", result.exceptionOrNull())
                 hasFailure = true
                 continue
             }

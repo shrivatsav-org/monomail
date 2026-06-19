@@ -1,70 +1,70 @@
 package com.shrivatsav.monomail.data.remote
 import com.google.gson.annotations.SerializedName
 data class MessageListResponse(
-    val messages: List<MessageRef>?,
-    val nextPageToken: String?,
-    val resultSizeEstimate: Int?
+    @SerializedName("messages") val messages: List<MessageRef>?,
+    @SerializedName("nextPageToken") val nextPageToken: String?,
+    @SerializedName("resultSizeEstimate") val resultSizeEstimate: Int?
 )
 data class MessageRef(
-    val id: String,
-    val threadId: String
+    @SerializedName("id") val id: String,
+    @SerializedName("threadId") val threadId: String
 )
 data class GmailMessage(
-    val id: String,
-    val threadId: String,
-    val labelIds: List<String>?,
-    val snippet: String?,
-    val payload: MessagePart?,
-    val internalDate: String?,
-    val sizeEstimate: Int?
+    @SerializedName("id") val id: String,
+    @SerializedName("threadId") val threadId: String,
+    @SerializedName("labelIds") val labelIds: List<String>?,
+    @SerializedName("snippet") val snippet: String?,
+    @SerializedName("payload") val payload: MessagePart?,
+    @SerializedName("internalDate") val internalDate: String?,
+    @SerializedName("sizeEstimate") val sizeEstimate: Int?
 )
 data class MessagePart(
-    val mimeType: String?,
-    val filename: String?,
-    val headers: List<Header>?,
-    val body: MessagePartBody?,
-    val parts: List<MessagePart>?
+    @SerializedName("mimeType") val mimeType: String?,
+    @SerializedName("filename") val filename: String?,
+    @SerializedName("headers") val headers: List<Header>?,
+    @SerializedName("body") val body: MessagePartBody?,
+    @SerializedName("parts") val parts: List<MessagePart>?
 )
 data class Header(
-    val name: String,
-    val value: String
+    @SerializedName("name") val name: String,
+    @SerializedName("value") val value: String
 )
 data class MessagePartBody(
-    val size: Int?,
-    val data: String?,
-    val attachmentId: String?
+    @SerializedName("size") val size: Int?,
+    @SerializedName("data") val data: String?,
+    @SerializedName("attachmentId") val attachmentId: String?
 )
 data class GmailProfile(
-    val emailAddress: String?,
-    val messagesTotal: Int?,
-    val threadsTotal: Int?,
-    val historyId: String?
+    @SerializedName("emailAddress") val emailAddress: String?,
+    @SerializedName("messagesTotal") val messagesTotal: Int?,
+    @SerializedName("threadsTotal") val threadsTotal: Int?,
+    @SerializedName("historyId") val historyId: String?
 )
 data class BatchModifyMessagesRequest(
-    val ids: List<String>,
-    val addLabelIds: List<String> = emptyList(),
-    val removeLabelIds: List<String> = emptyList()
+    @SerializedName("ids") val ids: List<String>,
+    @SerializedName("addLabelIds") val addLabelIds: List<String> = emptyList(),
+    @SerializedName("removeLabelIds") val removeLabelIds: List<String> = emptyList()
 )
 data class ModifyThreadRequest(
-    val addLabelIds: List<String> = emptyList(),
-    val removeLabelIds: List<String> = emptyList()
+    @SerializedName("addLabelIds") val addLabelIds: List<String> = emptyList(),
+    @SerializedName("removeLabelIds") val removeLabelIds: List<String> = emptyList()
 )
 data class SendMessageRequest(
-    val raw: String,
-    val threadId: String? = null
+    @SerializedName("raw") val raw: String,
+    @SerializedName("threadId") val threadId: String? = null
 )
 data class ThreadListResponse(
-    val threads: List<ThreadRef>?,
-    val nextPageToken: String?,
-    val resultSizeEstimate: Int?
+    @SerializedName("threads") val threads: List<ThreadRef>?,
+    @SerializedName("nextPageToken") val nextPageToken: String?,
+    @SerializedName("resultSizeEstimate") val resultSizeEstimate: Int?
 )
 data class ThreadRef(
-    val id: String,
-    val snippet: String?,
-    val historyId: String?
+    @SerializedName("id") val id: String,
+    @SerializedName("snippet") val snippet: String?,
+    @SerializedName("historyId") val historyId: String?
 )
 data class GmailThread(
-    val id: String,
-    val messages: List<GmailMessage>?,
-    val historyId: String?
+    @SerializedName("id") val id: String,
+    @SerializedName("messages") val messages: List<GmailMessage>?,
+    @SerializedName("historyId") val historyId: String?
 )

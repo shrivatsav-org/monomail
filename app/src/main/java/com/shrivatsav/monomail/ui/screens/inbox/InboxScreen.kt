@@ -82,7 +82,7 @@ fun InboxScreen(
     var activeModal by remember { mutableStateOf<ModalType?>(null) }
 
     val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
-    LaunchedEffect(currentTab) { listState.scrollToItem(0) }
+    LaunchedEffect(immediateTab) { listState.scrollToItem(0) }
 
     val localFilteredThreads by remember(searchQuery, currentThreads) {
         derivedStateOf {

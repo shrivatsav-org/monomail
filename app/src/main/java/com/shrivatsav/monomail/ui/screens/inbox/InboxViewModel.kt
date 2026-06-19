@@ -158,6 +158,7 @@ class InboxViewModel(
         if (_currentTab.value == tab) return
         _currentTab.value = tab
         currentServerQuery = null
+        refresh()
     }
     fun refresh(showLoader: Boolean = true) {
         viewModelScope.launch {
