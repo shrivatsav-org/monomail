@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+data class ReauthInfo(val email: String, val provider: String)
 sealed class SignInResult {
     data class Success(val profile: UserProfile) : SignInResult()
     data class NeedsConsent(val intent: Intent)  : SignInResult()
@@ -36,11 +37,47 @@ class AuthManager(
     val currentUser: UserProfile? get() = _userProfile
     val accountsFlow = accountManager.accountsFlow
     val activeAccountFlow = accountManager.activeAccountFlow
+    private val _reauthNeeded = MutableStateFlow<ReauthInfo?>(null)
+    val reauthNeeded: StateFlow<ReauthInfo?> = _reauthNeeded.asStateFlow()
+    fun notifyReauthRequired(email: String, provider: String) {
+        _reauthNeeded.value = ReauthInfo(email, provider)
+    }
+    fun dismissReauth() {
+        _reauthNeeded.value = null
+    }
     suspend fun restoreSession(): Boolean {
         val profile = accountManager.getActiveAccount() ?: return false
         _userProfile = profile
         _isSignedIn.value = true
+        refreshCurrentToken()
         return true
+    }
+    private suspend fun refreshCurrentToken() {
+        val profile = _userProfile ?: return
+        try {
+            if (profile.provider == "gmail") {
+                val newToken = withContext(Dispatchers.IO) {
+                    GoogleAuthUtil.getToken(
+                        context,
+                        Account(profile.email, "com.google"),
+                        GMAIL_SCOPE
+                    )
+                }
+                if (newToken != profile.accessToken) {
+                    val updated = profile.copy(accessToken = newToken)
+                    updateAccessToken(updated)
+                }
+            } else if (profile.provider == "outlook") {
+                val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
+                if (newToken != null && newToken != profile.accessToken) {
+                    val updated = profile.copy(accessToken = newToken)
+                    updateAccessToken(updated)
+                }
+            }
+        } catch (e: UserRecoverableAuthException) {
+            notifyReauthRequired(profile.email, profile.provider)
+        } catch (e: Exception) {
+        }
     }
     suspend fun signIn(activityContext: Context): SignInResult {
         return try {
@@ -64,7 +101,10 @@ class AuthManager(
             val idToken     = googleIdTokenCredential.idToken
             requestAccessToken(activityContext, email, displayName, photoUrl, idToken)
         } catch (e: GetCredentialException) {
-            SignInResult.Failure(e)
+            SignInResult.Failure(Exception(
+                "Google sign-in failed: ${e.message ?: e.type}. " +
+                "Make sure a Google account is added in Settings > Accounts."
+            ))
         } catch (e: Exception) {
             SignInResult.Failure(e)
         }

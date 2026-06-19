@@ -11,6 +11,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 class RetrofitClient(
     private val tokenProvider: () -> String?,
     private val tokenRefresher: () -> String?,
+    private val onRefreshFailed: () -> Unit = {},
 ) {
     private fun createAuthInterceptor() = Interceptor { chain ->
         val request = chain.request()
@@ -32,15 +33,12 @@ class RetrofitClient(
                     .build()
                 return@Interceptor chain.proceed(retryRequest)
             }
+            onRefreshFailed()
         }
         response
     }
     private val loggingInterceptor = HttpLoggingInterceptor().apply {
-        level = if (com.shrivatsav.monomail.BuildConfig.DEBUG) {
-            HttpLoggingInterceptor.Level.BODY
-        } else {
-            HttpLoggingInterceptor.Level.NONE
-        }
+        level = HttpLoggingInterceptor.Level.HEADERS
     }
     private val gmailHttpClient = OkHttpClient.Builder()
         .addInterceptor(createAuthInterceptor())

@@ -69,6 +69,12 @@ class MonoMailApp : Application() {
                     } catch (e: Exception) {
                         null
                     }
+                },
+                onRefreshFailed = {
+                    val p = runBlocking { accountManager.getActiveAccount() }
+                    if (p != null) {
+                        authManager.notifyReauthRequired(p.email, p.provider)
+                    }
                 }
             )
             when (profile.provider) {
