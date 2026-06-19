@@ -12,7 +12,7 @@ val secrets = Properties()
 if (secretsFile.exists()) {
     secrets.load(FileInputStream(secretsFile))
 }
-val googleClientId = secrets.getProperty("GOOGLE_CLIENT_ID") ?: "\"\""
+val googleClientId = secrets.getProperty("GOOGLE_CLIENT_ID") ?: ""
 
 val keystoreFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties()
@@ -32,7 +32,7 @@ android {
         versionName = "1.3.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
-        buildConfigField("String", "GOOGLE_CLIENT_ID", googleClientId)
+        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
     }
 
     signingConfigs {
@@ -47,6 +47,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
         }
