@@ -1,10 +1,14 @@
 package com.shrivatsav.monomail.ui.screens.compose
+
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.UndoSendWindow
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -12,7 +16,9 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+
 enum class ComposeMode { NEW, REPLY, FORWARD }
+
 data class ComposeUiState(
     val to: String = "",
     val cc: String = "",
@@ -27,12 +33,16 @@ data class ComposeUiState(
     val inReplyToMessageId: String? = null,
     val references: String? = null,
     val originalBody: String? = null,
-    val attachments: List<EmailAttachment> = emptyList()
+    val attachments: List<EmailAttachment> = emptyList(),
+    val undoAvailable: Boolean = false,
+    val undoCountdownSec: Int = 0
 )
+
 class ComposeViewModel(
     private val repository: EmailRepository,
     private val contactProvider: ContactSuggestionProvider,
     private val fromEmail: String,
+    private val undoSendWindowSec: Int = 0,
     mode: ComposeMode = ComposeMode.NEW,
     replyTo: String? = null,
     originalSubject: String? = null,
@@ -40,6 +50,10 @@ class ComposeViewModel(
     threadId: String? = null,
     messageId: String? = null
 ) : ViewModel() {
+
+    private var sendJob: Job? = null
+    private var draftSnapshot: ComposeUiState? = null
+
     private val _state = MutableStateFlow(
         ComposeUiState(
             mode = mode,
@@ -56,10 +70,11 @@ class ComposeViewModel(
             threadId = threadId,
             inReplyToMessageId = messageId,
             references = messageId,
-            originalBody = null 
+            originalBody = null
         )
     )
     val state: StateFlow<ComposeUiState> = _state.asStateFlow()
+
     init {
         viewModelScope.launch {
             if (!messageId.isNullOrEmpty()) {
@@ -70,9 +85,11 @@ class ComposeViewModel(
             }
         }
     }
+
     private val _suggestions = MutableStateFlow<List<ContactSuggestionProvider.EmailContact>>(emptyList())
     val suggestions: StateFlow<List<ContactSuggestionProvider.EmailContact>> = _suggestions.asStateFlow()
     private val _toQuery = MutableStateFlow("")
+
     init {
         @OptIn(FlowPreview::class)
         viewModelScope.launch {
@@ -83,35 +100,44 @@ class ComposeViewModel(
                 .collect { _suggestions.value = it }
         }
     }
+
     fun updateTo(value: String) {
         _state.value = _state.value.copy(to = value)
         _toQuery.value = value
     }
+
     fun updateCc(value: String) {
         _state.value = _state.value.copy(cc = value)
     }
+
     fun updateBcc(value: String) {
         _state.value = _state.value.copy(bcc = value)
     }
+
     fun selectSuggestion(contact: ContactSuggestionProvider.EmailContact) {
         _state.value = _state.value.copy(to = contact.email)
         _suggestions.value = emptyList()
         _toQuery.value = ""
     }
+
     fun updateSubject(value: String) {
         _state.value = _state.value.copy(subject = value)
     }
+
     fun updateBody(value: String) {
         _state.value = _state.value.copy(body = value)
     }
+
     fun addAttachment(attachment: EmailAttachment) {
         val current = _state.value
         _state.value = current.copy(attachments = current.attachments + attachment)
     }
+
     fun removeAttachment(attachment: EmailAttachment) {
         val current = _state.value
         _state.value = current.copy(attachments = current.attachments - attachment)
     }
+
     fun send() {
         val current = _state.value
         if (current.to.isBlank()) {
@@ -122,6 +148,44 @@ class ComposeViewModel(
             _state.value = current.copy(error = "Cannot send empty email")
             return
         }
+        if (undoSendWindowSec > 0) {
+            startUndoCountdown(current)
+        } else {
+            executeSend(current)
+        }
+    }
+
+    private fun startUndoCountdown(current: ComposeUiState) {
+        draftSnapshot = current
+        _state.value = current.copy(undoAvailable = true, undoCountdownSec = undoSendWindowSec)
+        sendJob = viewModelScope.launch {
+            for (i in undoSendWindowSec downTo 1) {
+                _state.value = _state.value.copy(undoCountdownSec = i)
+                delay(1000)
+            }
+            val snapshot = draftSnapshot ?: return@launch
+            if (_state.value.undoAvailable) {
+                _state.value = _state.value.copy(undoAvailable = false)
+                executeSend(snapshot)
+            }
+        }
+    }
+
+    fun applyTemplate(subject: String, body: String) {
+        val current = _state.value
+        _state.value = current.copy(
+            subject = if (current.subject.isBlank()) subject else current.subject,
+            body = if (current.body.isBlank()) body else current.body
+        )
+    }
+
+    fun cancelSend() {
+        sendJob?.cancel()
+        draftSnapshot = null
+        _state.value = _state.value.copy(undoAvailable = false, undoCountdownSec = 0)
+    }
+
+    private fun executeSend(current: ComposeUiState) {
         viewModelScope.launch {
             _state.value = current.copy(isSending = true, error = null)
             val fullBody = buildString {
@@ -148,6 +212,7 @@ class ComposeViewModel(
             )
         }
     }
+
     fun dismissError() {
         _state.value = _state.value.copy(error = null)
     }

@@ -3,7 +3,10 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -11,6 +14,12 @@ enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
 enum class SwipeAction { ARCHIVE, STAR, DELETE, READ_UNREAD }
 enum class DefaultReply { REPLY, REPLY_ALL }
 enum class SyncFrequency { MIN_15, MIN_30, HOUR_1, MANUAL }
+enum class UndoSendWindow(val seconds: Int) { SEC_5(5), SEC_10(10), SEC_20(20), SEC_30(30) }
+data class EmailTemplate(
+    val name: String,
+    val subject: String,
+    val body: String
+)
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontScale: FontScale = FontScale.DEFAULT,
@@ -28,7 +37,9 @@ data class AppSettings(
     val smartGroupingEnabled: Boolean = true,
     val smartGroupingRecentOnly: Boolean = false,
     val organizeByThread: Boolean = true,
-    val navScale: Float = 1f
+    val navScale: Float = 1f,
+    val undoSendEnabled: Boolean = true,
+    val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10
 )
 class SettingsDataStore(private val context: Context) {
     private object Keys {
@@ -49,6 +60,9 @@ class SettingsDataStore(private val context: Context) {
         val SMART_GROUPING_RECENT_ONLY = booleanPreferencesKey("smart_grouping_recent_only")
         val ORGANIZE_BY_THREAD = booleanPreferencesKey("organize_by_thread")
         val NAV_SCALE = floatPreferencesKey("nav_scale")
+        val UNDO_SEND_ENABLED = booleanPreferencesKey("undo_send_enabled")
+        val UNDO_SEND_WINDOW = stringPreferencesKey("undo_send_window")
+        val TEMPLATES = stringPreferencesKey("email_templates")
     }
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -68,7 +82,9 @@ class SettingsDataStore(private val context: Context) {
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
             smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: false,
             organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true,
-            navScale = prefs[Keys.NAV_SCALE] ?: 1f
+            navScale = prefs[Keys.NAV_SCALE] ?: 1f,
+            undoSendEnabled = prefs[Keys.UNDO_SEND_ENABLED] ?: true,
+            undoSendWindow = prefs[Keys.UNDO_SEND_WINDOW]?.let { UndoSendWindow.valueOf(it) } ?: UndoSendWindow.SEC_10
         )
     }
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -121,5 +137,31 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setNavScale(scale: Float) {
         context.dataStore.edit { it[Keys.NAV_SCALE] = scale }
+    }
+    suspend fun setUndoSendEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.UNDO_SEND_ENABLED] = enabled }
+    }
+    suspend fun setUndoSendWindow(window: UndoSendWindow) {
+        context.dataStore.edit { it[Keys.UNDO_SEND_WINDOW] = window.name }
+    }
+    suspend fun getTemplates(): List<EmailTemplate> {
+        val prefs = context.dataStore.data.first()
+        val json = prefs[Keys.TEMPLATES] ?: return emptyList()
+        return try {
+            val type = object : TypeToken<Array<EmailTemplate>>() {}.type
+            Gson().fromJson<Array<EmailTemplate>>(json, type).toList()
+        } catch (e: Exception) { emptyList() }
+    }
+    suspend fun saveTemplates(templates: List<EmailTemplate>) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.TEMPLATES] = Gson().toJson(templates)
+        }
+    }
+    val templatesFlow: Flow<List<EmailTemplate>> = context.dataStore.data.map { prefs ->
+        val json = prefs[Keys.TEMPLATES] ?: return@map emptyList()
+        try {
+            val type = object : TypeToken<Array<EmailTemplate>>() {}.type
+            Gson().fromJson<Array<EmailTemplate>>(json, type).toList()
+        } catch (e: Exception) { emptyList() }
     }
 }

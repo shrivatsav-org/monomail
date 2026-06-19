@@ -297,6 +297,10 @@ fun NavGraph(
                 val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
                 val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
                 val fromEmail = authManager.currentUser?.email ?: ""
+                val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
+                    initial = com.shrivatsav.monomail.data.settings.AppSettings()
+                )
+                val undoSendSec = if (appSettings.undoSendEnabled) appSettings.undoSendWindow.seconds else 0
                 val vm: ComposeViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
@@ -305,6 +309,7 @@ fun NavGraph(
                                 repository = emailRepository,
                                 contactProvider = contactProvider,
                                 fromEmail = fromEmail,
+                                undoSendWindowSec = undoSendSec,
                                 mode = mode,
                                 replyTo = to,
                                 originalSubject = subject,

@@ -34,6 +34,13 @@ class SettingsViewModel(
     fun setSmartGroupingRecentOnly(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingRecentOnly(enabled) }
     fun setOrganizeByThread(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setOrganizeByThread(enabled) }
     fun setNavScale(scale: Float) = viewModelScope.launch { settingsDataStore.setNavScale(scale) }
+    fun setUndoSendEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUndoSendEnabled(enabled) }
+    fun setUndoSendWindow(window: UndoSendWindow) = viewModelScope.launch { settingsDataStore.setUndoSendWindow(window) }
+    val templates = settingsDataStore.templatesFlow
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    fun saveTemplates(templates: List<EmailTemplate>) = viewModelScope.launch {
+        settingsDataStore.saveTemplates(templates)
+    }
     private val _updateState = MutableStateFlow(UpdateState.IDLE)
     val updateState = _updateState.asStateFlow()
     private val _latestVersionUrl = MutableStateFlow<String?>(null)
