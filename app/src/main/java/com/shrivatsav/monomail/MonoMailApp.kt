@@ -13,6 +13,8 @@ import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.runBlocking
 class MonoMailApp : Application() {
     lateinit var accountManager: AccountManager
@@ -25,6 +27,20 @@ class MonoMailApp : Application() {
         private set
     lateinit var settingsDataStore: SettingsDataStore
         private set
+
+    data class SentEmailEvent(
+        val threadId: String?,
+        val to: String,
+        val subject: String
+    )
+
+    private val _sentEmailEvents = MutableSharedFlow<SentEmailEvent>(replay = 1)
+    val sentEmailEvents = _sentEmailEvents.asSharedFlow()
+
+    fun emitSentEmailEvent(event: SentEmailEvent) {
+        _sentEmailEvents.tryEmit(event)
+    }
+
     override fun onCreate() {
         super.onCreate()
         System.loadLibrary("sqlcipher")

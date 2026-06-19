@@ -7,6 +7,7 @@ import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.MonoMailApp
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshotFlow
@@ -42,7 +43,8 @@ class InboxViewModel(
     private val repository: EmailRepository,
     private val contactProvider: ContactSuggestionProvider,
     private val authManager: AuthManager,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    private val app: MonoMailApp
 ) : ViewModel() {
     private val _currentTab = MutableStateFlow(InboxTab.INBOX)
     val currentTab: StateFlow<InboxTab> = _currentTab.asStateFlow()
@@ -62,7 +64,7 @@ class InboxViewModel(
         val message: String,
         val actionType: ActionType
     )
-    enum class ActionType { ARCHIVE, DELETE, EMPTY_TRASH }
+    enum class ActionType { ARCHIVE, DELETE, EMPTY_TRASH, SEND }
     private val _toastState = MutableStateFlow<ToastState?>(null)
     val toastState = _toastState.asStateFlow()
     private val _uiError = MutableSharedFlow<String>(replay = 1)
@@ -141,6 +143,36 @@ class InboxViewModel(
             }
         }
         startForegroundPolling()
+        observeSentEvents()
+    }
+
+    private fun observeSentEvents() {
+        viewModelScope.launch {
+            app.sentEmailEvents.collect { event ->
+                val toastId = event.threadId ?: "send_${System.currentTimeMillis()}"
+                val totalSec = 4
+                _toastState.value = ToastState(
+                    threadId = toastId,
+                    message = "Message sent \u00b7 Undo for ${totalSec}s",
+                    actionType = ActionType.SEND
+                )
+                pendingActionJobs["send_$toastId"]?.cancel()
+                pendingActionJobs["send_$toastId"] = viewModelScope.launch {
+                    for (i in totalSec downTo 1) {
+                        delay(1000)
+                        if (_toastState.value?.threadId == toastId) {
+                            _toastState.value = _toastState.value?.copy(
+                                message = "Message sent \u00b7 Undo for ${i}s"
+                            )
+                        }
+                    }
+                    delay(1000)
+                    if (_toastState.value?.threadId == toastId) {
+                        _toastState.value = null
+                    }
+                }
+            }
+        }
     }
     fun switchAccount(accountId: String) {
         viewModelScope.launch {
@@ -288,27 +320,45 @@ class InboxViewModel(
             ActionType.ARCHIVE -> repository.archiveThread(threadId)
             ActionType.DELETE -> repository.deleteThread(threadId)
             ActionType.EMPTY_TRASH -> repository.emptyTrash()
+            ActionType.SEND -> { /* send is already executed; no-op on timeout */ }
         }
     }
     fun undoAction() {
         val currentToast = _toastState.value ?: return
         val threadId = currentToast.threadId
-        if (currentToast.actionType == ActionType.EMPTY_TRASH) {
-            pendingActionJobs[threadId]?.cancel()
-            pendingActionJobs.remove(threadId)
-            pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
-            pendingHiddenTrashIds.clear()
-            _toastState.value = null
-        } else {
-            pendingActionJobs[threadId]?.cancel()
-            pendingActionJobs.remove(threadId)
-            pendingHideIdsSnapshot.remove(threadId)
-            _toastState.value = null
+        when (currentToast.actionType) {
+            ActionType.SEND -> {
+                pendingActionJobs["send_$threadId"]?.cancel()
+                pendingActionJobs.remove("send_$threadId")
+                if (threadId.isNotEmpty()) {
+                    viewModelScope.launch { repository.deleteThread(threadId) }
+                }
+                _toastState.value = null
+            }
+            ActionType.EMPTY_TRASH -> {
+                pendingActionJobs[threadId]?.cancel()
+                pendingActionJobs.remove(threadId)
+                pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
+                pendingHiddenTrashIds.clear()
+                _toastState.value = null
+            }
+            else -> {
+                pendingActionJobs[threadId]?.cancel()
+                pendingActionJobs.remove(threadId)
+                pendingHideIdsSnapshot.remove(threadId)
+                _toastState.value = null
+            }
         }
     }
     fun dismissToast() {
         val currentToast = _toastState.value ?: return
         val threadId = currentToast.threadId
+        if (currentToast.actionType == ActionType.SEND) {
+            pendingActionJobs["send_$threadId"]?.cancel()
+            pendingActionJobs.remove("send_$threadId")
+            _toastState.value = null
+            return
+        }
         pendingActionJobs[threadId]?.cancel()
         viewModelScope.launch {
             if (currentToast.actionType == ActionType.EMPTY_TRASH) {

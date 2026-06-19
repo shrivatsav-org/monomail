@@ -2,13 +2,11 @@ package com.shrivatsav.monomail.ui.screens.compose
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shrivatsav.monomail.MonoMailApp
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.data.settings.UndoSendWindow
 import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,16 +31,14 @@ data class ComposeUiState(
     val inReplyToMessageId: String? = null,
     val references: String? = null,
     val originalBody: String? = null,
-    val attachments: List<EmailAttachment> = emptyList(),
-    val undoAvailable: Boolean = false,
-    val undoCountdownSec: Int = 0
+    val attachments: List<EmailAttachment> = emptyList()
 )
 
 class ComposeViewModel(
     private val repository: EmailRepository,
     private val contactProvider: ContactSuggestionProvider,
     private val fromEmail: String,
-    private val undoSendWindowSec: Int = 0,
+    private val app: MonoMailApp,
     mode: ComposeMode = ComposeMode.NEW,
     replyTo: String? = null,
     originalSubject: String? = null,
@@ -50,9 +46,6 @@ class ComposeViewModel(
     threadId: String? = null,
     messageId: String? = null
 ) : ViewModel() {
-
-    private var sendJob: Job? = null
-    private var draftSnapshot: ComposeUiState? = null
 
     private val _state = MutableStateFlow(
         ComposeUiState(
@@ -148,27 +141,7 @@ class ComposeViewModel(
             _state.value = current.copy(error = "Cannot send empty email")
             return
         }
-        if (undoSendWindowSec > 0) {
-            startUndoCountdown(current)
-        } else {
-            executeSend(current)
-        }
-    }
-
-    private fun startUndoCountdown(current: ComposeUiState) {
-        draftSnapshot = current
-        _state.value = current.copy(undoAvailable = true, undoCountdownSec = undoSendWindowSec)
-        sendJob = viewModelScope.launch {
-            for (i in undoSendWindowSec downTo 1) {
-                _state.value = _state.value.copy(undoCountdownSec = i)
-                delay(1000)
-            }
-            val snapshot = draftSnapshot ?: return@launch
-            if (_state.value.undoAvailable) {
-                _state.value = _state.value.copy(undoAvailable = false)
-                executeSend(snapshot)
-            }
-        }
+        executeSend(current)
     }
 
     fun applyTemplate(subject: String, body: String) {
@@ -177,12 +150,6 @@ class ComposeViewModel(
             subject = if (current.subject.isBlank()) subject else current.subject,
             body = if (current.body.isBlank()) body else current.body
         )
-    }
-
-    fun cancelSend() {
-        sendJob?.cancel()
-        draftSnapshot = null
-        _state.value = _state.value.copy(undoAvailable = false, undoCountdownSec = 0)
     }
 
     private fun executeSend(current: ComposeUiState) {
@@ -206,6 +173,15 @@ class ComposeViewModel(
                 references = current.references,
                 attachments = current.attachments
             )
+            result.onSuccess { sentThreadId ->
+                app.emitSentEmailEvent(
+                    MonoMailApp.SentEmailEvent(
+                        threadId = sentThreadId,
+                        to = current.to,
+                        subject = current.subject
+                    )
+                )
+            }
             _state.value = result.fold(
                 onSuccess = { current.copy(isSending = false, isSent = true) },
                 onFailure = { current.copy(isSending = false, error = it.message ?: "Failed to send") }

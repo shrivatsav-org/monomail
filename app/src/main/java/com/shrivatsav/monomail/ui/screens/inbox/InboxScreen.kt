@@ -1548,6 +1548,7 @@ private fun InboxSearchBar(
                                 InboxViewModel.ActionType.ARCHIVE -> Icons.Outlined.Archive
                                 InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
                                 InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Outlined.Delete
+                                InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Outlined.Send
                             }
                             Row(
                                 modifier = Modifier
