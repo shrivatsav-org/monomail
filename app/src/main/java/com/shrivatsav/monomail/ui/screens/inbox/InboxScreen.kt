@@ -1456,125 +1456,143 @@ private fun InboxSearchBar(
         label = "SearchBarColor"
     )
 
-    SearchBar(
-        inputField = {
-            AnimatedContent(
-                targetState = toastState,
-                label = "SearchBarToastMorph",
-                transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }
-            ) { toast ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp)
-                ) {
-                    if (toast != null) {
-                        val icon = when (toast.actionType) {
-                            InboxViewModel.ActionType.ARCHIVE -> Icons.Outlined.Archive
-                            InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
-                            InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Outlined.Delete
-                        }
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Spacer(Modifier.width(16.dp))
-                            Icon(
-                                icon, null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                modifier = Modifier.size(20.dp)
-                            )
-                            Spacer(Modifier.width(10.dp))
-                            Text(
-                                toast.message,
-                                modifier = Modifier.weight(1f),
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            TextButton(
-                                onClick = onUndo,
-                                shape = RoundedCornerShape(24.dp),
-                                colors = ButtonDefaults.textButtonColors(
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Text("Undo")
-                            }
-                            Spacer(Modifier.width(12.dp))
-                        }
-                    } else {
-                        SearchBarDefaults.InputField(
-                            query = query,
-                            onQueryChange = onQueryChange,
-                            onSearch = { onServerSearch(query) },
-                            expanded = false,
-                            onExpandedChange = {},
-                            placeholder = {
-                                Text(
-                                    if (isRefreshing) "Syncing..." else "Search in mail",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                )
-                            },
-                            leadingIcon = {
-                                if (isRefreshing) {
-                                    LoadingIndicator(
-                                        modifier = Modifier
-                                            .padding(start = 8.dp)
-                                            .size(40.dp),
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                } else {
-                                    Icon(
-                                        Icons.Outlined.Search,
-                                        contentDescription = "Search",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(start = 8.dp)
-                                    )
-                                }
-                            },
-                            trailingIcon = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-
-                                ) {
-                                    IconButton(
-                                        onClick = onMarkAllRead,
-                                        modifier = Modifier.size(40.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Outlined.CheckCircle,
-                                            contentDescription = "Mark all as read",
-                                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                            modifier = Modifier.size(25.dp)
-                                        )
-                                    }
-                                    Spacer(Modifier.width(4.dp))
-                                    AvatarButton(
-                                        userProfile = userProfile,
-                                        onClick = onOpenProfile
-                                    )
-
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        },
-        expanded = false,
-        onExpandedChange = {},
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        colors = SearchBarDefaults.colors(containerColor = containerColor),
-        shape = MaterialTheme.shapes.extraLarge,
-        windowInsets = WindowInsets(0.dp)
-    ) {}
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        SearchBar(
+            inputField = {
+                AnimatedContent(
+                    targetState = toastState,
+                    label = "SearchBarToastMorph",
+                    transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }
+                ) { toast ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                    ) {
+                        if (toast != null) {
+                            val icon = when (toast.actionType) {
+                                InboxViewModel.ActionType.ARCHIVE -> Icons.Outlined.Archive
+                                InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
+                                InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Outlined.Delete
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize(),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Spacer(Modifier.width(16.dp))
+                                Icon(
+                                    icon, null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Text(
+                                    toast.message,
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                TextButton(
+                                    onClick = onUndo,
+                                    shape = RoundedCornerShape(24.dp),
+                                    colors = ButtonDefaults.textButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Text("Undo")
+                                }
+                                Spacer(Modifier.width(12.dp))
+                            }
+                        } else {
+                            SearchBarDefaults.InputField(
+                                query = query,
+                                onQueryChange = onQueryChange,
+                                onSearch = { onServerSearch(query) },
+                                expanded = false,
+                                onExpandedChange = {},
+                                placeholder = {
+                                    Text(
+                                        if (isRefreshing) "Syncing..." else "Search in mail",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+                                    )
+                                },
+                                leadingIcon = {
+                                    if (isRefreshing) {
+                                        LoadingIndicator(
+                                            modifier = Modifier
+                                                .padding(start = 8.dp)
+                                                .size(40.dp),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    } else {
+                                        Icon(
+                                            Icons.Outlined.Search,
+                                            contentDescription = "Search",
+                                            tint = MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.padding(start = 8.dp)
+                                        )
+                                    }
+                                },
+                                trailingIcon = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+
+                                    ) {
+                                        IconButton(
+                                            onClick = onMarkAllRead,
+                                            modifier = Modifier.size(40.dp)
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.CheckCircle,
+                                                contentDescription = "Mark all as read",
+                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                                modifier = Modifier.size(25.dp)
+                                            )
+                                        }
+                                        Spacer(Modifier.width(4.dp))
+                                        AvatarButton(
+                                            userProfile = userProfile,
+                                            onClick = onOpenProfile
+                                        )
+
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+            },
+            expanded = false,
+            onExpandedChange = {},
+            modifier = Modifier.fillMaxWidth(),
+            colors = SearchBarDefaults.colors(containerColor = containerColor),
+            shape = MaterialTheme.shapes.extraLarge,
+            windowInsets = WindowInsets(0.dp)
+        ) {}
+
+        AnimatedVisibility(
+            visible = isRefreshing,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(300)),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(300))
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(2.dp),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = Color.Transparent,
+            )
+        }
+    }
 }
 
 
