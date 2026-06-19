@@ -59,7 +59,7 @@ class InboxViewModel(
     enum class ActionType { ARCHIVE, DELETE, EMPTY_TRASH }
     private val _toastState = MutableStateFlow<ToastState?>(null)
     val toastState = _toastState.asStateFlow()
-    private val _uiError = MutableSharedFlow<String>()
+    private val _uiError = MutableSharedFlow<String>(replay = 1)
     val uiError = _uiError.asSharedFlow()
     val accounts: StateFlow<List<UserProfile>> = authManager.accountsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
