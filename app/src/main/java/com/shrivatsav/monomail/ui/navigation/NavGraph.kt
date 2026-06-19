@@ -151,7 +151,7 @@ fun NavGraph(
                     factory = object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
                         override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return SignInViewModel(authManager) as T
+                            return SignInViewModel(authManager, emailRepository) as T
                         }
                     }
                 )
@@ -186,10 +186,13 @@ fun NavGraph(
                     },
                     onSignOut = {
                         scope.launch {
-                            authManager.signOutAll()
-                            emailRepository.clearLocalData()
-                            navController.navigate(Screen.SignIn.route) {
-                                popUpTo(0) { inclusive = true }
+                            authManager.signOutActiveAccount()
+                            val accounts = authManager.getAccounts()
+                            if (accounts.isEmpty()) {
+                                emailRepository.clearLocalData()
+                                navController.navigate(Screen.SignIn.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
                             }
                         }
                     },

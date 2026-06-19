@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail.data.repository
 import android.content.Context
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.NetworkType
@@ -17,10 +18,12 @@ import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.worker.SyncWorker
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 class EmailRepository(
     private val providerFactory: (UserProfile) -> EmailProvider,
     private val database: AppDatabase,
@@ -104,7 +107,7 @@ class EmailRepository(
                 InboxTab.ARCHIVED -> EmailFolder.ARCHIVE
                 InboxTab.STARRED -> EmailFolder.STARRED
                 InboxTab.TRASH -> EmailFolder.TRASH
-                InboxTab.UNIFIED -> EmailFolder.INBOX 
+                InboxTab.UNIFIED -> EmailFolder.INBOX
             }
             val listResponse = provider.listThreads(
                 folder = folder,
@@ -165,6 +168,7 @@ class EmailRepository(
             }
             Result.success(listResponse.nextPageToken)
         } catch (e: Exception) {
+            Log.e("EmailRepo", "refreshInbox failed", e)
             Result.failure(e)
         }
     }
@@ -294,7 +298,7 @@ class EmailRepository(
         enqueueSync(data)
     }
     suspend fun clearLocalData() {
-        database.clearAllTables()
+        withContext(Dispatchers.IO) { database.clearAllTables() }
     }
     suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
         val provider = getActiveProvider() ?: return null
