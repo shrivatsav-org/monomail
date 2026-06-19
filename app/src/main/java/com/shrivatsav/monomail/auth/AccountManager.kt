@@ -122,6 +122,16 @@ class AccountManager(private val context: Context) {
             prefs[stringPreferencesKey("last_email_$accountId")] = emailId
         }
     }
+    suspend fun getLastActiveTime(): Long {
+        val prefs = context.dataStore.data.first()
+        val stored = prefs[stringPreferencesKey("last_active_time")]
+        return stored?.toLongOrNull() ?: 0L
+    }
+    suspend fun setLastActiveTime(time: Long) {
+        context.dataStore.edit { prefs ->
+            prefs[stringPreferencesKey("last_active_time")] = time.toString()
+        }
+    }
     val accountsFlow: Flow<List<UserProfile>> = context.dataStore.data.map { prefs ->
         val json = prefs[KEY_ACCOUNTS_JSON] ?: return@map emptyList()
         val decryptedJson = SecurityUtil.decryptString(json) ?: json

@@ -1,6 +1,6 @@
 package com.shrivatsav.monomail.worker
+
 import android.Manifest
-import android.util.Log
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -8,23 +8,35 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.app.RemoteInput
 import androidx.core.content.ContextCompat
 import androidx.work.CoroutineWorker
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import com.shrivatsav.monomail.MainActivity
 import com.shrivatsav.monomail.MonoMailApp
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
-import kotlinx.coroutines.flow.firstOrNull
+import java.util.concurrent.TimeUnit
+
 class EmailSyncWorker(
     appContext: Context,
     workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     companion object {
-        private const val CHANNEL_ID = "monomail_notifications"
-        private const val NOTIFICATION_ID = 1001
+        private const val ADAPTIVE_INTERVAL_MINUTES = 2L
+        private const val ADAPTIVE_ACTIVITY_WINDOW_MINUTES = 5L
+        private const val FALLBACK_INTERVAL_MINUTES = 15L
+        private const val ADAPTIVE_SYNC_WORK_NAME = "adaptive_email_sync"
+
+        internal fun channelIdForAccount(accountId: String): String = "monomail_$accountId"
     }
+
     override suspend fun doWork(): Result {
         val app = applicationContext as? MonoMailApp ?: return Result.failure()
         val repository = app.emailRepository
@@ -32,7 +44,6 @@ class EmailSyncWorker(
         val accounts = accountManager.getAccounts()
         if (accounts.isEmpty()) return Result.success()
         var hasFailure = false
-        val database = app.emailRepository.getDatabase() 
         for (account in accounts) {
             val accountId = account.id
             val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
@@ -47,50 +58,105 @@ class EmailSyncWorker(
                 val newTimestamp = newestThread.date.toString()
                 if (lastKnownTimestamp != null && newTimestamp != lastKnownTimestamp) {
                     showNotification(
-                        title = newestThread.from,
-                        text = newestThread.subject,
-                        emailId = newestThread.threadId,
+                        accountId = accountId,
+                        thread = newestThread,
                         notificationId = accountId.hashCode()
                     )
                 }
                 accountManager.setLastKnownEmailId(accountId, newTimestamp)
             }
         }
+        scheduleNextAdaptiveSync(applicationContext, accountManager)
         return if (hasFailure) Result.retry() else Result.success()
     }
-    private fun showNotification(title: String, text: String, emailId: String, notificationId: Int) {
+
+    private suspend fun scheduleNextAdaptiveSync(context: Context, accountManager: com.shrivatsav.monomail.auth.AccountManager) {
+        val lastActive = accountManager.getLastActiveTime()
+        val now = System.currentTimeMillis()
+        val isRecentlyActive = lastActive > 0 && (now - lastActive) < TimeUnit.MINUTES.toMillis(ADAPTIVE_ACTIVITY_WINDOW_MINUTES)
+
+        val delayMinutes = if (isRecentlyActive) ADAPTIVE_INTERVAL_MINUTES else FALLBACK_INTERVAL_MINUTES
+        val workRequest = OneTimeWorkRequestBuilder<EmailSyncWorker>()
+            .setInitialDelay(delayMinutes, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            ADAPTIVE_SYNC_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
+    }
+
+    private fun showNotification(
+        accountId: String,
+        thread: com.shrivatsav.monomail.data.model.EmailThread,
+        notificationId: Int
+    ) {
         val context = applicationContext
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) 
-                != PackageManager.PERMISSION_GRANTED) {
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+            ) {
                 return
             }
         }
-        createNotificationChannel(context)
-        val intent = Intent(context, MainActivity::class.java).apply {
+        createNotificationChannel(context, accountId, thread.from)
+
+        val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
-        val pendingIntent = PendingIntent.getActivity(
-            context, 0, intent,
+        val openPendingIntent = PendingIntent.getActivity(
+            context, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+
+        val replyPendingIntent = NotificationActionReceiver.createReplyPendingIntent(
+            context = context,
+            accountId = accountId,
+            threadId = thread.threadId,
+            messageId = thread.latestMessageId,
+            subject = thread.subject,
+            fromEmail = thread.fromEmail,
+            fromName = thread.from,
+            notificationId = notificationId
+        )
+        val replyRemoteInput = RemoteInput.Builder(NotificationActionReceiver.KEY_TEXT_REPLY)
+            .setLabel("Reply")
+            .build()
+        val replyAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_send, "Reply", replyPendingIntent
+        ).addRemoteInput(replyRemoteInput).build()
+
+        val archivePendingIntent = NotificationActionReceiver.createArchivePendingIntent(
+            context = context,
+            accountId = accountId,
+            threadId = thread.threadId,
+            notificationId = notificationId
+        )
+        val archiveAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_edit, "Archive", archivePendingIntent
+        ).build()
+
+        val channelId = channelIdForAccount(accountId)
+        val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.ic_dialog_email)
-            .setContentTitle(title)
-            .setContentText(text)
+            .setContentTitle(thread.from)
+            .setContentText(thread.subject)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(openPendingIntent)
+            .addAction(replyAction)
+            .addAction(archiveAction)
             .setAutoCancel(true)
-        with(NotificationManagerCompat.from(context)) {
-            notify(notificationId, builder.build())
-        }
+
+        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
-    private fun createNotificationChannel(context: Context) {
+
+    private fun createNotificationChannel(context: Context, accountId: String, accountName: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val name = "New Emails"
-            val descriptionText = "Notifications for new incoming emails"
+            val channelId = channelIdForAccount(accountId)
+            val channelName = "$accountName ($accountId)"
+            val descriptionText = "Notifications for $accountName"
             val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {
+            val channel = NotificationChannel(channelId, channelName, importance).apply {
                 description = descriptionText
             }
             val notificationManager: NotificationManager =
