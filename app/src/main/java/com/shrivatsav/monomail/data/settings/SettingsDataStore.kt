@@ -24,7 +24,7 @@ data class AppSettings(
     val emailNotifications: Boolean = true,
     val syncFrequency: SyncFrequency = SyncFrequency.MIN_15,
     val unifiedInboxEnabled: Boolean = false,
-    val hasSeenDonationPrompt: Boolean = false,
+    val hasSeenWelcomePrompt: Boolean = false,
     val smartGroupingEnabled: Boolean = true,
     val smartGroupingRecentOnly: Boolean = false,
     val organizeByThread: Boolean = true,
@@ -44,7 +44,7 @@ class SettingsDataStore(private val context: Context) {
         val EMAIL_NOTIFICATIONS = booleanPreferencesKey("email_notifications")
         val SYNC_FREQUENCY = stringPreferencesKey("sync_frequency")
         val UNIFIED_INBOX_ENABLED = booleanPreferencesKey("unified_inbox_enabled")
-        val HAS_SEEN_DONATION_PROMPT = booleanPreferencesKey("has_seen_donation_prompt")
+        val HAS_SEEN_WELCOME_PROMPT = booleanPreferencesKey("has_seen_welcome_prompt")
         val SMART_GROUPING_ENABLED = booleanPreferencesKey("smart_grouping_enabled")
         val SMART_GROUPING_RECENT_ONLY = booleanPreferencesKey("smart_grouping_recent_only")
         val ORGANIZE_BY_THREAD = booleanPreferencesKey("organize_by_thread")
@@ -64,7 +64,7 @@ class SettingsDataStore(private val context: Context) {
             emailNotifications = prefs[Keys.EMAIL_NOTIFICATIONS] ?: true,
             syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15,
             unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false,
-            hasSeenDonationPrompt = prefs[Keys.HAS_SEEN_DONATION_PROMPT] ?: false,
+            hasSeenWelcomePrompt = prefs[Keys.HAS_SEEN_WELCOME_PROMPT] ?: false,
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
             smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: false,
             organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true,
@@ -107,8 +107,8 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setUnifiedInboxEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.UNIFIED_INBOX_ENABLED] = enabled }
     }
-    suspend fun setHasSeenDonationPrompt(seen: Boolean) {
-        context.dataStore.edit { it[Keys.HAS_SEEN_DONATION_PROMPT] = seen }
+    suspend fun setHasSeenWelcomePrompt(seen: Boolean) {
+        context.dataStore.edit { it[Keys.HAS_SEEN_WELCOME_PROMPT] = seen }
     }
     suspend fun setSmartGroupingEnabled(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SMART_GROUPING_ENABLED] = enabled }

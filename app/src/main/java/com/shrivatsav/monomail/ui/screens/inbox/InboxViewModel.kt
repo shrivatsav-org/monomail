@@ -8,9 +8,12 @@ import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.snapshotFlow
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,7 +51,10 @@ class InboxViewModel(
     private fun getPageTokenKey(): String = "${_currentTab.value.name}_${currentServerQuery ?: ""}"
     private var currentServerQuery: String? = null
     private val _isLoadingMore = MutableStateFlow(false)
-    private val pendingHideIds = MutableStateFlow<Set<String>>(emptySet())
+    private val pendingHideIdsSnapshot = mutableStateMapOf<String, Boolean>()
+    private val pendingHideIds: Flow<Set<String>> = snapshotFlow {
+        pendingHideIdsSnapshot.keys.toSet()
+    }
     private val pendingActionJobs = mutableMapOf<String, Job>()
     private val pendingHiddenTrashIds = mutableSetOf<String>()
     data class ToastState(
@@ -68,8 +74,8 @@ class InboxViewModel(
     val unifiedInboxEnabled = _unifiedInboxEnabled.asStateFlow()
     private val _organizeByThread = MutableStateFlow(true)
     val organizeByThread = _organizeByThread.asStateFlow()
-    private val _showDonationPrompt = MutableStateFlow(false)
-    val showDonationPrompt = _showDonationPrompt.asStateFlow()
+    private val _showWelcomePrompt = MutableStateFlow(false)
+    val showWelcomePrompt = _showWelcomePrompt.asStateFlow()
     val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, _, _, organize -> Pair(tab, organize) }
         .flatMapLatest { (tab, organize) ->
         val flow = if (organize) {
@@ -118,8 +124,8 @@ class InboxViewModel(
             settingsDataStore.settingsFlow.collect { settings ->
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
-                if (!settings.hasSeenDonationPrompt && authManager.currentUser != null) {
-                    _showDonationPrompt.value = true
+                if (!settings.hasSeenWelcomePrompt && authManager.currentUser != null) {
+                    _showWelcomePrompt.value = true
                 }
                 if (!settings.unifiedInboxEnabled && _currentTab.value == InboxTab.UNIFIED) {
                     _currentTab.value = InboxTab.INBOX
@@ -234,7 +240,7 @@ class InboxViewModel(
         val sentinelId = "empty_trash"
         pendingHiddenTrashIds.clear()
         pendingHiddenTrashIds.addAll(trashIds)
-        pendingHideIds.value = pendingHideIds.value + trashIds
+        trashIds.forEach { pendingHideIdsSnapshot[it] = true }
         _toastState.value = ToastState(sentinelId, "Trash emptied", ActionType.EMPTY_TRASH)
 
         pendingActionJobs[sentinelId]?.cancel()
@@ -243,7 +249,7 @@ class InboxViewModel(
             if (_toastState.value?.threadId == sentinelId) {
                 repository.emptyTrash()
                 _toastState.value = null
-                pendingHideIds.value = pendingHideIds.value - pendingHiddenTrashIds
+                pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
                 pendingHiddenTrashIds.clear()
                 pendingActionJobs.remove(sentinelId)
             }
@@ -264,7 +270,7 @@ class InboxViewModel(
         }
     }
     private fun queueAction(threadId: String, type: ActionType, message: String) {
-        pendingHideIds.value = pendingHideIds.value + threadId
+        pendingHideIdsSnapshot[threadId] = true
         _toastState.value = ToastState(threadId, message, type)
         pendingActionJobs[threadId]?.cancel()
         pendingActionJobs[threadId] = viewModelScope.launch {
@@ -276,7 +282,7 @@ class InboxViewModel(
         }
     }
     private suspend fun executeAction(threadId: String, type: ActionType) {
-        pendingHideIds.value = pendingHideIds.value - threadId
+        pendingHideIdsSnapshot.remove(threadId)
         pendingActionJobs.remove(threadId)
         when (type) {
             ActionType.ARCHIVE -> repository.archiveThread(threadId)
@@ -290,13 +296,13 @@ class InboxViewModel(
         if (currentToast.actionType == ActionType.EMPTY_TRASH) {
             pendingActionJobs[threadId]?.cancel()
             pendingActionJobs.remove(threadId)
-            pendingHideIds.value = pendingHideIds.value - pendingHiddenTrashIds
+            pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
             pendingHiddenTrashIds.clear()
             _toastState.value = null
         } else {
             pendingActionJobs[threadId]?.cancel()
             pendingActionJobs.remove(threadId)
-            pendingHideIds.value = pendingHideIds.value - threadId
+            pendingHideIdsSnapshot.remove(threadId)
             _toastState.value = null
         }
     }
@@ -308,7 +314,7 @@ class InboxViewModel(
             if (currentToast.actionType == ActionType.EMPTY_TRASH) {
                 repository.emptyTrash()
                 pendingActionJobs.remove(threadId)
-                pendingHideIds.value = pendingHideIds.value - pendingHiddenTrashIds
+                pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
                 pendingHiddenTrashIds.clear()
             } else {
                 executeAction(threadId, currentToast.actionType)
@@ -316,10 +322,10 @@ class InboxViewModel(
             _toastState.value = null
         }
     }
-    fun dismissDonationPrompt() {
+    fun dismissWelcomePrompt() {
         viewModelScope.launch {
-            settingsDataStore.setHasSeenDonationPrompt(true)
-            _showDonationPrompt.value = false
+            settingsDataStore.setHasSeenWelcomePrompt(true)
+            _showWelcomePrompt.value = false
         }
     }
 }

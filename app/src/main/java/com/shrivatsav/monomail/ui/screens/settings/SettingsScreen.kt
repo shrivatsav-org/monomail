@@ -1,6 +1,7 @@
 package com.shrivatsav.monomail.ui.screens.settings
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,7 +21,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -269,24 +273,63 @@ fun SettingsScreen(
                     title = "Open Source Licenses",
                     value = ""
                 )
+                CardDivider()
+                InfoRow(
+                    icon = Icons.Outlined.Code,
+                    title = "License",
+                    value = "GNU GPL v3.0"
+                )
             }
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.FavoriteBorder, title = "Support")
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 16.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-                    AsyncImage(
-                        model = "https://storage.ko-fi.com/cdn/kofi3.png?v=6",
-                        contentDescription = "Buy Me a Coffee",
-                        modifier = Modifier
-                            .height(46.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }
-                    )
+                    val kofiIcon = remember {
+                        val bmp = android.graphics.BitmapFactory.decodeStream(
+                            context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi)
+                        )
+                        if (bmp != null) androidx.compose.ui.graphics.painter.BitmapPainter(bmp.asImageBitmap())
+                        else null
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        SupportButton(label = "Buy me a coffee", onClick = { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }) { modifier ->
+                            if (kofiIcon != null) Icon(painter = kofiIcon, contentDescription = null, modifier = modifier, tint = Color.Unspecified)
+                            else Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, modifier = modifier)
+                        }
+                        SupportButton(label = "Pay with UPI", onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }) { modifier ->
+                            Icon(Icons.Outlined.Payments, contentDescription = null, modifier = modifier)
+                        }
+                        SupportButton(label = "Star on GitHub", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }) { modifier ->
+                            Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = modifier)
+                        }
+                        SupportButton(label = "Join Discord Server", onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }) { modifier ->
+                            Icon(Icons.Outlined.HeadsetMic, contentDescription = null, modifier = modifier)
+                        }
+                        SupportButton(label = "Share Monomail", onClick = {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                type = "text/plain"
+                                putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-0/monomail")
+                            }
+                            context.startActivity(android.content.Intent.createChooser(intent, "Share Monomail"))
+                        }) { modifier ->
+                            Icon(Icons.Outlined.Share, contentDescription = null, modifier = modifier)
+                        }
+                        SupportButton(label = "Report Issue", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }) { modifier ->
+                            Icon(Icons.Outlined.BugReport, contentDescription = null, modifier = modifier)
+                        }
+                        SupportButton(label = "Donate Crypto (BASE)", onClick = {
+                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crypto Address", "0xB27Ba9241de81F6DBCB322aDd76a9d9686462e9E"))
+                            android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                        }) { modifier ->
+                            Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, modifier = modifier)
+                        }
+                    }
                 }
             }
             Spacer(Modifier.height(24.dp))
@@ -843,4 +886,25 @@ private fun SyncFrequency.displayName() = when (this) {
     SyncFrequency.MIN_30  -> "30 minutes"
     SyncFrequency.HOUR_1  -> "1 hour"
     SyncFrequency.MANUAL  -> "Manual"
+}
+
+@Composable
+private fun SupportButton(
+    label: String,
+    onClick: () -> Unit,
+    icon: @Composable (Modifier) -> Unit
+) {
+    OutlinedButton(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = ButtonDefaults.outlinedButtonColors(
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
+    ) {
+        icon(Modifier.size(20.dp))
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
 }
