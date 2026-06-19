@@ -15,6 +15,8 @@ import kotlinx.coroutines.launch
 enum class ComposeMode { NEW, REPLY, FORWARD }
 data class ComposeUiState(
     val to: String = "",
+    val cc: String = "",
+    val bcc: String = "",
     val subject: String = "",
     val body: String = "",
     val isSending: Boolean = false,
@@ -85,6 +87,12 @@ class ComposeViewModel(
         _state.value = _state.value.copy(to = value)
         _toQuery.value = value
     }
+    fun updateCc(value: String) {
+        _state.value = _state.value.copy(cc = value)
+    }
+    fun updateBcc(value: String) {
+        _state.value = _state.value.copy(bcc = value)
+    }
     fun selectSuggestion(contact: ContactSuggestionProvider.EmailContact) {
         _state.value = _state.value.copy(to = contact.email)
         _suggestions.value = emptyList()
@@ -125,6 +133,8 @@ class ComposeViewModel(
             val result = repository.sendEmail(
                 from = fromEmail,
                 to = current.to,
+                cc = current.cc,
+                bcc = current.bcc,
                 subject = current.subject,
                 body = fullBody,
                 threadId = current.threadId,

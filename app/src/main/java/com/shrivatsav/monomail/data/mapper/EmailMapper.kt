@@ -14,6 +14,8 @@ object EmailMapper {
         val subject  = headers.firstOrNull { it.name.equals("Subject", true) }?.value ?: "(no subject)"
         val fromRaw  = headers.firstOrNull { it.name.equals("From", true) }?.value ?: ""
         val toRaw    = headers.firstOrNull { it.name.equals("To", true) }?.value ?: ""
+        val ccRaw    = headers.firstOrNull { it.name.equals("Cc", true) }?.value ?: ""
+        val bccRaw   = headers.firstOrNull { it.name.equals("Bcc", true) }?.value ?: ""
         val (fromName, fromEmail) = parseFrom(fromRaw)
         val labels   = labelIds.orEmpty()
         val isRead   = "UNREAD" !in labels
@@ -25,6 +27,8 @@ object EmailMapper {
             from      = fromName,
             fromEmail = fromEmail,
             to        = toRaw,
+            cc        = ccRaw,
+            bcc       = bccRaw,
             snippet   = snippet?.decodeHtmlEntities() ?: "",
             body      = extractAndInjectImages(payload),
             date      = internalDate?.toLongOrNull() ?: 0L,

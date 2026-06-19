@@ -31,11 +31,11 @@ import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
 import com.shrivatsav.monomail.data.model.EmailThread
-import java.text.SimpleDateFormat
-import java.util.Calendar
-import java.util.Date
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 private val displayNameRegex = Regex("""^"?([^"<]+?)"?\s*<""")
 private val domainRegex = Regex("@(.+)$")
 
@@ -197,27 +197,25 @@ private fun displayName(from: String): String {
     val nameMatch = displayNameRegex.find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
-private val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
-private val dayFormat = SimpleDateFormat("EEE", Locale.getDefault())
-private val dateFormat = SimpleDateFormat("MMM d", Locale.getDefault())
-private val fullDateFormat = SimpleDateFormat("MMM d, yyyy", Locale.getDefault())
+private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+private val dayFormatter = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
+private val dateFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
+private val fullDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())
 
 private fun formatTimestamp(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
-    val now = System.currentTimeMillis()
-    val diff = now - epochMillis
-    val cal = Calendar.getInstance().apply { timeInMillis = epochMillis }
-    val today = Calendar.getInstance()
+    val zdt = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault())
+    val date = zdt.toLocalDate()
+    val today = LocalDate.now(ZoneId.systemDefault())
     return when {
-        cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
-                cal.get(Calendar.DAY_OF_YEAR) == today.get(Calendar.DAY_OF_YEAR) ->
-            timeFormat.format(Date(epochMillis))
-        diff < TimeUnit.DAYS.toMillis(7) ->
-            dayFormat.format(Date(epochMillis))
-        cal.get(Calendar.YEAR) == today.get(Calendar.YEAR) ->
-            dateFormat.format(Date(epochMillis))
+        date == today ->
+            timeFormatter.format(zdt)
+        date.isAfter(today.minusDays(7)) ->
+            dayFormatter.format(zdt)
+        date.year == today.year ->
+            dateFormatter.format(zdt)
         else ->
-            fullDateFormat.format(Date(epochMillis))
+            fullDateFormatter.format(zdt)
     }
 }
 private fun extractDomain(fromEmail: String): String? {

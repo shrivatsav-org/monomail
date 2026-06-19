@@ -9,16 +9,18 @@ data class ProviderThread(
     val messages: List<ProviderMessage>
 )
 data class ProviderMessage(
-    val id: String, 
+    val id: String,
     val threadId: String,
-    val subject: String, 
-    val from: String, 
+    val subject: String,
+    val from: String,
     val fromEmail: String,
-    val to: String, 
-    val snippet: String, 
+    val to: String,
+    val cc: String = "",
+    val bcc: String = "",
+    val snippet: String,
     val body: String,
-    val date: Long, 
-    val isRead: Boolean, 
+    val date: Long,
+    val isRead: Boolean,
     val isStarred: Boolean,
     val folders: Set<EmailFolder>,
     val attachments: List<EmailAttachmentInfo>

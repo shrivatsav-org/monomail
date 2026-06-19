@@ -68,6 +68,8 @@ class GmailProvider(
                     from = email.from,
                     fromEmail = email.fromEmail,
                     to = email.to,
+                    cc = email.cc,
+                    bcc = email.bcc,
                     snippet = email.snippet,
                     body = email.body,
                     date = email.date,
@@ -99,6 +101,8 @@ class GmailProvider(
                 from = email.from,
                 fromEmail = email.fromEmail,
                 to = email.to,
+                cc = email.cc,
+                bcc = email.bcc,
                 snippet = email.snippet,
                 body = email.body,
                 date = email.date,
@@ -160,12 +164,16 @@ class GmailProvider(
         to: String,
         subject: String,
         body: String,
+        cc: String,
+        bcc: String,
         threadId: String?,
         attachments: List<EmailAttachment>
     ) {
         val headers = buildString {
             append("From: $from\r\n")
             append("To: $to\r\n")
+            if (cc.isNotBlank()) append("Cc: $cc\r\n")
+            if (bcc.isNotBlank()) append("Bcc: $bcc\r\n")
             append("Subject: $subject\r\n")
             append("MIME-Version: 1.0\r\n")
             if (attachments.isEmpty()) {
