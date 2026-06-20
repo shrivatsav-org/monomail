@@ -179,6 +179,8 @@ Download the latest release from the [Releases page](https://github.com/shrivats
 
 Minimum supported version: Android 8.0 (API 26).
 
+> **⚠️ Gmail API Warning:** This app uses Gmail API OAuth verification which is limited to **100 test users**. The app is not published on the Play Store (cannot afford the developer account fee), so Google will show **"This app is blocked"** for any user beyond the first 100. If you encounter this, the test user quota has been exhausted. You can either run the app from source with your own Google Cloud project credentials, or use an Outlook account instead (no such limit).
+
 ## Screenshots
 
 | Sign In | Inbox | Compose |
