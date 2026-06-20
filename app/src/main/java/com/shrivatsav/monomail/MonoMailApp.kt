@@ -43,6 +43,19 @@ class MonoMailApp : Application() {
         _sentEmailEvents.tryEmit(event)
     }
 
+    data class ScheduledEmailEvent(
+        val to: String,
+        val subject: String,
+        val scheduledAt: Long
+    )
+
+    private val _scheduledEmailEvents = MutableSharedFlow<ScheduledEmailEvent>(replay = 1)
+    val scheduledEmailEvents = _scheduledEmailEvents.asSharedFlow()
+
+    fun emitScheduledEmailEvent(event: ScheduledEmailEvent) {
+        _scheduledEmailEvents.tryEmit(event)
+    }
+
     override fun onCreate() {
         super.onCreate()
         System.loadLibrary("sqlcipher")
