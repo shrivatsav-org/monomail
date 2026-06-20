@@ -6,6 +6,7 @@ import com.shrivatsav.monomail.MonoMailApp
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,14 +32,19 @@ data class ComposeUiState(
     val inReplyToMessageId: String? = null,
     val references: String? = null,
     val originalBody: String? = null,
-    val attachments: List<EmailAttachment> = emptyList()
+    val attachments: List<EmailAttachment> = emptyList(),
+    val showConfirmSendDialog: Boolean = false,
+    val showSchedulePicker: Boolean = false,
+    val scheduledAt: Long? = null
 )
 
 class ComposeViewModel(
     private val repository: EmailRepository,
     private val contactProvider: ContactSuggestionProvider,
     private val fromEmail: String,
+    private val accountId: String,
     private val app: MonoMailApp,
+    private val settingsDataStore: SettingsDataStore,
     mode: ComposeMode = ComposeMode.NEW,
     replyTo: String? = null,
     originalSubject: String? = null,
@@ -68,7 +74,14 @@ class ComposeViewModel(
     )
     val state: StateFlow<ComposeUiState> = _state.asStateFlow()
 
+    private var confirmBeforeSending = false
+
     init {
+        viewModelScope.launch {
+            settingsDataStore.settingsFlow.collect { settings ->
+                confirmBeforeSending = settings.confirmBeforeSending
+            }
+        }
         viewModelScope.launch {
             if (!messageId.isNullOrEmpty()) {
                 val email = repository.getEmailById(messageId)
@@ -141,7 +154,21 @@ class ComposeViewModel(
             _state.value = current.copy(error = "Cannot send empty email")
             return
         }
+        if (confirmBeforeSending) {
+            _state.value = current.copy(showConfirmSendDialog = true)
+            return
+        }
         executeSend(current)
+    }
+
+    fun confirmSend() {
+        val current = _state.value
+        _state.value = current.copy(showConfirmSendDialog = false)
+        executeSend(current)
+    }
+
+    fun dismissConfirmSend() {
+        _state.value = _state.value.copy(showConfirmSendDialog = false)
     }
 
     fun applyTemplate(subject: String, body: String) {
@@ -187,6 +214,41 @@ class ComposeViewModel(
                 onFailure = { current.copy(isSending = false, error = it.message ?: "Failed to send") }
             )
         }
+    }
+
+    fun showSchedulePicker() {
+        _state.value = _state.value.copy(showSchedulePicker = true)
+    }
+
+    fun dismissSchedulePicker() {
+        _state.value = _state.value.copy(showSchedulePicker = false)
+    }
+
+    fun scheduleSend(scheduledAt: Long) {
+        val current = _state.value
+        _state.value = current.copy(showSchedulePicker = false, scheduledAt = scheduledAt)
+        viewModelScope.launch {
+            val cachedAttachments = repository.copyAttachmentsToCache(
+                "schedule_${System.currentTimeMillis()}",
+                current.attachments
+            )
+            repository.scheduleSend(
+                accountId = accountId,
+                fromEmail = fromEmail,
+                to = current.to,
+                subject = current.subject,
+                body = current.body,
+                scheduledAt = scheduledAt,
+                cc = current.cc,
+                bcc = current.bcc,
+                attachments = cachedAttachments
+            )
+            _state.value = _state.value.copy(isSent = true)
+        }
+    }
+
+    fun cancelSchedule() {
+        _state.value = _state.value.copy(scheduledAt = null)
     }
 
     fun dismissError() {
