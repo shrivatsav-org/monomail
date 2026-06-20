@@ -55,4 +55,8 @@ interface EmailDao {
 
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC")
     fun getTrashEmails(accountId: String): Flow<List<EmailEntity>>
+    @Query("UPDATE emails SET isSnoozed = 1, snoozedUntil = :untilTimestamp WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun snoozeThreadEmails(threadId: String, accountId: String, untilTimestamp: Long)
+    @Query("UPDATE emails SET inInbox = 1, isSnoozed = 0, snoozedUntil = 0 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun unsnoozeThreadEmails(threadId: String, accountId: String)
 }

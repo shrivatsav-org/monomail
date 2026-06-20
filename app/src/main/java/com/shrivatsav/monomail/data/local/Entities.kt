@@ -21,7 +21,9 @@ data class ThreadEntity(
     val inInbox: Boolean,
     val inSent: Boolean,
     val inArchived: Boolean,
-    val inTrash: Boolean
+    val inTrash: Boolean,
+    val isSnoozed: Boolean = false,
+    val snoozedUntil: Long = 0L
 ) {
     fun toDomainModel() = EmailThread(
         threadId = threadId,
@@ -58,7 +60,9 @@ data class EmailEntity(
     val inInbox: Boolean = false,
     val inSent: Boolean = false,
     val inArchived: Boolean = false,
-    val inTrash: Boolean = false
+    val inTrash: Boolean = false,
+    val isSnoozed: Boolean = false,
+    val snoozedUntil: Long = 0L
 ) {
     fun toDomainModel() = Email(
         id = id,
@@ -85,7 +89,9 @@ fun EmailThread.toEntity(
     inInbox: Boolean = false,
     inSent: Boolean = false,
     inArchived: Boolean = false,
-    inTrash: Boolean = false
+    inTrash: Boolean = false,
+    isSnoozed: Boolean = false,
+    snoozedUntil: Long = 0L
 ) = ThreadEntity(
     threadId = threadId,
     accountId = accountId,
@@ -102,7 +108,9 @@ fun EmailThread.toEntity(
     inInbox = inInbox,
     inSent = inSent,
     inArchived = inArchived,
-    inTrash = inTrash
+    inTrash = inTrash,
+    isSnoozed = isSnoozed,
+    snoozedUntil = snoozedUntil
 )
 @Entity(tableName = "scheduled_messages")
 data class ScheduledMessageEntity(

@@ -77,6 +77,7 @@ internal fun InboxSearchBar(
                                 InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
                                 InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Outlined.Delete
                                 InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Outlined.Send
+                                InboxViewModel.ActionType.SNOOZE -> Icons.Outlined.Schedule
                             }
                             Row(
                                 modifier = Modifier

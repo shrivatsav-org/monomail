@@ -39,6 +39,14 @@ interface ThreadDao {
     @Query("DELETE FROM threads WHERE accountId = :accountId")
     suspend fun clearForAccount(accountId: String)
 
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND isSnoozed = 1 ORDER BY date DESC")
+    fun getSnoozedThreads(accountId: String): Flow<List<ThreadEntity>>
+    @Query("UPDATE threads SET inInbox = 0, isSnoozed = 1, snoozedUntil = :untilTimestamp WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun snoozeThread(threadId: String, accountId: String, untilTimestamp: Long)
+    @Query("UPDATE threads SET inInbox = 1, isSnoozed = 0, snoozedUntil = 0 WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun unsnoozeThread(threadId: String, accountId: String)
+    @Query("SELECT * FROM threads WHERE isSnoozed = 1 AND snoozedUntil > 0 AND snoozedUntil <= :now")
+    suspend fun getDueUnsnoozeThreads(now: Long): List<ThreadEntity>
     @Query("DELETE FROM threads WHERE accountId = :accountId AND inTrash = 1")
     suspend fun emptyTrash(accountId: String)
 }

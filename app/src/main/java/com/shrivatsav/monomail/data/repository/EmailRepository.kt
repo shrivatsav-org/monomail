@@ -77,6 +77,7 @@ class EmailRepository(
             InboxTab.STARRED -> threadDao.getStarredThreads(activeAccountId)
             InboxTab.TRASH -> threadDao.getTrashThreads(activeAccountId)
             InboxTab.UNIFIED -> threadDao.getAllInboxThreads()
+            InboxTab.SNOOZED -> threadDao.getSnoozedThreads(activeAccountId)
         }.map { list -> list.map { it.toDomainModel() } }
         emitAll(dbFlow)
     }
@@ -92,6 +93,7 @@ class EmailRepository(
             InboxTab.STARRED -> emailDao.getStarredEmails(activeAccountId)
             InboxTab.TRASH -> emailDao.getTrashEmails(activeAccountId)
             InboxTab.UNIFIED -> emailDao.getAllInboxEmails()
+            InboxTab.SNOOZED -> emailDao.getInboxEmails(activeAccountId)
         }.map { list -> list.map { it.toDomainModel() } }
         emitAll(dbFlow)
     }
@@ -108,6 +110,7 @@ class EmailRepository(
             val provider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
             if (provider == null) return Result.failure(Exception("No active provider"))
             val targetAccountId = accountId ?: getActiveAccountId()
+            if (tab == InboxTab.SNOOZED) return Result.success(null)
             val folder = when (tab) {
                 InboxTab.INBOX -> EmailFolder.INBOX
                 InboxTab.SENT -> EmailFolder.SENT
@@ -115,6 +118,7 @@ class EmailRepository(
                 InboxTab.STARRED -> EmailFolder.STARRED
                 InboxTab.TRASH -> EmailFolder.TRASH
                 InboxTab.UNIFIED -> EmailFolder.INBOX
+                InboxTab.SNOOZED -> EmailFolder.INBOX
             }
             val listResponse = provider.listThreads(
                 folder = folder,
@@ -431,4 +435,17 @@ class EmailRepository(
     fun getPendingScheduledMessagesFlow(accountId: String) = scheduledMessageDao.getPendingScheduledMessages(accountId)
     fun getPendingScheduledCountFlow(accountId: String) = scheduledMessageDao.getPendingCount(accountId)
     suspend fun getScheduledMessageById(id: String) = scheduledMessageDao.getScheduledMessageById(id)
+    suspend fun snoozeThread(threadId: String, untilTimestamp: Long) {
+        val activeAccountId = getActiveAccountId()
+        threadDao.snoozeThread(threadId, activeAccountId, untilTimestamp)
+        emailDao.snoozeThreadEmails(threadId, activeAccountId, untilTimestamp)
+    }
+    suspend fun unsnoozeThread(threadId: String) {
+        val activeAccountId = getActiveAccountId()
+        threadDao.unsnoozeThread(threadId, activeAccountId)
+        emailDao.unsnoozeThreadEmails(threadId, activeAccountId)
+    }
+    fun getSnoozedThreadsFlow(accountId: String): Flow<List<EmailThread>> {
+        return threadDao.getSnoozedThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    }
 }

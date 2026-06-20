@@ -76,6 +76,9 @@ fun InboxScreen(
     var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
     val hapticFeedback = LocalHapticFeedback.current
     var activeModal by remember { mutableStateOf<ModalType?>(null) }
+    var showSnoozePicker by remember { mutableStateOf(false) }
+    var snoozeThreadId by remember { mutableStateOf<String?>(null) }
+    val onSnoozeSelected: (String) -> Unit = remember { { id -> snoozeThreadId = id; showSnoozePicker = true } }
 
     val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
     LaunchedEffect(immediateTab) { listState.scrollToItem(0) }
@@ -490,6 +493,14 @@ fun InboxScreen(
                                 onClick = onArchiveClick,
                                 scale = appSettings.navScale
                             )
+                            DockTab(
+                                isActive = tabForDock == InboxTab.SNOOZED,
+                                icon = Icons.Outlined.Schedule,
+                                label = "Snoozed",
+                                contentDescription = "Snoozed",
+                                onClick = remember(viewModel) { { viewModel.switchTab(InboxTab.SNOOZED) } },
+                                scale = appSettings.navScale
+                            )
                         }
                     }
                     AnimatedContent(
@@ -610,15 +621,27 @@ fun InboxScreen(
                                 horizontalArrangement = Arrangement.SpaceEvenly,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                LongPressAction(
-                                    icon = if (thread.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                                    label = if (thread.isStarred) "Unstar" else "Star",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    onClick = {
-                                        viewModel.toggleStar(thread.threadId)
-                                        longPressedThread = null
-                                    }
-                                )
+                                if (tabForMenu == InboxTab.SNOOZED) {
+                                    LongPressAction(
+                                        icon = Icons.Outlined.Restore,
+                                        label = "Unsnooze",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        onClick = {
+                                            viewModel.unsnoozeThread(thread.threadId)
+                                            longPressedThread = null
+                                        }
+                                    )
+                                } else {
+                                    LongPressAction(
+                                        icon = if (thread.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                        label = if (thread.isStarred) "Unstar" else "Star",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        onClick = {
+                                            viewModel.toggleStar(thread.threadId)
+                                            longPressedThread = null
+                                        }
+                                    )
+                                }
                                 LongPressAction(
                                     icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
                                     label = if (tabForMenu == InboxTab.ARCHIVED) "Unarchive" else "Archive",
@@ -641,6 +664,17 @@ fun InboxScreen(
                                         longPressedThread = null
                                     }
                                 )
+                                if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED) {
+                                    LongPressAction(
+                                        icon = Icons.Outlined.Schedule,
+                                        label = "Snooze",
+                                        tint = MaterialTheme.colorScheme.onSurface,
+                                        onClick = {
+                                            longPressedThread = null
+                                            onSnoozeSelected(thread.threadId)
+                                        }
+                                    )
+                                }
                                 LongPressAction(
                                     icon = if (tabForMenu == InboxTab.TRASH) Icons.Outlined.Restore else Icons.Outlined.Delete,
                                     label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
@@ -946,8 +980,110 @@ fun InboxScreen(
             }
         }
     }
+
+    if (showSnoozePicker && snoozeThreadId != null) {
+        SnoozePickerDialog(
+            onDismiss = { showSnoozePicker = false },
+            onSnooze = { timestamp ->
+                snoozeThreadId?.let { viewModel.snoozeThread(it, timestamp) }
+                showSnoozePicker = false
+            }
+        )
+    }
 }
 
+
+@Composable
+private fun SnoozePickerDialog(
+    onDismiss: () -> Unit,
+    onSnooze: (Long) -> Unit
+) {
+    val now = System.currentTimeMillis()
+    val options = remember {
+        val cal = java.util.Calendar.getInstance()
+        buildList {
+            val c = cal.clone() as java.util.Calendar
+            c.timeInMillis = now
+            c.set(java.util.Calendar.SECOND, 0)
+            c.set(java.util.Calendar.MILLISECOND, 0)
+            c.add(java.util.Calendar.HOUR_OF_DAY, 1)
+            add(SnoozeOption("In 1 hour", c.timeInMillis))
+
+            c.timeInMillis = now
+            c.set(java.util.Calendar.HOUR_OF_DAY, 18)
+            c.set(java.util.Calendar.MINUTE, 0)
+            if (c.timeInMillis <= now) c.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            add(SnoozeOption("Later today", c.timeInMillis))
+
+            c.timeInMillis = now
+            c.set(java.util.Calendar.HOUR_OF_DAY, 20)
+            c.set(java.util.Calendar.MINUTE, 0)
+            if (c.timeInMillis <= now) c.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            add(SnoozeOption("This evening", c.timeInMillis))
+
+            c.timeInMillis = now
+            c.add(java.util.Calendar.DAY_OF_MONTH, 1)
+            c.set(java.util.Calendar.HOUR_OF_DAY, 8)
+            c.set(java.util.Calendar.MINUTE, 0)
+            add(SnoozeOption("Tomorrow morning", c.timeInMillis))
+
+            c.timeInMillis = now
+            val currentDay = c.get(java.util.Calendar.DAY_OF_WEEK)
+            var diff = java.util.Calendar.SATURDAY - currentDay
+            if (diff <= 0) diff += 7
+            c.add(java.util.Calendar.DAY_OF_MONTH, diff)
+            c.set(java.util.Calendar.HOUR_OF_DAY, 9)
+            c.set(java.util.Calendar.MINUTE, 0)
+            add(SnoozeOption("This weekend", c.timeInMillis))
+
+            c.timeInMillis = now
+            var mDiff = java.util.Calendar.MONDAY - c.get(java.util.Calendar.DAY_OF_WEEK)
+            if (mDiff <= 0) mDiff += 7
+            c.add(java.util.Calendar.DAY_OF_MONTH, mDiff)
+            c.set(java.util.Calendar.HOUR_OF_DAY, 9)
+            c.set(java.util.Calendar.MINUTE, 0)
+            add(SnoozeOption("Next week", c.timeInMillis))
+        }
+    }
+
+    com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
+        visible = true,
+        onDismiss = onDismiss
+    ) {
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            shadowElevation = 32.dp,
+            modifier = Modifier.fillMaxWidth(0.88f)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Snooze until",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                options.forEach { opt ->
+                    TextButton(
+                        onClick = { onSnooze(opt.timestamp) },
+                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(opt.label, modifier = Modifier.fillMaxWidth())
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("Cancel") }
+                }
+            }
+        }
+    }
+}
+
+private data class SnoozeOption(val label: String, val timestamp: Long)
 
 @Composable
 private fun SupportCard(

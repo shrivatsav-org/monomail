@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED }
+enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED, SNOOZED }
 sealed class InboxState {
     object Loading : InboxState()
     data class Success(
@@ -64,7 +64,7 @@ class InboxViewModel(
         val message: String,
         val actionType: ActionType
     )
-    enum class ActionType { ARCHIVE, DELETE, EMPTY_TRASH, SEND }
+    enum class ActionType { ARCHIVE, DELETE, EMPTY_TRASH, SEND, SNOOZE }
     private val _toastState = MutableStateFlow<ToastState?>(null)
     val toastState = _toastState.asStateFlow()
     private val _uiError = MutableSharedFlow<String>(replay = 1)
@@ -276,6 +276,19 @@ class InboxViewModel(
     fun deleteThread(threadId: String) {
         queueAction(threadId, ActionType.DELETE, "Conversation deleted")
     }
+    fun snoozeThread(threadId: String, untilTimestamp: Long) {
+        pendingHideIdsSnapshot[threadId] = true
+        _toastState.value = ToastState(threadId, "Snoozed", ActionType.SNOOZE)
+        pendingActionJobs[threadId]?.cancel()
+        pendingActionJobs[threadId] = viewModelScope.launch {
+            delay(4000)
+            if (_toastState.value?.threadId == threadId) {
+                pendingHideIdsSnapshot.remove(threadId)
+                repository.snoozeThread(threadId, untilTimestamp)
+                _toastState.value = null
+            }
+        }
+    }
 
     fun emptyTrash() {
         val currentState = state.value as? InboxState.Success ?: return
@@ -307,6 +320,9 @@ class InboxViewModel(
     fun unarchiveThread(threadId: String) {
         viewModelScope.launch { repository.unarchiveThread(threadId) }
     }
+    fun unsnoozeThread(threadId: String) {
+        viewModelScope.launch { repository.unsnoozeThread(threadId) }
+    }
     fun toggleStar(threadId: String) {
         viewModelScope.launch {
             val currentState = state.value as? InboxState.Success ?: return@launch
@@ -333,7 +349,8 @@ class InboxViewModel(
             ActionType.ARCHIVE -> repository.archiveThread(threadId)
             ActionType.DELETE -> repository.deleteThread(threadId)
             ActionType.EMPTY_TRASH -> repository.emptyTrash()
-            ActionType.SEND -> { /* send is already executed; no-op on timeout */ }
+            ActionType.SEND -> {}
+            ActionType.SNOOZE -> {}
         }
     }
     fun undoAction() {

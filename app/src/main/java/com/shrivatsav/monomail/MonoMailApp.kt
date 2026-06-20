@@ -1,6 +1,9 @@
 package com.shrivatsav.monomail
 import android.accounts.Account
 import android.app.Application
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
 import com.google.android.gms.auth.GoogleAuthUtil
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.auth.AuthManager
@@ -13,9 +16,11 @@ import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.worker.SnoozeWorker
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.runBlocking
+import java.util.concurrent.TimeUnit
 class MonoMailApp : Application() {
     lateinit var accountManager: AccountManager
         private set
@@ -119,6 +124,13 @@ class MonoMailApp : Application() {
             database = database,
             context = this,
             accountManager = accountManager
+        )
+        val snoozeRequest = PeriodicWorkRequestBuilder<SnoozeWorker>(15, TimeUnit.MINUTES)
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "snooze_check",
+            ExistingPeriodicWorkPolicy.KEEP,
+            snoozeRequest
         )
     }
 }
