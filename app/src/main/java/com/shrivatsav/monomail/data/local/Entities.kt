@@ -2,6 +2,7 @@ package com.shrivatsav.monomail.data.local
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.shrivatsav.monomail.data.model.Email
+import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
 @Entity(tableName = "threads")
 data class ThreadEntity(
@@ -103,6 +104,22 @@ fun EmailThread.toEntity(
     inArchived = inArchived,
     inTrash = inTrash
 )
+@Entity(tableName = "scheduled_messages")
+data class ScheduledMessageEntity(
+    @PrimaryKey val id: String,
+    val accountId: String,
+    val fromEmail: String,
+    val to: String,
+    val cc: String = "",
+    val bcc: String = "",
+    val subject: String,
+    val body: String,
+    val attachmentsJson: String = "[]",
+    val scheduledAt: Long,
+    val isSent: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
 fun Email.toEntity(accountId: String) = EmailEntity(
     id = id,
     accountId = accountId,

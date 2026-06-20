@@ -27,6 +27,8 @@ class MonoMailApp : Application() {
         private set
     lateinit var settingsDataStore: SettingsDataStore
         private set
+    lateinit var database: AppDatabase
+        private set
 
     data class SentEmailEvent(
         val threadId: String?,
@@ -41,6 +43,19 @@ class MonoMailApp : Application() {
         _sentEmailEvents.tryEmit(event)
     }
 
+    data class ScheduledEmailEvent(
+        val to: String,
+        val subject: String,
+        val scheduledAt: Long
+    )
+
+    private val _scheduledEmailEvents = MutableSharedFlow<ScheduledEmailEvent>(replay = 0)
+    val scheduledEmailEvents = _scheduledEmailEvents.asSharedFlow()
+
+    fun emitScheduledEmailEvent(event: ScheduledEmailEvent) {
+        _scheduledEmailEvents.tryEmit(event)
+    }
+
     override fun onCreate() {
         super.onCreate()
         System.loadLibrary("sqlcipher")
@@ -48,7 +63,7 @@ class MonoMailApp : Application() {
         authManager = AuthManager(this, accountManager)
         contactSuggestionProvider = ContactSuggestionProvider()
         settingsDataStore = SettingsDataStore(this)
-        val database = AppDatabase.getDatabase(this)
+        database = AppDatabase.getDatabase(this)
         val providerFactory: (UserProfile) -> EmailProvider = { profile ->
             val profileRetrofit = RetrofitClient(
                 tokenProvider = { 

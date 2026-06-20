@@ -64,6 +64,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.material3.rememberTimePickerState
 import coil.compose.AsyncImage
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import android.net.Uri
@@ -115,6 +121,29 @@ fun ComposeScreen(
             snackbarHostState.showSnackbar(it)
             viewModel.dismissError()
         }
+    }
+    if (state.showConfirmSendDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissConfirmSend() },
+            title = { Text("Confirm Send") },
+            text = { Text("Are you sure you want to send this email?") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmSend() }) {
+                    Text("Send")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissConfirmSend() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    if (state.showSchedulePicker) {
+        ScheduleSendDialog(
+            onDismiss = { viewModel.dismissSchedulePicker() },
+            onSchedule = { millis -> viewModel.scheduleSend(millis) }
+        )
     }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -232,8 +261,22 @@ fun ComposeScreen(
                                 .padding(end = 8.dp),
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                    } else {
-                        val canSend = state.to.isNotBlank() && !state.isSent
+                    } else if (!state.isSent) {
+                        val canSend = state.to.isNotBlank()
+                        TextButton(
+                            onClick = { viewModel.showSchedulePicker() },
+                            enabled = canSend,
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
+                            Text(
+                                "Schedule",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = if (canSend)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                            )
+                        }
                         IconButton(
                             onClick = { viewModel.send() },
                             enabled = canSend
@@ -458,6 +501,60 @@ private fun ComposeTextField(
         }
     )
 }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScheduleSendDialog(
+    onDismiss: () -> Unit,
+    onSchedule: (Long) -> Unit
+) {
+    var step by remember { androidx.compose.runtime.mutableStateOf(0) }
+    val datePickerState = rememberDatePickerState(initialSelectedDateMillis = System.currentTimeMillis() + 3600000)
+    val timePickerState = rememberTimePickerState(
+        initialHour = (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) + 1) % 24,
+        initialMinute = 0,
+        is24Hour = true
+    )
+    if (step == 0) {
+        DatePickerDialog(
+            onDismissRequest = onDismiss,
+            confirmButton = {
+                TextButton(onClick = { step = 1 }) { Text("Next") }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    } else {
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Select time") },
+            text = {
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxWidth()) {
+                    TimePicker(state = timePickerState)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val dateMillis = datePickerState.selectedDateMillis ?: System.currentTimeMillis()
+                    val cal = java.util.Calendar.getInstance().apply {
+                        timeInMillis = dateMillis
+                        set(java.util.Calendar.HOUR_OF_DAY, timePickerState.hour)
+                        set(java.util.Calendar.MINUTE, timePickerState.minute)
+                        set(java.util.Calendar.SECOND, 0)
+                        set(java.util.Calendar.MILLISECOND, 0)
+                    }
+                    onSchedule(cal.timeInMillis)
+                }) { Text("Schedule") }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        )
+    }
+}
+
 @Composable
 private fun AttachmentPreview(
     attachment: EmailAttachment,

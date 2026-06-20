@@ -1,11 +1,9 @@
 package com.shrivatsav.monomail.ui.screens.inbox
 
-import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -13,7 +11,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
@@ -26,22 +23,17 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
+
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
-import coil.compose.AsyncImage
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
-import com.shrivatsav.monomail.ui.theme.MonoMailTheme
 import kotlinx.coroutines.launch
-import java.util.Calendar
-
-private enum class ModalType { PROFILE, SWITCH_ACCOUNT, ADD_ACCOUNT }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -52,11 +44,13 @@ fun InboxScreen(
     onSignOut: () -> Unit,
     onCompose: () -> Unit = {},
     onSettings: () -> Unit = {},
-    onAddAccount: () -> Unit = {}
+    onAddAccount: () -> Unit = {},
+    onScheduledClick: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
-     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
+    val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
+    val scheduledCount by viewModel.scheduledCount.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -129,6 +123,16 @@ fun InboxScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        app.scheduledEmailEvents.collect { event ->
+            val formatted = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
+                .format(java.util.Date(event.scheduledAt))
+            snackbarHostState.showSnackbar(
+                "Email scheduled for $formatted"
+            )
+        }
+    }
+
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -177,11 +181,13 @@ fun InboxScreen(
                         onMarkAllRead = { viewModel.markAllAsRead() },
                         onStarredClick = { viewModel.switchTab(InboxTab.STARRED) },
                         onTrashClick = { viewModel.switchTab(InboxTab.TRASH) },
+                        onScheduledClick = onScheduledClick,
                         isRefreshing = isRefreshing,
                         toastState = toastState,
                         onUndo = { viewModel.undoAction() },
                         onSettings = onSettings,
-                        onOpenProfile = { activeModal = ModalType.PROFILE }
+                        onOpenProfile = { activeModal = ModalType.PROFILE },
+                        scheduledCount = scheduledCount
                     )
 
                     when (val s = state) {
@@ -691,85 +697,129 @@ fun InboxScreen(
             modifier = Modifier.fillMaxWidth(0.88f)
         ) {
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+            val context = androidx.compose.ui.platform.LocalContext.current
+
+            val kofiIcon = remember {
+                val bmp = android.graphics.BitmapFactory.decodeStream(
+                    context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi)
+                )
+                if (bmp != null) androidx.compose.ui.graphics.painter.BitmapPainter(bmp.asImageBitmap())
+                else null
+            }
+
             Column(modifier = Modifier.padding(24.dp)) {
+
+                // Header
                 Text(
                     text = "Welcome to Monomail",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Monomail is a free & open-source email client built with privacy in mind. If you find it useful, here are some ways to support the project:",
+                    text = "Monomail is free & open-source, built with privacy in mind. If you find it useful, here's how you can help.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(20.dp))
 
-                val kofiIcon = remember {
-                    val bmp = android.graphics.BitmapFactory.decodeStream(
-                        context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi)
-                    )
-                    if (bmp != null) androidx.compose.ui.graphics.painter.BitmapPainter(bmp.asImageBitmap())
-                    else null
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    WelcomeActionButton(
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Primary 2x2 support grid — card style, icon-on-top
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    SupportCard(
+                        modifier = Modifier.weight(1f),
                         label = "Buy me a coffee",
                         onClick = { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }
-                    ) { modifier ->
-                        if (kofiIcon != null) Icon(painter = kofiIcon, contentDescription = null, modifier = modifier, tint = Color.Unspecified)
-                        else Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, modifier = modifier)
+                    ) {
+                        if (kofiIcon != null) {
+                            Icon(
+                                painter = kofiIcon,
+                                contentDescription = null,
+                                modifier = Modifier.size(22.dp),
+                                tint = Color.Unspecified
+                            )
+                        } else {
+                            Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, modifier = Modifier.size(22.dp))
+                        }
                     }
-                    WelcomeActionButton(
+                    SupportCard(
+                        modifier = Modifier.weight(1f),
                         label = "Pay with UPI",
                         onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }
-                    ) { modifier ->
-                        Icon(Icons.Outlined.Payments, contentDescription = null, modifier = modifier)
+                    ) {
+                        Icon(Icons.Outlined.Payments, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
-                    WelcomeActionButton(
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    SupportCard(
+                        modifier = Modifier.weight(1f),
                         label = "Star on GitHub",
                         onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }
-                    ) { modifier ->
-                        Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = modifier)
+                    ) {
+                        Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
-                    WelcomeActionButton(
-                        label = "Join Discord Server",
+                    SupportCard(
+                        modifier = Modifier.weight(1f),
+                        label = "Join Discord",
                         onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }
-                    ) { modifier ->
-                        Icon(Icons.Outlined.HeadsetMic, contentDescription = null, modifier = modifier)
+                    ) {
+                        Icon(Icons.Outlined.HeadsetMic, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
-                    WelcomeActionButton(
-                        label = "Share Monomail",
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Secondary actions — icon-only row, tooltip-style
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    SupportIconAction(
+                        icon = Icons.Outlined.Share,
+                        contentDescription = "Share Monomail",
                         onClick = {
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-0/monomail")
+                                putExtra(
+                                    android.content.Intent.EXTRA_TEXT,
+                                    "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-0/monomail"
+                                )
                             }
                             context.startActivity(android.content.Intent.createChooser(intent, "Share Monomail"))
                         }
-                    ) { modifier ->
-                        Icon(Icons.Outlined.Share, contentDescription = null, modifier = modifier)
-                    }
-                    WelcomeActionButton(
-                        label = "Report Issue",
+                    )
+                    SupportIconAction(
+                        icon = Icons.Outlined.BugReport,
+                        contentDescription = "Report Issue",
                         onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }
-                    ) { modifier ->
-                        Icon(Icons.Outlined.BugReport, contentDescription = null, modifier = modifier)
-                    }
-                    WelcomeActionButton(
-                        label = "Donate Crypto (BASE)",
+                    )
+                    SupportIconAction(
+                        icon = Icons.Outlined.AccountBalanceWallet,
+                        contentDescription = "Donate Crypto (BASE)",
                         onClick = {
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crypto Address", "0xB27Ba9241de81F6DBCB322aDd76a9d9686462e9E"))
                             android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
                         }
-                    ) { modifier ->
-                        Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, modifier = modifier)
-                    }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
@@ -899,6 +949,72 @@ fun InboxScreen(
 }
 
 
+@Composable
+private fun SupportCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit
+) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        contentColor = MaterialTheme.colorScheme.onSurface
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 18.dp, horizontal = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            icon()
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+/**
+ * Secondary support action — icon-only tap target with a long-press
+ * tooltip for the label. Lower visual priority than SupportCard.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SupportIconAction(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit
+) {
+    TooltipBox(
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
+        tooltip = { PlainTooltip { Text(contentDescription) } },
+        state = rememberTooltipState()
+    ) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
 
 
 
@@ -926,781 +1042,6 @@ private fun LongPressAction(
         }
         Spacer(Modifier.height(4.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, color = tint)
-    }
-}
-
-
-
-
-
-@Composable
-private fun ModalOverlay(
-    activeModal: ModalType?,
-    userProfile: UserProfile?,
-    accounts: List<UserProfile>,
-    onDismiss: () -> Unit,
-    onSignOut: () -> Unit,
-    onSwitchAccount: (String) -> Unit,
-    onAddAccount: () -> Unit,
-    onShowSwitchAccount: () -> Unit,
-    onBackToProfile: () -> Unit,
-    onCycleAccount: (String) -> Unit,
-    onTrashClick: () -> Unit,
-    onStarredClick: () -> Unit,
-    onSettings: () -> Unit,
-) {
-    var displayed by remember { mutableStateOf<ModalType?>(null) }
-    displayed = activeModal ?: displayed
-
-    if (activeModal != null) {
-        BackHandler {
-            when (activeModal) {
-                ModalType.SWITCH_ACCOUNT -> onBackToProfile()
-                ModalType.PROFILE -> onDismiss()
-                ModalType.ADD_ACCOUNT -> onDismiss()
-            }
-        }
-    }
-
-    AnimatedVisibility(
-        visible = activeModal != null,
-        enter = fadeIn(tween(220)),
-        exit = fadeOut(tween(180)),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) { onDismiss() },
-            contentAlignment = Alignment.Center
-        ) {
-            AnimatedContent(
-                targetState = displayed,
-                transitionSpec = {
-                    if (initialState == null) {
-                        EnterTransition.None togetherWith ExitTransition.None
-                    } else {
-                        (scaleIn(
-                            tween(200, easing = FastOutSlowInEasing),
-                            initialScale = 0.85f
-                        ) + fadeIn(tween(200))) togetherWith
-                                (scaleOut(tween(200), targetScale = 0.85f) +
-                                        fadeOut(tween(180)))
-                    }
-                },
-                label = "ModalContent"
-            ) { modal ->
-                Box(
-                    modifier = Modifier.clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) {},
-                    contentAlignment = Alignment.Center
-                ) {
-                    when (modal) {
-                        ModalType.ADD_ACCOUNT -> {
-                            val ctx = androidx.compose.ui.platform.LocalContext.current
-                            val a = ctx.applicationContext as com.shrivatsav.monomail.MonoMailApp
-                            val vm: com.shrivatsav.monomail.ui.screens.auth.SignInViewModel =
-                                androidx.lifecycle.viewmodel.compose.viewModel(
-                                    factory = object :
-                                        androidx.lifecycle.ViewModelProvider.Factory {
-                                        @Suppress("UNCHECKED_CAST")
-                                        override fun <T : androidx.lifecycle.ViewModel> create(
-                                            modelClass: Class<T>
-                                        ): T =
-                                            com.shrivatsav.monomail.ui.screens.auth.SignInViewModel(
-                                                a.authManager,
-                                                a.emailRepository
-                                            ) as T
-                                    }
-                                )
-                            com.shrivatsav.monomail.ui.screens.auth.ProviderSelectionDialog(
-                                viewModel = vm,
-                                onDismiss = { onDismiss() },
-                                onSuccess = { onDismiss() }
-                            )
-                        }
-
-                        ModalType.PROFILE -> {
-                            if (userProfile != null) {
-                                ProfileCard(
-                                    userProfile = userProfile,
-                                    accounts = accounts,
-                                    onSignOut = onSignOut,
-                                    onShowSwitchAccount = onShowSwitchAccount,
-                                    onCycleAccount = onCycleAccount,
-                                    onTrashClick = onTrashClick,
-                                    onStarredClick = onStarredClick,
-                                    onSettings = onSettings,
-                                    onAddAccount = onAddAccount,
-                                )
-                            }
-                        }
-
-                        ModalType.SWITCH_ACCOUNT -> {
-                            if (userProfile != null) {
-                                SwitchAccountCard(
-                                    userProfile = userProfile,
-                                    accounts = accounts,
-                                    onSwitchAccount = onSwitchAccount,
-                                    onAddAccount = onAddAccount,
-                                    onBack = onBackToProfile,
-                                )
-                            }
-                        }
-
-                        null -> {}
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-
-
-
-@SuppressLint("UnusedContentLambdaTargetStateParameter")
-@Composable
-private fun ProfileCard(
-    userProfile: UserProfile,
-    accounts: List<UserProfile>,
-    onSignOut: () -> Unit,
-    onShowSwitchAccount: () -> Unit,
-    onCycleAccount: (String) -> Unit,
-    onTrashClick: () -> Unit,
-    onStarredClick: () -> Unit,
-    onSettings: () -> Unit,
-    onAddAccount: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(0.88f),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.background,
-        shadowElevation = 32.dp,
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 28.dp, bottom = 20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                AnimatedContent(
-                    targetState = userProfile.id,
-                    transitionSpec = {
-                        (fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.9f)) togetherWith
-                        (fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f))
-                    },
-                    label = "profileContent"
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.pointerInput(accounts) {
-                                if (accounts.size > 1) {
-                                    var totalDrag = 0f
-                                    detectHorizontalDragGestures(
-                                        onDragStart = { totalDrag = 0f },
-                                        onHorizontalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            totalDrag += dragAmount
-                                            if (kotlin.math.abs(totalDrag) > 60f) {
-                                                val currentIdx = accounts.indexOfFirst { it.id == userProfile.id }
-                                                if (currentIdx != -1) {
-                                                    val nextIdx = if (totalDrag > 0)
-                                                        (currentIdx + 1) % accounts.size
-                                                    else
-                                                        if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
-                                                    onCycleAccount(accounts[nextIdx].id)
-                                                }
-                                                totalDrag = 0f
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        ) {
-                            if (accounts.size > 1) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy((-16).dp),
-                                    modifier = Modifier.offset(x = 28.dp)
-                                ) {
-                                    accounts.filter { it.id != userProfile.id }.take(2).forEach { acc ->
-                                        Box(
-                                            modifier = Modifier
-                                                .size(44.dp)
-                                                .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
-                                                .clip(CircleShape)
-                                                .alpha(0.45f)
-                                        ) {
-                                            AvatarCircle(
-                                                acc.photoUrl,
-                                                acc.displayName,
-                                                44.dp,
-                                                MaterialTheme.typography.titleSmall
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            Box(modifier = Modifier.border(3.dp, MaterialTheme.colorScheme.background, CircleShape)) {
-                                AvatarCircle(
-                                    photoUrl = userProfile.photoUrl,
-                                    displayName = userProfile.displayName,
-                                    size = 72.dp,
-                                    textStyle = MaterialTheme.typography.headlineSmall
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            text = userProfile.displayName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            maxLines = 1
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = userProfile.email,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                    }
-                }
-
-                if (accounts.size > 1) {
-                    Spacer(Modifier.height(12.dp))
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
-                        modifier = Modifier.clickable { onShowSwitchAccount() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "${accounts.size} accounts",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                            )
-                            Icon(
-                                Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
-                thickness = 0.5.dp
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                ProfileMenuItem(Icons.Outlined.Star, "Starred", onStarredClick)
-                ProfileMenuItem(Icons.Outlined.Delete, "Trash", onTrashClick)
-                ProfileMenuItem(Icons.Outlined.Settings, "Settings", onSettings)
-            }
-
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
-                thickness = 0.5.dp
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = onSignOut,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onBackground
-                    ),
-                    border = BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
-                    ),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Text(
-                        "Sign out",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                Button(
-                    onClick = onAddAccount,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onBackground,
-                        contentColor = MaterialTheme.colorScheme.background
-                    ),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Add account",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
-        }
-    }
-}
-
-
-
-
-
-@Composable
-private fun SwitchAccountCard(
-    userProfile: UserProfile,
-    accounts: List<UserProfile>,
-    onSwitchAccount: (String) -> Unit,
-    onAddAccount: () -> Unit,
-    onBack: () -> Unit,
-) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(0.88f),
-        shape = RoundedCornerShape(28.dp),
-        color = MaterialTheme.colorScheme.background,
-        shadowElevation = 32.dp,
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 8.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 4.dp, end = 16.dp, top = 8.dp, bottom = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                    )
-                }
-                Text(
-                    text = "Accounts",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                accounts.forEach { account ->
-                    val isCurrent = account.id == userProfile.id
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                if (isCurrent) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.06f)
-                                else Color.Transparent
-                            )
-                            .clickable { if (!isCurrent) onSwitchAccount(account.id) }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        AvatarCircle(
-                            photoUrl = account.photoUrl,
-                            displayName = account.displayName,
-                            size = 40.dp,
-                            textStyle = MaterialTheme.typography.titleSmall
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = account.displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onBackground,
-                                maxLines = 1
-                            )
-                            Text(
-                                text = account.email,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (isCurrent) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(MaterialTheme.colorScheme.onBackground, CircleShape)
-                            )
-                        }
-                    }
-                }
-            }
-
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
-                thickness = 0.5.dp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .clickable(onClick = onAddAccount)
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(
-                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.06f),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Text(
-                    text = "Add account",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            Spacer(Modifier.height(6.dp))
-        }
-    }
-}
-
-
-
-
-
-@Composable
-fun AvatarCircle(
-    photoUrl: String?,
-    displayName: String,
-    size: Dp,
-    textStyle: androidx.compose.ui.text.TextStyle,
-) {
-    if (!photoUrl.isNullOrEmpty()) {
-        AsyncImage(
-            model = photoUrl,
-            contentDescription = displayName,
-            modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-        )
-    } else {
-        Box(
-            modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onBackground),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = displayName.firstOrNull()?.uppercase() ?: "?",
-                style = textStyle,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.background
-            )
-        }
-    }
-}
-
-
-
-
-
-@Composable
-private fun ProfileMenuItem(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 13.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
-            modifier = Modifier.size(21.dp)
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-    }
-}
-
-
-
-
-
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
-@Composable
-private fun InboxSearchBar(
-    userProfile: UserProfile?,
-    accounts: List<UserProfile>,
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onServerSearch: (String) -> Unit,
-    onSignOut: () -> Unit,
-    onSwitchAccount: (String) -> Unit,
-    onAddAccount: () -> Unit,
-    onMarkAllRead: () -> Unit,
-    onStarredClick: () -> Unit,
-    onTrashClick: () -> Unit,
-    isRefreshing: Boolean,
-    toastState: InboxViewModel.ToastState?,
-    onUndo: () -> Unit,
-    onSettings: () -> Unit = {},
-    onOpenProfile: () -> Unit,
-) {
-    val containerColor by animateColorAsState(
-        targetValue = if (toastState != null)
-            MaterialTheme.colorScheme.secondaryContainer
-        else
-            MaterialTheme.colorScheme.surfaceContainer,
-        animationSpec = tween(300),
-        label = "SearchBarColor"
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-    ) {
-        SearchBar(
-            inputField = {
-                AnimatedContent(
-                    targetState = toastState,
-                    label = "SearchBarToastMorph",
-                    transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }
-                ) { toast ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                    ) {
-                        if (toast != null) {
-                            val icon = when (toast.actionType) {
-                                InboxViewModel.ActionType.ARCHIVE -> Icons.Outlined.Archive
-                                InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
-                                InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Outlined.Delete
-                                InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Outlined.Send
-                            }
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Spacer(Modifier.width(16.dp))
-                                Icon(
-                                    icon, null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(Modifier.width(10.dp))
-                                Text(
-                                    toast.message,
-                                    modifier = Modifier.weight(1f),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                                TextButton(
-                                    onClick = onUndo,
-                                    shape = RoundedCornerShape(24.dp),
-                                    colors = ButtonDefaults.textButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.primary
-                                    )
-                                ) {
-                                    Text("Undo")
-                                }
-                                Spacer(Modifier.width(12.dp))
-                            }
-                        } else {
-                            SearchBarDefaults.InputField(
-                                query = query,
-                                onQueryChange = onQueryChange,
-                                onSearch = { onServerSearch(query) },
-                                expanded = false,
-                                onExpandedChange = {},
-                                placeholder = {
-                                    Text(
-                                        if (isRefreshing) "Syncing..." else "Search in mail",
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                    )
-                                },
-                                leadingIcon = {
-                                    if (isRefreshing) {
-                                        LoadingIndicator(
-                                            modifier = Modifier
-                                                .padding(start = 8.dp)
-                                                .size(40.dp),
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    } else {
-                                        Icon(
-                                            Icons.Outlined.Search,
-                                            contentDescription = "Search",
-                                            tint = MaterialTheme.colorScheme.onSurface,
-                                            modifier = Modifier.padding(start = 8.dp)
-                                        )
-                                    }
-                                },
-                                trailingIcon = {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-
-                                    ) {
-                                        IconButton(
-                                            onClick = onMarkAllRead,
-                                            modifier = Modifier.size(40.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Outlined.CheckCircle,
-                                                contentDescription = "Mark all as read",
-                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                                modifier = Modifier.size(25.dp)
-                                            )
-                                        }
-                                        Spacer(Modifier.width(4.dp))
-                                        AvatarButton(
-                                            userProfile = userProfile,
-                                            onClick = onOpenProfile
-                                        )
-
-                                    }
-                                }
-                            )
-                        }
-                    }
-                }
-            },
-            expanded = false,
-            onExpandedChange = {},
-            modifier = Modifier.fillMaxWidth(),
-            colors = SearchBarDefaults.colors(containerColor = containerColor),
-            shape = MaterialTheme.shapes.extraLarge,
-            windowInsets = WindowInsets(0.dp)
-        ) {}
-
-        AnimatedVisibility(
-            visible = isRefreshing,
-            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(300)),
-            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(300))
-        ) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = Color.Transparent,
-            )
-        }
-    }
-}
-
-
-
-
-
-@Composable
-private fun AvatarButton(
-    userProfile: UserProfile?,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit,
-) {
-    if (userProfile != null && !userProfile.photoUrl.isNullOrEmpty()) {
-        AsyncImage(
-            model = userProfile.photoUrl,
-            contentDescription = "Profile",
-            modifier = modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onClick)
-        )
-    } else {
-        val initial = userProfile?.displayName?.firstOrNull()?.uppercase() ?: "?"
-        Box(
-            modifier = modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.onSurface)
-                .clickable(onClick = onClick),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                initial,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.background
-            )
-        }
     }
 }
 
@@ -1777,231 +1118,6 @@ private fun GroupHeaderItem(
 
 
 
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SwipeableEmailItem(
-    modifier: Modifier = Modifier,
-    thread: EmailThread,
-    tabForSwipe: InboxTab,
-    appSettings: com.shrivatsav.monomail.data.settings.AppSettings,
-    viewModel: InboxViewModel,
-    onThreadToDeleteChange: (String?) -> Unit,
-    onEmailClick: () -> Unit,
-    onLongClick: () -> Unit,
-    fontSizeScale: Float,
-    isNested: Boolean = false
-) {
-    var optIsRead by remember(thread.isRead) { mutableStateOf(thread.isRead) }
-    var optIsStarred by remember(thread.isStarred) { mutableStateOf(thread.isStarred) }
-
-    val dismissState = rememberSwipeToDismissBoxState()
-    val scope = rememberCoroutineScope()
-
-    LaunchedEffect(dismissState.currentValue) {
-        if (dismissState.currentValue == SwipeToDismissBoxValue.Settled) return@LaunchedEffect
-        val action = when (dismissState.currentValue) {
-            SwipeToDismissBoxValue.StartToEnd -> appSettings.swipeRightAction
-            SwipeToDismissBoxValue.EndToStart -> appSettings.swipeLeftAction
-            else -> return@LaunchedEffect
-        }
-        when (action) {
-            com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> {
-                if (tabForSwipe == InboxTab.ARCHIVED) viewModel.unarchiveThread(thread.threadId)
-                else viewModel.archiveThread(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
-            }
-            com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> {
-                optIsStarred = !optIsStarred
-                viewModel.toggleStar(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
-            }
-            com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> {
-                onThreadToDeleteChange(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
-            }
-            com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> {
-                val wasRead = optIsRead
-                optIsRead = !wasRead
-                if (wasRead) viewModel.markThreadAsUnread(thread.threadId)
-                else viewModel.markThreadAsRead(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
-            }
-        }
-    }
-
-    Column(
-        modifier = modifier.let { if (isNested) it.padding(start = 32.dp) else it }
-    ) {
-        SwipeToDismissBox(
-            state = dismissState,
-            enableDismissFromEndToStart = true,
-            enableDismissFromStartToEnd = true,
-            backgroundContent = {
-                val getAction = { v: SwipeToDismissBoxValue ->
-                    when (v) {
-                        SwipeToDismissBoxValue.StartToEnd -> appSettings.swipeRightAction
-                        SwipeToDismissBoxValue.EndToStart -> appSettings.swipeLeftAction
-                        else -> null
-                    }
-                }
-                val action =
-                    getAction(dismissState.targetValue) ?: getAction(dismissState.dismissDirection)
-                val color by animateColorAsState(
-                    when (action) {
-                        com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.primaryContainer
-                        com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> MaterialTheme.colorScheme.tertiaryContainer
-                        com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> MaterialTheme.colorScheme.errorContainer
-                        com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> MaterialTheme.colorScheme.secondaryContainer
-                        else -> Color.Transparent
-                    },
-                    animationSpec = tween(200),
-                    label = "swipeBg"
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(color)
-                        .padding(horizontal = 20.dp),
-                    contentAlignment = if (
-                        dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd ||
-                        dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-                    ) Alignment.CenterStart else Alignment.CenterEnd
-                ) {
-                    when (action) {
-                        com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE ->
-                            Icon(
-                                if (tabForSwipe == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        com.shrivatsav.monomail.data.settings.SwipeAction.STAR ->
-                            Icon(
-                                if (optIsStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
-                        com.shrivatsav.monomail.data.settings.SwipeAction.DELETE ->
-                            Icon(
-                                Icons.Outlined.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD ->
-                            Icon(
-                                if (optIsRead) Icons.Outlined.MarkEmailRead else Icons.Outlined.MarkEmailUnread,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        else -> {}
-                    }
-                }
-            }
-        ) {
-            EmailItem(
-                thread = thread.copy(isRead = optIsRead, isStarred = optIsStarred),
-                onClick = onEmailClick,
-                onLongClick = onLongClick,
-                showSnippet = appSettings.showSnippet,
-                compactMode = appSettings.compactList,
-                fontSizeScale = fontSizeScale
-            )
-        }
-        if (appSettings.showDividers) {
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant,
-                thickness = 0.5.dp,
-                modifier = Modifier.padding(horizontal = 20.dp)
-            )
-        }
-    }
-}
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun DockTab(
-    isActive: Boolean,
-    icon: ImageVector,
-    label: String,
-    contentDescription: String,
-    onClick: () -> Unit,
-    scale: Float
-) {
-    AnimatedDockTab(isActive, icon, label, contentDescription, onClick, scale)
-}
-
-@Composable
-fun AnimatedDockTab(
-    isActive: Boolean,
-    icon: ImageVector,
-    label: String,
-    contentDescription: String,
-    onClick: () -> Unit,
-    scale: Float,
-) {
-    val transition = updateTransition(targetState = isActive, label = "dockTab")
-
-    val bgColor by transition.animateColor(
-        transitionSpec = { tween(200) },
-        label = "dockTabBg"
-    ) { active -> if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent }
-
-    // Icon stays visible at all times -> use the real two-tier contrast pair,
-    // never collapse this one to alpha 0.
-    val iconColor by transition.animateColor(
-        transitionSpec = { tween(200) },
-        label = "dockIconColor"
-    ) { active ->
-        if (active) MaterialTheme.colorScheme.onSurface
-        else MonoMailTheme.extendedColors.onSurfaceMuted
-    }
-
-    // Label is meant to disappear when inactive (collapses with width below),
-    // so this one IS allowed to go to alpha 0 — that's intentional, not a bug.
-    val labelColor by transition.animateColor(
-        transitionSpec = { tween(180) },
-        label = "dockLabelColor"
-    ) { active ->
-        if (active) MaterialTheme.colorScheme.onSurface
-        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0f)
-    }
-
-    val labelWidth by transition.animateDp(
-        transitionSpec = { tween(220, easing = FastOutSlowInEasing) },
-        label = "dockLabelWidth"
-    ) { active -> if (active) 72.dp else 0.dp }
-
-    Surface(
-        shape = CircleShape,
-        color = bgColor,
-        contentColor = iconColor,
-        onClick = onClick,
-        modifier = Modifier
-            .height((42 * scale).dp)
-            .semantics { this.contentDescription = contentDescription }
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = (12 * scale).dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                tint = iconColor,
-                modifier = Modifier.size((22 * scale).dp)
-            )
-
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = labelColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = labelWidth)
-            )
-        }
-    }
-}
 
 @Composable
 private fun ShimmerEmailItem() {

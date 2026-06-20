@@ -7,14 +7,15 @@ import androidx.room.TypeConverters
 import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
-    entities = [ThreadEntity::class, EmailEntity::class],
-    version = 5,
+    entities = [ThreadEntity::class, EmailEntity::class, ScheduledMessageEntity::class],
+    version = 6,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun threadDao(): ThreadDao
     abstract fun emailDao(): EmailDao
+    abstract fun scheduledMessageDao(): ScheduledMessageDao
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -28,7 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_4_5)
+                .addMigrations(MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -47,5 +48,10 @@ val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE emails ADD COLUMN ccEmail TEXT NOT NULL DEFAULT ''")
         db.execSQL("ALTER TABLE emails ADD COLUMN bccEmail TEXT NOT NULL DEFAULT ''")
+    }
+}
+val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `scheduled_messages` (`id` TEXT NOT NULL, `accountId` TEXT NOT NULL, `fromEmail` TEXT NOT NULL, `to` TEXT NOT NULL, `cc` TEXT NOT NULL DEFAULT '', `bcc` TEXT NOT NULL DEFAULT '', `subject` TEXT NOT NULL, `body` TEXT NOT NULL, `attachmentsJson` TEXT NOT NULL DEFAULT '[]', `scheduledAt` INTEGER NOT NULL, `isSent` INTEGER NOT NULL DEFAULT 0, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))")
     }
 }

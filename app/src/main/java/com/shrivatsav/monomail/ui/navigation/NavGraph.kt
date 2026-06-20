@@ -44,6 +44,8 @@ import com.shrivatsav.monomail.ui.screens.detail.EmailDetailScreen
 import com.shrivatsav.monomail.ui.screens.detail.EmailDetailViewModel
 import com.shrivatsav.monomail.ui.screens.inbox.InboxScreen
 import com.shrivatsav.monomail.ui.screens.inbox.InboxViewModel
+import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesScreen
+import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
 import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
 import java.net.URLDecoder
@@ -54,18 +56,20 @@ sealed class Screen(val route: String) {
     object ThreadDetail : Screen("thread/{threadId}") {
         fun createRoute(threadId: String) = "thread/$threadId"
     }
-    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}") {
+    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}") {
         fun createRoute(
             mode: ComposeMode = ComposeMode.NEW,
             to: String = "",
             subject: String = "",
             threadId: String = "",
-            messageId: String = ""
+            messageId: String = "",
+            scheduledId: String = ""
         ): String {
             val enc = { s: String -> URLEncoder.encode(s, "UTF-8") }
-            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}"
+            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}&scheduledId=${enc(scheduledId)}"
         }
     }
+    object Scheduled : Screen("scheduled")
     object Settings : Screen("settings")
     object Legal : Screen("legal/{type}") {
         fun createRoute(type: String) = "legal/$type"
@@ -201,6 +205,9 @@ fun NavGraph(
                     },
                     onSettings = {
                         navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                    },
+                    onScheduledClick = {
+                        navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
                     }
                 )
             }
@@ -279,13 +286,14 @@ fun NavGraph(
                 )
             }
             composable(
-                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}",
+                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}",
                 arguments = listOf(
                     navArgument("mode") { type = NavType.StringType; defaultValue = "NEW" },
                     navArgument("to") { type = NavType.StringType; defaultValue = "" },
                     navArgument("subject") { type = NavType.StringType; defaultValue = "" },
                     navArgument("threadId") { type = NavType.StringType; defaultValue = "" },
-                    navArgument("messageId") { type = NavType.StringType; defaultValue = "" }
+                    navArgument("messageId") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("scheduledId") { type = NavType.StringType; defaultValue = "" }
                 )
             ) { backStackEntry ->
                 val dec = { s: String -> URLDecoder.decode(s, "UTF-8") }
@@ -296,7 +304,10 @@ fun NavGraph(
                 val subject = dec(backStackEntry.arguments?.getString("subject") ?: "")
                 val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
                 val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
-                val fromEmail = authManager.currentUser?.email ?: ""
+                val scheduledId = dec(backStackEntry.arguments?.getString("scheduledId") ?: "").takeIf { it.isNotEmpty() }
+                val currentUser = authManager.currentUser
+                val fromEmail = currentUser?.email ?: ""
+                val accountId = currentUser?.id ?: "gmail_unknown"
                 val vm: ComposeViewModel = viewModel(
                     factory = object : ViewModelProvider.Factory {
                         @Suppress("UNCHECKED_CAST")
@@ -305,12 +316,15 @@ fun NavGraph(
                                 repository = emailRepository,
                                 contactProvider = contactProvider,
                                 fromEmail = fromEmail,
+                                accountId = accountId,
                                 app = app,
+                                settingsDataStore = app.settingsDataStore,
                                 mode = mode,
                                 replyTo = to,
                                 originalSubject = subject,
                                 threadId = threadId,
-                                messageId = messageId
+                                messageId = messageId,
+                                scheduledId = scheduledId
                             ) as T
                         }
                     }
@@ -319,6 +333,31 @@ fun NavGraph(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
                     onSent = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.Scheduled.route) {
+                val currentUser = authManager.currentUser
+                val accountId = currentUser?.id ?: "gmail_unknown"
+                val vm: ScheduledMessagesViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return ScheduledMessagesViewModel(emailRepository, accountId) as T
+                        }
+                    }
+                )
+                ScheduledMessagesScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() },
+                    onEdit = { scheduled ->
+                        navController.navigate(
+                            Screen.Compose.createRoute(
+                                to = scheduled.to,
+                                subject = scheduled.subject,
+                                scheduledId = scheduled.id
+                            )
+                        )
+                    }
                 )
             }
         }

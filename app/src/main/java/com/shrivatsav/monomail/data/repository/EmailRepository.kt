@@ -1,15 +1,21 @@
 package com.shrivatsav.monomail.data.repository
 import android.content.Context
+import android.net.Uri
 import android.util.Log
+import java.io.File
 import androidx.work.Constraints
 import androidx.work.Data
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
+import com.shrivatsav.monomail.worker.ScheduledSendWorker
+import java.util.UUID
+import java.util.concurrent.TimeUnit
 import com.google.gson.Gson
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.local.AppDatabase
+import com.shrivatsav.monomail.data.local.ScheduledMessageEntity
 import com.shrivatsav.monomail.data.local.toEntity
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailAttachment
@@ -35,6 +41,7 @@ class EmailRepository(
     }
     private val threadDao = database.threadDao()
     private val emailDao = database.emailDao()
+    private val scheduledMessageDao = database.scheduledMessageDao()
     private val workManager = WorkManager.getInstance(context)
     private val networkConstraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -333,4 +340,95 @@ class EmailRepository(
             Result.failure(e)
         }
     }
+    suspend fun scheduleSend(
+        accountId: String,
+        fromEmail: String,
+        to: String,
+        subject: String,
+        body: String,
+        scheduledAt: Long,
+        cc: String = "",
+        bcc: String = "",
+        attachments: List<EmailAttachment> = emptyList()
+    ) {
+        val id = UUID.randomUUID().toString()
+        val attachmentsJson = if (attachments.isNotEmpty()) {
+            Gson().toJson(attachments.map { it.copy(uri = Uri.fromFile(File(it.uri.toString())).toString().let { Uri.parse(it) }) })
+        } else "[]"
+        val entity = ScheduledMessageEntity(
+            id = id,
+            accountId = accountId,
+            fromEmail = fromEmail,
+            to = to,
+            cc = cc,
+            bcc = bcc,
+            subject = subject,
+            body = body,
+            attachmentsJson = Gson().toJson(
+                attachments.map { a ->
+                    mapOf(
+                        "localPath" to a.uri.toString(),
+                        "name" to a.name,
+                        "size" to a.size,
+                        "mimeType" to a.mimeType
+                    )
+                }
+            ),
+            scheduledAt = scheduledAt
+        )
+        scheduledMessageDao.insertScheduledMessage(entity)
+        val delay = scheduledAt - System.currentTimeMillis()
+        val workRequest = OneTimeWorkRequestBuilder<ScheduledSendWorker>()
+            .setConstraints(networkConstraints)
+            .setInitialDelay(maxOf(delay, 0), TimeUnit.MILLISECONDS)
+            .setInputData(Data.Builder().putString(ScheduledSendWorker.KEY_SCHEDULED_MESSAGE_ID, id).build())
+            .addTag("scheduled_send_$id")
+            .build()
+        workManager.enqueue(workRequest)
+    }
+    suspend fun cancelScheduledMessage(id: String) {
+        val msg = scheduledMessageDao.getScheduledMessageById(id)
+        if (msg != null) {
+            cleanupScheduledAttachmentFiles(msg.attachmentsJson)
+            scheduledMessageDao.deleteScheduledMessage(id)
+        }
+        workManager.cancelAllWorkByTag("scheduled_send_$id")
+    }
+    private fun cleanupScheduledAttachmentFiles(attachmentsJson: String) {
+        try {
+            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
+            val attachments: List<Map<String, Any>> = Gson().fromJson(attachmentsJson, type)
+            attachments.forEach { a ->
+                val path = a["localPath"] as? String
+                if (path != null) {
+                    val file = File(path)
+                    if (file.exists()) file.delete()
+                }
+            }
+        } catch (_: Exception) { }
+    }
+    suspend fun copyAttachmentsToCache(
+        messageId: String,
+        attachments: List<EmailAttachment>
+    ): List<EmailAttachment> {
+        if (attachments.isEmpty()) return emptyList()
+        val dir = File(context.cacheDir, "scheduled_attachments/$messageId")
+        dir.mkdirs()
+        return attachments.mapNotNull { a ->
+            try {
+                val fileName = "${System.currentTimeMillis()}_${a.name}"
+                val dest = File(dir, fileName)
+                context.contentResolver.openInputStream(a.uri)?.use { input ->
+                    dest.outputStream().use { output -> input.copyTo(output) }
+                }
+                a.copy(uri = Uri.fromFile(dest))
+            } catch (e: Exception) {
+                Log.e("EmailRepo", "Failed to cache attachment ${a.name}", e)
+                null
+            }
+        }
+    }
+    fun getPendingScheduledMessagesFlow(accountId: String) = scheduledMessageDao.getPendingScheduledMessages(accountId)
+    fun getPendingScheduledCountFlow(accountId: String) = scheduledMessageDao.getPendingCount(accountId)
+    suspend fun getScheduledMessageById(id: String) = scheduledMessageDao.getScheduledMessageById(id)
 }

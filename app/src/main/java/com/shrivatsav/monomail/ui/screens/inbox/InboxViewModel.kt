@@ -78,6 +78,8 @@ class InboxViewModel(
     val organizeByThread = _organizeByThread.asStateFlow()
     private val _showWelcomePrompt = MutableStateFlow(false)
     val showWelcomePrompt = _showWelcomePrompt.asStateFlow()
+    private val _scheduledCount = MutableStateFlow(0)
+    val scheduledCount: StateFlow<Int> = _scheduledCount.asStateFlow()
     val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, _, _, organize -> Pair(tab, organize) }
         .flatMapLatest { (tab, organize) ->
         val flow = if (organize) {
@@ -144,13 +146,24 @@ class InboxViewModel(
         }
         startForegroundPolling()
         observeSentEvents()
+        viewModelScope.launch {
+            authManager.activeAccountFlow.collect { profile ->
+                val accountId = profile?.id ?: return@collect
+                repository.getPendingScheduledCountFlow(accountId).collect { count ->
+                    _scheduledCount.value = count
+                }
+            }
+        }
     }
 
     private fun observeSentEvents() {
         viewModelScope.launch {
-            app.sentEmailEvents.collect { event ->
+            combine(app.sentEmailEvents, settingsDataStore.settingsFlow) { event, settings ->
+                Pair(event, settings)
+            }.collect { (event, settings) ->
                 val toastId = event.threadId ?: "send_${System.currentTimeMillis()}"
-                val totalSec = 4
+                if (!settings.undoSendEnabled) return@collect
+                val totalSec = settings.undoSendWindow.seconds
                 _toastState.value = ToastState(
                     threadId = toastId,
                     message = "Message sent \u00b7 Undo for ${totalSec}s",

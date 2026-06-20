@@ -26,6 +26,7 @@ securityCrypto = "1.1.0"
 sqlcipher = "4.6.1"
 sqliteKtx = "2.4.0"
 graphicsPath = "1.0.1"
+uiText = "1.11.3"
 
 [libraries]
 # Core
@@ -86,6 +87,7 @@ androidx-compose-foundation = { group = "androidx.compose.foundation", name = "f
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 sqlcipher = { group = "net.zetetic", name = "sqlcipher-android", version.ref = "sqlcipher" }
 androidx-sqlite-ktx = { group = "androidx.sqlite", name = "sqlite-ktx", version.ref = "sqliteKtx" }
+androidx-compose-ui-text = { group = "androidx.compose.ui", name = "ui-text", version.ref = "uiText" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
