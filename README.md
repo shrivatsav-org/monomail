@@ -4,6 +4,8 @@ A monochrome email client for Android, built with Jetpack Compose and Material 3
 
 [Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest) · [Discord](https://discord.gg/monomail)
 
+> **⚠️ Gmail API Warning:** This app uses Gmail API OAuth verification which is limited to **100 test users**. The app is not published on the Play Store (cannot afford the developer account fee), so Google will show **"This app is blocked"** for any user beyond the first 100. If you encounter this, the test user quota has been exhausted. You can either run the app from source with your own Google Cloud project credentials, or use an Outlook account instead (no such limit).
+
 ---
 
 ## Overview
@@ -178,18 +180,6 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 Download the latest release from the [Releases page](https://github.com/shrivatsav-0/monomail/releases/latest) and install directly. You may need to enable "Install unknown apps" in your device settings.
 
 Minimum supported version: Android 8.0 (API 26).
-
-> **⚠️ Gmail API Warning:** This app uses Gmail API OAuth verification which is limited to **100 test users**. The app is not published on the Play Store (cannot afford the developer account fee), so Google will show **"This app is blocked"** for any user beyond the first 100. If you encounter this, the test user quota has been exhausted. You can either run the app from source with your own Google Cloud project credentials, or use an Outlook account instead (no such limit).
-
-## Screenshots
-
-| Sign In | Inbox | Compose |
-|---|---|---|
-| ![Sign In](https://monomail.millosaurs.me/6.png) | ![Inbox](https://monomail.millosaurs.me/1.png) | ![Compose](https://monomail.millosaurs.me/7.png) |
-
-| Dock Bar | Settings | Profile |
-|---|---|---|
-| ![Dock](https://monomail.millosaurs.me/8.png) | ![Settings](https://monomail.millosaurs.me/5.png) | ![Profile](https://monomail.millosaurs.me/4.png) |
 
 ## Contributing
 
