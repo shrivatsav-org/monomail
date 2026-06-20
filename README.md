@@ -1,29 +1,35 @@
 # MonoMail
 
-A monochrome email client for Android, built with Jetpack Compose and Material 3. No colour accents, no noise, just email.
+A monochrome email client for Android, built with Jetpack Compose and Material 3 Expressive. No colour accents, no noise, just email.
 
-[Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest)
+[Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest) · [Discord](https://discord.gg/monomail)
+
+> **⚠️ Gmail API Warning:** This app uses Gmail API OAuth verification which is limited to **100 test users**. The app is not published on the Play Store (cannot afford the developer account fee), so Google will show **"This app is blocked"** for any user beyond the first 100. If you encounter this, the test user quota has been exhausted. You can either run the app from source with your own Google Cloud project credentials, or use an Outlook account instead (no such limit).
 
 ---
 
 ## Overview
 
-MonoMail is an open-source Android email client that connects to Gmail and Microsoft Outlook via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome -- every screen uses only black, white, and greyscale, built on top of Material 3 Expressive.
+MonoMail is an open-source Android email client that connects to **Gmail** and **Microsoft Outlook** via OAuth and prioritises a distraction-free reading experience. The design system is intentionally monochrome -- every screen uses only black, white, and greyscale, built on top of Material 3 Expressive.
 
 The architecture is offline-first: all reads and writes go through a local Room database encrypted with SQLCipher, and background sync via WorkManager keeps the remote state consistent without blocking the UI.
 
 ## Features
 
 ### Inbox
-- Six folder tabs: Inbox, Sent, Archived, Starred, Trash, and Unified Inbox (when enabled).
-- Pull-to-refresh to sync the current folder.
+- Configurable dock bar: primary tabs in a pill + expandable flyout for remaining tabs. Customize in Settings (reorder, add up to 4, remove). Default: Unified, Sent, Archived.
+- Folder tabs: Inbox, Sent, Archived, Starred, Trash, Snoozed, Spam, and Unified Inbox (when enabled).
+- Snooze: long-press a thread to snooze (1hr, tonight, tomorrow, weekend, next week). Thread returns when time expires. Snoozed tab lists all snoozed threads.
+- Spam folder: dedicated tab with report-not-spam and empty-spam actions. Pull-to-refresh fetches from server.
+- Pull-to-refresh with embedded progress indicator in the search bar.
 - Infinite scroll with pagination for large mailboxes.
 - Date headers ("Today", "Yesterday", "Earlier") to organise the list chronologically.
 - Smart grouping: auto-collapses threads from the same sender (threshold: 3 emails within 24 hours or 3 days) into expandable group headers showing sender name, count, and unread badge.
 - Swipe-to-dismiss gestures on each thread: left and right swipe actions are independently configurable (archive, star, delete, mark read/unread), with colour-coded backgrounds.
 - Long-press contextual overlay with blurred background and four action buttons: star/unstar, archive/unarchive (context-aware), mark read/unread, and delete/restore (context-aware).
-- Undo toast with a 4-second window for archive and delete actions; dismiss to execute immediately.
+- Undo toast with a 4-second window for archive, delete, snooze, and send actions; dismiss to execute immediately.
 - Mark all as read button in the search bar.
+- Calendar badge in the search bar showing pending scheduled messages count.
 - Sender avatar with domain favicon (loaded via Coil with initial fallback).
 - Unread indicator: blue dot on avatar, bold sender/subject text, background tint.
 - Message count badge next to sender name for threads with multiple messages.
@@ -43,18 +49,22 @@ The architecture is offline-first: all reads and writes go through a local Room 
 
 ### Multi-Account and Unified Inbox
 - Support for up to 10 Gmail and Microsoft Outlook accounts simultaneously.
-- Unified Inbox toggle in Settings to see all accounts in a single combined tab.
-- Quick account switching: vertical drag gesture on the profile avatar, or via the account switch modal.
-- Profile card with avatar, display name, email, linked accounts count, and quick links to Starred, Trash, Settings, and sign out.
+- Unified Inbox toggle in Settings → Dock Bar to see all accounts in a single combined tab.
+- Quick account switching: horizontal swipe gesture on the profile avatar, or via the account switch modal.
+- Profile card with avatar, display name, email, linked accounts count, and quick links to Settings and sign out.
 
 ### Compose
 - New email, reply, and forward modes with pre-filled recipient and subject fields.
+- CC and BCC fields with expand/collapse animation.
 - Contact auto-suggestions indexed from threads and messages (debounced, max 5 results, case-insensitive matching).
 - File attachments via system file picker (any MIME type), displayed as preview cards with thumbnails for images and icon with filename for other files. Removable via close button.
 - Attachments are base64-encoded and sent as multipart MIME.
 - Validation: recipient required, body cannot be empty.
 - Confirmation-before-send option in Settings.
 - Default reply mode (Reply / Reply All) configurable in Settings.
+- **Schedule send:** pick a date & time to send later; attachments are cached and restored at send time. View/edit/cancel scheduled messages from the calendar icon in the search bar.
+- **Undo send:** immediate send with a "Undo for Ns" live countdown in the search bar. Configurable undo window (5–30s).
+- **Email templates:** save frequently-used bodies as templates. Apply from a bottom sheet in compose; manage in Settings.
 
 ### Settings
 Accessible from the profile card. All settings are persisted via DataStore Preferences.
@@ -66,27 +76,37 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 - Compact List: reduce spacing in the email list.
 - Show Snippet Preview: display preview text below sender in the inbox.
 
-**Behavior:**
+**Dock Bar:**
 - Unified Inbox: combine all accounts into one tab.
+- Navigation Size: slider from 0.6x to 1.4x to scale the dock bar and action button.
+- Dock Bar Editor: reorder primary tabs (up/down), add tabs from the available list (max 4), remove tabs (min 1). UNIFIED tab auto-hides when Unified Inbox is disabled.
+
+**Behavior:**
 - Conversation View / Message Chain: toggle between collapsible threads and expanded chain view in email detail.
 - Smart Grouping: auto-group threads by sender in the inbox.
-- Group Recent Only: restrict smart grouping to the last 24 hours (otherwise 3 days).
+- Group Recent Only: restrict smart grouping to the last 24 hours (otherwise 3 days). Enabled by default.
 - Swipe Left / Swipe Right: independently configure gesture actions (Archive, Star, Delete, Mark Read/Unread) via bottom sheet pickers.
 - Confirm Before Sending: show a confirmation dialog before sending each email.
 - Default Reply: Reply or Reply All.
+
+**Sending:**
+- Undo Send: toggle + window duration picker (5s, 10s, 20s, 30s).
+
+**Templates:**
+- Add, edit, and delete email templates. Apply from the compose screen.
 
 **Notifications:**
 - Email Notifications: master toggle for notification alerts.
 - Sync Frequency: 15 minutes, 30 minutes, 1 hour, or Manual (polling only; no push).
 
 **Updates:**
-- Check for Updates: queries the GitHub releases API and shows status (Checking, Up to Date, Update Available). Tapping opens the download page.
+- Check for Updates: queries the GitHub releases API and shows status. Tapping opens the download page.
 
 **About:**
-- Version (1.2.5), Privacy Policy, Terms of Service, and Open Source Licenses.
+- Version (1.3.9), Privacy Policy, Terms of Service, and Open Source Licenses.
 
 **Support:**
-- Link to Ko-fi donation page.
+- Ko-fi, UPI, GitHub star, Discord, Share, Report Issue, Crypto donate.
 
 ### Account Management
 - Google Sign-In via Android Credential Manager and Google Identity Services.
@@ -97,10 +117,12 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 - Add account dialog with Google and Microsoft provider selection.
 
 ### Notifications
-- Background periodic sync via WorkManager (respects the configured sync frequency).
+- Adaptive background sync via WorkManager: polls every ~2 minutes when app is recently active, backs off to 15 minutes when idle.
 - New email notification per account with sender name, subject, and system email icon.
 - Android 13+ respects POST_NOTIFICATIONS permission.
-- Notification channel: "New Emails".
+- Per-account notification channels.
+- **Inline reply** from the notification shade via RemoteInput.
+- **Archive + undo** from the notification shade: archive action posts a follow-up undo notification.
 - Timestamp-based detection to notify on replies within existing threads.
 
 ### Email Detail
@@ -112,17 +134,17 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 - Top bar actions: back, star/unstar, overflow menu (mark unread, archive, move to trash) -- each navigates back after action.
 - Reply and Forward buttons at the bottom.
 
-### Donation Prompt
-- One-time overlay shown on first install linking to the Ko-fi page, dismissible via a close button.
+### Welcome Box
+- One-time overlay shown on first install with 7 action buttons: Ko-fi, UPI, GitHub star, Discord, Share, Report Issue, and Crypto donate (copy to clipboard).
 
 ## Tech Stack
 
 | Layer | Library |
 |---|---|
-| UI | Jetpack Compose, Material 3, Navigation Compose |
-| Language | Kotlin |
+| UI | Jetpack Compose, Material 3 Expressive, Navigation Compose |
+| Language | Kotlin 2.2 |
 | Authentication | Google Credential Manager, MSAL 5.4.0, Google Play Services Auth |
-| Networking | Retrofit 2, OkHttp 3 |
+| Networking | Retrofit 2, OkHttp 4 |
 | Local Database | Room with SQLCipher encryption |
 | Background Sync | WorkManager |
 | Image Loading | Coil Compose |
@@ -161,13 +183,13 @@ Minimum supported version: Android 8.0 (API 26).
 
 ## Screenshots
 
-| Sign In | Inbox | Email |
+| Sign In | Inbox | Compose |
 |---|---|---|
-| ![Sign In](https://monomail.millosaurs.me/6.png) | ![Inbox](https://monomail.millosaurs.me/1.png) | ![Email](https://monomail.millosaurs.me/2.png) |
+| ![Sign In](https://monomail.millosaurs.me/6.png) | ![Inbox](https://monomail.millosaurs.me/1.png) | ![Compose](https://monomail.millosaurs.me/7.png) |
 
-| Long Press | Profile | Settings |
+| Dock Bar | Settings | Profile |
 |---|---|---|
-| ![Long Press](https://monomail.millosaurs.me/3.png) | ![Profile](https://monomail.millosaurs.me/4.png) | ![Settings](https://monomail.millosaurs.me/5.png) |
+| ![Dock](https://monomail.millosaurs.me/8.png) | ![Settings](https://monomail.millosaurs.me/5.png) | ![Profile](https://monomail.millosaurs.me/4.png) |
 
 ## Contributing
 
