@@ -9,6 +9,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -110,7 +111,8 @@ internal fun BottomDockBar(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            Icons.Default.KeyboardArrowDown,
+                            if (showRemainingTabs) Icons.Default.KeyboardArrowUp
+                            else Icons.Default.KeyboardArrowDown,
                             contentDescription = if (showRemainingTabs) "Collapse" else "More tabs",
                             tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size((22 * appSettings.navScale).dp)
