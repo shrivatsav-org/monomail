@@ -243,6 +243,13 @@ class ComposeViewModel(
                 bcc = current.bcc,
                 attachments = cachedAttachments
             )
+            app.emitScheduledEmailEvent(
+                MonoMailApp.ScheduledEmailEvent(
+                    to = current.to,
+                    subject = current.subject,
+                    scheduledAt = scheduledAt
+                )
+            )
             _state.value = _state.value.copy(isSent = true)
         }
     }

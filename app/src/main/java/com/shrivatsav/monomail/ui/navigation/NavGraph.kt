@@ -44,6 +44,8 @@ import com.shrivatsav.monomail.ui.screens.detail.EmailDetailScreen
 import com.shrivatsav.monomail.ui.screens.detail.EmailDetailViewModel
 import com.shrivatsav.monomail.ui.screens.inbox.InboxScreen
 import com.shrivatsav.monomail.ui.screens.inbox.InboxViewModel
+import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesScreen
+import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
 import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
 import java.net.URLDecoder
@@ -66,6 +68,7 @@ sealed class Screen(val route: String) {
             return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}"
         }
     }
+    object Scheduled : Screen("scheduled")
     object Settings : Screen("settings")
     object Legal : Screen("legal/{type}") {
         fun createRoute(type: String) = "legal/$type"
@@ -201,6 +204,9 @@ fun NavGraph(
                     },
                     onSettings = {
                         navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                    },
+                    onScheduledClick = {
+                        navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
                     }
                 )
             }
@@ -323,6 +329,22 @@ fun NavGraph(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
                     onSent = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.Scheduled.route) {
+                val currentUser = authManager.currentUser
+                val accountId = currentUser?.id ?: "gmail_unknown"
+                val vm: ScheduledMessagesViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return ScheduledMessagesViewModel(emailRepository, accountId) as T
+                        }
+                    }
+                )
+                ScheduledMessagesScreen(
+                    viewModel = vm,
+                    onBack = { navController.popBackStack() }
                 )
             }
         }

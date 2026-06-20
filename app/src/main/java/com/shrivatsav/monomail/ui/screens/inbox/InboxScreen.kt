@@ -44,7 +44,8 @@ fun InboxScreen(
     onSignOut: () -> Unit,
     onCompose: () -> Unit = {},
     onSettings: () -> Unit = {},
-    onAddAccount: () -> Unit = {}
+    onAddAccount: () -> Unit = {},
+    onScheduledClick: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
@@ -122,6 +123,16 @@ fun InboxScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        app.scheduledEmailEvents.collect { event ->
+            val formatted = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
+                .format(java.util.Date(event.scheduledAt))
+            snackbarHostState.showSnackbar(
+                "Email scheduled for $formatted"
+            )
+        }
+    }
+
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -170,6 +181,7 @@ fun InboxScreen(
                         onMarkAllRead = { viewModel.markAllAsRead() },
                         onStarredClick = { viewModel.switchTab(InboxTab.STARRED) },
                         onTrashClick = { viewModel.switchTab(InboxTab.TRASH) },
+                        onScheduledClick = onScheduledClick,
                         isRefreshing = isRefreshing,
                         toastState = toastState,
                         onUndo = { viewModel.undoAction() },
@@ -179,6 +191,7 @@ fun InboxScreen(
 
                     if (scheduledCount > 0) {
                         Surface(
+                            onClick = onScheduledClick,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 20.dp, vertical = 4.dp),
