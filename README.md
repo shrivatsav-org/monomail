@@ -156,10 +156,10 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 
 ### Prerequisites
 
-- Android Studio Hedgehog or later.
-- A Google Cloud project with the Gmail API enabled.
-- A Microsoft Azure App Registration with Outlook / Graph API scopes enabled.
-- An OAuth 2.0 Web Client ID for Google and Client ID for Microsoft.
+- Android Studio Ladybug or later.
+- A Google Cloud project with the Gmail API enabled and an OAuth 2.0 Web Client ID (type: Web application, not Android).
+- A Microsoft Azure App Registration with Outlook / Microsoft Graph API scopes (`Mail.Read`, `Mail.ReadWrite`, `Mail.Send`, `User.Read`) and a Mobile/Desktop platform redirect URI (`msal{client_id}://auth`).
+- JDK 17+.
 
 ### Setup
 
@@ -173,23 +173,23 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
    GOOGLE_CLIENT_ID=your_web_client_id_here
    ```
 
-3. Sync Gradle and run on a device or emulator running Android 8.0 (API 26) or above.
+3. Configure MSAL for Outlook (optional — skip if you only use Gmail):
+   ```bash
+   # Edit app/src/main/res/raw/msal_config.json with your Azure client ID:
+   # {
+   #   "client_id": "your_msal_client_id",
+   #   "authorities": [{"type": "AAD", "audience": "AzureADandPersonalMicrosoftAccount"}],
+   #   "redirect_uri": "msal{your_client_id}://auth"
+   # }
+   ```
+
+4. Sync Gradle and run on a device or emulator running Android 8.0 (API 26) or above.
 
 ### Installing the APK
 
 Download the latest release from the [Releases page](https://github.com/shrivatsav-0/monomail/releases/latest) and install directly. You may need to enable "Install unknown apps" in your device settings.
 
 Minimum supported version: Android 8.0 (API 26).
-
-## Screenshots
-
-| Sign In | Inbox | Compose |
-|---|---|---|
-| ![Sign In](https://monomail.millosaurs.me/6.png) | ![Inbox](https://monomail.millosaurs.me/1.png) | ![Compose](https://monomail.millosaurs.me/7.png) |
-
-| Dock Bar | Settings | Profile |
-|---|---|---|
-| ![Dock](https://monomail.millosaurs.me/8.png) | ![Settings](https://monomail.millosaurs.me/5.png) | ![Profile](https://monomail.millosaurs.me/4.png) |
 
 ## Contributing
 
