@@ -49,7 +49,7 @@ class MonoMailApp : Application() {
         val scheduledAt: Long
     )
 
-    private val _scheduledEmailEvents = MutableSharedFlow<ScheduledEmailEvent>(replay = 1)
+    private val _scheduledEmailEvents = MutableSharedFlow<ScheduledEmailEvent>(replay = 0)
     val scheduledEmailEvents = _scheduledEmailEvents.asSharedFlow()
 
     fun emitScheduledEmailEvent(event: ScheduledEmailEvent) {

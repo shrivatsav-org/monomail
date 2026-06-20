@@ -56,16 +56,17 @@ sealed class Screen(val route: String) {
     object ThreadDetail : Screen("thread/{threadId}") {
         fun createRoute(threadId: String) = "thread/$threadId"
     }
-    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}") {
+    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}") {
         fun createRoute(
             mode: ComposeMode = ComposeMode.NEW,
             to: String = "",
             subject: String = "",
             threadId: String = "",
-            messageId: String = ""
+            messageId: String = "",
+            scheduledId: String = ""
         ): String {
             val enc = { s: String -> URLEncoder.encode(s, "UTF-8") }
-            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}"
+            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}&scheduledId=${enc(scheduledId)}"
         }
     }
     object Scheduled : Screen("scheduled")
@@ -285,13 +286,14 @@ fun NavGraph(
                 )
             }
             composable(
-                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}",
+                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}",
                 arguments = listOf(
                     navArgument("mode") { type = NavType.StringType; defaultValue = "NEW" },
                     navArgument("to") { type = NavType.StringType; defaultValue = "" },
                     navArgument("subject") { type = NavType.StringType; defaultValue = "" },
                     navArgument("threadId") { type = NavType.StringType; defaultValue = "" },
-                    navArgument("messageId") { type = NavType.StringType; defaultValue = "" }
+                    navArgument("messageId") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("scheduledId") { type = NavType.StringType; defaultValue = "" }
                 )
             ) { backStackEntry ->
                 val dec = { s: String -> URLDecoder.decode(s, "UTF-8") }
@@ -302,6 +304,7 @@ fun NavGraph(
                 val subject = dec(backStackEntry.arguments?.getString("subject") ?: "")
                 val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
                 val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
+                val scheduledId = dec(backStackEntry.arguments?.getString("scheduledId") ?: "").takeIf { it.isNotEmpty() }
                 val currentUser = authManager.currentUser
                 val fromEmail = currentUser?.email ?: ""
                 val accountId = currentUser?.id ?: "gmail_unknown"
@@ -320,7 +323,8 @@ fun NavGraph(
                                 replyTo = to,
                                 originalSubject = subject,
                                 threadId = threadId,
-                                messageId = messageId
+                                messageId = messageId,
+                                scheduledId = scheduledId
                             ) as T
                         }
                     }
@@ -344,7 +348,19 @@ fun NavGraph(
                 )
                 ScheduledMessagesScreen(
                     viewModel = vm,
-                    onBack = { navController.popBackStack() }
+                    onBack = { navController.popBackStack() },
+                    onEdit = { scheduled ->
+                        kotlinx.coroutines.MainScope().launch {
+                            emailRepository.cancelScheduledMessage(scheduled.id)
+                        }
+                        navController.navigate(
+                            Screen.Compose.createRoute(
+                                to = scheduled.to,
+                                subject = scheduled.subject,
+                                scheduledId = scheduled.id
+                            )
+                        )
+                    }
                 )
             }
         }

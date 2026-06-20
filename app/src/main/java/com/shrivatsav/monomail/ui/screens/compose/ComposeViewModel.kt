@@ -50,7 +50,8 @@ class ComposeViewModel(
     originalSubject: String? = null,
     originalBody: String? = null,
     threadId: String? = null,
-    messageId: String? = null
+    messageId: String? = null,
+    scheduledId: String? = null
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(
@@ -87,6 +88,20 @@ class ComposeViewModel(
                 val email = repository.getEmailById(messageId)
                 if (email != null) {
                     _state.value = _state.value.copy(originalBody = email.body)
+                }
+            }
+        }
+        viewModelScope.launch {
+            if (!scheduledId.isNullOrEmpty()) {
+                val scheduled = repository.getScheduledMessageById(scheduledId)
+                if (scheduled != null) {
+                    _state.value = _state.value.copy(
+                        to = scheduled.to,
+                        cc = scheduled.cc,
+                        bcc = scheduled.bcc,
+                        subject = scheduled.subject,
+                        body = scheduled.body
+                    )
                 }
             }
         }

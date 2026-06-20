@@ -430,4 +430,5 @@ class EmailRepository(
     }
     fun getPendingScheduledMessagesFlow(accountId: String) = scheduledMessageDao.getPendingScheduledMessages(accountId)
     fun getPendingScheduledCountFlow(accountId: String) = scheduledMessageDao.getPendingCount(accountId)
+    suspend fun getScheduledMessageById(id: String) = scheduledMessageDao.getScheduledMessageById(id)
 }

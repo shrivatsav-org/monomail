@@ -22,7 +22,8 @@ import java.util.*
 @Composable
 fun ScheduledMessagesScreen(
     viewModel: ScheduledMessagesViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onEdit: (com.shrivatsav.monomail.data.local.ScheduledMessageEntity) -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
 
@@ -76,7 +77,8 @@ fun ScheduledMessagesScreen(
                 items(messages, key = { it.id }) { msg ->
                     ScheduledMessageItem(
                         message = msg,
-                        onCancel = { viewModel.cancelSchedule(msg.id) }
+                        onCancel = { viewModel.cancelSchedule(msg.id) },
+                        onEdit = { onEdit(msg) }
                     )
                 }
             }
@@ -87,12 +89,14 @@ fun ScheduledMessagesScreen(
 @Composable
 private fun ScheduledMessageItem(
     message: com.shrivatsav.monomail.data.local.ScheduledMessageEntity,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onEdit: () -> Unit = {}
 ) {
     val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · hh:mm a", Locale.getDefault()) }
     var showCancelConfirm by remember { mutableStateOf(false) }
 
     Surface(
+        onClick = onEdit,
         shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 1.dp

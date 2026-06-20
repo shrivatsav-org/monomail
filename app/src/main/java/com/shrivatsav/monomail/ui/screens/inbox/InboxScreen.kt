@@ -186,27 +186,9 @@ fun InboxScreen(
                         toastState = toastState,
                         onUndo = { viewModel.undoAction() },
                         onSettings = onSettings,
-                        onOpenProfile = { activeModal = ModalType.PROFILE }
+                        onOpenProfile = { activeModal = ModalType.PROFILE },
+                        scheduledCount = scheduledCount
                     )
-
-                    if (scheduledCount > 0) {
-                        Surface(
-                            onClick = onScheduledClick,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 4.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer
-                        ) {
-                            Text(
-                                "$scheduledCount scheduled · tap to view",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                            )
-                        }
-                    }
 
                     when (val s = state) {
                         is InboxState.Loading -> {
@@ -1013,7 +995,7 @@ private fun SupportIconAction(
     onClick: () -> Unit
 ) {
     TooltipBox(
-        positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
+        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
         tooltip = { PlainTooltip { Text(contentDescription) } },
         state = rememberTooltipState()
     ) {

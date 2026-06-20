@@ -38,6 +38,7 @@ internal fun InboxSearchBar(
     onStarredClick: () -> Unit,
     onTrashClick: () -> Unit,
     onScheduledClick: () -> Unit = {},
+    scheduledCount: Int = 0,
     isRefreshing: Boolean,
     toastState: InboxViewModel.ToastState?,
     onUndo: () -> Unit,
@@ -145,16 +146,32 @@ internal fun InboxSearchBar(
                                         verticalAlignment = Alignment.CenterVertically,
 
                                     ) {
-                                        IconButton(
-                                            onClick = onScheduledClick,
-                                            modifier = Modifier.size(40.dp)
+                                        BadgedBox(
+                                            badge = {
+                                                if (scheduledCount > 0) {
+                                                    Badge(
+                                                        containerColor = MaterialTheme.colorScheme.error,
+                                                        contentColor = MaterialTheme.colorScheme.onError
+                                                    ) {
+                                                        Text(
+                                                            if (scheduledCount > 99) "99+" else scheduledCount.toString(),
+                                                            style = MaterialTheme.typography.labelSmall
+                                                        )
+                                                    }
+                                                }
+                                            }
                                         ) {
-                                            Icon(
-                                                Icons.Outlined.CalendarMonth,
-                                                contentDescription = "Scheduled",
-                                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                                modifier = Modifier.size(25.dp)
-                                            )
+                                            IconButton(
+                                                onClick = onScheduledClick,
+                                                modifier = Modifier.size(40.dp)
+                                            ) {
+                                                Icon(
+                                                    Icons.Outlined.CalendarMonth,
+                                                    contentDescription = "Scheduled",
+                                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(25.dp)
+                                                )
+                                            }
                                         }
                                         IconButton(
                                             onClick = onMarkAllRead,
