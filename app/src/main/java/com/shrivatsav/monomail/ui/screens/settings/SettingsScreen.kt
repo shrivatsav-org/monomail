@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Reply
+import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.automirrored.outlined.ShortText
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material.icons.outlined.SystemUpdate
@@ -91,11 +92,6 @@ fun SettingsScreen(
                     onScaleChanged = { viewModel.setFontScale(it) }
                 )
                 CardDivider()
-                NavSizeRow(
-                    scale = settings.navScale,
-                    onScaleChanged = { viewModel.setNavScale(it) }
-                )
-                CardDivider()
                 SettingsToggleRow(
                     icon = Icons.Outlined.HorizontalRule,
                     title = "Show Dividers",
@@ -122,16 +118,6 @@ fun SettingsScreen(
             }
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.TouchApp, title = "Behavior")
-                SettingsToggleRow(
-                    icon = Icons.Outlined.Inbox,
-                    title = "Unified Inbox",
-                    subtitle = if (accountCount > 1) "Show emails from all accounts in one tab"
-                               else "Add another account to enable",
-                    checked = settings.unifiedInboxEnabled,
-                    onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) },
-                    enabled = accountCount > 1
-                )
-                CardDivider()
                 SettingsToggleRow(
                     icon = Icons.Outlined.Forum,
                     title = if (settings.organizeByThread) "Conversation View" else "Message Chain",
@@ -226,6 +212,30 @@ fun SettingsScreen(
                         )
                     }
                 }
+            }
+            SettingsCard {
+                SectionHeader(icon = Icons.Outlined.SpaceDashboard, title = "Dock Bar")
+                SettingsToggleRow(
+                    icon = Icons.Outlined.Inbox,
+                    title = "Unified Inbox",
+                    subtitle = if (accountCount > 1) "Show emails from all accounts in one tab"
+                               else "Add another account to enable",
+                    checked = settings.unifiedInboxEnabled,
+                    onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) },
+                    enabled = accountCount > 1
+                )
+                CardDivider()
+                NavSizeRow(
+                    scale = settings.navScale,
+                    onScaleChanged = { viewModel.setNavScale(it) }
+                )
+                CardDivider()
+                DockBarEditor(
+                    dockConfig = settings.dockConfig,
+                    maxSlots = DockConfig.MAX_SLOTS,
+                    unifiedInboxEnabled = settings.unifiedInboxEnabled,
+                    onConfigChanged = { viewModel.setDockConfig(it) }
+                )
             }
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.Notifications, title = "Notifications")
@@ -1039,6 +1049,158 @@ private fun TemplatesCard(viewModel: SettingsViewModel) {
             }
         )
     }
+}
+
+@Composable
+private fun DockBarEditor(
+    dockConfig: DockConfig,
+    maxSlots: Int,
+    unifiedInboxEnabled: Boolean,
+    onConfigChanged: (DockConfig) -> Unit
+) {
+    val allTabs = DockTabId.values().filter { it != DockTabId.UNIFIED || unifiedInboxEnabled }
+    val availableTabs = allTabs.filter { it !in dockConfig.primaryTabs }
+
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+        Text(
+            text = "Dock tabs (${dockConfig.primaryTabs.size}/$maxSlots)",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        dockConfig.primaryTabs.forEachIndexed { index, tabId ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = dockTabIcon(tabId),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = dockTabLabel(tabId),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(
+                    onClick = {
+                        val list = dockConfig.primaryTabs.toMutableList()
+                        if (index > 0) {
+                            list[index] = list[index - 1].also { list[index - 1] = list[index] }
+                            onConfigChanged(DockConfig(primaryTabs = list))
+                        }
+                    },
+                    modifier = Modifier.size(32.dp),
+                    enabled = index > 0
+                ) {
+                    Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = "Move up", modifier = Modifier.size(18.dp))
+                }
+                IconButton(
+                    onClick = {
+                        val list = dockConfig.primaryTabs.toMutableList()
+                        if (index < list.lastIndex) {
+                            list[index] = list[index + 1].also { list[index + 1] = list[index] }
+                            onConfigChanged(DockConfig(primaryTabs = list))
+                        }
+                    },
+                    modifier = Modifier.size(32.dp),
+                    enabled = index < dockConfig.primaryTabs.lastIndex
+                ) {
+                    Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Move down", modifier = Modifier.size(18.dp))
+                }
+                if (dockConfig.primaryTabs.size > 1) {
+                    IconButton(
+                        onClick = {
+                            val list = dockConfig.primaryTabs.toMutableList()
+                            list.removeAt(index)
+                            onConfigChanged(DockConfig(primaryTabs = list))
+                        },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(Icons.Outlined.RemoveCircleOutline, contentDescription = "Remove", modifier = Modifier.size(18.dp),
+                             tint = MaterialTheme.colorScheme.error)
+                    }
+                } else {
+                    Spacer(Modifier.size(32.dp))
+                }
+            }
+        }
+
+        if (availableTabs.isNotEmpty()) {
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                thickness = 0.5.dp
+            )
+            Text(
+                text = "Available",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
+            availableTabs.forEach { tabId ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = dockTabIcon(tabId),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = dockTabLabel(tabId),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (dockConfig.primaryTabs.size < maxSlots) {
+                        IconButton(onClick = {
+                            val list = dockConfig.primaryTabs.toMutableList()
+                            list.add(tabId)
+                            onConfigChanged(DockConfig(primaryTabs = list))
+                        }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Outlined.AddCircleOutline, contentDescription = "Add", modifier = Modifier.size(18.dp),
+                                 tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun dockTabIcon(tab: DockTabId): ImageVector = when (tab) {
+    DockTabId.UNIFIED -> Icons.Outlined.Inbox
+    DockTabId.INBOX -> Icons.Outlined.Inbox
+    DockTabId.SENT -> Icons.AutoMirrored.Outlined.Send
+    DockTabId.ARCHIVED -> Icons.Outlined.Archive
+    DockTabId.SNOOZED -> Icons.Outlined.Schedule
+    DockTabId.STARRED -> Icons.Outlined.StarOutline
+    DockTabId.TRASH -> Icons.Outlined.Delete
+    DockTabId.SPAM -> Icons.Outlined.Report
+}
+
+private fun dockTabLabel(tab: DockTabId): String = when (tab) {
+    DockTabId.UNIFIED -> "Unified"
+    DockTabId.INBOX -> "Inbox"
+    DockTabId.SENT -> "Sent"
+    DockTabId.ARCHIVED -> "Archived"
+    DockTabId.SNOOZED -> "Snoozed"
+    DockTabId.STARRED -> "Starred"
+    DockTabId.TRASH -> "Trash"
+    DockTabId.SPAM -> "Spam"
 }
 
 @Composable

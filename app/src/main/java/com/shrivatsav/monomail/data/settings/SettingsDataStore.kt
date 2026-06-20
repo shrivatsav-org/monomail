@@ -15,6 +15,17 @@ enum class SwipeAction { ARCHIVE, STAR, DELETE, READ_UNREAD }
 enum class DefaultReply { REPLY, REPLY_ALL }
 enum class SyncFrequency { MIN_15, MIN_30, HOUR_1, MANUAL }
 enum class UndoSendWindow(val seconds: Int) { SEC_5(5), SEC_10(10), SEC_20(20), SEC_30(30) }
+enum class DockTabId { UNIFIED, INBOX, SENT, ARCHIVED, SNOOZED, STARRED, TRASH, SPAM }
+data class DockConfig(
+    val primaryTabs: List<DockTabId> = listOf(
+        DockTabId.UNIFIED, DockTabId.SENT, DockTabId.ARCHIVED
+    )
+) {
+    companion object {
+        const val MAX_SLOTS = 4
+        fun defaults() = DockConfig()
+    }
+}
 data class EmailTemplate(
     val name: String,
     val subject: String,
@@ -39,7 +50,8 @@ data class AppSettings(
     val organizeByThread: Boolean = true,
     val navScale: Float = 1f,
     val undoSendEnabled: Boolean = true,
-    val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10
+    val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10,
+    val dockConfig: DockConfig = DockConfig.defaults()
 )
 class SettingsDataStore(private val context: Context) {
     private object Keys {
@@ -63,8 +75,10 @@ class SettingsDataStore(private val context: Context) {
         val UNDO_SEND_ENABLED = booleanPreferencesKey("undo_send_enabled")
         val UNDO_SEND_WINDOW = stringPreferencesKey("undo_send_window")
         val TEMPLATES = stringPreferencesKey("email_templates")
+        val DOCK_CONFIG = stringPreferencesKey("dock_config")
     }
     val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
+        val dockConfigJson = prefs[Keys.DOCK_CONFIG]
         AppSettings(
             themeMode = prefs[Keys.THEME_MODE]?.let { ThemeMode.valueOf(it) } ?: ThemeMode.SYSTEM,
             fontScale = prefs[Keys.FONT_SCALE]?.let { FontScale.valueOf(it) } ?: FontScale.DEFAULT,
@@ -84,7 +98,10 @@ class SettingsDataStore(private val context: Context) {
             organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true,
             navScale = prefs[Keys.NAV_SCALE] ?: 1f,
             undoSendEnabled = prefs[Keys.UNDO_SEND_ENABLED] ?: true,
-            undoSendWindow = prefs[Keys.UNDO_SEND_WINDOW]?.let { UndoSendWindow.valueOf(it) } ?: UndoSendWindow.SEC_10
+            undoSendWindow = prefs[Keys.UNDO_SEND_WINDOW]?.let { UndoSendWindow.valueOf(it) } ?: UndoSendWindow.SEC_10,
+            dockConfig = dockConfigJson?.let { json ->
+                try { Gson().fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
+            } ?: DockConfig.defaults()
         )
     }
     suspend fun setThemeMode(mode: ThemeMode) {
@@ -143,6 +160,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setUndoSendWindow(window: UndoSendWindow) {
         context.dataStore.edit { it[Keys.UNDO_SEND_WINDOW] = window.name }
+    }
+    suspend fun setDockConfig(config: DockConfig) {
+        context.dataStore.edit { it[Keys.DOCK_CONFIG] = Gson().toJson(config) }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()

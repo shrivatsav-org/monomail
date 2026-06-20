@@ -44,7 +44,8 @@ class OutlookProvider(
                     EmailFolder.SENT -> append("parentFolderId eq 'sentitems'")
                     EmailFolder.ARCHIVE -> append("parentFolderId eq 'archive'")
                     EmailFolder.TRASH -> append("parentFolderId eq 'deleteditems'")
-                    EmailFolder.STARRED -> append("categories/any(c:c eq 'Yellow category')") 
+                    EmailFolder.STARRED -> append("categories/any(c:c eq 'Yellow category')")
+                    EmailFolder.SPAM -> append("parentFolderId eq 'junkemail'")
                 }
             }
         }.takeIf { it.isNotEmpty() }

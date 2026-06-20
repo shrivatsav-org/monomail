@@ -28,6 +28,7 @@ class GmailProvider(
             folder == EmailFolder.SENT -> "SENT"
             folder == EmailFolder.STARRED -> "STARRED"
             folder == EmailFolder.TRASH -> "TRASH"
+            folder == EmailFolder.SPAM -> "SPAM"
             folder == EmailFolder.ARCHIVE -> null
             else -> "INBOX"
         }
@@ -60,7 +61,8 @@ class GmailProvider(
                 if ("SENT" in labels) folders.add(EmailFolder.SENT)
                 if ("STARRED" in labels) folders.add(EmailFolder.STARRED)
                 if ("TRASH" in labels) folders.add(EmailFolder.TRASH)
-                if ("INBOX" !in labels && "TRASH" !in labels && "SENT" !in labels) folders.add(EmailFolder.ARCHIVE)
+                if ("SPAM" in labels) folders.add(EmailFolder.SPAM)
+                if ("INBOX" !in labels && "TRASH" !in labels && "SENT" !in labels && "SPAM" !in labels) folders.add(EmailFolder.ARCHIVE)
                 ProviderMessage(
                     id = email.id,
                     threadId = email.threadId,
@@ -93,7 +95,8 @@ class GmailProvider(
             if ("SENT" in labels) folders.add(EmailFolder.SENT)
             if ("STARRED" in labels) folders.add(EmailFolder.STARRED)
             if ("TRASH" in labels) folders.add(EmailFolder.TRASH)
-            if ("INBOX" !in labels && "TRASH" !in labels && "SENT" !in labels) folders.add(EmailFolder.ARCHIVE)
+            if ("SPAM" in labels) folders.add(EmailFolder.SPAM)
+            if ("INBOX" !in labels && "TRASH" !in labels && "SENT" !in labels && "SPAM" !in labels) folders.add(EmailFolder.ARCHIVE)
             ProviderMessage(
                 id = email.id,
                 threadId = email.threadId,

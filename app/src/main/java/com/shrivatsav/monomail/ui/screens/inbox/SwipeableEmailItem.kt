@@ -46,6 +46,7 @@ internal fun SwipeableEmailItem(
         when (action) {
             com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> {
                 if (tabForSwipe == InboxTab.ARCHIVED) viewModel.unarchiveThread(thread.threadId)
+                else if (tabForSwipe == InboxTab.SPAM) viewModel.reportNotSpam(thread.threadId)
                 else viewModel.archiveThread(thread.threadId)
                 scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
             }
@@ -109,7 +110,7 @@ internal fun SwipeableEmailItem(
                     when (action) {
                         com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE ->
                             Icon(
-                                if (tabForSwipe == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
+                                if (tabForSwipe == InboxTab.ARCHIVED) Icons.Outlined.Inbox else if (tabForSwipe == InboxTab.SPAM) Icons.Outlined.Restore else Icons.Outlined.Archive,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer
                             )

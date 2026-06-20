@@ -78,6 +78,7 @@ class EmailRepository(
             InboxTab.TRASH -> threadDao.getTrashThreads(activeAccountId)
             InboxTab.UNIFIED -> threadDao.getAllInboxThreads()
             InboxTab.SNOOZED -> threadDao.getSnoozedThreads(activeAccountId)
+            InboxTab.SPAM -> threadDao.getSpamThreads(activeAccountId)
         }.map { list -> list.map { it.toDomainModel() } }
         emitAll(dbFlow)
     }
@@ -94,6 +95,7 @@ class EmailRepository(
             InboxTab.TRASH -> emailDao.getTrashEmails(activeAccountId)
             InboxTab.UNIFIED -> emailDao.getAllInboxEmails()
             InboxTab.SNOOZED -> emailDao.getInboxEmails(activeAccountId)
+            InboxTab.SPAM -> emailDao.getSpamEmails(activeAccountId)
         }.map { list -> list.map { it.toDomainModel() } }
         emitAll(dbFlow)
     }
@@ -110,7 +112,7 @@ class EmailRepository(
             val provider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
             if (provider == null) return Result.failure(Exception("No active provider"))
             val targetAccountId = accountId ?: getActiveAccountId()
-            if (tab == InboxTab.SNOOZED) return Result.success(null)
+            if (tab == InboxTab.SNOOZED || tab == InboxTab.SPAM) return Result.success(null)
             val folder = when (tab) {
                 InboxTab.INBOX -> EmailFolder.INBOX
                 InboxTab.SENT -> EmailFolder.SENT
@@ -119,6 +121,7 @@ class EmailRepository(
                 InboxTab.TRASH -> EmailFolder.TRASH
                 InboxTab.UNIFIED -> EmailFolder.INBOX
                 InboxTab.SNOOZED -> EmailFolder.INBOX
+                InboxTab.SPAM -> EmailFolder.SPAM
             }
             val listResponse = provider.listThreads(
                 folder = folder,
@@ -152,7 +155,8 @@ class EmailRepository(
                         inInbox = EmailFolder.INBOX in allFolders,
                         inSent = EmailFolder.SENT in allFolders,
                         inArchived = EmailFolder.ARCHIVE in allFolders,
-                        inTrash = EmailFolder.TRASH in allFolders
+                        inTrash = EmailFolder.TRASH in allFolders,
+                        inSpam = EmailFolder.SPAM in allFolders
                     )
                 }
                 threadDao.insertThreads(entities)
@@ -285,6 +289,11 @@ class EmailRepository(
         threadDao.emptyTrash(activeAccountId)
         emailDao.emptyTrash(activeAccountId)
     }
+    suspend fun emptySpam() {
+        val activeAccountId = getActiveAccountId()
+        threadDao.emptySpam(activeAccountId)
+        emailDao.emptySpam(activeAccountId)
+    }
 
     suspend fun deleteThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
@@ -307,6 +316,11 @@ class EmailRepository(
             .putString(SyncWorker.KEY_THREAD_ID, threadId)
             .build()
         enqueueSync(data)
+    }
+    suspend fun reportNotSpam(threadId: String) {
+        val activeAccountId = getActiveAccountId()
+        threadDao.reportNotSpam(threadId, activeAccountId)
+        emailDao.reportThreadEmailsNotSpam(threadId, activeAccountId)
     }
     suspend fun clearLocalData() {
         withContext(Dispatchers.IO) { database.clearAllTables() }
