@@ -54,6 +54,8 @@ class ComposeViewModel(
     scheduledId: String? = null
 ) : ViewModel() {
 
+    private var scheduledMessageId: String? = scheduledId
+
     private val _state = MutableStateFlow(
         ComposeUiState(
             mode = mode,
@@ -196,6 +198,8 @@ class ComposeViewModel(
 
     private fun executeSend(current: ComposeUiState) {
         viewModelScope.launch {
+            val sId = scheduledMessageId
+            if (!sId.isNullOrEmpty()) repository.cancelScheduledMessage(sId)
             _state.value = current.copy(isSending = true, error = null)
             val fullBody = buildString {
                 append(current.body.replace("\n", "<br>"))
@@ -243,6 +247,8 @@ class ComposeViewModel(
         val current = _state.value
         _state.value = current.copy(showSchedulePicker = false, scheduledAt = scheduledAt)
         viewModelScope.launch {
+            val sId = scheduledMessageId
+            if (!sId.isNullOrEmpty()) repository.cancelScheduledMessage(sId)
             val cachedAttachments = repository.copyAttachmentsToCache(
                 "schedule_${System.currentTimeMillis()}",
                 current.attachments

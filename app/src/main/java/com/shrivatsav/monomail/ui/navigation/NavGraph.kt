@@ -350,9 +350,6 @@ fun NavGraph(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
                     onEdit = { scheduled ->
-                        kotlinx.coroutines.MainScope().launch {
-                            emailRepository.cancelScheduledMessage(scheduled.id)
-                        }
                         navController.navigate(
                             Screen.Compose.createRoute(
                                 to = scheduled.to,
