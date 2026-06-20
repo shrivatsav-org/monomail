@@ -35,8 +35,6 @@ internal fun ProfileCard(
     onSignOut: () -> Unit,
     onShowSwitchAccount: () -> Unit,
     onCycleAccount: (String) -> Unit,
-    onTrashClick: () -> Unit,
-    onStarredClick: () -> Unit,
     onSettings: () -> Unit,
     onAddAccount: () -> Unit,
 ) {
@@ -183,8 +181,6 @@ internal fun ProfileCard(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                ProfileMenuItem(Icons.Outlined.Star, "Starred", onStarredClick)
-                ProfileMenuItem(Icons.Outlined.Delete, "Trash", onTrashClick)
                 ProfileMenuItem(Icons.Outlined.Settings, "Settings", onSettings)
             }
 

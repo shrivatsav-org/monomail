@@ -29,13 +29,23 @@ class SettingsViewModel(
     fun setDefaultReply(reply: DefaultReply) = viewModelScope.launch { settingsDataStore.setDefaultReply(reply) }
     fun setEmailNotifications(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setEmailNotifications(enabled) }
     fun setSyncFrequency(freq: SyncFrequency) = viewModelScope.launch { settingsDataStore.setSyncFrequency(freq) }
-    fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUnifiedInboxEnabled(enabled) }
+    fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch {
+        settingsDataStore.setUnifiedInboxEnabled(enabled)
+        if (!enabled) {
+            val currentConfig = settings.value.dockConfig
+            val filtered = currentConfig.primaryTabs.filter { it != DockTabId.UNIFIED }
+            if (filtered != currentConfig.primaryTabs) {
+                settingsDataStore.setDockConfig(DockConfig(primaryTabs = filtered))
+            }
+        }
+    }
     fun setSmartGroupingEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingEnabled(enabled) }
     fun setSmartGroupingRecentOnly(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingRecentOnly(enabled) }
     fun setOrganizeByThread(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setOrganizeByThread(enabled) }
     fun setNavScale(scale: Float) = viewModelScope.launch { settingsDataStore.setNavScale(scale) }
     fun setUndoSendEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUndoSendEnabled(enabled) }
     fun setUndoSendWindow(window: UndoSendWindow) = viewModelScope.launch { settingsDataStore.setUndoSendWindow(window) }
+    fun setDockConfig(config: DockConfig) = viewModelScope.launch { settingsDataStore.setDockConfig(config) }
     val templates = settingsDataStore.templatesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun saveTemplates(templates: List<EmailTemplate>) = viewModelScope.launch {

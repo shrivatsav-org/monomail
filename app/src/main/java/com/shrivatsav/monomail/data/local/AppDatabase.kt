@@ -8,7 +8,7 @@ import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
     entities = [ThreadEntity::class, EmailEntity::class, ScheduledMessageEntity::class],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -29,7 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7)
+                .addMigrations(MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -61,5 +61,11 @@ val MIGRATION_6_7 = object : androidx.room.migration.Migration(6, 7) {
         db.execSQL("ALTER TABLE threads ADD COLUMN snoozedUntil INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE emails ADD COLUMN isSnoozed INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE emails ADD COLUMN snoozedUntil INTEGER NOT NULL DEFAULT 0")
+    }
+}
+val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE threads ADD COLUMN inSpam INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE emails ADD COLUMN inSpam INTEGER NOT NULL DEFAULT 0")
     }
 }

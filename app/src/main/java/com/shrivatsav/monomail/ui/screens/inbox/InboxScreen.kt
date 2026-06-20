@@ -56,7 +56,9 @@ fun InboxScreen(
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
     var showClearTrashWarning by remember { mutableStateOf(false) }
+    var showClearSpamWarning by remember { mutableStateOf(false) }
     var isTrashCountdownActive by remember { mutableStateOf(false) }
+    var isSpamCountdownActive by remember { mutableStateOf(false) }
     val app = context.applicationContext as com.shrivatsav.monomail.MonoMailApp
     val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
         initial = com.shrivatsav.monomail.data.settings.AppSettings()
@@ -151,7 +153,7 @@ fun InboxScreen(
                 .padding(padding)
         ) {
             val shouldBlur =
-                longPressedThread != null || blurForModal || threadToDelete != null || showWelcomePrompt || showClearTrashWarning
+                longPressedThread != null || blurForModal || threadToDelete != null || showWelcomePrompt || showClearTrashWarning || showClearSpamWarning
 
             Box(
                 modifier = Modifier
@@ -443,75 +445,28 @@ fun InboxScreen(
                 Row(
                     modifier = Modifier.padding(bottom = navBarHeight + 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Bottom
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        shadowElevation = 4.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            val onUnifiedClick = remember(viewModel) { { viewModel.switchTab(InboxTab.UNIFIED) } }
-                            val onInboxClick = remember(viewModel) { { viewModel.switchTab(InboxTab.INBOX) } }
-                            val onSentClick = remember(viewModel) { { viewModel.switchTab(InboxTab.SENT) } }
-                            val onArchiveClick = remember(viewModel) { { viewModel.switchTab(InboxTab.ARCHIVED) } }
-                            if (unifiedInboxEnabled) {
-                                DockTab(
-                                    isActive = tabForDock == InboxTab.UNIFIED,
-                                    icon = Icons.Outlined.Inbox,
-                                    label = "Unified",
-                                    contentDescription = "Unified Inbox",
-                                    onClick = onUnifiedClick,
-                                    scale = appSettings.navScale
-                                )
-                            }
-                            DockTab(
-                                isActive = tabForDock == InboxTab.INBOX,
-                                icon = if (unifiedInboxEnabled) Icons.Outlined.AccountCircle else Icons.Outlined.Inbox,
-                                label = "Inbox",
-                                contentDescription = "Primary Inbox",
-                                onClick = onInboxClick,
-                                scale = appSettings.navScale
-                            )
-                            DockTab(
-                                isActive = tabForDock == InboxTab.SENT,
-                                icon = Icons.AutoMirrored.Outlined.Send,
-                                label = "Sent",
-                                contentDescription = "Sent",
-                                onClick = onSentClick,
-                                scale = appSettings.navScale
-                            )
-                            DockTab(
-                                isActive = tabForDock == InboxTab.ARCHIVED,
-                                icon = Icons.Outlined.Archive,
-                                label = "Archived",
-                                contentDescription = "Archived",
-                                onClick = onArchiveClick,
-                                scale = appSettings.navScale
-                            )
-                            DockTab(
-                                isActive = tabForDock == InboxTab.SNOOZED,
-                                icon = Icons.Outlined.Schedule,
-                                label = "Snoozed",
-                                contentDescription = "Snoozed",
-                                onClick = remember(viewModel) { { viewModel.switchTab(InboxTab.SNOOZED) } },
-                                scale = appSettings.navScale
-                            )
-                        }
-                    }
+                    BottomDockBar(
+                        currentTab = tabForDock,
+                        dockConfig = appSettings.dockConfig,
+                        unifiedInboxEnabled = unifiedInboxEnabled,
+                        appSettings = appSettings,
+                        onTabClick = { viewModel.switchTab(it) }
+                    )
                     AnimatedContent(
-                        targetState = tabForDock == InboxTab.TRASH,
+                        targetState = when {
+                            tabForDock == InboxTab.TRASH -> "trash"
+                            tabForDock == InboxTab.SPAM -> "spam"
+                            else -> "default"
+                        },
                         label = "FabIconMorph",
                         transitionSpec = {
                             (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.85f)) togetherWith
                                     (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f))
                         }
-                    ) { isTrash ->
-                        if (isTrash) {
+                    ) { state ->
+                        if (state == "trash") {
                             FloatingActionButton(
                                 onClick = { showClearTrashWarning = true },
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -537,7 +492,33 @@ fun InboxScreen(
                                     )
                                 }
                             }
-                        } else {
+                        } else if (state == "spam") {
+                            FloatingActionButton(
+                                onClick = { showClearSpamWarning = true },
+                                containerColor = MaterialTheme.colorScheme.errorContainer,
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                shape = CircleShape,
+                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                                modifier = Modifier.height((42 * appSettings.navScale).dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Outlined.Report,
+                                        contentDescription = "Empty Spam",
+                                        modifier = Modifier.size((22 * appSettings.navScale).dp)
+                                    )
+                                    Text(
+                                        text = "Empty",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
+                        } else if (state == "default") {
                             FloatingActionButton(
                                 onClick = onCompose,
                                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -619,7 +600,7 @@ fun InboxScreen(
                                     .fillMaxWidth()
                                     .padding(horizontal = 8.dp, vertical = 8.dp),
                                 horizontalArrangement = Arrangement.SpaceEvenly,
-                                verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.Bottom
                             ) {
                                 if (tabForMenu == InboxTab.SNOOZED) {
                                     LongPressAction(
@@ -644,13 +625,19 @@ fun InboxScreen(
                                 }
                                 LongPressAction(
                                     icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
-                                    label = if (tabForMenu == InboxTab.ARCHIVED) "Unarchive" else "Archive",
+                                    label = when (tabForMenu) {
+                                        InboxTab.ARCHIVED -> "Unarchive"
+                                        InboxTab.SPAM -> "Not spam"
+                                        else -> "Archive"
+                                    },
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     onClick = {
                                         if (tabForMenu == InboxTab.ARCHIVED) viewModel.unarchiveThread(
                                             thread.threadId
                                         )
-                                        else viewModel.archiveThread(thread.threadId)
+                                        else if (tabForMenu == InboxTab.SPAM) {
+                                            viewModel.reportNotSpam(thread.threadId)
+                                        } else viewModel.archiveThread(thread.threadId)
                                         longPressedThread = null
                                     }
                                 )
@@ -664,7 +651,7 @@ fun InboxScreen(
                                         longPressedThread = null
                                     }
                                 )
-                                if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED) {
+                                if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED && tabForMenu != InboxTab.SPAM) {
                                     LongPressAction(
                                         icon = Icons.Outlined.Schedule,
                                         label = "Snooze",
@@ -711,8 +698,6 @@ fun InboxScreen(
                 },
                 onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
                 onBackToProfile = { activeModal = ModalType.PROFILE },
-                onTrashClick = { activeModal = null; viewModel.switchTab(InboxTab.TRASH) },
-                onStarredClick = { activeModal = null; viewModel.switchTab(InboxTab.STARRED) },
                 onSettings = { activeModal = null; onSettings() },
             )
         }
@@ -973,6 +958,76 @@ fun InboxScreen(
                     TextButton(onClick = {
                         isTrashCountdownActive = false
                         showClearTrashWarning = false
+                    }) {
+                        Text("Cancel")
+                    }
+                }
+            }
+        }
+    }
+
+    com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
+        visible = showClearSpamWarning,
+        onDismiss = { showClearSpamWarning = false; isSpamCountdownActive = false }
+    ) {
+        var spamCountdown by remember { mutableIntStateOf(5) }
+        LaunchedEffect(showClearSpamWarning) {
+            if (showClearSpamWarning) {
+                spamCountdown = 5
+                isSpamCountdownActive = true
+                while (spamCountdown > 0 && isSpamCountdownActive) {
+                    kotlinx.coroutines.delay(1000)
+                    spamCountdown--
+                }
+                if (isSpamCountdownActive) {
+                    viewModel.emptySpam()
+                    showClearSpamWarning = false
+                }
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(28.dp),
+            color = MaterialTheme.colorScheme.background,
+            contentColor = MaterialTheme.colorScheme.onBackground,
+            shadowElevation = 32.dp,
+            modifier = Modifier.fillMaxWidth(0.88f)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Clear Spam?",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Are you sure you want to permanently delete all messages in spam? This action cannot be undone.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                ) {
+                    Text(
+                        text = if (spamCountdown > 0) "Clearing spam in $spamCountdown..."
+                               else "Clearing spam...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    TextButton(onClick = {
+                        isSpamCountdownActive = false
+                        showClearSpamWarning = false
                     }) {
                         Text("Cancel")
                     }

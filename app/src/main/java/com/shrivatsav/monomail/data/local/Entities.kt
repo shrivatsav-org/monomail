@@ -23,7 +23,8 @@ data class ThreadEntity(
     val inArchived: Boolean,
     val inTrash: Boolean,
     val isSnoozed: Boolean = false,
-    val snoozedUntil: Long = 0L
+    val snoozedUntil: Long = 0L,
+    val inSpam: Boolean = false
 ) {
     fun toDomainModel() = EmailThread(
         threadId = threadId,
@@ -62,7 +63,8 @@ data class EmailEntity(
     val inArchived: Boolean = false,
     val inTrash: Boolean = false,
     val isSnoozed: Boolean = false,
-    val snoozedUntil: Long = 0L
+    val snoozedUntil: Long = 0L,
+    val inSpam: Boolean = false
 ) {
     fun toDomainModel() = Email(
         id = id,
@@ -91,7 +93,8 @@ fun EmailThread.toEntity(
     inArchived: Boolean = false,
     inTrash: Boolean = false,
     isSnoozed: Boolean = false,
-    snoozedUntil: Long = 0L
+    snoozedUntil: Long = 0L,
+    inSpam: Boolean = false
 ) = ThreadEntity(
     threadId = threadId,
     accountId = accountId,
@@ -110,7 +113,8 @@ fun EmailThread.toEntity(
     inArchived = inArchived,
     inTrash = inTrash,
     isSnoozed = isSnoozed,
-    snoozedUntil = snoozedUntil
+    snoozedUntil = snoozedUntil,
+    inSpam = inSpam
 )
 @Entity(tableName = "scheduled_messages")
 data class ScheduledMessageEntity(
@@ -147,6 +151,7 @@ fun Email.toEntity(accountId: String) = EmailEntity(
     attachmentsJson = com.google.gson.Gson().toJson(attachments),
     inInbox = labels.contains("INBOX"),
     inSent = labels.contains("SENT"),
-    inArchived = !labels.contains("INBOX") && !labels.contains("TRASH") && !labels.contains("SENT"),
-    inTrash = labels.contains("TRASH")
+    inArchived = !labels.contains("INBOX") && !labels.contains("TRASH") && !labels.contains("SENT") && !labels.contains("SPAM"),
+    inTrash = labels.contains("TRASH"),
+    inSpam = labels.contains("SPAM")
 )

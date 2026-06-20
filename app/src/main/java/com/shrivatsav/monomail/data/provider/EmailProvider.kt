@@ -23,4 +23,4 @@ interface EmailProvider {
         threadId: String? = null, attachments: List<EmailAttachment> = emptyList()
     ): String?
 }
-enum class EmailFolder { INBOX, SENT, ARCHIVE, STARRED, TRASH }
+enum class EmailFolder { INBOX, SENT, ARCHIVE, STARRED, TRASH, SPAM }

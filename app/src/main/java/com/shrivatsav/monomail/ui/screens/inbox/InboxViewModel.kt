@@ -26,7 +26,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED, SNOOZED }
+enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED, SNOOZED, SPAM }
 sealed class InboxState {
     object Loading : InboxState()
     data class Success(
@@ -313,9 +313,15 @@ class InboxViewModel(
             }
         }
     }
+    fun emptySpam() {
+        viewModelScope.launch { repository.emptySpam() }
+    }
 
     fun restoreThread(threadId: String) {
         viewModelScope.launch { repository.restoreThread(threadId) }
+    }
+    fun reportNotSpam(threadId: String) {
+        viewModelScope.launch { repository.reportNotSpam(threadId) }
     }
     fun unarchiveThread(threadId: String) {
         viewModelScope.launch { repository.unarchiveThread(threadId) }

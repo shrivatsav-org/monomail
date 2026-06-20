@@ -32,8 +32,6 @@ internal fun ModalOverlay(
     onShowSwitchAccount: () -> Unit,
     onBackToProfile: () -> Unit,
     onCycleAccount: (String) -> Unit,
-    onTrashClick: () -> Unit,
-    onStarredClick: () -> Unit,
     onSettings: () -> Unit,
 ) {
     var displayed by remember { mutableStateOf<ModalType?>(null) }
@@ -120,8 +118,6 @@ internal fun ModalOverlay(
                                     onSignOut = onSignOut,
                                     onShowSwitchAccount = onShowSwitchAccount,
                                     onCycleAccount = onCycleAccount,
-                                    onTrashClick = onTrashClick,
-                                    onStarredClick = onStarredClick,
                                     onSettings = onSettings,
                                     onAddAccount = onAddAccount,
                                 )
