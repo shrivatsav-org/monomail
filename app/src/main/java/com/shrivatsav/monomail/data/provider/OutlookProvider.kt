@@ -154,6 +154,10 @@ class OutlookProvider(
         val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
         msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("inbox")) }
     }
+    override suspend fun permanentlyDeleteThread(threadId: String) {
+        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        msgs.forEach { api.deleteMessage(it.id) }
+    }
     override suspend fun toggleStar(threadId: String, starred: Boolean) {
         val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
         msgs.forEach { msg ->

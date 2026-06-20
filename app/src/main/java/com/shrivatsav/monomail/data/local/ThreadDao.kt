@@ -20,6 +20,8 @@ interface ThreadDao {
     fun getStarredThreads(accountId: String): Flow<List<ThreadEntity>>
     @Query("SELECT * FROM threads WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC")
     fun getTrashThreads(accountId: String): Flow<List<ThreadEntity>>
+    @Query("SELECT threadId FROM threads WHERE accountId = :accountId AND inTrash = 1")
+    suspend fun getTrashThreadIds(accountId: String): List<String>
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertThreads(threads: List<ThreadEntity>)
     @Query("UPDATE threads SET isStarred = :isStarred WHERE threadId = :threadId AND accountId = :accountId")

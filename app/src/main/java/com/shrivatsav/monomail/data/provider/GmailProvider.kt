@@ -143,6 +143,9 @@ class GmailProvider(
     override suspend fun restoreThread(threadId: String) {
         api.untrashThread(threadId)
     }
+    override suspend fun permanentlyDeleteThread(threadId: String) {
+        api.permanentlyDeleteThread(threadId)
+    }
     override suspend fun toggleStar(threadId: String, starred: Boolean) {
         if (starred) {
             api.modifyThread(threadId, ModifyThreadRequest(addLabelIds = listOf("STARRED")))

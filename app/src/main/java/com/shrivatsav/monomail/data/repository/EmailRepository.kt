@@ -112,7 +112,7 @@ class EmailRepository(
             val provider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
             if (provider == null) return Result.failure(Exception("No active provider"))
             val targetAccountId = accountId ?: getActiveAccountId()
-            if (tab == InboxTab.SNOOZED || tab == InboxTab.SPAM) return Result.success(null)
+            if (tab == InboxTab.SNOOZED) return Result.success(null)
             val folder = when (tab) {
                 InboxTab.INBOX -> EmailFolder.INBOX
                 InboxTab.SENT -> EmailFolder.SENT
@@ -286,6 +286,13 @@ class EmailRepository(
     }
     suspend fun emptyTrash() {
         val activeAccountId = getActiveAccountId()
+        val provider = getActiveProvider()
+        if (provider != null) {
+            val trashIds = threadDao.getTrashThreadIds(activeAccountId)
+            trashIds.forEach { threadId ->
+                try { provider.permanentlyDeleteThread(threadId) } catch (e: Exception) { Log.e("EmailRepo", "permanent delete failed for $threadId", e) }
+            }
+        }
         threadDao.emptyTrash(activeAccountId)
         emailDao.emptyTrash(activeAccountId)
     }
