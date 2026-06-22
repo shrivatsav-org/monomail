@@ -16,7 +16,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -27,15 +26,11 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.PlainTooltip
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TooltipBox
-import androidx.compose.material3.TooltipDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.rememberTooltipState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -53,8 +48,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material3.LinearProgressIndicator
 import com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig
 import androidx.compose.material3.Surface
@@ -111,8 +104,8 @@ fun ImapSetupScreen(
                     },
                     actions = {
                         var expanded by remember { mutableStateOf(false) }
-                        IconButton(onClick = { expanded = true }) {
-                            Icon(Icons.Rounded.MoreVert, contentDescription = "Default Configurations")
+                        TextButton(onClick = { expanded = true }) {
+                            Text("Defaults")
                         }
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
                             DropdownMenuItem(
@@ -175,24 +168,7 @@ fun ImapSetupScreen(
                     label = { Text("Email Address") },
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                    singleLine = true,
-                    trailingIcon = if (suggestedConfig != null) {
-                        {
-                            TooltipBox(
-                                positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(),
-                                tooltip = { PlainTooltip { Text("Auto-fill IMAP/SMTP settings") } },
-                                state = rememberTooltipState()
-                            ) {
-                                IconButton(onClick = { viewModel.applySuggestion(suggestedConfig!!) }) {
-                                    Icon(
-                                        Icons.Rounded.CheckCircle,
-                                        contentDescription = "Auto-fill settings",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-                    } else null
+                    singleLine = true
                 )
 
                 OutlinedTextField(
