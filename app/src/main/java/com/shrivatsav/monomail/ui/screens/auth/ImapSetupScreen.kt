@@ -306,6 +306,16 @@ fun ImapSetupScreen(
             enter = fadeIn(),
             exit = fadeOut()
         ) {
+            val progress = remember { androidx.compose.animation.core.Animatable(0f) }
+            androidx.compose.runtime.LaunchedEffect(Unit) {
+                progress.animateTo(
+                    targetValue = 0.95f,
+                    animationSpec = androidx.compose.animation.core.tween(
+                        durationMillis = 15000,
+                        easing = androidx.compose.animation.core.LinearOutSlowInEasing
+                    )
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -330,6 +340,7 @@ fun ImapSetupScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         LinearProgressIndicator(
+                            progress = { progress.value },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)
