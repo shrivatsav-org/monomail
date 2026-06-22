@@ -227,39 +227,28 @@ fun ImapSetupScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            OutlinedButton(
-                onClick = { viewModel.testConnection(context) },
+            Button(
+                onClick = { viewModel.testAndSaveAccount(context, onSetupComplete) },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 enabled = isFormValid && testState !is ImapTestState.Testing
             ) {
                 if (testState is ImapTestState.Testing) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Testing...")
-                } else if (testState is ImapTestState.Success) {
-                    Icon(Icons.Rounded.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Connection Successful")
+                    Text("Signing In...")
                 } else {
-                    Text("Test Connection")
+                    Text("Sign In")
                 }
             }
 
             if (testState is ImapTestState.Error) {
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = (testState as ImapTestState.Error).message,
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
-            }
-
-            Button(
-                onClick = { viewModel.saveAccount(onSetupComplete) },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                enabled = isSaveEnabled
-            ) {
-                Text("Save Account")
             }
             
             Spacer(modifier = Modifier.height(32.dp))

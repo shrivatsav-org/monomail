@@ -266,17 +266,29 @@ class ImapProvider(
         }
     }
 
-    override suspend fun getThread(threadId: String): ProviderThread = withContext(Dispatchers.IO) {
+    override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withContext(Dispatchers.IO) {
         val store = getStore()
         
-        // A full IMAP search across folders is slow. We'll search INBOX and SENT to find messages matching threadId/references.
-        // For a generic IMAP client without an index, getting a full thread involves fetching the specific message and finding replies.
-        // To simplify, we search INBOX and SENT for the Message-ID in References or Message-ID.
-        val searchFolders = listOfNotNull(
-            folderNamesCache[EmailFolder.INBOX],
-            folderNamesCache[EmailFolder.SENT],
-            folderNamesCache[EmailFolder.ARCHIVE]
-        ).distinct()
+        // Use folder hints if provided to avoid searching all folders.
+        // IMAP folder names are exactly the strings in the folderHints list (since they come from local DB which stores standard EmailFolder names)
+        val validFolderNames = folderNamesCache.values.toList()
+        val searchFolders = if (folderHints.isNotEmpty()) {
+            val mappedHints = folderHints.mapNotNull { hint -> 
+                try {
+                    val enumVal = com.shrivatsav.monomail.data.provider.EmailFolder.valueOf(hint)
+                    folderNamesCache[enumVal]
+                } catch (e: Exception) {
+                    null
+                }
+            }
+            mappedHints.ifEmpty { validFolderNames }
+        } else {
+            listOfNotNull(
+                folderNamesCache[EmailFolder.INBOX],
+                folderNamesCache[EmailFolder.SENT],
+                folderNamesCache[EmailFolder.ARCHIVE]
+            )
+        }.distinct()
 
         val matchingMessages = mutableListOf<Message>()
         val imapFolders = mutableListOf<Folder>()

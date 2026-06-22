@@ -112,7 +112,7 @@ class ImapSetupViewModel(
         _suggestedConfig.value = null
     }
 
-    fun testConnection(context: Context) {
+    fun testAndSaveAccount(context: Context, onSuccess: () -> Unit) {
         viewModelScope.launch {
             _testState.value = ImapTestState.Testing
 
@@ -129,6 +129,9 @@ class ImapSetupViewModel(
                 provider.listThreads(com.shrivatsav.monomail.data.provider.EmailFolder.INBOX, 1)
                 provider.disconnect()
                 _testState.value = ImapTestState.Success
+                
+                // If successful, save the account
+                saveAccountInternal(config, onSuccess)
             } catch (e: AuthenticationFailedException) {
                 _testState.value = ImapTestState.Error("Wrong username or password")
             } catch (e: MessagingException) {
@@ -144,8 +147,7 @@ class ImapSetupViewModel(
         }
     }
 
-    fun saveAccount(onSuccess: () -> Unit) {
-        val config = buildConfig() ?: return
+    private fun saveAccountInternal(config: ImapAccountConfig, onSuccess: () -> Unit) {
         val pass = _password.value
         val name = _displayName.value.ifBlank { "IMAP User" }
         
