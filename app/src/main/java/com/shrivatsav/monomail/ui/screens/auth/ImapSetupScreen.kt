@@ -101,42 +101,6 @@ fun ImapSetupScreen(
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                         }
-                    },
-                    actions = {
-                        var expanded by remember { mutableStateOf(false) }
-                        TextButton(onClick = { expanded = true }) {
-                            Text("Defaults")
-                        }
-                        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            DropdownMenuItem(
-                                text = { Text("Gmail") },
-                                onClick = {
-                                    viewModel.applySuggestion(ImapAccountConfig.presetForHost("gmail")!!)
-                                    expanded = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Outlook") },
-                                onClick = {
-                                    viewModel.applySuggestion(ImapAccountConfig.presetForHost("outlook")!!)
-                                    expanded = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Yahoo") },
-                                onClick = {
-                                    viewModel.applySuggestion(ImapAccountConfig.presetForHost("yahoo")!!)
-                                    expanded = false
-                                }
-                            )
-                            DropdownMenuItem(
-                                text = { Text("Zoho") },
-                                onClick = {
-                                    viewModel.applySuggestion(ImapAccountConfig.presetForHost("zoho")!!)
-                                    expanded = false
-                                }
-                            )
-                        }
                     }
                 )
             }
@@ -150,9 +114,43 @@ fun ImapSetupScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
 
-                // Suggestion chip moved to text field trailing icon
-
                 Text("Account Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+
+                var expandedProvider by remember { mutableStateOf(false) }
+                var selectedProvider by remember { mutableStateOf("Custom Configuration") }
+
+                androidx.compose.material3.ExposedDropdownMenuBox(
+                    expanded = expandedProvider,
+                    onExpandedChange = { expandedProvider = !expandedProvider }
+                ) {
+                    OutlinedTextField(
+                        value = selectedProvider,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Provider Setup") },
+                        trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) },
+                        colors = androidx.compose.material3.ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedProvider,
+                        onDismissRequest = { expandedProvider = false }
+                    ) {
+                        val providers = listOf("Gmail", "Outlook", "Yahoo", "Zoho", "Custom Configuration")
+                        providers.forEach { provider ->
+                            DropdownMenuItem(
+                                text = { Text(provider) },
+                                onClick = {
+                                    selectedProvider = provider
+                                    expandedProvider = false
+                                    if (provider != "Custom Configuration") {
+                                        viewModel.applySuggestion(ImapAccountConfig.presetForHost(provider)!!)
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
 
                 OutlinedTextField(
                     value = displayName,
@@ -304,7 +302,8 @@ fun ImapSetupScreen(
         AnimatedVisibility(
             visible = testState is ImapTestState.Syncing,
             enter = fadeIn(),
-            exit = fadeOut()
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize()
         ) {
             val progress = remember { androidx.compose.animation.core.Animatable(0f) }
             androidx.compose.runtime.LaunchedEffect(Unit) {
@@ -340,7 +339,7 @@ fun ImapSetupScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         LinearProgressIndicator(
-                            progress = { progress.value },
+                            progress = progress.value,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)
