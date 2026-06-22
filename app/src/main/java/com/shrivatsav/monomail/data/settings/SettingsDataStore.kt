@@ -18,7 +18,7 @@ enum class UndoSendWindow(val seconds: Int) { SEC_5(5), SEC_10(10), SEC_20(20), 
 enum class DockTabId { UNIFIED, INBOX, SENT, ARCHIVED, SNOOZED, STARRED, TRASH, SPAM }
 data class DockConfig(
     val primaryTabs: List<DockTabId> = listOf(
-        DockTabId.UNIFIED, DockTabId.SENT, DockTabId.ARCHIVED
+        DockTabId.INBOX, DockTabId.SENT, DockTabId.ARCHIVED
     )
 ) {
     companion object {

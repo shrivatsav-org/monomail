@@ -261,19 +261,7 @@ internal fun InboxSearchBar(
             windowInsets = WindowInsets(0.dp)
         ) {}
         }
-        AnimatedVisibility(
-            visible = isRefreshing,
-            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(300)),
-            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(300))
-        ) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(2.dp),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = Color.Transparent,
-            )
-        }
+
     }
 }
 

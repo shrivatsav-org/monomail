@@ -74,14 +74,13 @@ class ImapProvider(
         val defaultFolder = newStore.defaultFolder
         val folders = defaultFolder.list("*")
         for (f in folders) {
-            val name = f.name
+            val name = f.fullName
             val lower = name.lowercase()
-            if (lower == "inbox") folderNamesCache[EmailFolder.INBOX] = name
+            if (lower.endsWith("inbox") || lower == "inbox") folderNamesCache[EmailFolder.INBOX] = name
             else if (lower.contains("sent") || lower == "sent items" || lower == "sent messages") folderNamesCache[EmailFolder.SENT] = name
-            else if (lower.contains("archive")) folderNamesCache[EmailFolder.ARCHIVE] = name
-            else if (lower.contains("trash") || lower == "deleted messages" || lower == "deleted items") folderNamesCache[EmailFolder.TRASH] = name
+            else if (lower.contains("archive") || lower == "all mail") folderNamesCache[EmailFolder.ARCHIVE] = name
+            else if (lower.contains("trash") || lower == "deleted messages" || lower == "deleted items" || lower == "bin") folderNamesCache[EmailFolder.TRASH] = name
             else if (lower.contains("spam") || lower == "junk") folderNamesCache[EmailFolder.SPAM] = name
-            // Note: STARRED isn't a folder in IMAP, it's a flag, but some servers have a virtual "Starred" folder.
         }
         if (!folderNamesCache.containsKey(EmailFolder.INBOX)) folderNamesCache[EmailFolder.INBOX] = "INBOX"
 
@@ -90,7 +89,17 @@ class ImapProvider(
 
     private fun getFolderName(folder: EmailFolder): String? {
         if (folder == EmailFolder.STARRED) return null // Handled via search or all folders
-        return folderNamesCache[folder]
+        val cached = folderNamesCache[folder]
+        if (cached != null) return cached
+        
+        return when (folder) {
+            EmailFolder.INBOX -> "INBOX"
+            EmailFolder.SENT -> "Sent"
+            EmailFolder.ARCHIVE -> "Archive"
+            EmailFolder.TRASH -> "Trash"
+            EmailFolder.SPAM -> "Spam"
+            else -> null
+        }
     }
 
     override suspend fun listThreads(
