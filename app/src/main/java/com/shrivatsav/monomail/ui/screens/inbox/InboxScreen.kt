@@ -289,17 +289,6 @@ fun InboxScreen(
                                             }
                                         }
                                     }
-                                } else if (isComputingStructure && displayItems.isEmpty()) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .padding(horizontal = 20.dp, vertical = 11.dp),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        repeat(10) {
-                                            ShimmerEmailItem()
-                                        }
-                                    }
                                 } else {
                                     val itemKeyFn = remember { { it: InboxDisplayItem -> it.key } }
                                     LazyColumn(
