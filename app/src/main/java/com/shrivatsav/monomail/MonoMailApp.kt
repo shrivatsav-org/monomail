@@ -12,10 +12,13 @@ import com.shrivatsav.monomail.data.local.AppDatabase
 import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.provider.GmailProvider
 import com.shrivatsav.monomail.data.provider.OutlookProvider
+import com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig
+import com.shrivatsav.monomail.data.provider.imap.ImapProvider
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.security.SecurityUtil
 import com.shrivatsav.monomail.worker.SnoozeWorker
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -63,6 +66,7 @@ class MonoMailApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        initializeMailcap()
         System.loadLibrary("sqlcipher")
         accountManager = AccountManager(this)
         authManager = AuthManager(this, accountManager)
@@ -116,7 +120,15 @@ class MonoMailApp : Application() {
             when (profile.provider) {
                 "gmail" -> GmailProvider(profileRetrofit.gmailApi, this)
                 "outlook" -> OutlookProvider(profileRetrofit.outlookApi, this)
-                else -> GmailProvider(profileRetrofit.gmailApi, this) 
+                "imap" -> {
+                    val configJson = SecurityUtil.decryptString(profile.accessToken)
+                        ?: throw IllegalStateException("Cannot decrypt IMAP config")
+                    val config = ImapAccountConfig.fromJson(configJson)
+                    val password = SecurityUtil.decryptString(profile.refreshToken)
+                        ?: throw IllegalStateException("Cannot decrypt IMAP password")
+                    ImapProvider(config, password, this)
+                }
+                else -> throw IllegalArgumentException("Unknown provider: ${profile.provider}")
             }
         }
         emailRepository = EmailRepository(
@@ -132,5 +144,15 @@ class MonoMailApp : Application() {
             ExistingPeriodicWorkPolicy.KEEP,
             snoozeRequest
         )
+    }
+
+    private fun initializeMailcap() {
+        val mc = jakarta.activation.CommandMap.getDefaultCommandMap() as jakarta.activation.MailcapCommandMap
+        mc.addMailcap("text/html;; x-java-content-handler=org.eclipse.angus.mail.handlers.text_html")
+        mc.addMailcap("text/xml;; x-java-content-handler=org.eclipse.angus.mail.handlers.text_xml")
+        mc.addMailcap("text/plain;; x-java-content-handler=org.eclipse.angus.mail.handlers.text_plain")
+        mc.addMailcap("multipart/*;; x-java-content-handler=org.eclipse.angus.mail.handlers.multipart_mixed")
+        mc.addMailcap("message/rfc822;; x-java-content-handler=org.eclipse.angus.mail.handlers.message_rfc822")
+        jakarta.activation.CommandMap.setDefaultCommandMap(mc)
     }
 }

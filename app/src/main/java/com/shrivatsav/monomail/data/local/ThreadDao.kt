@@ -57,4 +57,12 @@ interface ThreadDao {
     suspend fun emptyTrash(accountId: String)
     @Query("DELETE FROM threads WHERE accountId = :accountId AND inSpam = 1")
     suspend fun emptySpam(accountId: String)
+
+    @Query("SELECT threadId, snippet FROM threads WHERE accountId = :accountId AND snippet != ''")
+    suspend fun getSnippetsForAccount(accountId: String): List<ThreadSnippetProjection>
 }
+
+data class ThreadSnippetProjection(
+    val threadId: String,
+    val snippet: String
+)

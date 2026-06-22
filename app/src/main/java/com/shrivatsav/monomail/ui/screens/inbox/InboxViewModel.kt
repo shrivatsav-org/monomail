@@ -80,6 +80,12 @@ class InboxViewModel(
     val showWelcomePrompt = _showWelcomePrompt.asStateFlow()
     private val _scheduledCount = MutableStateFlow(0)
     val scheduledCount: StateFlow<Int> = _scheduledCount.asStateFlow()
+    private val _isBulkSelectMode = MutableStateFlow(false)
+    val isBulkSelectMode: StateFlow<Boolean> = _isBulkSelectMode.asStateFlow()
+    private val _selectedThreadIds = MutableStateFlow<Set<String>>(emptySet())
+    val selectedThreadIds: StateFlow<Set<String>> = _selectedThreadIds.asStateFlow()
+    val selectedCount: StateFlow<Int> = _selectedThreadIds.map { it.size }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, _, _, organize -> Pair(tab, organize) }
         .flatMapLatest { (tab, organize) ->
         val flow = if (organize) {
@@ -209,6 +215,7 @@ class InboxViewModel(
         if (_currentTab.value == tab) return
         _currentTab.value = tab
         currentServerQuery = null
+        if (_isBulkSelectMode.value) exitBulkSelectMode()
         refresh()
     }
     fun refresh(showLoader: Boolean = true) {
@@ -413,5 +420,68 @@ class InboxViewModel(
             settingsDataStore.setHasSeenWelcomePrompt(true)
             _showWelcomePrompt.value = false
         }
+    }
+    fun enterBulkSelectMode(threadId: String) {
+        _isBulkSelectMode.value = true
+        _selectedThreadIds.value = setOf(threadId)
+    }
+    fun exitBulkSelectMode() {
+        _isBulkSelectMode.value = false
+        _selectedThreadIds.value = emptySet()
+    }
+    fun toggleThreadSelection(threadId: String) {
+        _selectedThreadIds.value = _selectedThreadIds.value.let { current ->
+            if (threadId in current) current - threadId else current + threadId
+        }.also {
+            if (it.isEmpty()) _isBulkSelectMode.value = false
+        }
+    }
+    fun selectAll() {
+        val threads = (state.value as? InboxState.Success)?.threads ?: return
+        _selectedThreadIds.value = threads.map { it.threadId }.toSet()
+    }
+    fun deselectAll() {
+        _selectedThreadIds.value = emptySet()
+        _isBulkSelectMode.value = false
+    }
+    fun bulkArchive() {
+        val ids = _selectedThreadIds.value.toList()
+        if (ids.isEmpty()) return
+        ids.forEach { queueAction(it, ActionType.ARCHIVE, "Conversation archived") }
+        exitBulkSelectMode()
+    }
+    fun bulkDelete() {
+        val ids = _selectedThreadIds.value.toList()
+        if (ids.isEmpty()) return
+        ids.forEach { queueAction(it, ActionType.DELETE, "Conversation deleted") }
+        exitBulkSelectMode()
+    }
+    fun bulkMarkRead() {
+        val ids = _selectedThreadIds.value.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            ids.forEach { repository.markThreadAsRead(it) }
+        }
+        exitBulkSelectMode()
+    }
+    fun bulkMarkUnread() {
+        val ids = _selectedThreadIds.value.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            ids.forEach { repository.markThreadAsUnread(it) }
+        }
+        exitBulkSelectMode()
+    }
+    fun bulkToggleStar() {
+        val ids = _selectedThreadIds.value.toList()
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            val currentState = state.value as? InboxState.Success ?: return@launch
+            ids.forEach { id ->
+                val thread = currentState.threads.find { it.threadId == id } ?: return@forEach
+                repository.toggleStar(id, thread.isStarred)
+            }
+        }
+        exitBulkSelectMode()
     }
 }

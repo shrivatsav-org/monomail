@@ -42,6 +42,7 @@ import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -176,14 +177,30 @@ fun EmailDetailScreen(
             is EmailDetailState.Success -> {
                 val emails = s.emails
                 val latestEmail = emails.lastOrNull() ?: return@Scaffold
-                ThreadConversationContent(
-                    emails = emails,
-                    modifier = Modifier.padding(padding),
-                    isConversationView = isConversationView,
-                    onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
-                    onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
-                    onFetchAttachment = { msgId, attId -> viewModel.fetchAttachmentBytes(msgId, attId) }
-                )
+                androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                    if (s.isRefreshing) {
+                        LinearProgressIndicator(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    if (s.refreshError != null) {
+                        Text(
+                            text = s.refreshError,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+                    }
+                    ThreadConversationContent(
+                        emails = emails,
+                        modifier = Modifier.weight(1f),
+                        isConversationView = isConversationView,
+                        onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
+                        onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
+                        onFetchAttachment = { msgId, attId -> viewModel.fetchAttachmentBytes(msgId, attId) }
+                    )
+                }
             }
         }
     }
@@ -489,7 +506,7 @@ private fun MessageBody(
                 }
             }
         }
-        val htmlContent = remember(email.id, bgColor, textColor, linkColor) {
+        val htmlContent = remember(email.id, email.body, bgColor, textColor, linkColor) {
             val cleanBody = stripQuotedText(email.body)
             """
             <!DOCTYPE html>

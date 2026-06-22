@@ -35,6 +35,8 @@ import com.shrivatsav.monomail.MonoMailApp
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.ui.screens.auth.ImapSetupScreen
+import com.shrivatsav.monomail.ui.screens.auth.ImapSetupViewModel
 import com.shrivatsav.monomail.ui.screens.auth.SignInScreen
 import com.shrivatsav.monomail.ui.screens.auth.SignInViewModel
 import com.shrivatsav.monomail.ui.screens.compose.ComposeMode
@@ -52,6 +54,7 @@ import java.net.URLDecoder
 import java.net.URLEncoder
 sealed class Screen(val route: String) {
     object SignIn       : Screen("sign_in")
+    object ImapSetup    : Screen("imap_setup")
     object Inbox        : Screen("inbox")
     object ThreadDetail : Screen("thread/{threadId}") {
         fun createRoute(threadId: String) = "thread/$threadId"
@@ -168,7 +171,34 @@ fun NavGraph(
                     },
                     onNavigateToLegal = { type ->
                         navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
+                    },
+                    onNavigateToImapSetup = {
+                        navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
                     }
+                )
+            }
+            composable(Screen.ImapSetup.route) {
+                val app = context.applicationContext as MonoMailApp
+                val vm: ImapSetupViewModel = viewModel(
+                    factory = object : ViewModelProvider.Factory {
+                        @Suppress("UNCHECKED_CAST")
+                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                            return ImapSetupViewModel(
+                                app.accountManager,
+                                authManager,
+                                emailRepository
+                            ) as T
+                        }
+                    }
+                )
+                ImapSetupScreen(
+                    viewModel = vm,
+                    onSetupComplete = {
+                        navController.navigate(Screen.Inbox.route) {
+                            popUpTo(Screen.SignIn.route) { inclusive = true }
+                        }
+                    },
+                    onBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.Inbox.route) {
@@ -208,6 +238,9 @@ fun NavGraph(
                     },
                     onScheduledClick = {
                         navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
+                    },
+                    onNavigateToImapSetup = {
+                        navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
                     }
                 )
             }

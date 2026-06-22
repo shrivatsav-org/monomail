@@ -1,6 +1,12 @@
 package com.shrivatsav.monomail.ui.screens.inbox
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +20,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,6 +33,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -47,6 +59,10 @@ fun EmailItem(
     showSnippet: Boolean = true,
     compactMode: Boolean = false,
     fontSizeScale: Float = 1f,
+    isSelected: Boolean = false,
+    isBulkMode: Boolean = false,
+    onSelectToggle: () -> Unit = {},
+    onAvatarLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val isUnread = !thread.isRead
@@ -56,15 +72,30 @@ fun EmailItem(
     val domain by remember(thread.fromEmail) {
         derivedStateOf { domainRegex.find(thread.fromEmail)?.groupValues?.get(1)?.trim() }
     }
-    val backgroundColor = if (isUnread) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f) else MaterialTheme.colorScheme.background
+    val backgroundColor = when {
+        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+        isUnread -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        else -> MaterialTheme.colorScheme.background
+    }
     val verticalPad = if (compactMode) 7.dp else 11.dp
+    val hapticFeedback = LocalHapticFeedback.current
+    val avatarClickAction = if (isBulkMode) onSelectToggle else onClick
     Row(
         modifier = modifier
             .fillMaxWidth()
             .background(backgroundColor)
-            .combinedClickable(
-                onClick = onClick,
-                onLongClick = onLongClick
+            .then(
+                if (isBulkMode) {
+                    Modifier.combinedClickable(
+                        onClick = onSelectToggle,
+                        onLongClick = onSelectToggle
+                    )
+                } else {
+                    Modifier.combinedClickable(
+                        onClick = onClick,
+                        onLongClick = onLongClick
+                    )
+                }
             )
             .padding(horizontal = 20.dp, vertical = verticalPad),
         verticalAlignment = Alignment.Top
@@ -73,9 +104,18 @@ fun EmailItem(
             SenderAvatar(
                 domain = domain,
                 senderInitial = senderInitial,
+                isSelected = isSelected,
+                isBulkMode = isBulkMode,
+                onClick = avatarClickAction,
+                onLongClick = {
+                    if (!isBulkMode) {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
+                        onAvatarLongClick()
+                    }
+                },
                 modifier = Modifier.padding(top = 2.dp)
             )
-            if (isUnread) {
+            if (isUnread && !isBulkMode) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.TopEnd)
@@ -157,6 +197,10 @@ fun EmailItem(
 private fun SenderAvatar(
     domain: String?,
     senderInitial: String,
+    isSelected: Boolean = false,
+    isBulkMode: Boolean = false,
+    onClick: () -> Unit = {},
+    onLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val avatarModifier = modifier
@@ -175,10 +219,21 @@ private fun SenderAvatar(
     val imageSuccess = painter?.state is AsyncImagePainter.State.Success
     Box(
         modifier = avatarModifier
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         contentAlignment = Alignment.Center
     ) {
-        if (imageSuccess) {
+        if (isBulkMode) {
+            Icon(
+                imageVector = if (isSelected) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                contentDescription = if (isSelected) "Selected" else "Not selected",
+                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxSize().padding(2.dp)
+            )
+        } else if (imageSuccess) {
             Image(
                 painter = painter,
                 contentDescription = "Sender avatar",

@@ -28,7 +28,11 @@ internal fun SwipeableEmailItem(
     onEmailClick: () -> Unit,
     onLongClick: () -> Unit,
     fontSizeScale: Float,
-    isNested: Boolean = false
+    isNested: Boolean = false,
+    isSelected: Boolean = false,
+    isBulkMode: Boolean = false,
+    onSelectToggle: () -> Unit = {},
+    onAvatarLongClick: () -> Unit = {}
 ) {
     var optIsRead by remember(thread.isRead) { mutableStateOf(thread.isRead) }
     var optIsStarred by remember(thread.isStarred) { mutableStateOf(thread.isStarred) }
@@ -72,6 +76,20 @@ internal fun SwipeableEmailItem(
     Column(
         modifier = modifier.let { if (isNested) it.padding(start = 32.dp) else it }
     ) {
+        if (isBulkMode) {
+            EmailItem(
+                thread = thread.copy(isRead = optIsRead, isStarred = optIsStarred),
+                onClick = onEmailClick,
+                onLongClick = onLongClick,
+                showSnippet = appSettings.showSnippet,
+                compactMode = appSettings.compactList,
+                fontSizeScale = fontSizeScale,
+                isSelected = isSelected,
+                isBulkMode = true,
+                onSelectToggle = onSelectToggle,
+                onAvatarLongClick = onAvatarLongClick
+            )
+        } else {
         SwipeToDismissBox(
             state = dismissState,
             enableDismissFromEndToStart = true,
@@ -143,8 +161,13 @@ internal fun SwipeableEmailItem(
                 onLongClick = onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
-                fontSizeScale = fontSizeScale
+                fontSizeScale = fontSizeScale,
+                isSelected = isSelected,
+                isBulkMode = false,
+                onSelectToggle = onSelectToggle,
+                onAvatarLongClick = onAvatarLongClick
             )
+        }
         }
         if (appSettings.showDividers) {
             HorizontalDivider(

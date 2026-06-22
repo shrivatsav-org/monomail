@@ -59,7 +59,8 @@ import com.shrivatsav.monomail.R
 fun SignInScreen(
     viewModel: SignInViewModel,
     onSignInSuccess: () -> Unit,
-    onNavigateToLegal: (String) -> Unit
+    onNavigateToLegal: (String) -> Unit,
+    onNavigateToImapSetup: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -253,6 +254,24 @@ fun SignInScreen(
                             )
                         }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = { onNavigateToImapSetup() },
+                        enabled = state !is SignInState.Loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = MaterialTheme.shapes.large,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary,
+                            contentColor   = MaterialTheme.colorScheme.onTertiary
+                        )
+                    ) {
+                        Text(
+                            text = "Other (IMAP/SMTP)",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                     Spacer(modifier = Modifier.height(48.dp))
                 }
             }
@@ -264,7 +283,8 @@ fun SignInScreen(
 fun ProviderSelectionDialog(
     viewModel: SignInViewModel,
     onDismiss: () -> Unit,
-    onSuccess: () -> Unit
+    onSuccess: () -> Unit,
+    onNavigateToImapSetup: () -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -357,13 +377,31 @@ fun ProviderSelectionDialog(
                         modifier = Modifier.size(24.dp),
                         color = MaterialTheme.colorScheme.onSecondary
                     )
-                } else {
-                    Text(
-                        text = "Sign in with Microsoft",
-                        style = MaterialTheme.typography.labelLarge
-                    )
-                }
-            }
+                        } else {
+                            Text(
+                                text = "Sign in with Microsoft",
+                                style = MaterialTheme.typography.labelLarge
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Button(
+                        onClick = { onNavigateToImapSetup() },
+                        enabled = state !is SignInState.Loading,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = MaterialTheme.shapes.large,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.tertiary,
+                            contentColor   = MaterialTheme.colorScheme.onTertiary
+                        )
+                    ) {
+                        Text(
+                            text = "Other (IMAP/SMTP)",
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
             if (state is SignInState.Error) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(

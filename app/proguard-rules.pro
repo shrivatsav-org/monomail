@@ -43,3 +43,15 @@
 -keep class com.shrivatsav.monomail.auth.UserProfile {
     *;
 }
+
+# angus-mail / Jakarta Mail
+-keep class org.eclipse.angus.mail.** { *; }
+-keep class jakarta.mail.** { *; }
+-keep class jakarta.activation.** { *; }
+-keep class org.eclipse.angus.mail.handlers.** { *; }
+-dontwarn org.eclipse.angus.**
+-dontwarn jakarta.mail.**
+-dontwarn jakarta.activation.**
+
+# ImapAccountConfig is serialized via Gson — keep all fields
+-keep class com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig { *; }

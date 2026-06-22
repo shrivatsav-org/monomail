@@ -33,6 +33,7 @@ internal fun ModalOverlay(
     onBackToProfile: () -> Unit,
     onCycleAccount: (String) -> Unit,
     onSettings: () -> Unit,
+    onNavigateToImapSetup: () -> Unit
 ) {
     var displayed by remember { mutableStateOf<ModalType?>(null) }
     displayed = activeModal ?: displayed
@@ -106,7 +107,8 @@ internal fun ModalOverlay(
                             com.shrivatsav.monomail.ui.screens.auth.ProviderSelectionDialog(
                                 viewModel = vm,
                                 onDismiss = { onDismiss() },
-                                onSuccess = { onDismiss() }
+                                onSuccess = { onDismiss() },
+                                onNavigateToImapSetup = onNavigateToImapSetup
                             )
                         }
 

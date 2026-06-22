@@ -45,7 +45,8 @@ fun InboxScreen(
     onCompose: () -> Unit = {},
     onSettings: () -> Unit = {},
     onAddAccount: () -> Unit = {},
-    onScheduledClick: () -> Unit = {}
+    onScheduledClick: () -> Unit = {},
+    onNavigateToImapSetup: () -> Unit = {}
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
@@ -699,6 +700,7 @@ fun InboxScreen(
                 onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
                 onBackToProfile = { activeModal = ModalType.PROFILE },
                 onSettings = { activeModal = null; onSettings() },
+                onNavigateToImapSetup = onNavigateToImapSetup
             )
         }
     }

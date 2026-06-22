@@ -129,6 +129,10 @@ class EmailRepository(
                 pageToken = pageToken,
                 query = query
             )
+            val existingSnippets = if (provider.providerName == "imap") {
+                threadDao.getSnippetsForAccount(targetAccountId)
+                    .associateBy { it.threadId }
+            } else emptyMap()
             if (listResponse.threads.isNotEmpty()) {
                 val entities = listResponse.threads.map { providerThread ->
                     val messages = providerThread.messages
@@ -137,12 +141,15 @@ class EmailRepository(
                     val participants = messages.map { it.from }.distinct()
                     val isRead = messages.all { it.isRead }
                     val isStarred = messages.any { it.isStarred }
+                    val finalSnippet = (latest?.snippet ?: "").ifBlank {
+                        existingSnippets[providerThread.threadId]?.snippet ?: ""
+                    }
                     val domainThread = EmailThread(
                         threadId = providerThread.threadId,
                         subject = cleanSubject(latest?.subject ?: "(no subject)"),
                         from = latest?.from ?: "",
                         fromEmail = latest?.fromEmail ?: "",
-                        snippet = latest?.snippet ?: "",
+                        snippet = finalSnippet,
                         date = latest?.date ?: 0L,
                         messageCount = messages.size,
                         isRead = isRead,

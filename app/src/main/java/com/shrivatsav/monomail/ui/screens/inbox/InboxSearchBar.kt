@@ -44,6 +44,11 @@ internal fun InboxSearchBar(
     onUndo: () -> Unit,
     onSettings: () -> Unit = {},
     onOpenProfile: () -> Unit,
+    isBulkMode: Boolean = false,
+    selectedCount: Int = 0,
+    onSelectAll: () -> Unit = {},
+    onDeselectAll: () -> Unit = {},
+    onDone: () -> Unit = {},
 ) {
     val containerColor by animateColorAsState(
         targetValue = if (toastState != null)
@@ -54,11 +59,61 @@ internal fun InboxSearchBar(
         label = "SearchBarColor"
     )
 
+    val bulkModeContainerColor by animateColorAsState(
+        targetValue = if (isBulkMode) MaterialTheme.colorScheme.secondaryContainer
+                      else MaterialTheme.colorScheme.surfaceContainer,
+        animationSpec = tween(300),
+        label = "BulkModeColor"
+    )
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        if (isBulkMode) {
+            Surface(
+                color = bulkModeContainerColor,
+                shape = MaterialTheme.shapes.extraLarge,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (selectedCount == 1) "1 selected" else "$selectedCount selected",
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                    TextButton(
+                        onClick = onSelectAll,
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text("Select all")
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onDone,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            Icons.Outlined.Close,
+                            contentDescription = "Done",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
+        } else {
         SearchBar(
             inputField = {
                 AnimatedContent(
@@ -205,7 +260,7 @@ internal fun InboxSearchBar(
             shape = MaterialTheme.shapes.extraLarge,
             windowInsets = WindowInsets(0.dp)
         ) {}
-
+        }
         AnimatedVisibility(
             visible = isRefreshing,
             enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(300)),

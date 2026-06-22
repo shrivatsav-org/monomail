@@ -71,6 +71,19 @@ android {
         jniLibs {
             useLegacyPackaging = true
         }
+        resources {
+            excludes += listOf(
+                "META-INF/NOTICE.md",
+                "META-INF/LICENSE.md"
+            )
+            pickFirsts += listOf(
+                "META-INF/mailcap",
+                "META-INF/mailcap.default",
+                "META-INF/mimetypes.default",
+                "META-INF/javamail.default.providers",
+                "META-INF/javamail.default.address.map"
+            )
+        }
     }
 }
 
@@ -128,6 +141,12 @@ dependencies {
 
     // Markdown
     implementation("io.noties.markwon:core:4.6.2")
+
+    // IMAP/SMTP — Eclipse Angus Mail (Jakarta Mail 2.x)
+    implementation("org.eclipse.angus:angus-mail:2.0.3") {
+        exclude(group = "jakarta.xml.soap")
+    }
+    implementation("org.eclipse.angus:angus-activation:2.0.2")
 
     // MSAL for Outlook Auth
     implementation("com.microsoft.identity.client:msal:5.4.0")

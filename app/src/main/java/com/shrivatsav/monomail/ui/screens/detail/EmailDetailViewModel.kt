@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 sealed class EmailDetailState {
     object Loading : EmailDetailState()
-    data class Success(val emails: List<Email>) : EmailDetailState()
+    data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) : EmailDetailState()
     data class Error(val message: String) : EmailDetailState()
 }
 class EmailDetailViewModel(
@@ -29,7 +29,9 @@ class EmailDetailViewModel(
             if (unreadIds.isNotEmpty()) {
                 repository.markEmailsAsRead(unreadIds)
             }
-            EmailDetailState.Success(emails)
+            // Only show the loading spinner if we don't have the body yet
+            val needsBodyFetch = emails.any { it.body.isEmpty() }
+            EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
         } else if (error != null) {
             EmailDetailState.Error(error)
         } else if (!isLoading) {
