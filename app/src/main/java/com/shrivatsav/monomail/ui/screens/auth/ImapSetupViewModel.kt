@@ -24,6 +24,7 @@ import kotlinx.coroutines.launch
 sealed class ImapTestState {
     object Idle : ImapTestState()
     object Testing : ImapTestState()
+    object Syncing : ImapTestState()
     object Success : ImapTestState()
     data class Error(val message: String) : ImapTestState()
 }
@@ -128,7 +129,7 @@ class ImapSetupViewModel(
                 // Just listing threads from INBOX implicitly connects to the store
                 provider.listThreads(com.shrivatsav.monomail.data.provider.EmailFolder.INBOX, 1)
                 provider.disconnect()
-                _testState.value = ImapTestState.Success
+                _testState.value = ImapTestState.Syncing
                 
                 // If successful, save the account
                 saveAccountInternal(config, onSuccess)

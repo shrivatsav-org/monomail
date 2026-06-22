@@ -39,6 +39,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Surface
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -73,185 +86,235 @@ fun ImapSetupScreen(
 
     val isSaveEnabled = testState is ImapTestState.Success
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("Add IMAP Account") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.blur(if (testState is ImapTestState.Syncing) 10.dp else 0.dp),
+            topBar = {
+                TopAppBar(
+                    title = { Text("Add IMAP Account") },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        }
+                    }
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+
+                AnimatedVisibility(visible = suggestedConfig != null) {
+                    val config = suggestedConfig
+                    if (config != null) {
+                        SuggestionChip(
+                            onClick = { viewModel.applySuggestion(config) },
+                            label = { Text("Apply recommended settings for ${config.imapHost}") },
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
-            )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
 
-            AnimatedVisibility(visible = suggestedConfig != null) {
-                val config = suggestedConfig
-                if (config != null) {
-                    SuggestionChip(
-                        onClick = { viewModel.applySuggestion(config) },
-                        label = { Text("Auto-fill server settings") },
-                        modifier = Modifier.fillMaxWidth()
+                Text("Account Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { viewModel.setDisplayName(it) },
+                    label = { Text("Name (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { viewModel.setUsername(it) },
+                    label = { Text("Email Address") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { viewModel.setPassword(it) },
+                    label = { Text("App Password / Password") },
+                    modifier = Modifier.fillMaxWidth(),
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Incoming Server (IMAP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = imapHost,
+                        onValueChange = { viewModel.setImapHost(it) },
+                        label = { Text("Host") },
+                        modifier = Modifier.weight(0.7f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = imapPort,
+                        onValueChange = { viewModel.setImapPort(it) },
+                        label = { Text("Port") },
+                        modifier = Modifier.weight(0.3f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
+                        singleLine = true
                     )
                 }
-            }
 
-            Text("Account Info", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Use SSL")
+                    Switch(
+                        checked = imapSsl,
+                        onCheckedChange = { 
+                            viewModel.setImapSsl(it)
+                            if (it) viewModel.setImapStartTls(false)
+                        }
+                    )
+                }
 
-            OutlinedTextField(
-                value = username,
-                onValueChange = { viewModel.setUsername(it) },
-                label = { Text("Email Address") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-                singleLine = true
-            )
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Use STARTTLS")
+                    Switch(
+                        checked = imapStartTls,
+                        onCheckedChange = { 
+                            viewModel.setImapStartTls(it)
+                            if (it) viewModel.setImapSsl(false)
+                        },
+                        enabled = !imapSsl
+                    )
+                }
 
-            OutlinedTextField(
-                value = password,
-                onValueChange = { viewModel.setPassword(it) },
-                label = { Text("Password") },
-                modifier = Modifier.fillMaxWidth(),
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
-                singleLine = true
-            )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("Outgoing Server (SMTP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
 
-            OutlinedTextField(
-                value = displayName,
-                onValueChange = { viewModel.setDisplayName(it) },
-                label = { Text("Display Name") },
-                modifier = Modifier.fillMaxWidth(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text, imeAction = ImeAction.Next),
-                singleLine = true
-            )
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = smtpHost,
+                        onValueChange = { viewModel.setSmtpHost(it) },
+                        label = { Text("Host") },
+                        modifier = Modifier.weight(0.7f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = smtpPort,
+                        onValueChange = { viewModel.setSmtpPort(it) },
+                        label = { Text("Port") },
+                        modifier = Modifier.weight(0.3f),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
+                        singleLine = true
+                    )
+                }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Incoming Server (IMAP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Use SSL")
+                    Switch(
+                        checked = smtpSsl,
+                        onCheckedChange = { 
+                            viewModel.setSmtpSsl(it)
+                            if (it) viewModel.setSmtpStartTls(false)
+                        }
+                    )
+                }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = imapHost,
-                    onValueChange = { viewModel.setImapHost(it) },
-                    label = { Text("Host") },
-                    modifier = Modifier.weight(2f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = imapPort,
-                    onValueChange = { viewModel.setImapPort(it) },
-                    label = { Text("Port") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Next),
-                    singleLine = true
-                )
-            }
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("Use STARTTLS")
+                    Switch(
+                        checked = smtpStartTls,
+                        onCheckedChange = { 
+                            viewModel.setSmtpStartTls(it)
+                            if (it) viewModel.setSmtpSsl(false)
+                        },
+                        enabled = !smtpSsl
+                    )
+                }
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Use SSL")
-                Switch(
-                    checked = imapSsl,
-                    onCheckedChange = { 
-                        viewModel.setImapSsl(it)
-                        if (it) viewModel.setImapStartTls(false)
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = { viewModel.testAndSaveAccount(context, onSetupComplete) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled = isFormValid && testState !is ImapTestState.Testing && testState !is ImapTestState.Syncing
+                ) {
+                    if (testState is ImapTestState.Testing || testState is ImapTestState.Syncing) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(if (testState is ImapTestState.Testing) "Signing In..." else "Syncing Emails...")
+                    } else {
+                        Text("Sign In")
                     }
-                )
+                }
+
+                if (testState is ImapTestState.Error) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = (testState as ImapTestState.Error).message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(32.dp))
             }
+        }
 
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Use STARTTLS")
-                Switch(
-                    checked = imapStartTls,
-                    onCheckedChange = { 
-                        viewModel.setImapStartTls(it)
-                        if (it) viewModel.setImapSsl(false)
-                    },
-                    enabled = !imapSsl
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Outgoing Server (SMTP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = smtpHost,
-                    onValueChange = { viewModel.setSmtpHost(it) },
-                    label = { Text("Host") },
-                    modifier = Modifier.weight(2f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
-                    singleLine = true
-                )
-                OutlinedTextField(
-                    value = smtpPort,
-                    onValueChange = { viewModel.setSmtpPort(it) },
-                    label = { Text("Port") },
-                    modifier = Modifier.weight(1f),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
-                    singleLine = true
-                )
-            }
-
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Use SSL")
-                Switch(
-                    checked = smtpSsl,
-                    onCheckedChange = { 
-                        viewModel.setSmtpSsl(it)
-                        if (it) viewModel.setSmtpStartTls(false)
-                    }
-                )
-            }
-
-            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Use STARTTLS")
-                Switch(
-                    checked = smtpStartTls,
-                    onCheckedChange = { 
-                        viewModel.setSmtpStartTls(it)
-                        if (it) viewModel.setSmtpSsl(false)
-                    },
-                    enabled = !smtpSsl
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Button(
-                onClick = { viewModel.testAndSaveAccount(context, onSetupComplete) },
-                modifier = Modifier.fillMaxWidth().height(50.dp),
-                enabled = isFormValid && testState !is ImapTestState.Testing
+        AnimatedVisibility(
+            visible = testState is ImapTestState.Syncing,
+            enter = fadeIn(),
+            exit = fadeOut()
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.3f)),
+                contentAlignment = Alignment.Center
             ) {
-                if (testState is ImapTestState.Testing) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Signing In...")
-                } else {
-                    Text("Sign In")
+                Surface(
+                    shape = MaterialTheme.shapes.extraLarge,
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp,
+                    modifier = Modifier.fillMaxWidth(0.85f)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(24.dp)
+                    ) {
+                        Text(
+                            text = "Syncing emails...",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        LinearProgressIndicator(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.primaryContainer,
+                            strokeCap = StrokeCap.Round
+                        )
+                        Text(
+                            text = "Please wait, fetching your inbox",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
-
-            if (testState is ImapTestState.Error) {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = (testState as ImapTestState.Error).message,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.align(Alignment.CenterHorizontally)
-                )
-            }
-            
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
