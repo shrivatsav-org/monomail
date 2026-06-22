@@ -310,13 +310,20 @@ class InboxViewModel(
 
         pendingActionJobs[sentinelId]?.cancel()
         pendingActionJobs[sentinelId] = viewModelScope.launch {
-            delay(4000)
-            if (_toastState.value?.threadId == sentinelId) {
-                repository.emptyTrash()
-                _toastState.value = null
-                pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
-                pendingHiddenTrashIds.clear()
-                pendingActionJobs.remove(sentinelId)
+            try {
+                delay(4000)
+                if (_toastState.value?.threadId == sentinelId) {
+                    repository.emptyTrash()
+                }
+            } catch (e: Exception) {
+                // Ignore exception to ensure toast clears
+            } finally {
+                if (_toastState.value?.threadId == sentinelId) {
+                    _toastState.value = null
+                    pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
+                    pendingHiddenTrashIds.clear()
+                    pendingActionJobs.remove(sentinelId)
+                }
             }
         }
     }
@@ -348,10 +355,15 @@ class InboxViewModel(
         _toastState.value = ToastState(threadId, message, type)
         pendingActionJobs[threadId]?.cancel()
         pendingActionJobs[threadId] = viewModelScope.launch {
-            delay(4000)
-            executeAction(threadId, type)
-            if (_toastState.value?.threadId == threadId) {
-                _toastState.value = null
+            try {
+                delay(4000)
+                executeAction(threadId, type)
+            } catch (e: Exception) {
+                // Ignore exception to ensure toast clears
+            } finally {
+                if (_toastState.value?.threadId == threadId) {
+                    _toastState.value = null
+                }
             }
         }
     }
