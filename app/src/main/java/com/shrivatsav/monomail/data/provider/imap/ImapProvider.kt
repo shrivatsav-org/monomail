@@ -237,9 +237,25 @@ class ImapProvider(
                 }
 
                 val body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
-                val snippet = plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
-                    htmlBody.replace(Regex("<[^>]+>"), " ").take(150).replace(Regex("\\s+"), " ").trim()
-                }
+                val cleanPlain = plainBody
+                    .replace(Regex("https?://\\S+"), "")
+                    .replace(Regex("={3,}"), "")
+                    .replace(Regex("_{3,}"), "")
+                    .replace(Regex("\\[image:[^\\]]+\\]", RegexOption.IGNORE_CASE), "")
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
+
+                val cleanHtml = htmlBody
+                    .replace(Regex("<style[^>]*>.*?</style>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), " ")
+                    .replace(Regex("<script[^>]*>.*?</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), " ")
+                    .replace(Regex("<[^>]+>"), " ")
+                    .replace(Regex("&[a-zA-Z0-9#]+;"), " ")
+                    .replace(Regex("https?://\\S+"), "")
+                    .replace(Regex("\\s+"), " ")
+                    .trim()
+
+                val snippetSource = if (cleanPlain.length > 15) cleanPlain else cleanHtml.ifEmpty { cleanPlain }
+                val snippet = snippetSource.take(150).trim()
 
                 val providerMsg = ProviderMessage(
                     id = messageId,
