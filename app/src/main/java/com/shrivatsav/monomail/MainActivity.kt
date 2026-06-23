@@ -51,6 +51,9 @@ class MainActivity : ComponentActivity() {
     private val accountManager by lazy {
         (application as MonoMailApp).accountManager
     }
+    private val authTokenManager by lazy {
+        (application as MonoMailApp).authTokenManager
+    }
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -95,6 +98,12 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         CoroutineScope(Dispatchers.IO).launch {
             accountManager.setLastActiveTime(System.currentTimeMillis())
+            // Proactively refresh the active account's token so it doesn't expire
+            // while the app is backgrounded (tokens are ~1hr for Google/Outlook).
+            val activeAccount = accountManager.getActiveAccount()
+            if (activeAccount != null) {
+                try { authTokenManager.refreshTokenAsync(activeAccount.id) } catch (_: Exception) {}
+            }
         }
     }
 

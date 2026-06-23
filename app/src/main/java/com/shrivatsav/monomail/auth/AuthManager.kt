@@ -2,6 +2,7 @@ package com.shrivatsav.monomail.auth
 import android.accounts.Account
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.credentials.ClearCredentialStateRequest
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
@@ -23,8 +24,17 @@ sealed class SignInResult {
 }
 class AuthManager(
     private val context: Context,
-    private val accountManager: AccountManager
+    private val accountManager: AccountManager,
+    private var authTokenManager: AuthTokenManager? = null,
 ) {
+    /**
+     * Called by [MonoMailApp] once the [AuthTokenManager] is created, so that
+     * sign-in / switch-account flows can warm the token cache immediately.
+     */
+    fun setAuthTokenManager(manager: AuthTokenManager) {
+        authTokenManager = manager
+    }
+
     val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     companion object {
         val CLIENT_ID = com.shrivatsav.monomail.BuildConfig.GOOGLE_CLIENT_ID
@@ -49,7 +59,23 @@ class AuthManager(
         val profile = accountManager.getActiveAccount() ?: return false
         _userProfile = profile
         _isSignedIn.value = true
-        refreshCurrentToken()
+
+        // Ensure MSAL is initialized for Outlook accounts before attempting refresh.
+        if (profile.provider == "outlook") {
+            try { microsoftAuthManager.initialize() } catch (_: Exception) {}
+        }
+
+        // Proactively refresh the token so the cache is warm before any API call.
+        authTokenManager?.let { mgr ->
+            try {
+                val newToken = mgr.refreshTokenAsync(profile.id)
+                if (newToken != null) {
+                    _userProfile = profile.copy(accessToken = newToken)
+                }
+            } catch (e: Exception) {
+                Log.w("AuthManager", "Proactive token refresh failed", e)
+            }
+        } ?: refreshCurrentToken()
         return true
     }
     private suspend fun refreshCurrentToken() {
@@ -66,12 +92,14 @@ class AuthManager(
                 if (newToken != profile.accessToken) {
                     val updated = profile.copy(accessToken = newToken)
                     updateAccessToken(updated)
+                    authTokenManager?.updateToken(updated.id, newToken)
                 }
             } else if (profile.provider == "outlook") {
                 val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
                 if (newToken != null && newToken != profile.accessToken) {
                     val updated = profile.copy(accessToken = newToken)
                     updateAccessToken(updated)
+                    authTokenManager?.updateToken(updated.id, newToken)
                 }
             }
         } catch (e: UserRecoverableAuthException) {
@@ -114,12 +142,13 @@ class AuthManager(
             ?: return SignInResult.Failure(IllegalStateException("No profile available"))
         return requestAccessToken(
             activityContext, profile.email, profile.displayName,
-            profile.photoUrl, "" 
+            profile.photoUrl, ""
         )
     }
     suspend fun getAccounts(): List<UserProfile> = accountManager.getAccounts()
     suspend fun addAccount(profile: UserProfile) {
         accountManager.addAccount(profile)
+        authTokenManager?.updateToken(profile.id, profile.accessToken)
     }
     suspend fun switchAccount(accountId: String) {
         accountManager.setActiveAccountId(accountId)
@@ -127,6 +156,10 @@ class AuthManager(
         if (profile != null) {
             _userProfile = profile
             _isSignedIn.value = true
+            // Proactively refresh the newly-active account's token.
+            authTokenManager?.let { mgr ->
+                try { mgr.refreshTokenAsync(profile.id) } catch (_: Exception) {}
+            }
         } else {
             _isSignedIn.value = false
             _userProfile = null
@@ -144,6 +177,7 @@ class AuthManager(
                 microsoftAuthManager.signOut(active.id)
             } catch (e: Exception) { }
         }
+        authTokenManager?.invalidate(active.id)
         accountManager.removeAccount(active.id)
         val newActive = accountManager.getActiveAccount()
         if (newActive != null) {
@@ -162,6 +196,7 @@ class AuthManager(
         accounts.filter { it.provider == "outlook" }.forEach {
             try { microsoftAuthManager.signOut(it.id) } catch (e: Exception) { }
         }
+        authTokenManager?.let { mgr -> accounts.forEach { mgr.invalidate(it.id) } }
         accountManager.clearAll()
         _isSignedIn.value = false
         _userProfile = null
@@ -170,6 +205,7 @@ class AuthManager(
     suspend fun updateAccessToken(updated: UserProfile) {
         _userProfile = updated
         accountManager.updateAccountToken(updated.id, updated.accessToken)
+        authTokenManager?.updateToken(updated.id, updated.accessToken)
     }
     private suspend fun requestAccessToken(
         activityContext: Context,
@@ -193,7 +229,7 @@ class AuthManager(
                     connection.setRequestProperty("Authorization", "Bearer $accessToken")
                     connection.responseCode
                 } catch (e: Exception) {
-                    200 
+                    200
                 }
             }
             if (responseCode == 401 || responseCode == 403) {
@@ -207,7 +243,7 @@ class AuthManager(
                 }
             }
             val profile = UserProfile(
-                id          = "gmail_$email", 
+                id          = "gmail_$email",
                 displayName = displayName,
                 email       = email,
                 photoUrl    = photoUrl,
@@ -217,6 +253,7 @@ class AuthManager(
             )
             _userProfile = profile
             _isSignedIn.value = true
+            authTokenManager?.updateToken(profile.id, accessToken)
             accountManager.addAccount(profile)
             accountManager.setActiveAccountId(profile.id)
             SignInResult.Success(profile)

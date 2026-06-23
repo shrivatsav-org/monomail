@@ -1,21 +1,20 @@
 package com.shrivatsav.monomail.data.remote
-import android.accounts.Account
-import android.content.Context
-import com.google.android.gms.auth.GoogleAuthUtil
-import kotlinx.coroutines.runBlocking
+
+import com.shrivatsav.monomail.auth.AuthTokenManager
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+
 class RetrofitClient(
-    private val tokenProvider: () -> String?,
-    private val tokenRefresher: () -> String?,
+    private val accountId: String,
+    private val tokenManager: AuthTokenManager,
     private val onRefreshFailed: () -> Unit = {},
 ) {
     private fun createAuthInterceptor() = Interceptor { chain ->
         val request = chain.request()
-        val token = tokenProvider()
+        val token = tokenManager.getCachedToken(accountId)
         val newRequest = if (token != null) {
             request.newBuilder()
                 .header("Authorization", "Bearer $token")
@@ -25,7 +24,7 @@ class RetrofitClient(
         }
         val response = chain.proceed(newRequest)
         if (response.code == 401) {
-            val newToken = tokenRefresher()
+            val newToken = tokenManager.refreshTokenBlocking(accountId)
             if (newToken != null) {
                 response.close()
                 val retryRequest = request.newBuilder()

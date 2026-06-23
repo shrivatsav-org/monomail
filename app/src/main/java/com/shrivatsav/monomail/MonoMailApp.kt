@@ -1,12 +1,12 @@
 package com.shrivatsav.monomail
-import android.accounts.Account
+
 import android.app.Application
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.google.android.gms.auth.GoogleAuthUtil
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.auth.AuthManager
+import com.shrivatsav.monomail.auth.AuthTokenManager
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.local.AppDatabase
 import com.shrivatsav.monomail.data.provider.EmailProvider
@@ -20,14 +20,21 @@ import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.security.SecurityUtil
 import com.shrivatsav.monomail.worker.SnoozeWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import java.util.concurrent.TimeUnit
+
 class MonoMailApp : Application() {
     lateinit var accountManager: AccountManager
         private set
     lateinit var authManager: AuthManager
+        private set
+    lateinit var authTokenManager: AuthTokenManager
         private set
     lateinit var emailRepository: EmailRepository
         private set
@@ -37,6 +44,8 @@ class MonoMailApp : Application() {
         private set
     lateinit var database: AppDatabase
         private set
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     data class SentEmailEvent(
         val threadId: String?,
@@ -70,46 +79,19 @@ class MonoMailApp : Application() {
         System.loadLibrary("sqlcipher")
         accountManager = AccountManager(this)
         authManager = AuthManager(this, accountManager)
+        authTokenManager = AuthTokenManager(this, accountManager, authManager.microsoftAuthManager)
+        authManager.setAuthTokenManager(authTokenManager)
         contactSuggestionProvider = ContactSuggestionProvider()
         settingsDataStore = SettingsDataStore(this)
         database = AppDatabase.getDatabase(this)
+
+        // Warm the token cache & init MSAL eagerly so background workers can refresh tokens.
+        appScope.launch { authTokenManager.warmCache() }
+
         val providerFactory: (UserProfile) -> EmailProvider = { profile ->
             val profileRetrofit = RetrofitClient(
-                tokenProvider = { 
-                    runBlocking { accountManager.getAccounts().find { it.id == profile.id } }?.accessToken
-                },
-                tokenRefresher = {
-                    val currentProfile = runBlocking { accountManager.getAccounts().find { it.id == profile.id } } ?: return@RetrofitClient null
-                    try {
-                        if (currentProfile.provider == "gmail") {
-                            val oldToken = currentProfile.accessToken
-                            if (oldToken.isNotEmpty()) {
-                                GoogleAuthUtil.clearToken(this@MonoMailApp, oldToken)
-                            }
-                            val newToken = GoogleAuthUtil.getToken(
-                                this@MonoMailApp,
-                                Account(currentProfile.email, "com.google"),
-                                AuthManager.GMAIL_SCOPE
-                            )
-                            val updated = currentProfile.copy(accessToken = newToken)
-                            runBlocking { authManager.updateAccessToken(updated) }
-                            newToken
-                        } else if (currentProfile.provider == "outlook") {
-                            val newToken = runBlocking {
-                                authManager.microsoftAuthManager.getAccessTokenSilently(currentProfile.id)
-                            }
-                            if (newToken != null) {
-                                val updated = currentProfile.copy(accessToken = newToken)
-                                runBlocking { authManager.updateAccessToken(updated) }
-                            }
-                            newToken
-                        } else {
-                            null
-                        }
-                    } catch (e: Exception) {
-                        null
-                    }
-                },
+                accountId = profile.id,
+                tokenManager = authTokenManager,
                 onRefreshFailed = {
                     val p = runBlocking { accountManager.getActiveAccount() }
                     if (p != null) {
