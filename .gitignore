@@ -21,3 +21,4 @@ keystore.properties
 app/monomail-release.keystore
 /review.md
 .kotlin/sessions/
+/SECURITY_PERFORMANCE_AUDIT.md
