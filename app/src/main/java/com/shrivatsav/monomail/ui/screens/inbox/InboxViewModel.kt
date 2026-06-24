@@ -1,16 +1,22 @@
 package com.shrivatsav.monomail.ui.screens.inbox
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.shrivatsav.monomail.ScheduledEmailEvent
+import com.shrivatsav.monomail.SentEmailEvent
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.data.settings.AppSettings
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -27,6 +33,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import javax.inject.Inject
 enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED, SNOOZED, SPAM }
 sealed class InboxState {
     object Loading : InboxState()
@@ -40,12 +47,14 @@ sealed class InboxState {
     data class Error(val message: String) : InboxState()
 }
 @OptIn(ExperimentalCoroutinesApi::class)
-class InboxViewModel(
+@HiltViewModel
+class InboxViewModel @Inject constructor(
     private val repository: EmailRepository,
     private val contactProvider: ContactSuggestionProvider,
     private val authManager: AuthManager,
     private val settingsDataStore: SettingsDataStore,
-    private val app: MonoMailApp
+    private val sentEmailEvents: MutableSharedFlow<SentEmailEvent>,
+    val scheduledEmailEvents: MutableSharedFlow<ScheduledEmailEvent>
 ) : ViewModel() {
     private val _currentTab = MutableStateFlow(InboxTab.INBOX)
     val currentTab: StateFlow<InboxTab> = _currentTab.asStateFlow()
@@ -87,6 +96,7 @@ class InboxViewModel(
     val selectedThreadIds: StateFlow<Set<String>> = _selectedThreadIds.asStateFlow()
     val selectedCount: StateFlow<Int> = _selectedThreadIds.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    val settingsFlow = settingsDataStore.settingsFlow
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
     val state: StateFlow<InboxState> = _state.asStateFlow()
 
@@ -158,10 +168,6 @@ class InboxViewModel(
     private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
     init {
         viewModelScope.launch {
-            // Only react to the account ID changing (e.g. account switch), NOT to token
-            // refreshes which emit a new UserProfile with the same id. Token writes to
-            // DataStore re-emit activeAccountFlow and would otherwise restart the Room
-            // flow via flatMapLatest, briefly wiping the inbox list on every sync.
             authManager.activeAccountFlow
                 .map { it?.id }
                 .distinctUntilChanged()
@@ -201,7 +207,7 @@ class InboxViewModel(
 
     private fun observeSentEvents() {
         viewModelScope.launch {
-            combine(app.sentEmailEvents, settingsDataStore.settingsFlow) { event, settings ->
+            combine(sentEmailEvents, settingsDataStore.settingsFlow) { event, settings ->
                 Pair(event, settings)
             }.collect { (event, settings) ->
                 val toastId = event.threadId ?: "send_${System.currentTimeMillis()}"
@@ -273,8 +279,6 @@ class InboxViewModel(
             }.onFailure { e ->
                 val msg = e.message ?: "Failed to refresh emails"
                 if (msg.contains("sign in", ignoreCase = true) || msg.contains("Session expired", ignoreCase = true)) {
-                    // Auth failure — reauth dialog is triggered by RetrofitClient interceptor;
-                    // still emit error so the user sees feedback
                     _uiError.emit(msg)
                 } else {
                     _uiError.emit(msg)
@@ -305,14 +309,17 @@ class InboxViewModel(
         }
     }
     fun markAllAsRead() {
-        viewModelScope.launch {
-            val currentState = state.value as? InboxState.Success ?: return@launch
-            if (currentState.currentTab != InboxTab.INBOX) return@launch
-            val unreadThreads = currentState.threads.filter { !it.isRead }
-            if (unreadThreads.isEmpty()) return@launch
-            unreadThreads.forEach { thread ->
-                repository.markThreadAsRead(thread.threadId)
+        val currentState = state.value as? InboxState.Success ?: return
+        val unreadThreads = currentState.threads.filter { !it.isRead }
+        if (unreadThreads.isEmpty()) return
+        val ids = unreadThreads.map { it.threadId }
+        _state.value = currentState.copy(
+            threads = currentState.threads.map { thread ->
+                if (!thread.isRead) thread.copy(isRead = true) else thread
             }
+        )
+        viewModelScope.launch {
+            ids.forEach { repository.markThreadAsRead(it) }
         }
     }
     fun markThreadAsRead(threadId: String) {
@@ -360,7 +367,6 @@ class InboxViewModel(
                     repository.emptyTrash()
                 }
             } catch (e: Exception) {
-                // Ignore exception to ensure toast clears
             } finally {
                 if (_toastState.value?.threadId == sentinelId) {
                     _toastState.value = null
@@ -403,7 +409,6 @@ class InboxViewModel(
                 delay(4000)
                 executeAction(threadId, type)
             } catch (e: Exception) {
-                // Ignore exception to ensure toast clears
             } finally {
                 if (_toastState.value?.threadId == threadId) {
                     _toastState.value = null
@@ -515,6 +520,14 @@ class InboxViewModel(
     fun bulkMarkRead() {
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
+        val currentState = _state.value
+        if (currentState is InboxState.Success) {
+            _state.value = currentState.copy(
+                threads = currentState.threads.map { thread ->
+                    if (thread.threadId in ids) thread.copy(isRead = true) else thread
+                }
+            )
+        }
         viewModelScope.launch {
             ids.forEach { repository.markThreadAsRead(it) }
         }
@@ -523,6 +536,14 @@ class InboxViewModel(
     fun bulkMarkUnread() {
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
+        val currentState = _state.value
+        if (currentState is InboxState.Success) {
+            _state.value = currentState.copy(
+                threads = currentState.threads.map { thread ->
+                    if (thread.threadId in ids) thread.copy(isRead = false) else thread
+                }
+            )
+        }
         viewModelScope.launch {
             ids.forEach { repository.markThreadAsUnread(it) }
         }

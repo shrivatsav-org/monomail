@@ -15,6 +15,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.shrivatsav.monomail.auth.UserProfile
 
 internal enum class ModalType { PROFILE, SWITCH_ACCOUNT, ADD_ACCOUNT }
@@ -88,22 +89,7 @@ internal fun ModalOverlay(
                 ) {
                     when (modal) {
                         ModalType.ADD_ACCOUNT -> {
-                            val ctx = androidx.compose.ui.platform.LocalContext.current
-                            val a = ctx.applicationContext as com.shrivatsav.monomail.MonoMailApp
-                            val vm: com.shrivatsav.monomail.ui.screens.auth.SignInViewModel =
-                                androidx.lifecycle.viewmodel.compose.viewModel(
-                                    factory = object :
-                                        androidx.lifecycle.ViewModelProvider.Factory {
-                                        @Suppress("UNCHECKED_CAST")
-                                        override fun <T : androidx.lifecycle.ViewModel> create(
-                                            modelClass: Class<T>
-                                        ): T =
-                                            com.shrivatsav.monomail.ui.screens.auth.SignInViewModel(
-                                                a.authManager,
-                                                a.emailRepository
-                                            ) as T
-                                    }
-                                )
+                            val vm: com.shrivatsav.monomail.ui.screens.auth.SignInViewModel = hiltViewModel()
                             com.shrivatsav.monomail.ui.screens.auth.ProviderSelectionDialog(
                                 viewModel = vm,
                                 onDismiss = { onDismiss() },

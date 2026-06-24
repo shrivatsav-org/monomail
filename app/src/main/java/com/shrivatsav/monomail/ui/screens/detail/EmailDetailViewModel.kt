@@ -1,22 +1,27 @@
 package com.shrivatsav.monomail.ui.screens.detail
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 sealed class EmailDetailState {
     object Loading : EmailDetailState()
     data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) : EmailDetailState()
     data class Error(val message: String) : EmailDetailState()
 }
-class EmailDetailViewModel(
+@HiltViewModel
+class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
-    private val threadId: String
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+    private val threadId: String = savedStateHandle.get<String>("threadId") ?: ""
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
     val state: StateFlow<EmailDetailState> = kotlinx.coroutines.flow.combine(
@@ -29,7 +34,6 @@ class EmailDetailViewModel(
             if (unreadIds.isNotEmpty()) {
                 repository.markEmailsAsRead(unreadIds)
             }
-            // Only show the loading spinner if we don't have the body yet
             val needsBodyFetch = emails.any { it.body.isEmpty() }
             EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
         } else if (error != null) {
