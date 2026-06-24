@@ -309,14 +309,17 @@ class InboxViewModel @Inject constructor(
         }
     }
     fun markAllAsRead() {
-        viewModelScope.launch {
-            val currentState = state.value as? InboxState.Success ?: return@launch
-            if (currentState.currentTab != InboxTab.INBOX) return@launch
-            val unreadThreads = currentState.threads.filter { !it.isRead }
-            if (unreadThreads.isEmpty()) return@launch
-            unreadThreads.forEach { thread ->
-                repository.markThreadAsRead(thread.threadId)
+        val currentState = state.value as? InboxState.Success ?: return
+        val unreadThreads = currentState.threads.filter { !it.isRead }
+        if (unreadThreads.isEmpty()) return
+        val ids = unreadThreads.map { it.threadId }
+        _state.value = currentState.copy(
+            threads = currentState.threads.map { thread ->
+                if (!thread.isRead) thread.copy(isRead = true) else thread
             }
+        )
+        viewModelScope.launch {
+            ids.forEach { repository.markThreadAsRead(it) }
         }
     }
     fun markThreadAsRead(threadId: String) {
@@ -517,6 +520,14 @@ class InboxViewModel @Inject constructor(
     fun bulkMarkRead() {
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
+        val currentState = _state.value
+        if (currentState is InboxState.Success) {
+            _state.value = currentState.copy(
+                threads = currentState.threads.map { thread ->
+                    if (thread.threadId in ids) thread.copy(isRead = true) else thread
+                }
+            )
+        }
         viewModelScope.launch {
             ids.forEach { repository.markThreadAsRead(it) }
         }
@@ -525,6 +536,14 @@ class InboxViewModel @Inject constructor(
     fun bulkMarkUnread() {
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
+        val currentState = _state.value
+        if (currentState is InboxState.Success) {
+            _state.value = currentState.copy(
+                threads = currentState.threads.map { thread ->
+                    if (thread.threadId in ids) thread.copy(isRead = false) else thread
+                }
+            )
+        }
         viewModelScope.launch {
             ids.forEach { repository.markThreadAsUnread(it) }
         }
