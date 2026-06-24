@@ -82,9 +82,15 @@ fun InboxScreen(
     var showSnoozePicker by remember { mutableStateOf(false) }
     var snoozeThreadId by remember { mutableStateOf<String?>(null) }
     val onSnoozeSelected: (String) -> Unit = remember { { id -> snoozeThreadId = id; showSnoozePicker = true } }
+    val isBulkMode by viewModel.isBulkSelectMode.collectAsState()
+    val selectedThreadIds by viewModel.selectedThreadIds.collectAsState()
+    val selectedCount by viewModel.selectedCount.collectAsState()
 
     val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
     LaunchedEffect(immediateTab) { listState.scrollToItem(0) }
+    if (isBulkMode) {
+        BackHandler { viewModel.exitBulkSelectMode() }
+    }
 
     val localFilteredThreads by remember(searchQuery, currentThreads) {
         derivedStateOf {
@@ -193,7 +199,11 @@ fun InboxScreen(
                         onUndo = { viewModel.undoAction() },
                         onSettings = onSettings,
                         onOpenProfile = { activeModal = ModalType.PROFILE },
-                        scheduledCount = scheduledCount
+                        scheduledCount = scheduledCount,
+                        isBulkMode = isBulkMode,
+                        selectedCount = selectedCount,
+                        onSelectAll = { viewModel.selectAll() },
+                        onDone = { viewModel.exitBulkSelectMode() }
                     )
 
                     when (val s = state) {
@@ -355,7 +365,13 @@ fun InboxScreen(
                                                             longPressedThread = displayItem.thread
                                                         },
                                                         fontSizeScale = fontSizeScale,
-                                                        isNested = false
+                                                        isNested = false,
+                                                        isBulkMode = isBulkMode,
+                                                        isSelected = displayItem.thread.threadId in selectedThreadIds,
+                                                        onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                        onAvatarLongClick = {
+                                                            viewModel.enterBulkSelectMode(displayItem.thread.threadId)
+                                                        }
                                                     )
                                                 }
 
@@ -375,7 +391,13 @@ fun InboxScreen(
                                                             longPressedThread = displayItem.thread
                                                         },
                                                         fontSizeScale = fontSizeScale,
-                                                        isNested = true
+                                                        isNested = true,
+                                                        isBulkMode = isBulkMode,
+                                                        isSelected = displayItem.thread.threadId in selectedThreadIds,
+                                                        onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                        onAvatarLongClick = {
+                                                            viewModel.enterBulkSelectMode(displayItem.thread.threadId)
+                                                        }
                                                     )
                                                 }
                                             }
@@ -426,7 +448,7 @@ fun InboxScreen(
 
             
             AnimatedVisibility(
-                visible = longPressedThread == null && activeModal == null,
+                visible = longPressedThread == null && activeModal == null && !isBulkMode,
                 enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.9f),
                 exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f),
                 modifier = Modifier.align(Alignment.BottomCenter)
@@ -522,6 +544,23 @@ fun InboxScreen(
                         }
                     }
                 }
+            }
+
+            AnimatedVisibility(
+                visible = isBulkMode,
+                enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.9f),
+                exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f),
+                modifier = Modifier.align(Alignment.BottomCenter)
+            ) {
+                BulkActionBar(
+                    selectedCount = selectedCount,
+                    onArchive = { viewModel.bulkArchive() },
+                    onDelete = { viewModel.bulkDelete() },
+                    onMarkRead = { viewModel.bulkMarkRead() },
+                    onMarkUnread = { viewModel.bulkMarkUnread() },
+                    onToggleStar = { viewModel.bulkToggleStar() },
+                    modifier = Modifier.padding(bottom = navBarHeight + 8.dp)
+                )
             }
 
             

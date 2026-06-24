@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -73,7 +73,6 @@ fun EmailItem(
         derivedStateOf { domainRegex.find(thread.fromEmail)?.groupValues?.get(1)?.trim() }
     }
     val backgroundColor = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
         isUnread -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         else -> MaterialTheme.colorScheme.background
     }
@@ -227,12 +226,29 @@ private fun SenderAvatar(
         contentAlignment = Alignment.Center
     ) {
         if (isBulkMode) {
-            Icon(
-                imageVector = if (isSelected) Icons.Outlined.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                contentDescription = if (isSelected) "Selected" else "Not selected",
-                tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                modifier = Modifier.fillMaxSize().padding(2.dp)
-            )
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(2.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = "Selected",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Outlined.RadioButtonUnchecked,
+                    contentDescription = "Not selected",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                    modifier = Modifier.fillMaxSize().padding(2.dp)
+                )
+            }
         } else if (imageSuccess) {
             Image(
                 painter = painter,
