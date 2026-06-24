@@ -636,8 +636,7 @@ fun InboxScreen(
                                     label = if (thread.isRead) "Unread" else "Read",
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     onClick = {
-                                        if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId)
-                                        else viewModel.markThreadAsRead(thread.threadId)
+                                        viewModel.setThreadReadStatus(thread.threadId, !thread.isRead)
                                         longPressedThread = null
                                     }
                                 )

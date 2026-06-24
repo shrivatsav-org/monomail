@@ -66,8 +66,7 @@ internal fun SwipeableEmailItem(
             com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> {
                 val wasRead = optIsRead
                 optIsRead = !wasRead
-                if (wasRead) viewModel.markThreadAsUnread(thread.threadId)
-                else viewModel.markThreadAsRead(thread.threadId)
+                viewModel.setThreadReadStatus(thread.threadId, !wasRead)
                 scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
             }
         }

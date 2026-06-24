@@ -42,7 +42,6 @@ import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -178,12 +177,7 @@ fun EmailDetailScreen(
                 val emails = s.emails
                 val latestEmail = emails.lastOrNull() ?: return@Scaffold
                 androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    if (s.isRefreshing) {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
+                    // ponytail: removed loading bar/indicator as requested
                     if (s.refreshError != null) {
                         Text(
                             text = s.refreshError,

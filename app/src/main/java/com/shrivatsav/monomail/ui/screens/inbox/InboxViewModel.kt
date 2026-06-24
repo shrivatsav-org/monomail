@@ -267,15 +267,12 @@ class InboxViewModel(
             val unreadThreads = currentState.threads.filter { !it.isRead }
             if (unreadThreads.isEmpty()) return@launch
             unreadThreads.forEach { thread ->
-                repository.markThreadAsRead(thread.threadId)
+                repository.setThreadReadStatus(thread.threadId, true)
             }
         }
     }
-    fun markThreadAsRead(threadId: String) {
-        viewModelScope.launch { repository.markThreadAsRead(threadId) }
-    }
-    fun markThreadAsUnread(threadId: String) {
-        viewModelScope.launch { repository.markThreadAsUnread(threadId) }
+    fun setThreadReadStatus(threadId: String, read: Boolean) {
+        viewModelScope.launch { repository.setThreadReadStatus(threadId, read) }
     }
     fun archiveThread(threadId: String) {
         queueAction(threadId, ActionType.ARCHIVE, "Conversation archived")
@@ -472,7 +469,7 @@ class InboxViewModel(
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            ids.forEach { repository.markThreadAsRead(it) }
+            ids.forEach { repository.setThreadReadStatus(it, true) }
         }
         exitBulkSelectMode()
     }
@@ -480,7 +477,7 @@ class InboxViewModel(
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
         viewModelScope.launch {
-            ids.forEach { repository.markThreadAsUnread(it) }
+            ids.forEach { repository.setThreadReadStatus(it, false) }
         }
         exitBulkSelectMode()
     }

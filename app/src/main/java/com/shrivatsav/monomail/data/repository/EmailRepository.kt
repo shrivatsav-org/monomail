@@ -62,11 +62,21 @@ class EmailRepository(
         return providerFactory(account)
     }
     private fun enqueueSync(data: Data) {
-        val request = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setConstraints(networkConstraints)
-            .setInputData(data)
-            .build()
-        workManager.enqueue(request)
+        workManager.enqueue(
+            OneTimeWorkRequestBuilder<SyncWorker>()
+                .setConstraints(networkConstraints)
+                .setInputData(data)
+                .build()
+        )
+    }
+
+    // ponytail: generic action builder — all thread actions follow the same pattern
+    private fun actionData(action: String, accountId: String, block: Data.Builder.() -> Unit = {}): Data {
+        return Data.Builder().apply {
+            putString(SyncWorker.KEY_ACTION, action)
+            putString(SyncWorker.KEY_ACCOUNT_ID, accountId)
+            block()
+        }.build()
     }
     fun getInboxThreadsFlow(tab: InboxTab): Flow<List<EmailThread>> = flow {
         val activeAccountId = accountManager.getActiveAccount()?.id ?: "gmail_unknown"
@@ -229,68 +239,39 @@ class EmailRepository(
         val activeAccountId = getActiveAccountId()
         threadDao.updateThreadStarred(threadId, activeAccountId, newStarred)
         emailDao.updateThreadStarred(threadId, activeAccountId, newStarred)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_TOGGLE_STAR)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .putBoolean(SyncWorker.KEY_IS_STARRED, newStarred)
-            .build()
-        enqueueSync(data)
+        enqueueSync(actionData(SyncWorker.ACTION_TOGGLE_STAR, activeAccountId) {
+            putString(SyncWorker.KEY_THREAD_ID, threadId)
+            putBoolean(SyncWorker.KEY_IS_STARRED, newStarred)
+        })
     }
     suspend fun markEmailsAsRead(emailIds: List<String>) {
         if (emailIds.isEmpty()) return
         val activeAccountId = getActiveAccountId()
         emailDao.markEmailsAsRead(emailIds, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_EMAILS_READ)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_EMAIL_IDS, Gson().toJson(emailIds))
-            .build()
-        enqueueSync(data)
+        enqueueSync(actionData(SyncWorker.ACTION_MARK_EMAILS_READ, activeAccountId) {
+            putString(SyncWorker.KEY_EMAIL_IDS, Gson().toJson(emailIds))
+        })
     }
-    suspend fun markThreadAsRead(threadId: String) {
+    suspend fun setThreadReadStatus(threadId: String, read: Boolean) {
         val activeAccountId = getActiveAccountId()
-        threadDao.updateThreadReadStatus(threadId, activeAccountId, true)
-        emailDao.updateThreadEmailsReadStatus(threadId, activeAccountId, true)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_READ)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
-    }
-    suspend fun markThreadAsUnread(threadId: String) {
-        val activeAccountId = getActiveAccountId()
-        threadDao.updateThreadReadStatus(threadId, activeAccountId, false)
-        emailDao.updateThreadEmailsReadStatus(threadId, activeAccountId, false)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_UNREAD)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
+        threadDao.updateThreadReadStatus(threadId, activeAccountId, read)
+        emailDao.updateThreadEmailsReadStatus(threadId, activeAccountId, read)
+        enqueueSync(actionData(SyncWorker.ACTION_SET_READ_STATUS, activeAccountId) {
+            putString(SyncWorker.KEY_THREAD_ID, threadId)
+            putBoolean(SyncWorker.KEY_IS_READ, read)
+        })
     }
     suspend fun archiveThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.archiveThread(threadId, activeAccountId)
         emailDao.archiveThreadEmails(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_ARCHIVE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
+        enqueueSync(actionData(SyncWorker.ACTION_ARCHIVE, activeAccountId) { putString(SyncWorker.KEY_THREAD_ID, threadId) })
     }
     suspend fun unarchiveThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.unarchiveThread(threadId, activeAccountId)
         emailDao.unarchiveThreadEmails(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_UNARCHIVE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
+        enqueueSync(actionData(SyncWorker.ACTION_UNARCHIVE, activeAccountId) { putString(SyncWorker.KEY_THREAD_ID, threadId) })
     }
     suspend fun emptyTrash() {
         val activeAccountId = getActiveAccountId()
@@ -314,23 +295,13 @@ class EmailRepository(
         val activeAccountId = getActiveAccountId()
         threadDao.moveToTrash(threadId, activeAccountId)
         emailDao.moveThreadEmailsToTrash(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_DELETE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
+        enqueueSync(actionData(SyncWorker.ACTION_DELETE, activeAccountId) { putString(SyncWorker.KEY_THREAD_ID, threadId) })
     }
     suspend fun restoreThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
         threadDao.restoreFromTrash(threadId, activeAccountId)
         emailDao.restoreThreadEmailsFromTrash(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_RESTORE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
+        enqueueSync(actionData(SyncWorker.ACTION_RESTORE, activeAccountId) { putString(SyncWorker.KEY_THREAD_ID, threadId) })
     }
     suspend fun reportNotSpam(threadId: String) {
         val activeAccountId = getActiveAccountId()

@@ -28,11 +28,8 @@ class SyncWorker(
                     val isStarred = inputData.getBoolean(KEY_IS_STARRED, false)
                     provider.toggleStar(threadId!!, isStarred)
                 }
-                ACTION_MARK_THREAD_READ -> {
-                    provider.markRead(threadId!!, true)
-                }
-                ACTION_MARK_THREAD_UNREAD -> {
-                    provider.markRead(threadId!!, false)
+                ACTION_SET_READ_STATUS -> {
+                    provider.markRead(threadId!!, inputData.getBoolean(KEY_IS_READ, true))
                 }
                 ACTION_MARK_EMAILS_READ -> {
                     if (emailIdsJson != null) {
@@ -68,9 +65,9 @@ class SyncWorker(
         const val KEY_THREAD_ID = "thread_id"
         const val KEY_EMAIL_IDS = "email_ids"
         const val KEY_IS_STARRED = "is_starred"
+        const val KEY_IS_READ = "is_read"
+        const val ACTION_SET_READ_STATUS = "set_read_status"
         const val ACTION_TOGGLE_STAR = "toggle_star"
-        const val ACTION_MARK_THREAD_READ = "mark_thread_read"
-        const val ACTION_MARK_THREAD_UNREAD = "mark_thread_unread"
         const val ACTION_MARK_EMAILS_READ = "mark_emails_read"
         const val ACTION_ARCHIVE = "archive"
         const val ACTION_UNARCHIVE = "unarchive"

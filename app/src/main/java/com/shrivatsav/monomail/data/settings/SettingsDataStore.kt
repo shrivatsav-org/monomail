@@ -104,63 +104,28 @@ class SettingsDataStore(private val context: Context) {
             } ?: DockConfig.defaults()
         )
     }
-    suspend fun setThemeMode(mode: ThemeMode) {
-        context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
-    }
-    suspend fun setFontScale(scale: FontScale) {
-        context.dataStore.edit { it[Keys.FONT_SCALE] = scale.name }
-    }
-    suspend fun setShowDividers(show: Boolean) {
-        context.dataStore.edit { it[Keys.SHOW_DIVIDERS] = show }
-    }
-    suspend fun setCompactList(compact: Boolean) {
-        context.dataStore.edit { it[Keys.COMPACT_LIST] = compact }
-    }
-    suspend fun setShowSnippet(show: Boolean) {
-        context.dataStore.edit { it[Keys.SHOW_SNIPPET] = show }
-    }
-    suspend fun setSwipeLeftAction(action: SwipeAction) {
-        context.dataStore.edit { it[Keys.SWIPE_LEFT] = action.name }
-    }
-    suspend fun setSwipeRightAction(action: SwipeAction) {
-        context.dataStore.edit { it[Keys.SWIPE_RIGHT] = action.name }
-    }
-    suspend fun setConfirmBeforeSending(confirm: Boolean) {
-        context.dataStore.edit { it[Keys.CONFIRM_SEND] = confirm }
-    }
-    suspend fun setDefaultReply(reply: DefaultReply) {
-        context.dataStore.edit { it[Keys.DEFAULT_REPLY] = reply.name }
-    }
-    suspend fun setEmailNotifications(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.EMAIL_NOTIFICATIONS] = enabled }
-    }
-    suspend fun setSyncFrequency(freq: SyncFrequency) {
-        context.dataStore.edit { it[Keys.SYNC_FREQUENCY] = freq.name }
-    }
-    suspend fun setUnifiedInboxEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.UNIFIED_INBOX_ENABLED] = enabled }
-    }
-    suspend fun setHasSeenWelcomePrompt(seen: Boolean) {
-        context.dataStore.edit { it[Keys.HAS_SEEN_WELCOME_PROMPT] = seen }
-    }
-    suspend fun setSmartGroupingEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.SMART_GROUPING_ENABLED] = enabled }
-    }
-    suspend fun setSmartGroupingRecentOnly(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.SMART_GROUPING_RECENT_ONLY] = enabled }
-    }
-    suspend fun setOrganizeByThread(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.ORGANIZE_BY_THREAD] = enabled }
-    }
-    suspend fun setNavScale(scale: Float) {
-        context.dataStore.edit { it[Keys.NAV_SCALE] = scale }
-    }
-    suspend fun setUndoSendEnabled(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.UNDO_SEND_ENABLED] = enabled }
-    }
-    suspend fun setUndoSendWindow(window: UndoSendWindow) {
-        context.dataStore.edit { it[Keys.UNDO_SEND_WINDOW] = window.name }
-    }
+    // ponytail: 17 setters → 2 generic + named one-liners
+    private suspend fun setBool(key: Preferences.Key<Boolean>, value: Boolean) = context.dataStore.edit { it[key] = value }
+    private suspend fun setString(key: Preferences.Key<String>, value: String) = context.dataStore.edit { it[key] = value }
+    suspend fun setThemeMode(mode: ThemeMode) = setString(Keys.THEME_MODE, mode.name)
+    suspend fun setFontScale(scale: FontScale) = setString(Keys.FONT_SCALE, scale.name)
+    suspend fun setShowDividers(show: Boolean) = setBool(Keys.SHOW_DIVIDERS, show)
+    suspend fun setCompactList(compact: Boolean) = setBool(Keys.COMPACT_LIST, compact)
+    suspend fun setShowSnippet(show: Boolean) = setBool(Keys.SHOW_SNIPPET, show)
+    suspend fun setSwipeLeftAction(action: SwipeAction) = setString(Keys.SWIPE_LEFT, action.name)
+    suspend fun setSwipeRightAction(action: SwipeAction) = setString(Keys.SWIPE_RIGHT, action.name)
+    suspend fun setConfirmBeforeSending(confirm: Boolean) = setBool(Keys.CONFIRM_SEND, confirm)
+    suspend fun setDefaultReply(reply: DefaultReply) = setString(Keys.DEFAULT_REPLY, reply.name)
+    suspend fun setEmailNotifications(enabled: Boolean) = setBool(Keys.EMAIL_NOTIFICATIONS, enabled)
+    suspend fun setSyncFrequency(freq: SyncFrequency) = setString(Keys.SYNC_FREQUENCY, freq.name)
+    suspend fun setUnifiedInboxEnabled(enabled: Boolean) = setBool(Keys.UNIFIED_INBOX_ENABLED, enabled)
+    suspend fun setHasSeenWelcomePrompt(seen: Boolean) = setBool(Keys.HAS_SEEN_WELCOME_PROMPT, seen)
+    suspend fun setSmartGroupingEnabled(enabled: Boolean) = setBool(Keys.SMART_GROUPING_ENABLED, enabled)
+    suspend fun setSmartGroupingRecentOnly(enabled: Boolean) = setBool(Keys.SMART_GROUPING_RECENT_ONLY, enabled)
+    suspend fun setOrganizeByThread(enabled: Boolean) = setBool(Keys.ORGANIZE_BY_THREAD, enabled)
+    suspend fun setNavScale(scale: Float) = context.dataStore.edit { it[Keys.NAV_SCALE] = scale }
+    suspend fun setUndoSendEnabled(enabled: Boolean) = setBool(Keys.UNDO_SEND_ENABLED, enabled)
+    suspend fun setUndoSendWindow(window: UndoSendWindow) = setString(Keys.UNDO_SEND_WINDOW, window.name)
     suspend fun setDockConfig(config: DockConfig) {
         context.dataStore.edit { it[Keys.DOCK_CONFIG] = Gson().toJson(config) }
     }

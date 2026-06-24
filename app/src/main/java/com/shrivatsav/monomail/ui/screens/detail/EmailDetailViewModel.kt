@@ -53,7 +53,7 @@ class EmailDetailViewModel(
         )
     init {
         viewModelScope.launch {
-            repository.markThreadAsRead(threadId)
+            repository.setThreadReadStatus(threadId, true)
             _isLoading.value = true
             val result = repository.refreshThread(threadId)
             _isLoading.value = false
@@ -69,7 +69,7 @@ class EmailDetailViewModel(
     }
     fun markUnread(onComplete: () -> Unit) {
         viewModelScope.launch {
-            repository.markThreadAsUnread(threadId)
+            repository.setThreadReadStatus(threadId, false)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
         }
     }
