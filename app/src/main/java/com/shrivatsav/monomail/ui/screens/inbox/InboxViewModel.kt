@@ -240,7 +240,7 @@ class InboxViewModel(
     private fun startForegroundPolling() {
         viewModelScope.launch {
             while (true) {
-                delay(60_000) 
+                delay(120_000) 
                 repository.refreshInbox(InboxTab.INBOX)
                 if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
                     repository.refreshInbox(_currentTab.value)

@@ -178,10 +178,9 @@ class ImapProvider(
                 var plainBody = ""
 
                 try {
-                    // Snapshot the message so all parts are read synchronously and we don't hit lazy eval errors
                     val rawStream = java.io.ByteArrayOutputStream()
                     msg.writeTo(rawStream)
-                    
+
                     val tempProps = java.util.Properties().apply {
                         put("mail.mime.multipart.ignoreexistingboundaryparameter", "true")
                         put("mail.mime.multipart.ignoremissingboundaryparameter", "true")
@@ -783,6 +782,33 @@ private fun Part.getBodyText(): String? {
         android.util.Log.e("ImapProvider", "Error getting body text: ${e.message}", e)
         null
     }
+}
+
+private fun extractSnippet(part: jakarta.mail.Part): String {
+    return try {
+        val content = part.content
+        val text = when {
+            part.isMimeType("text/plain") -> (content as? String) ?: ""
+            part.isMimeType("text/html") -> (content as? String)?.replace(Regex("<[^>]+>"), " ") ?: ""
+            content is Multipart -> {
+                var result = ""
+                for (i in 0 until content.count) {
+                    val bp = content.getBodyPart(i)
+                    val partContent = try { bp.content } catch (_: Exception) { null }
+                    when {
+                        bp.isMimeType("text/plain") -> { result = (partContent as? String) ?: ""; break }
+                        bp.isMimeType("text/html") && result.isEmpty() ->
+                            result = (partContent as? String)?.replace(Regex("<[^>]+>"), " ") ?: ""
+                        bp.isMimeType("multipart/*") && result.isEmpty() ->
+                            result = extractSnippet(bp)
+                    }
+                }
+                result
+            }
+            else -> ""
+        }
+        text.replace(Regex("\\s+"), " ").trim().take(150)
+    } catch (_: Exception) { "" }
 }
 
 private fun String.charsetOrUtf8(): String =

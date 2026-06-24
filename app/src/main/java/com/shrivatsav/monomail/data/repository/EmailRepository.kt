@@ -47,6 +47,7 @@ class EmailRepository(
     private val networkConstraints = Constraints.Builder()
         .setRequiredNetworkType(NetworkType.CONNECTED)
         .build()
+    private val gson = Gson()
     suspend fun getActiveProvider(): EmailProvider? {
         val activeAccount = accountManager.getActiveAccount() ?: return null
         return providerFactory(activeAccount)
@@ -259,7 +260,7 @@ class EmailRepository(
         val data = Data.Builder()
             .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_EMAILS_READ)
             .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_EMAIL_IDS, Gson().toJson(emailIds))
+            .putString(SyncWorker.KEY_EMAIL_IDS, gson.toJson(emailIds))
             .build()
         enqueueSync(data)
     }
@@ -401,7 +402,7 @@ class EmailRepository(
     ) {
         val id = UUID.randomUUID().toString()
         val attachmentsJson = if (attachments.isNotEmpty()) {
-            Gson().toJson(attachments.map { it.copy(uri = Uri.fromFile(File(it.uri.toString())).toString().let { Uri.parse(it) }) })
+            gson.toJson(attachments.map { it.copy(uri = Uri.fromFile(File(it.uri.toString())).toString().let { Uri.parse(it) }) })
         } else "[]"
         val entity = ScheduledMessageEntity(
             id = id,
@@ -412,7 +413,7 @@ class EmailRepository(
             bcc = bcc,
             subject = subject,
             body = body,
-            attachmentsJson = Gson().toJson(
+            attachmentsJson = gson.toJson(
                 attachments.map { a ->
                     mapOf(
                         "localPath" to a.uri.toString(),
@@ -445,7 +446,7 @@ class EmailRepository(
     private fun cleanupScheduledAttachmentFiles(attachmentsJson: String) {
         try {
             val type = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
-            val attachments: List<Map<String, Any>> = Gson().fromJson(attachmentsJson, type)
+            val attachments: List<Map<String, Any>> = gson.fromJson(attachmentsJson, type)
             attachments.forEach { a ->
                 val path = a["localPath"] as? String
                 if (path != null) {
