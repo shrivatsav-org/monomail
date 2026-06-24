@@ -11,6 +11,7 @@ import com.shrivatsav.monomail.data.provider.imap.ImapProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.security.SecurityUtil
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import dagger.hilt.android.lifecycle.HiltViewModel
 import jakarta.mail.AuthenticationFailedException
 import jakarta.mail.MessagingException
 import kotlinx.coroutines.FlowPreview
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 sealed class ImapTestState {
     object Idle : ImapTestState()
@@ -29,7 +31,8 @@ sealed class ImapTestState {
     data class Error(val message: String) : ImapTestState()
 }
 
-class ImapSetupViewModel(
+@HiltViewModel
+class ImapSetupViewModel @Inject constructor(
     private val accountManager: AccountManager,
     private val authManager: AuthManager,
     private val emailRepository: EmailRepository
@@ -124,14 +127,11 @@ class ImapSetupViewModel(
             }
 
             try {
-                // To test connection, we instantiate the provider and call a basic method or just try to connect
                 val provider = ImapProvider(config, _password.value, context)
-                // Just listing threads from INBOX implicitly connects to the store
                 provider.listThreads(com.shrivatsav.monomail.data.provider.EmailFolder.INBOX, 1)
                 provider.disconnect()
                 _testState.value = ImapTestState.Syncing
                 
-                // If successful, save the account
                 saveAccountInternal(config, onSuccess)
             } catch (e: AuthenticationFailedException) {
                 _testState.value = ImapTestState.Error("Wrong username or password")
