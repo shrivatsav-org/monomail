@@ -29,8 +29,8 @@ android {
         applicationId = "com.shrivatsav.monomail"
         minSdk = 26
         targetSdk = 35
-        versionCode = 12
-        versionName = "1.4b"
+        versionCode = 13
+        versionName = "1.5b"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")

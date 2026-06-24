@@ -40,9 +40,10 @@ class GmailProvider(
             query = finalQuery
         )
         val threadRefs = response.threads.orEmpty()
+        val limitedParallelism = Dispatchers.IO.limitedParallelism(5)
         val rawThreads = coroutineScope {
             threadRefs.map { ref ->
-                async {
+                async(limitedParallelism) {
                     try {
                         api.getThread(ref.id)
                     } catch (e: Exception) {

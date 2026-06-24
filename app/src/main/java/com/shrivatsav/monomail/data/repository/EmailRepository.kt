@@ -401,9 +401,6 @@ class EmailRepository(
         attachments: List<EmailAttachment> = emptyList()
     ) {
         val id = UUID.randomUUID().toString()
-        val attachmentsJson = if (attachments.isNotEmpty()) {
-            gson.toJson(attachments.map { it.copy(uri = Uri.fromFile(File(it.uri.toString())).toString().let { Uri.parse(it) }) })
-        } else "[]"
         val entity = ScheduledMessageEntity(
             id = id,
             accountId = accountId,

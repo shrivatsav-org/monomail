@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">gmail.googleapis.com</domain>
+        <domain includeSubdomains="true">graph.microsoft.com</domain>
+        <domain includeSubdomains="true">login.microsoftonline.com</domain>
+        <domain includeSubdomains="true">accounts.google.com</domain>
+    </domain-config>
+</network-security-config>

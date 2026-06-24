@@ -18,7 +18,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 sealed class EmailDetailState {
-    object Loading : EmailDetailState()
     data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) : EmailDetailState()
     data class Error(val message: String) : EmailDetailState()
 }
@@ -48,12 +47,12 @@ class EmailDetailViewModel @Inject constructor(
         } else if (!isLoading) {
             EmailDetailState.Error("Email thread not found.")
         } else {
-            EmailDetailState.Loading
+            EmailDetailState.Success(emptyList(), isRefreshing = true)
         }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = EmailDetailState.Loading
+        initialValue = EmailDetailState.Success(emptyList(), isRefreshing = true)
     )
     val isStarred: StateFlow<Boolean> = repository.getThreadEmailsFlow(threadId)
         .map { emails -> emails.any { it.isStarred } }

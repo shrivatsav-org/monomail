@@ -115,11 +115,11 @@ class AccountManager(private val context: Context) {
     }
     suspend fun getLastKnownEmailId(accountId: String): String? {
         val prefs = context.dataStore.data.first()
-        return prefs[stringPreferencesKey("last_email_$accountId")]
+        return prefs[stringPreferencesKey("last_timestamp_$accountId")]
     }
     suspend fun setLastKnownEmailId(accountId: String, emailId: String) {
         context.dataStore.edit { prefs ->
-            prefs[stringPreferencesKey("last_email_$accountId")] = emailId
+            prefs[stringPreferencesKey("last_timestamp_$accountId")] = emailId
         }
     }
     suspend fun getLastActiveTime(): Long {

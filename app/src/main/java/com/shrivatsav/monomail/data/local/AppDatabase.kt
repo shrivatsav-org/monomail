@@ -29,7 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                 .fallbackToDestructiveMigration()
                 .build()
                 INSTANCE = instance
@@ -42,6 +42,12 @@ val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE threads ADD COLUMN accountId TEXT NOT NULL DEFAULT 'gmail_unknown'")
         db.execSQL("ALTER TABLE emails ADD COLUMN accountId TEXT NOT NULL DEFAULT 'gmail_unknown'")
+    }
+}
+val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE emails ADD COLUMN ccEmail TEXT NOT NULL DEFAULT ''")
+        db.execSQL("ALTER TABLE emails ADD COLUMN bccEmail TEXT NOT NULL DEFAULT ''")
     }
 }
 val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {

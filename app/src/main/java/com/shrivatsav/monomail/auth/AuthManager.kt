@@ -85,6 +85,7 @@ class AuthManager(
         } catch (e: UserRecoverableAuthException) {
             notifyReauthRequired(profile.email, profile.provider)
         } catch (e: Exception) {
+            android.util.Log.w("AuthManager", "refreshCurrentToken failed", e)
         }
     }
     suspend fun signIn(activityContext: Context): SignInResult {
@@ -146,6 +147,7 @@ class AuthManager(
             try {
                 credentialManager.clearCredentialState(ClearCredentialStateRequest())
             } catch (e: Exception) {
+                android.util.Log.w("AuthManager", "clearCredentialState failed", e)
             }
         } else if (active.provider == "outlook") {
             try {
@@ -165,10 +167,14 @@ class AuthManager(
     suspend fun signOutAll() {
         try {
             credentialManager.clearCredentialState(ClearCredentialStateRequest())
-        } catch (e: Exception) { }
+        } catch (e: Exception) {
+            android.util.Log.w("AuthManager", "signOutAll clearCredentialState failed", e)
+        }
         val accounts = accountManager.getAccounts()
         accounts.filter { it.provider == "outlook" }.forEach {
-            try { microsoftAuthManager.signOut(it.id) } catch (e: Exception) { }
+            try { microsoftAuthManager.signOut(it.id) } catch (e: Exception) {
+                android.util.Log.w("AuthManager", "Outlook signOut failed for ${it.id}", e)
+            }
         }
         accountManager.clearAll()
         _isSignedIn.value = false
@@ -201,7 +207,7 @@ class AuthManager(
                     connection.setRequestProperty("Authorization", "Bearer $accessToken")
                     connection.responseCode
                 } catch (e: Exception) {
-                    200 
+                    throw e
                 }
             }
             if (responseCode == 401 || responseCode == 403) {

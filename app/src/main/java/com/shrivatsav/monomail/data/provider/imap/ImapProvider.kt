@@ -122,25 +122,24 @@ class ImapProvider(
 
         imapFolder.open(Folder.READ_ONLY)
         try {
-            val messages = if (folder == EmailFolder.STARRED) {
-                imapFolder.search(FlagTerm(Flags(Flags.Flag.FLAGGED), true))
+            val toFetch: Array<jakarta.mail.Message>
+            val fetchStart: Int
+            if (folder == EmailFolder.STARRED) {
+                val allStarred = imapFolder.search(FlagTerm(Flags(Flags.Flag.FLAGGED), true))
+                if (allStarred.isEmpty()) return@withContext ProviderThreadListResult(emptyList(), null)
+                toFetch = allStarred.takeLast(maxResults).toTypedArray()
+                fetchStart = 1
             } else {
-                imapFolder.messages
-            }
+                val total = imapFolder.messageCount
+                if (total == 0) return@withContext ProviderThreadListResult(emptyList(), null)
 
-            val total = messages.size
-            if (total == 0) return@withContext ProviderThreadListResult(emptyList(), null)
+                val offset = pageToken?.toIntOrNull() ?: total
+                val start = maxOf(1, offset - maxResults + 1)
+                val end = offset
+                if (start > end) return@withContext ProviderThreadListResult(emptyList(), null)
 
-            // Very basic pagination: fetch last maxResults
-            val offset = pageToken?.toIntOrNull() ?: total
-            val start = maxOf(1, offset - maxResults + 1)
-            val end = offset
-            if (start > end) return@withContext ProviderThreadListResult(emptyList(), null)
-
-            val toFetch = if (folder == EmailFolder.STARRED) {
-                messages.takeLast(maxResults).toTypedArray()
-            } else {
-                imapFolder.getMessages(start, end)
+                toFetch = imapFolder.getMessages(start, end)
+                fetchStart = start
             }
 
             // Fetch envelope, flags, and content info for body parsing
@@ -282,7 +281,7 @@ class ImapProvider(
                 ProviderThread(threadId, msgs)
             }.sortedByDescending { t -> t.messages.maxOfOrNull { it.date } ?: 0L }
 
-            val nextToken = if (start > 1) (start - 1).toString() else null
+            val nextToken = if (fetchStart > 1) (fetchStart - 1).toString() else null
             ProviderThreadListResult(threads, nextToken)
 
         } finally {
@@ -681,8 +680,19 @@ class ImapProvider(
         if (config.smtpStartTls) {
             props["mail.$protocol.starttls.enable"] = "true"
         }
-        props["mail.$protocol.connectiontimeout"] = "10000"
-        props["mail.$protocol.timeout"] = "10000"
+        props["mail.$protocol.connectiontimeout"] = "15000"
+        props["mail.$protocol.timeout"] = "15000"
+        props["mail.$protocol.writetimeout"] = "15000"
+        val localhost = from.substringAfterLast("@").ifBlank { config.smtpHost }
+        props["mail.smtp.localhost"] = localhost
+        props["mail.smtp.quitwait"] = "false"
+        props["mail.$protocol.ssl.protocols"] = "TLSv1.2 TLSv1.3"
+        if (config.smtpSsl || config.smtpStartTls) {
+            props["mail.$protocol.checkserveridentity"] = "true"
+        }
+        if (config.smtpStartTls) {
+            props["mail.$protocol.starttls.required"] = "true"
+        }
 
         val session = Session.getInstance(props, object : jakarta.mail.Authenticator() {
             override fun getPasswordAuthentication() = jakarta.mail.PasswordAuthentication(config.username, password)

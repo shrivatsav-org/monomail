@@ -28,8 +28,20 @@
     @com.google.gson.annotations.SerializedName <fields>;
 }
 
-# Keep data classes used with Gson in AccountManager
--keepclassmembers class com.shrivatsav.monomail.** {
+# Keep Gson-serialized data classes in AccountManager
+-keepclassmembers class com.shrivatsav.monomail.auth.UserProfile {
+    <fields>;
+}
+-keepclassmembers class com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig {
+    <fields>;
+}
+-keepclassmembers class com.shrivatsav.monomail.data.local.ScheduledMessageEntity {
+    <fields>;
+}
+-keepclassmembers class com.shrivatsav.monomail.data.model.EmailAttachment {
+    <fields>;
+}
+-keepclassmembers class com.shrivatsav.monomail.data.model.EmailAttachmentInfo {
     <fields>;
 }
 

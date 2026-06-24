@@ -12,6 +12,9 @@ import com.shrivatsav.monomail.data.remote.OutlookRecipient
 import com.shrivatsav.monomail.data.remote.OutlookSendMailRequest
 import com.shrivatsav.monomail.data.remote.OutlookUpdateMessageRequest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -89,7 +92,7 @@ class OutlookProvider(
     override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withContext(Dispatchers.IO) {
         val response = api.listMessages(
             maxResults = 100,
-            filter = "conversationId eq '$threadId'"
+            filter = sanitizeFilter(threadId)
         )
         val providerMessages = response.value.map { msg ->
             val date = parseDate(msg.receivedDateTime)
@@ -139,28 +142,30 @@ class OutlookProvider(
             }
         }
     }
+    private fun sanitizeFilter(threadId: String): String = "conversationId eq '${threadId.replace("'", "''")}'"
+
     override suspend fun archiveThread(threadId: String) {
-        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("archive")) }
     }
     override suspend fun unarchiveThread(threadId: String) {
-        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("inbox")) }
     }
     override suspend fun trashThread(threadId: String) {
-        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("deleteditems")) }
     }
     override suspend fun restoreThread(threadId: String) {
-        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("inbox")) }
     }
     override suspend fun permanentlyDeleteThread(threadId: String) {
-        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { api.deleteMessage(it.id) }
     }
     override suspend fun toggleStar(threadId: String, starred: Boolean) {
-        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { msg ->
             val categories = msg.categories?.toMutableList() ?: mutableListOf()
             if (starred) {
@@ -172,15 +177,19 @@ class OutlookProvider(
         }
     }
     override suspend fun markRead(threadId: String, read: Boolean) {
-        val msgs = api.listMessages(filter = "conversationId eq '$threadId'").value
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { msg ->
             api.updateMessage(msg.id, OutlookUpdateMessageRequest(isRead = read))
         }
     }
     override suspend fun batchMarkRead(messageIds: List<String>) {
         withContext(Dispatchers.IO) {
-            messageIds.forEach { id ->
-                try { api.updateMessage(id, OutlookUpdateMessageRequest(isRead = true)) } catch (e: Exception) {}
+            coroutineScope {
+                messageIds.map { id ->
+                    async {
+                        try { api.updateMessage(id, OutlookUpdateMessageRequest(isRead = true)) } catch (_: Exception) {}
+                    }
+                }.awaitAll()
             }
         }
     }

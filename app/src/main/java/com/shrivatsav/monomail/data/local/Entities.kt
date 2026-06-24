@@ -4,6 +4,7 @@ import androidx.room.PrimaryKey
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
+import com.google.gson.Gson
 @Entity(tableName = "threads")
 data class ThreadEntity(
     @PrimaryKey val threadId: String,
@@ -82,7 +83,7 @@ data class EmailEntity(
         isStarred = isStarred,
         labels = labels,
         attachments = try {
-            com.google.gson.Gson().fromJson(attachmentsJson, Array<com.shrivatsav.monomail.data.model.EmailAttachmentInfo>::class.java)?.toList() ?: emptyList()
+            gson.fromJson(attachmentsJson, Array<com.shrivatsav.monomail.data.model.EmailAttachmentInfo>::class.java)?.toList() ?: emptyList()
         } catch(e: Exception) { emptyList() }
     )
 }
@@ -132,6 +133,7 @@ data class ScheduledMessageEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+private val gson = Gson()
 fun Email.toEntity(accountId: String) = EmailEntity(
     id = id,
     accountId = accountId,
@@ -148,7 +150,7 @@ fun Email.toEntity(accountId: String) = EmailEntity(
     isRead = isRead,
     isStarred = isStarred,
     labels = labels,
-    attachmentsJson = com.google.gson.Gson().toJson(attachments),
+    attachmentsJson = gson.toJson(attachments),
     inInbox = labels.contains("INBOX"),
     inSent = labels.contains("SENT"),
     inArchived = !labels.contains("INBOX") && !labels.contains("TRASH") && !labels.contains("SENT") && !labels.contains("SPAM"),
