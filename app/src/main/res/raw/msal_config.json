@@ -3,7 +3,7 @@
   "authorization_user_agent": "DEFAULT",
   "redirect_uri": "msauth://com.shrivatsav.monomail/E0quig71zTCyJHk4+hOUDs0dkXE=",
   "account_mode": "MULTIPLE",
-  "broker_redirect_uri_registered": false,
+  "broker_redirect_uri_registered": true,
   "authorities": [
     {
       "type": "AAD",

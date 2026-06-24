@@ -66,15 +66,15 @@ class EmailSyncWorker @AssistedInject constructor(
             }
             val newestThread = emailRepository.getLatestInboxThread(accountId)
             if (newestThread != null) {
-                val newTimestamp = newestThread.date.toString()
-                if (lastKnownTimestamp != null && newTimestamp != lastKnownTimestamp) {
+                val newTimestamp = newestThread.date
+                if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp) {
                     showNotification(
                         accountId = accountId,
                         thread = newestThread,
                         notificationId = accountId.hashCode()
                     )
                 }
-                accountManager.setLastKnownEmailId(accountId, newTimestamp)
+                accountManager.setLastKnownEmailId(accountId, newTimestamp.toString())
             }
         }
         scheduleNextAdaptiveSync(applicationContext, accountManager)

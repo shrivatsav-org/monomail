@@ -54,6 +54,7 @@ data class AppSettings(
     val dockConfig: DockConfig = DockConfig.defaults()
 )
 class SettingsDataStore(private val context: Context) {
+    private val gson = Gson()
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val FONT_SCALE = stringPreferencesKey("font_scale")
@@ -100,7 +101,7 @@ class SettingsDataStore(private val context: Context) {
             undoSendEnabled = prefs[Keys.UNDO_SEND_ENABLED] ?: true,
             undoSendWindow = prefs[Keys.UNDO_SEND_WINDOW]?.let { UndoSendWindow.valueOf(it) } ?: UndoSendWindow.SEC_10,
             dockConfig = dockConfigJson?.let { json ->
-                try { Gson().fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
+                try { gson.fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults()
         )
     }
@@ -162,26 +163,26 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { it[Keys.UNDO_SEND_WINDOW] = window.name }
     }
     suspend fun setDockConfig(config: DockConfig) {
-        context.dataStore.edit { it[Keys.DOCK_CONFIG] = Gson().toJson(config) }
+        context.dataStore.edit { it[Keys.DOCK_CONFIG] = gson.toJson(config) }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()
         val json = prefs[Keys.TEMPLATES] ?: return emptyList()
         return try {
             val type = object : TypeToken<Array<EmailTemplate>>() {}.type
-            Gson().fromJson<Array<EmailTemplate>>(json, type).toList()
+            gson.fromJson<Array<EmailTemplate>>(json, type).toList()
         } catch (e: Exception) { emptyList() }
     }
     suspend fun saveTemplates(templates: List<EmailTemplate>) {
         context.dataStore.edit { prefs ->
-            prefs[Keys.TEMPLATES] = Gson().toJson(templates)
+            prefs[Keys.TEMPLATES] = gson.toJson(templates)
         }
     }
     val templatesFlow: Flow<List<EmailTemplate>> = context.dataStore.data.map { prefs ->
         val json = prefs[Keys.TEMPLATES] ?: return@map emptyList()
         try {
             val type = object : TypeToken<Array<EmailTemplate>>() {}.type
-            Gson().fromJson<Array<EmailTemplate>>(json, type).toList()
+            gson.fromJson<Array<EmailTemplate>>(json, type).toList()
         } catch (e: Exception) { emptyList() }
     }
 }

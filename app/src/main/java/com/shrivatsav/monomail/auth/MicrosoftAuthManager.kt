@@ -31,7 +31,7 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
                     continuation.resume(true)
                 }
                 override fun onError(exception: MsalException) {
-                    exception.printStackTrace()
+                    android.util.Log.e("MicrosoftAuth", "MSAL init failed", exception)
                     continuation.resume(false)
                 }
             }

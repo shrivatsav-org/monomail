@@ -150,19 +150,6 @@ fun EmailDetailScreen(
         }
     ) { padding ->
         when (val s = state) {
-            is EmailDetailState.Loading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    LoadingIndicator(
-                        modifier = Modifier.size(48.dp),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
             is EmailDetailState.Error -> {
                 Box(
                     modifier = Modifier
@@ -180,7 +167,6 @@ fun EmailDetailScreen(
             }
             is EmailDetailState.Success -> {
                 val emails = s.emails
-                val latestEmail = emails.lastOrNull() ?: return@Scaffold
                 androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                     if (s.isRefreshing) {
                         LinearProgressIndicator(
@@ -196,15 +182,26 @@ fun EmailDetailScreen(
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
-                    ThreadConversationContent(
-                        emails = emails,
-                        contactPhotoUris = contactPhotoUris,
-                        modifier = Modifier.weight(1f),
-                        isConversationView = isConversationView,
-                        onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
-                        onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
-                        onFetchAttachment = onFetchAttachment
-                    )
+                    if (emails.isEmpty()) {
+                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text(
+                                "Loading...",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                            )
+                        }
+                    } else {
+                        val latestEmail = emails.last()
+                        ThreadConversationContent(
+                            emails = emails,
+                            contactPhotoUris = contactPhotoUris,
+                            modifier = Modifier.weight(1f),
+                            isConversationView = isConversationView,
+                            onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
+                            onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
+                            onFetchAttachment = onFetchAttachment
+                        )
+                    }
                 }
             }
         }
@@ -568,6 +565,7 @@ private fun MessageBody(
                         word-break: break-word;
                         overflow-wrap: break-word;
                     }
+                    body * { color: inherit !important; background: transparent !important; }
                     img, video, iframe, embed {
                         max-width: 100% !important;
                         height: auto !important;
@@ -600,9 +598,10 @@ private fun MessageBody(
                     settings.javaScriptEnabled = false
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
+                    settings.domStorageEnabled = true
                     settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
-                    settings.cacheMode = WebSettings.LOAD_NO_CACHE
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                     settings.loadsImagesAutomatically = true
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     isVerticalScrollBarEnabled = false
@@ -631,7 +630,8 @@ private fun openAttachment(context: android.content.Context, attachment: EmailAt
     try {
         val attachmentsDir = java.io.File(context.cacheDir, "attachments")
         attachmentsDir.mkdirs()
-        val file = java.io.File(attachmentsDir, attachment.name)
+        val safeName = attachment.name.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+        val file = java.io.File(attachmentsDir, safeName)
         file.writeBytes(bytes)
         val uri = androidx.core.content.FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
@@ -730,7 +730,10 @@ private fun ImageAttachmentCard(
         ) {
             val bytes = imageBytes
             if (bytes != null) {
-                val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                val opts = android.graphics.BitmapFactory.Options().apply {
+                    inSampleSize = 2
+                }
+                val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
                 if (bitmap != null) {
                     androidx.compose.foundation.Image(
                         bitmap = bitmap.asImageBitmap(),
@@ -857,7 +860,7 @@ private fun FileAttachmentCard(
 private val detailDateFormat = SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault())
 
 private fun displayName(from: String): String {
-    val nameMatch = Regex("""^"?([^"<]+?)"\s*<""").find(from)
+    val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
 private fun formatDetailDate(epochMillis: Long): String {

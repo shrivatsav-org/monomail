@@ -33,18 +33,19 @@ object SecurityUtil {
     }
     fun getDatabasePassphrase(context: Context): CharArray {
         val prefs = getSecurePrefs(context)
-        var passphrase = prefs.getString(DB_PASSPHRASE_KEY, null)
-        if (passphrase == null) {
-            passphrase = generateRandomPassphrase()
-            prefs.edit().putString(DB_PASSPHRASE_KEY, passphrase).apply()
+        val stored = prefs.getString(DB_PASSPHRASE_KEY, null)
+        if (stored != null) {
+            val chars = stored.toCharArray()
+            return chars
         }
-        return passphrase.toCharArray()
-    }
-    private fun generateRandomPassphrase(): String {
         val random = SecureRandom()
         val bytes = ByteArray(32)
         random.nextBytes(bytes)
-        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+        val passphrase = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        bytes.fill(0)
+        prefs.edit().putString(DB_PASSPHRASE_KEY, passphrase).apply()
+        val chars = passphrase.toCharArray()
+        return chars
     }
     private fun getSecretKey(): SecretKey {
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
@@ -75,7 +76,10 @@ object SecurityUtil {
     fun decryptString(encryptedBase64: String): String? {
         return try {
             val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
-            if (combined.size < IV_LENGTH) return null
+            if (combined.size < IV_LENGTH) {
+                android.util.Log.e("SecurityUtil", "decryptString: combined size < IV_LENGTH")
+                return null
+            }
             val iv = ByteArray(IV_LENGTH)
             System.arraycopy(combined, 0, iv, 0, iv.size)
             val spec = GCMParameterSpec(128, iv)
@@ -86,7 +90,7 @@ object SecurityUtil {
             val decryptedData = cipher.doFinal(encryptedData)
             String(decryptedData, Charsets.UTF_8)
         } catch (e: Exception) {
-            e.printStackTrace()
+            android.util.Log.e("SecurityUtil", "decryptString failed", e)
             null
         }
     }
