@@ -111,10 +111,8 @@ class MonoMailApp : Application() {
                     }
                 },
                 onRefreshFailed = {
-                    val p = runBlocking { accountManager.getActiveAccount() }
-                    if (p != null) {
-                        authManager.notifyReauthRequired(p.email, p.provider)
-                    }
+                    // Use the profile associated with this provider, not just the active account
+                    authManager.notifyReauthRequired(profile.email, profile.provider)
                 }
             )
             when (profile.provider) {

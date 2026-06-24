@@ -5,6 +5,7 @@ import androidx.work.WorkerParameters
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.data.remote.RetrofitClient
 class SyncWorker(
     appContext: Context,
     workerParams: WorkerParameters
@@ -58,6 +59,9 @@ class SyncWorker(
                 app.accountManager.setActiveAccountId(oldActive.id)
             }
             Result.success()
+        } catch (e: RetrofitClient.AuthFailedException) {
+            // Don't retry auth failures — user must re-authenticate
+            Result.failure()
         } catch (e: Exception) {
             Result.retry()
         }

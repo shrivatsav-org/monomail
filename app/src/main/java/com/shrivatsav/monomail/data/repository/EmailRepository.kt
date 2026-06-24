@@ -22,6 +22,7 @@ import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
+import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.data.worker.SyncWorker
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import kotlinx.coroutines.Dispatchers
@@ -68,37 +69,43 @@ class EmailRepository(
             .build()
         workManager.enqueue(request)
     }
-    fun getInboxThreadsFlow(tab: InboxTab): Flow<List<EmailThread>> = flow {
-        val activeAccountId = accountManager.getActiveAccount()?.id ?: "gmail_unknown"
-        val dbFlow = when (tab) {
-            InboxTab.INBOX -> threadDao.getInboxThreads(activeAccountId)
-            InboxTab.SENT -> threadDao.getSentThreads(activeAccountId)
-            InboxTab.ARCHIVED -> threadDao.getArchivedThreads(activeAccountId)
-            InboxTab.STARRED -> threadDao.getStarredThreads(activeAccountId)
-            InboxTab.TRASH -> threadDao.getTrashThreads(activeAccountId)
+    fun getInboxThreadsFlow(tab: InboxTab, accountId: String): Flow<List<EmailThread>> {
+        return when (tab) {
             InboxTab.UNIFIED -> threadDao.getAllInboxThreads()
-            InboxTab.SNOOZED -> threadDao.getSnoozedThreads(activeAccountId)
-            InboxTab.SPAM -> threadDao.getSpamThreads(activeAccountId)
+            else -> threadDao.getInboxThreads(accountId)
         }.map { list -> list.map { it.toDomainModel() } }
-        emitAll(dbFlow)
     }
     fun getAllInboxThreadsFlow(): Flow<List<EmailThread>> {
         return threadDao.getAllInboxThreads().map { list -> list.map { it.toDomainModel() } }
     }
-    fun getInboxEmailsFlow(tab: InboxTab): Flow<List<Email>> = flow {
-        val activeAccountId = accountManager.getActiveAccount()?.id ?: "gmail_unknown"
-        val dbFlow = when (tab) {
-            InboxTab.INBOX -> emailDao.getInboxEmails(activeAccountId)
-            InboxTab.SENT -> emailDao.getSentEmails(activeAccountId)
-            InboxTab.ARCHIVED -> emailDao.getArchivedEmails(activeAccountId)
-            InboxTab.STARRED -> emailDao.getStarredEmails(activeAccountId)
-            InboxTab.TRASH -> emailDao.getTrashEmails(activeAccountId)
+    fun getSentThreadsFlow(accountId: String): Flow<List<EmailThread>> =
+        threadDao.getSentThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getArchivedThreadsFlow(accountId: String): Flow<List<EmailThread>> =
+        threadDao.getArchivedThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getStarredThreadsFlow(accountId: String): Flow<List<EmailThread>> =
+        threadDao.getStarredThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getTrashThreadsFlow(accountId: String): Flow<List<EmailThread>> =
+        threadDao.getTrashThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getSnoozedThreadsFlow(accountId: String): Flow<List<EmailThread>> =
+        threadDao.getSnoozedThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getSpamThreadsFlow(accountId: String): Flow<List<EmailThread>> =
+        threadDao.getSpamThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getInboxEmailsFlow(tab: InboxTab, accountId: String): Flow<List<Email>> {
+        return when (tab) {
             InboxTab.UNIFIED -> emailDao.getAllInboxEmails()
-            InboxTab.SNOOZED -> emailDao.getInboxEmails(activeAccountId)
-            InboxTab.SPAM -> emailDao.getSpamEmails(activeAccountId)
+            else -> emailDao.getInboxEmails(accountId)
         }.map { list -> list.map { it.toDomainModel() } }
-        emitAll(dbFlow)
     }
+    fun getSentEmailsFlow(accountId: String): Flow<List<Email>> =
+        emailDao.getSentEmails(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getArchivedEmailsFlow(accountId: String): Flow<List<Email>> =
+        emailDao.getArchivedEmails(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getStarredEmailsFlow(accountId: String): Flow<List<Email>> =
+        emailDao.getStarredEmails(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getTrashEmailsFlow(accountId: String): Flow<List<Email>> =
+        emailDao.getTrashEmails(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getSpamEmailsFlow(accountId: String): Flow<List<Email>> =
+        emailDao.getSpamEmails(accountId).map { list -> list.map { it.toDomainModel() } }
     suspend fun getEmailById(id: String): Email? {
         val activeAccountId = getActiveAccountId()
         return emailDao.getEmailById(id, activeAccountId)?.toDomainModel()
@@ -167,28 +174,35 @@ class EmailRepository(
                     )
                 }
                 threadDao.insertThreads(entities)
-                val allEmails = listResponse.threads.flatMap { providerThread ->
-                    providerThread.messages.map { msg ->
-                        Email(
-                            id = msg.id,
-                            threadId = msg.threadId,
-                            subject = msg.subject,
-                            from = msg.from,
-                            fromEmail = msg.fromEmail,
-                            to = msg.to,
-                            snippet = msg.snippet,
-                            body = msg.body,
-                            date = msg.date,
-                            isRead = msg.isRead,
-                            isStarred = msg.isStarred,
-                            labels = msg.folders.map { it.name },
-                            attachments = msg.attachments
-                        ).toEntity(targetAccountId)
+                    val allEmails = listResponse.threads.flatMap { providerThread ->
+                        providerThread.messages.map { msg ->
+                            Email(
+                                id = msg.id,
+                                threadId = msg.threadId,
+                                subject = msg.subject,
+                                from = msg.from,
+                                fromEmail = msg.fromEmail,
+                                to = msg.to,
+                                cc = msg.cc,
+                                bcc = msg.bcc,
+                                snippet = msg.snippet,
+                                body = msg.body,
+                                date = msg.date,
+                                isRead = msg.isRead,
+                                isStarred = msg.isStarred,
+                                labels = msg.folders.map { it.name },
+                                attachments = msg.attachments
+                            ).toEntity(targetAccountId)
+                        }
                     }
-                }
                 emailDao.insertEmails(allEmails)
             }
             Result.success(listResponse.nextPageToken)
+        } catch (e: RetrofitClient.AuthFailedException) {
+            // Auth token refresh failed — re-auth is already triggered by the interceptor.
+            // Return a clear message instead of propagating the raw exception.
+            Log.w("EmailRepo", "Auth failed during refreshInbox for ${accountId ?: "active"}: ${e.message}")
+            Result.failure(Exception("Session expired. Please sign in again."))
         } catch (e: Exception) {
             Log.e("EmailRepo", "refreshInbox failed", e)
             Result.failure(e)
@@ -208,6 +222,8 @@ class EmailRepository(
                     from = msg.from,
                     fromEmail = msg.fromEmail,
                     to = msg.to,
+                    cc = msg.cc,
+                    bcc = msg.bcc,
                     snippet = msg.snippet,
                     body = msg.body,
                     date = msg.date,
@@ -472,8 +488,5 @@ class EmailRepository(
         val activeAccountId = getActiveAccountId()
         threadDao.unsnoozeThread(threadId, activeAccountId)
         emailDao.unsnoozeThreadEmails(threadId, activeAccountId)
-    }
-    fun getSnoozedThreadsFlow(accountId: String): Flow<List<EmailThread>> {
-        return threadDao.getSnoozedThreads(accountId).map { list -> list.map { it.toDomainModel() } }
     }
 }

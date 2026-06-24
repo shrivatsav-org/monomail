@@ -68,10 +68,18 @@ class AuthManager(
                     updateAccessToken(updated)
                 }
             } else if (profile.provider == "outlook") {
+                val initialized = microsoftAuthManager.initialize()
+                if (!initialized) {
+                    notifyReauthRequired(profile.email, profile.provider)
+                    return
+                }
                 val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
                 if (newToken != null && newToken != profile.accessToken) {
                     val updated = profile.copy(accessToken = newToken)
                     updateAccessToken(updated)
+                } else if (newToken == null) {
+                    // Silent token refresh failed — notify user to re-authenticate
+                    notifyReauthRequired(profile.email, profile.provider)
                 }
             }
         } catch (e: UserRecoverableAuthException) {

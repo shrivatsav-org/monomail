@@ -8,11 +8,14 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import java.io.IOException
 class RetrofitClient(
     private val tokenProvider: () -> String?,
     private val tokenRefresher: () -> String?,
     private val onRefreshFailed: () -> Unit = {},
 ) {
+    class AuthFailedException(message: String) : IOException(message)
+
     private fun createAuthInterceptor() = Interceptor { chain ->
         val request = chain.request()
         val token = tokenProvider()
@@ -33,7 +36,9 @@ class RetrofitClient(
                     .build()
                 return@Interceptor chain.proceed(retryRequest)
             }
+            response.close()
             onRefreshFailed()
+            throw AuthFailedException("Authentication failed. Please sign in again.")
         }
         response
     }

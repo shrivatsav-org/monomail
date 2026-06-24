@@ -54,7 +54,8 @@ class OutlookProvider(
             maxResults = maxResults,
             skip = skip,
             filter = filter,
-            search = search
+            search = search,
+            orderby = "receivedDateTime DESC"
         )
         val threadsMap = response.value.groupBy { it.conversationId }
         val providerThreads = threadsMap.map { (convId, messages) ->
