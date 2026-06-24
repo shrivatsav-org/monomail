@@ -568,10 +568,20 @@ private fun MessageBody(
                         word-break: break-word;
                         overflow-wrap: break-word;
                     }
-                    img { max-width: 100%; height: auto; display: block; }
-                    a { color: $linkColor; }
-                    table { max-width: 100%; word-break: break-word; }
-                    pre, code { white-space: pre-wrap; font-size: 13px; }
+                    img, video, iframe, embed {
+                        max-width: 100% !important;
+                        height: auto !important;
+                    }
+                    img { display: block; }
+                    a { color: $linkColor; word-break: break-all; }
+                    table {
+                        max-width: 100% !important;
+                        word-break: break-word;
+                        display: block;
+                        overflow-x: auto;
+                    }
+                    td, th { word-break: break-word; }
+                    pre, code { white-space: pre-wrap; font-size: 13px; word-break: break-word; }
                     blockquote, .gmail_quote, .gmail_extra,
                     .yahoo_quoted, .moz-cite-prefix,
                     [name="quoted-content"] { display: none !important; }
@@ -590,6 +600,7 @@ private fun MessageBody(
                     settings.javaScriptEnabled = false
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
+                    settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
                     settings.cacheMode = WebSettings.LOAD_NO_CACHE
                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
                     settings.loadsImagesAutomatically = true

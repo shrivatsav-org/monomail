@@ -213,9 +213,11 @@ class ComposeViewModel @Inject constructor(
             if (!sId.isNullOrEmpty()) repository.cancelScheduledMessage(sId)
             _state.value = current.copy(isSending = true, error = null)
             val fullBody = buildString {
-                append(current.body.replace("\n", "<br>"))
+                append(current.body)
                 if (current.originalBody != null) {
-                    append(current.originalBody.replace("\n", "<br>"))
+                    append("<br><br><blockquote>")
+                    append(current.originalBody)
+                    append("</blockquote>")
                 }
             }
             val result = repository.sendEmail(

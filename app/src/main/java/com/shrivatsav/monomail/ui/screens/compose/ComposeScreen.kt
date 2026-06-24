@@ -27,12 +27,26 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.TextButton
+import android.webkit.WebView
+import android.webkit.WebSettings
+import android.view.ViewGroup
+import android.graphics.Color
+import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
+import java.io.ByteArrayInputStream
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ShortText
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.FormatBold
+import androidx.compose.material.icons.outlined.FormatItalic
+import androidx.compose.material.icons.outlined.FormatUnderlined
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
+import androidx.compose.material.icons.outlined.FormatListNumbered
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -53,7 +67,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -62,6 +79,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.graphics.toArgb
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
@@ -435,27 +453,122 @@ fun ComposeScreen(
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            ComposeTextField(
-                value = state.body,
-                onValueChange = viewModel::updateBody,
-                label = "Compose email",
-                textStyle = MaterialTheme.typography.bodyMedium.copy(
-                    color = MaterialTheme.colorScheme.onSurface
-                ),
-                singleLine = false,
-                minHeight = 300
+            var bodyWebView by remember { mutableStateOf<WebView?>(null) }
+            val bodyTextColor = "#%06X".format(MaterialTheme.colorScheme.onBackground.toArgb() and 0xFFFFFF)
+            var isBold by remember { mutableStateOf(false) }
+            var isItalic by remember { mutableStateOf(false) }
+            var isUnderline by remember { mutableStateOf(false) }
+            var isBullet by remember { mutableStateOf(false) }
+            var isNumber by remember { mutableStateOf(false) }
+            var isQuote by remember { mutableStateOf(false) }
+            FormattingToolbar(
+                webView = bodyWebView,
+                isBold = isBold, isItalic = isItalic, isUnderline = isUnderline,
+                isBullet = isBullet, isNumber = isNumber, isQuote = isQuote,
+                modifier = Modifier.padding(horizontal = 12.dp)
             )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(300.dp)
+                    .padding(horizontal = 4.dp)
+            ) {
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+                        val fmtCallback = { json: String ->
+                            mainHandler.post {
+                                try {
+                                    val o = org.json.JSONObject(json)
+                                    isBold = o.optBoolean("bold")
+                                    isItalic = o.optBoolean("italic")
+                                    isUnderline = o.optBoolean("underline")
+                                    isBullet = o.optBoolean("bullet")
+                                    isNumber = o.optBoolean("number")
+                                    isQuote = o.optBoolean("quote")
+                                } catch (_: Exception) {}
+                            }
+                        }
+                        WebView(ctx).apply {
+                            setBackgroundColor(Color.TRANSPARENT)
+                            settings.javaScriptEnabled = true
+                            settings.cacheMode = WebSettings.LOAD_NO_CACHE
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+                            addJavascriptInterface(object {
+                                @JavascriptInterface
+                                fun onBodyChanged(html: String) {
+                                    viewModel.updateBody(html)
+                                }
+                                @JavascriptInterface
+                                fun onFormatStateChanged(json: String) {
+                                    fmtCallback(json)
+                                }
+                            }, "Android")
+                            val initialBody = state.body
+                            val initialHtml = buildString {
+                                append("""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>
+                                    body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:15px;line-height:1.6;margin:12px 16px;padding:0;color:$bodyTextColor;background:transparent;min-height:280px;word-break:break-word;overflow-wrap:break-word;}
+                                </style></head><body contenteditable="true">""")
+                                if (initialBody.isNotEmpty()) append(initialBody)
+                                append("""</body></html>""")
+                            }
+                            loadDataWithBaseURL(null, initialHtml.trimIndent(), "text/html", "UTF-8", null)
+                            setWebViewClient(object : android.webkit.WebViewClient() {
+                                override fun onPageFinished(view: WebView, url: String) {
+                                    view.evaluateJavascript("""
+                                        function reportFmt(){Android.onFormatStateChanged(JSON.stringify({bold:document.queryCommandState('bold'),italic:document.queryCommandState('italic'),underline:document.queryCommandState('underline'),bullet:document.queryCommandState('insertUnorderedList'),number:document.queryCommandState('insertOrderedList'),quote:document.queryCommandState('formatBlock')=='blockquote'}));}
+                                        document.body.addEventListener('input',function(){Android.onBodyChanged(document.body.innerHTML);reportFmt();});
+                                        document.body.addEventListener('mouseup',reportFmt);
+                                        document.body.addEventListener('keyup',reportFmt);
+                                        setTimeout(reportFmt,200);
+                                    """.trimIndent(), null)
+                                }
+                            })
+                            bodyWebView = this
+                        }
+                    }
+                )
+            }
             if (state.originalBody != null) {
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp)
                 )
-                Text(
-                    text = state.originalBody!!,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 200.dp)
+                        .padding(horizontal = 4.dp)
+                ) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                setBackgroundColor(Color.TRANSPARENT)
+                                settings.javaScriptEnabled = false
+                                settings.cacheMode = WebSettings.LOAD_NO_CACHE
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                val quoted = buildString {
+                                    append("""<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>
+                                        body{font-family:-apple-system,'Helvetica Neue',Arial,sans-serif;font-size:13px;line-height:1.4;margin:8px 16px;padding:0;color:$bodyTextColor;word-break:break-word;overflow-wrap:break-word;opacity:0.6;}
+                                        img{max-width:100%;height:auto;}
+                                        blockquote,.gmail_quote,.gmail_extra,.yahoo_quoted,.moz-cite-prefix,[name="quoted-content"]{display:none!important;}
+                                    </style></head><body>""")
+                                    append(state.originalBody)
+                                    append("""</body></html>""")
+                                }
+                                loadDataWithBaseURL(null, quoted.trimIndent(), "text/html", "UTF-8", null)
+                            }
+                        }
+                    )
+                }
             }
 
         }
@@ -498,6 +611,43 @@ private fun ComposeTextField(
             innerTextField()
         }
     )
+}
+@Composable
+private fun FormattingToolbar(
+    webView: WebView?,
+    isBold: Boolean, isItalic: Boolean, isUnderline: Boolean,
+    isBullet: Boolean, isNumber: Boolean, isQuote: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val activeTint = MaterialTheme.colorScheme.primary
+    val inactiveTint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+    val btnModifier = Modifier.size(36.dp)
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('bold',false,null);reportFmt();", null) }, modifier = btnModifier) {
+            Icon(Icons.Outlined.FormatBold, "Bold", tint = if (isBold) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+        }
+        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('italic',false,null);reportFmt();", null) }, modifier = btnModifier) {
+            Icon(Icons.Outlined.FormatItalic, "Italic", tint = if (isItalic) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+        }
+        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('underline',false,null);reportFmt();", null) }, modifier = btnModifier) {
+            Icon(Icons.Outlined.FormatUnderlined, "Underline", tint = if (isUnderline) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('insertUnorderedList',false,null);reportFmt();", null) }, modifier = btnModifier) {
+            Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, "Bullet list", tint = if (isBullet) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+        }
+        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('insertOrderedList',false,null);reportFmt();", null) }, modifier = btnModifier) {
+            Icon(Icons.Outlined.FormatListNumbered, "Numbered list", tint = if (isNumber) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+        }
+        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('formatBlock',false,'<blockquote>');reportFmt();", null) }, modifier = btnModifier) {
+            Icon(Icons.AutoMirrored.Outlined.ShortText, "Quote", tint = if (isQuote) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+        }
+        Spacer(modifier = Modifier.weight(1f))
+    }
 }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
