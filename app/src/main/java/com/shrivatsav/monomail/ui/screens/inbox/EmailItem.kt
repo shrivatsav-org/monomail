@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import android.net.Uri
 import coil.compose.AsyncImagePainter
 import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
@@ -54,6 +55,7 @@ private val domainRegex = Regex("@(.+)$")
 @Composable
 fun EmailItem(
     thread: EmailThread,
+    contactPhotoUri: Uri? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     showSnippet: Boolean = true,
@@ -103,6 +105,7 @@ fun EmailItem(
             SenderAvatar(
                 domain = domain,
                 senderInitial = senderInitial,
+                contactPhotoUri = contactPhotoUri,
                 isSelected = isSelected,
                 isBulkMode = isBulkMode,
                 onClick = avatarClickAction,
@@ -196,6 +199,7 @@ fun EmailItem(
 private fun SenderAvatar(
     domain: String?,
     senderInitial: String,
+    contactPhotoUri: Uri? = null,
     isSelected: Boolean = false,
     isBulkMode: Boolean = false,
     onClick: () -> Unit = {},
@@ -206,10 +210,15 @@ private fun SenderAvatar(
         .size(40.dp)
         .clip(CircleShape)
     val context = LocalContext.current
-    val painter = if (domain != null) {
+    val imageUrl = when {
+        contactPhotoUri != null -> contactPhotoUri.toString()
+        domain != null -> "https://www.google.com/s2/favicons?domain=$domain&sz=128"
+        else -> null
+    }
+    val painter = if (imageUrl != null) {
         rememberAsyncImagePainter(
             model = ImageRequest.Builder(context)
-                .data("https://www.google.com/s2/favicons?domain=$domain&sz=128")
+                .data(imageUrl)
                 .crossfade(true)
                 .build(),
             placeholder = null
