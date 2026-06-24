@@ -44,13 +44,21 @@ class EmailSyncWorker(
         val accounts = accountManager.getAccounts()
         if (accounts.isEmpty()) return Result.success()
         var hasFailure = false
+        var hasAuthFailure = false
         for (account in accounts) {
             val accountId = account.id
             val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
             val result = repository.refreshInbox(InboxTab.INBOX, accountId = accountId)
             if (result.isFailure) {
-                Log.e("EmailSyncWorker", "refreshInbox failed for account $accountId", result.exceptionOrNull())
-                hasFailure = true
+                val error = result.exceptionOrNull()
+                val msg = error?.message ?: ""
+                if (msg.contains("sign in", ignoreCase = true) || msg.contains("Session expired", ignoreCase = true) || msg.contains("Authentication failed", ignoreCase = true)) {
+                    Log.w("EmailSyncWorker", "Auth failure for account $accountId — skipping retry")
+                    hasAuthFailure = true
+                } else {
+                    Log.e("EmailSyncWorker", "refreshInbox failed for account $accountId", error)
+                    hasFailure = true
+                }
                 continue
             }
             val newestThread = repository.getLatestInboxThread(accountId)
@@ -67,7 +75,8 @@ class EmailSyncWorker(
             }
         }
         scheduleNextAdaptiveSync(applicationContext, accountManager)
-        return if (hasFailure) Result.retry() else Result.success()
+        // Don't retry on auth failures — user needs to re-authenticate manually
+        return if (hasFailure && !hasAuthFailure) Result.retry() else Result.success()
     }
 
     private suspend fun scheduleNextAdaptiveSync(context: Context, accountManager: com.shrivatsav.monomail.auth.AccountManager) {

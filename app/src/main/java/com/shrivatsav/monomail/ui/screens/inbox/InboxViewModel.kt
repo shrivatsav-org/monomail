@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
@@ -71,7 +72,7 @@ class InboxViewModel(
     val uiError = _uiError.asSharedFlow()
     val accounts: StateFlow<List<UserProfile>> = authManager.accountsFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-    private val _activeAccountId = MutableStateFlow<String?>(null)
+    private val _activeAccountId = MutableStateFlow(authManager.currentUser?.id)
     private val _unifiedInboxEnabled = MutableStateFlow(false)
     val unifiedInboxEnabled = _unifiedInboxEnabled.asStateFlow()
     private val _organizeByThread = MutableStateFlow(true)
@@ -86,49 +87,85 @@ class InboxViewModel(
     val selectedThreadIds: StateFlow<Set<String>> = _selectedThreadIds.asStateFlow()
     val selectedCount: StateFlow<Int> = _selectedThreadIds.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-    val state: StateFlow<InboxState> = combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, _, _, organize -> Pair(tab, organize) }
-        .flatMapLatest { (tab, organize) ->
-        val flow = if (organize) {
-            if (tab == InboxTab.UNIFIED) repository.getAllInboxThreadsFlow() else repository.getInboxThreadsFlow(tab)
-        } else {
-            repository.getInboxEmailsFlow(tab).map { emails ->
-                emails.groupBy { it.threadId }.map { (_, threadEmails) ->
-                    val latest = threadEmails.maxBy { it.date }
-                    EmailThread(
-                        threadId = latest.threadId,
-                        subject = latest.subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), ""),
-                        from = latest.from,
-                        fromEmail = latest.fromEmail,
-                        snippet = latest.snippet,
-                        date = latest.date,
-                        messageCount = threadEmails.size,
-                        isRead = threadEmails.all { it.isRead },
-                        isStarred = threadEmails.any { it.isStarred },
-                        latestMessageId = latest.id,
-                        participants = threadEmails.map { it.from }.distinct()
-                    )
-                }
-            }
-        }
-        combine(
-            flow,
-            _isRefreshing,
-            _isLoadingMore,
-            pendingHideIds
-        ) { threads, isRefreshing, isLoadingMore, hiddenIds ->
-            val filteredThreads = threads.filter { it.threadId !in hiddenIds }
-            InboxState.Success(filteredThreads, tab, isRefreshing, isLoadingMore, pageTokens[getPageTokenKey()])
-        }
-    }.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = InboxState.Loading
-    )
+    private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
+    val state: StateFlow<InboxState> = _state.asStateFlow()
+
     init {
         viewModelScope.launch {
-            authManager.activeAccountFlow.collect { profile ->
-                _activeAccountId.value = profile?.id
+            combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, accountId, _, organize ->
+                Quad(tab, accountId, organize, tab)
             }
+                .flatMapLatest { (tab, accountId, organize, _) ->
+                    if (accountId == null) {
+                        return@flatMapLatest kotlinx.coroutines.flow.flowOf(
+                            InboxState.Success(emptyList(), tab)
+                        )
+                    }
+                    val flow = if (organize) {
+                        when (tab) {
+                            InboxTab.UNIFIED -> repository.getAllInboxThreadsFlow()
+                            InboxTab.SENT -> repository.getSentThreadsFlow(accountId)
+                            InboxTab.ARCHIVED -> repository.getArchivedThreadsFlow(accountId)
+                            InboxTab.STARRED -> repository.getStarredThreadsFlow(accountId)
+                            InboxTab.TRASH -> repository.getTrashThreadsFlow(accountId)
+                            InboxTab.SNOOZED -> repository.getSnoozedThreadsFlow(accountId)
+                            InboxTab.SPAM -> repository.getSpamThreadsFlow(accountId)
+                            else -> repository.getInboxThreadsFlow(tab, accountId)
+                        }
+                    } else {
+                        when (tab) {
+                            InboxTab.UNIFIED -> repository.getInboxEmailsFlow(tab, accountId)
+                            InboxTab.SENT -> repository.getSentEmailsFlow(accountId)
+                            InboxTab.ARCHIVED -> repository.getArchivedEmailsFlow(accountId)
+                            InboxTab.STARRED -> repository.getStarredEmailsFlow(accountId)
+                            InboxTab.TRASH -> repository.getTrashEmailsFlow(accountId)
+                            InboxTab.SNOOZED -> repository.getInboxEmailsFlow(InboxTab.INBOX, accountId)
+                            InboxTab.SPAM -> repository.getSpamEmailsFlow(accountId)
+                            else -> repository.getInboxEmailsFlow(tab, accountId)
+                        }.map { emails ->
+                            emails.groupBy { it.threadId }.map { (_, threadEmails) ->
+                                val latest = threadEmails.maxBy { it.date }
+                                EmailThread(
+                                    threadId = latest.threadId,
+                                    subject = latest.subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), ""),
+                                    from = latest.from,
+                                    fromEmail = latest.fromEmail,
+                                    snippet = latest.snippet,
+                                    date = latest.date,
+                                    messageCount = threadEmails.size,
+                                    isRead = threadEmails.all { it.isRead },
+                                    isStarred = threadEmails.any { it.isStarred },
+                                    latestMessageId = latest.id,
+                                    participants = threadEmails.map { it.from }.distinct()
+                                )
+                            }
+                        }
+                    }
+                    combine(
+                        flow,
+                        _isRefreshing,
+                        _isLoadingMore,
+                        pendingHideIds
+                    ) { threads, isRefreshing, isLoadingMore, hiddenIds ->
+                        val filteredThreads = threads.filter { it.threadId !in hiddenIds }
+                        InboxState.Success(filteredThreads, tab, isRefreshing, isLoadingMore, pageTokens[getPageTokenKey()])
+                    }
+                }.collect { newState ->
+                    _state.value = newState
+                }
+        }
+    }
+    private data class Quad<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+    init {
+        viewModelScope.launch {
+            // Only react to the account ID changing (e.g. account switch), NOT to token
+            // refreshes which emit a new UserProfile with the same id. Token writes to
+            // DataStore re-emit activeAccountFlow and would otherwise restart the Room
+            // flow via flatMapLatest, briefly wiping the inbox list on every sync.
+            authManager.activeAccountFlow
+                .map { it?.id }
+                .distinctUntilChanged()
+                .collect { id -> _activeAccountId.value = id }
         }
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
@@ -233,8 +270,15 @@ class InboxViewModel(
                 } else {
                     pageTokens.remove(getPageTokenKey())
                 }
-            }.onFailure {
-                _uiError.emit(it.message ?: "Failed to refresh emails")
+            }.onFailure { e ->
+                val msg = e.message ?: "Failed to refresh emails"
+                if (msg.contains("sign in", ignoreCase = true) || msg.contains("Session expired", ignoreCase = true)) {
+                    // Auth failure — reauth dialog is triggered by RetrofitClient interceptor;
+                    // still emit error so the user sees feedback
+                    _uiError.emit(msg)
+                } else {
+                    _uiError.emit(msg)
+                }
             }
             if (showLoader) _isRefreshing.value = false
         }
