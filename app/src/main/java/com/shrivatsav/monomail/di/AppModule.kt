@@ -19,6 +19,7 @@ import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.security.SecurityUtil
 import dagger.Module
+import kotlin.jvm.JvmSuppressWildcards
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -120,7 +121,7 @@ object AppModule {
 
     @Provides @Singleton
     fun provideEmailRepository(
-        providerFactory: (UserProfile) -> EmailProvider,
+        providerFactory: (@JvmSuppressWildcards (UserProfile) -> EmailProvider),
         database: com.shrivatsav.monomail.data.local.AppDatabase,
         @ApplicationContext context: Context,
         accountManager: AccountManager
