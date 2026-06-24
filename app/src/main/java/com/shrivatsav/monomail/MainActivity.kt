@@ -55,6 +55,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val requestContactsPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { _: Boolean -> }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -86,6 +90,15 @@ class MainActivity : ComponentActivity() {
             }
         }
         requestNotificationPermissionAndScheduleSync()
+        requestContactsPermission()
+    }
+
+    private fun requestContactsPermission() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestContactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+        }
     }
 
     override fun onResume() {
