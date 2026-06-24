@@ -181,9 +181,7 @@ fun ComposeScreen(
                         )
                     }
                     var showTemplates by remember { androidx.compose.runtime.mutableStateOf(false) }
-                    val templates by (context.applicationContext as com.shrivatsav.monomail.MonoMailApp)
-                        .settingsDataStore.templatesFlow
-                        .collectAsState(initial = emptyList())
+                    val templates by viewModel.templatesFlow.collectAsState(initial = emptyList())
                     IconButton(onClick = { showTemplates = true }) {
                         Icon(
                             imageVector = Icons.Outlined.Description,

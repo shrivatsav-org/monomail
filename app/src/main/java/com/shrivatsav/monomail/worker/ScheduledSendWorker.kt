@@ -1,29 +1,36 @@
 package com.shrivatsav.monomail.worker
 import android.content.Context
 import android.net.Uri
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.data.local.AppDatabase
 import com.shrivatsav.monomail.data.model.EmailAttachment
+import com.shrivatsav.monomail.data.repository.EmailRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import java.io.File
-class ScheduledSendWorker(
-    appContext: Context,
-    workerParams: WorkerParameters
+
+@HiltWorker
+class ScheduledSendWorker @AssistedInject constructor(
+    private val database: AppDatabase,
+    private val emailRepository: EmailRepository,
+    @Assisted appContext: Context,
+    @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     companion object {
         const val KEY_SCHEDULED_MESSAGE_ID = "scheduled_message_id"
     }
     override suspend fun doWork(): Result {
         val messageId = inputData.getString(KEY_SCHEDULED_MESSAGE_ID) ?: return Result.failure()
-        val app = applicationContext as MonoMailApp
-        val dao = app.database.scheduledMessageDao()
+        val dao = database.scheduledMessageDao()
         val message = dao.getScheduledMessageById(messageId) ?: return Result.failure()
         if (message.isSent) return Result.success()
         val attachments = parseStoredAttachments(message.attachmentsJson)
         return try {
-            val provider = app.emailRepository.getProviderForAccount(message.accountId)
+            val provider = emailRepository.getProviderForAccount(message.accountId)
             if (provider == null) return Result.retry()
             provider.sendEmail(
                 from = message.fromEmail,

@@ -1,13 +1,18 @@
 package com.shrivatsav.monomail.ui.screens.compose
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.ScheduledEmailEvent
+import com.shrivatsav.monomail.SentEmailEvent
+import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,6 +20,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 enum class ComposeMode { NEW, REPLY, FORWARD }
 
@@ -38,21 +44,25 @@ data class ComposeUiState(
     val scheduledAt: Long? = null
 )
 
-class ComposeViewModel(
+@HiltViewModel
+class ComposeViewModel @Inject constructor(
     private val repository: EmailRepository,
     private val contactProvider: ContactSuggestionProvider,
-    private val fromEmail: String,
-    private val accountId: String,
-    private val app: MonoMailApp,
+    private val authManager: AuthManager,
     private val settingsDataStore: SettingsDataStore,
-    mode: ComposeMode = ComposeMode.NEW,
-    replyTo: String? = null,
-    originalSubject: String? = null,
-    originalBody: String? = null,
-    threadId: String? = null,
-    messageId: String? = null,
-    scheduledId: String? = null
+    private val sentEmailEvents: MutableSharedFlow<SentEmailEvent>,
+    private val scheduledEmailEvents: MutableSharedFlow<ScheduledEmailEvent>,
+    savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    private val fromEmail: String = authManager.currentUser?.email ?: ""
+    private val accountId: String = authManager.currentUser?.id ?: ""
+    private val mode: ComposeMode = ComposeMode.valueOf(savedStateHandle.get<String>("mode") ?: "NEW")
+    private val replyTo: String = savedStateHandle.get<String>("to") ?: ""
+    private val originalSubject: String = savedStateHandle.get<String>("subject") ?: ""
+    private val threadIdArg: String? = savedStateHandle.get<String>("threadId")?.takeIf { it.isNotEmpty() }
+    private val messageIdArg: String? = savedStateHandle.get<String>("messageId")?.takeIf { it.isNotEmpty() }
+    private val scheduledId: String? = savedStateHandle.get<String>("scheduledId")?.takeIf { it.isNotEmpty() }
 
     private var scheduledMessageId: String? = scheduledId
 
@@ -60,21 +70,22 @@ class ComposeViewModel(
         ComposeUiState(
             mode = mode,
             to = when (mode) {
-                ComposeMode.REPLY -> replyTo ?: ""
+                ComposeMode.REPLY -> replyTo
                 else -> ""
             },
             subject = when (mode) {
-                ComposeMode.REPLY -> "Re: ${originalSubject?.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "") ?: ""}"
-                ComposeMode.FORWARD -> "Fwd: ${originalSubject?.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "") ?: ""}"
+                ComposeMode.REPLY -> "Re: ${originalSubject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "")}"
+                ComposeMode.FORWARD -> "Fwd: ${originalSubject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "")}"
                 else -> ""
             },
             body = "",
-            threadId = threadId,
-            inReplyToMessageId = messageId,
-            references = messageId,
+            threadId = threadIdArg,
+            inReplyToMessageId = messageIdArg,
+            references = messageIdArg,
             originalBody = null
         )
     )
+    val templatesFlow = settingsDataStore.templatesFlow
     val state: StateFlow<ComposeUiState> = _state.asStateFlow()
 
     private var confirmBeforeSending = false
@@ -86,8 +97,8 @@ class ComposeViewModel(
             }
         }
         viewModelScope.launch {
-            if (!messageId.isNullOrEmpty()) {
-                val email = repository.getEmailById(messageId)
+            if (!messageIdArg.isNullOrEmpty()) {
+                val email = repository.getEmailById(messageIdArg)
                 if (email != null) {
                     _state.value = _state.value.copy(originalBody = email.body)
                 }
@@ -220,8 +231,8 @@ class ComposeViewModel(
                 attachments = current.attachments
             )
             result.onSuccess { sentThreadId ->
-                app.emitSentEmailEvent(
-                    MonoMailApp.SentEmailEvent(
+                sentEmailEvents.tryEmit(
+                    SentEmailEvent(
                         threadId = sentThreadId,
                         to = current.to,
                         subject = current.subject
@@ -264,8 +275,8 @@ class ComposeViewModel(
                 bcc = current.bcc,
                 attachments = cachedAttachments
             )
-            app.emitScheduledEmailEvent(
-                MonoMailApp.ScheduledEmailEvent(
+            scheduledEmailEvents.tryEmit(
+                ScheduledEmailEvent(
                     to = current.to,
                     subject = current.subject,
                     scheduledAt = scheduledAt

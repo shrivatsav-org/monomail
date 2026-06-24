@@ -10,7 +10,12 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
-import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.auth.AccountManager
+import com.shrivatsav.monomail.data.repository.EmailRepository
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -73,6 +78,13 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
+
+        @EntryPoint
+        @InstallIn(SingletonComponent::class)
+        interface AppDependenciesEntryPoint {
+            fun accountManager(): AccountManager
+            fun emailRepository(): EmailRepository
+        }
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -92,6 +104,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
         }
     }
 
+    private fun getDependencies(context: Context): AppDependenciesEntryPoint =
+        EntryPointAccessors.fromApplication(context, AppDependenciesEntryPoint::class.java)
+
     private suspend fun handleReply(context: Context, intent: Intent) {
         val remoteInput = RemoteInput.getResultsFromIntent(intent)
         val replyText = remoteInput?.getCharSequence(KEY_TEXT_REPLY)?.toString() ?: return
@@ -104,13 +119,13 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val originalNotificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
         val replyNotificationId = REPLY_NOTIFICATION_ID_BASE + originalNotificationId
 
-        val app = context.applicationContext as MonoMailApp
-        val account = app.accountManager.getAccounts().find { it.id == accountId } ?: return
-        val repository = app.emailRepository
+        val deps = getDependencies(context)
+        val account = deps.accountManager().getAccounts().find { it.id == accountId } ?: return
+        val repository = deps.emailRepository()
 
-        val oldActive = app.accountManager.getActiveAccount()
+        val oldActive = deps.accountManager().getActiveAccount()
         if (oldActive?.id != accountId) {
-            app.accountManager.setActiveAccountId(accountId)
+            deps.accountManager().setActiveAccountId(accountId)
         }
 
         createReplyStatusChannel(context)
@@ -127,7 +142,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         )
 
         if (oldActive?.id != accountId && oldActive != null) {
-            app.accountManager.setActiveAccountId(oldActive.id)
+            deps.accountManager().setActiveAccountId(oldActive.id)
         }
 
         if (result.isSuccess) {
@@ -145,17 +160,17 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val threadId = intent.getStringExtra(EXTRA_THREAD_ID) ?: return
         val originalNotificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
 
-        val app = context.applicationContext as MonoMailApp
+        val deps = getDependencies(context)
 
-        val oldActive = app.accountManager.getActiveAccount()
+        val oldActive = deps.accountManager().getActiveAccount()
         if (oldActive?.id != accountId) {
-            app.accountManager.setActiveAccountId(accountId)
+            deps.accountManager().setActiveAccountId(accountId)
         }
 
-        app.emailRepository.archiveThread(threadId)
+        deps.emailRepository().archiveThread(threadId)
 
         if (oldActive?.id != accountId && oldActive != null) {
-            app.accountManager.setActiveAccountId(oldActive.id)
+            deps.accountManager().setActiveAccountId(oldActive.id)
         }
 
         val undoIntent = Intent(context, NotificationActionReceiver::class.java).apply {
@@ -187,17 +202,17 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID) ?: return
         val threadId = intent.getStringExtra(EXTRA_THREAD_ID) ?: return
 
-        val app = context.applicationContext as MonoMailApp
+        val deps = getDependencies(context)
 
-        val oldActive = app.accountManager.getActiveAccount()
+        val oldActive = deps.accountManager().getActiveAccount()
         if (oldActive?.id != accountId) {
-            app.accountManager.setActiveAccountId(accountId)
+            deps.accountManager().setActiveAccountId(accountId)
         }
 
-        app.emailRepository.unarchiveThread(threadId)
+        deps.emailRepository().unarchiveThread(threadId)
 
         if (oldActive?.id != accountId && oldActive != null) {
-            app.accountManager.setActiveAccountId(oldActive.id)
+            deps.accountManager().setActiveAccountId(oldActive.id)
         }
 
         val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)

@@ -13,20 +13,26 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import androidx.core.content.ContextCompat
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import androidx.work.workDataOf
 import com.shrivatsav.monomail.MainActivity
-import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.auth.AccountManager
+import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
 import java.util.concurrent.TimeUnit
 
-class EmailSyncWorker(
-    appContext: Context,
-    workerParams: WorkerParameters
+@HiltWorker
+class EmailSyncWorker @AssistedInject constructor(
+    private val emailRepository: EmailRepository,
+    private val accountManager: AccountManager,
+    @Assisted appContext: Context,
+    @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     companion object {
         private const val ADAPTIVE_INTERVAL_MINUTES = 2L
@@ -38,9 +44,6 @@ class EmailSyncWorker(
     }
 
     override suspend fun doWork(): Result {
-        val app = applicationContext as? MonoMailApp ?: return Result.failure()
-        val repository = app.emailRepository
-        val accountManager = app.accountManager
         val accounts = accountManager.getAccounts()
         if (accounts.isEmpty()) return Result.success()
         var hasFailure = false
@@ -48,7 +51,7 @@ class EmailSyncWorker(
         for (account in accounts) {
             val accountId = account.id
             val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
-            val result = repository.refreshInbox(InboxTab.INBOX, accountId = accountId)
+            val result = emailRepository.refreshInbox(InboxTab.INBOX, accountId = accountId)
             if (result.isFailure) {
                 val error = result.exceptionOrNull()
                 val msg = error?.message ?: ""
@@ -61,7 +64,7 @@ class EmailSyncWorker(
                 }
                 continue
             }
-            val newestThread = repository.getLatestInboxThread(accountId)
+            val newestThread = emailRepository.getLatestInboxThread(accountId)
             if (newestThread != null) {
                 val newTimestamp = newestThread.date.toString()
                 if (lastKnownTimestamp != null && newTimestamp != lastKnownTimestamp) {
@@ -75,11 +78,10 @@ class EmailSyncWorker(
             }
         }
         scheduleNextAdaptiveSync(applicationContext, accountManager)
-        // Don't retry on auth failures — user needs to re-authenticate manually
         return if (hasFailure && !hasAuthFailure) Result.retry() else Result.success()
     }
 
-    private suspend fun scheduleNextAdaptiveSync(context: Context, accountManager: com.shrivatsav.monomail.auth.AccountManager) {
+    private suspend fun scheduleNextAdaptiveSync(context: Context, accountManager: AccountManager) {
         val lastActive = accountManager.getLastActiveTime()
         val now = System.currentTimeMillis()
         val isRecentlyActive = lastActive > 0 && (now - lastActive) < TimeUnit.MINUTES.toMillis(ADAPTIVE_ACTIVITY_WINDOW_MINUTES)

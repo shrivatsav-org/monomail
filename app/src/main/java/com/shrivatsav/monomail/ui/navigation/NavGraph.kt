@@ -21,9 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -31,10 +29,10 @@ import androidx.navigation.compose.dialog
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.shrivatsav.monomail.MonoMailApp
 import com.shrivatsav.monomail.auth.AuthManager
-import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.AppSettings
+import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.ui.screens.auth.ImapSetupScreen
 import com.shrivatsav.monomail.ui.screens.auth.ImapSetupViewModel
 import com.shrivatsav.monomail.ui.screens.auth.SignInScreen
@@ -82,12 +80,10 @@ sealed class Screen(val route: String) {
 @Composable
 fun NavGraph(
     authManager: AuthManager,
-    emailRepository: EmailRepository
+    emailRepository: EmailRepository,
+    settingsDataStore: SettingsDataStore
 ) {
     val navController = rememberNavController()
-    val context = LocalContext.current
-    val app = context.applicationContext as MonoMailApp
-    val contactProvider = app.contactSuggestionProvider
     var isLoading by remember { mutableStateOf(true) }
     var isAuthenticated by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -154,14 +150,7 @@ fun NavGraph(
             }
         ) {
             composable(Screen.SignIn.route) {
-                val vm: SignInViewModel = viewModel(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return SignInViewModel(authManager, emailRepository) as T
-                        }
-                    }
-                )
+                val vm: SignInViewModel = hiltViewModel()
                 SignInScreen(
                     viewModel      = vm,
                     onSignInSuccess = {
@@ -178,19 +167,7 @@ fun NavGraph(
                 )
             }
             composable(Screen.ImapSetup.route) {
-                val app = context.applicationContext as MonoMailApp
-                val vm: ImapSetupViewModel = viewModel(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return ImapSetupViewModel(
-                                app.accountManager,
-                                authManager,
-                                emailRepository
-                            ) as T
-                        }
-                    }
-                )
+                val vm: ImapSetupViewModel = hiltViewModel()
                 ImapSetupScreen(
                     viewModel = vm,
                     onSetupComplete = {
@@ -202,14 +179,7 @@ fun NavGraph(
                 )
             }
             composable(Screen.Inbox.route) {
-                val vm: InboxViewModel = viewModel(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return InboxViewModel(emailRepository, contactProvider, authManager, app.settingsDataStore, app) as T
-                        }
-                    }
-                )
+                val vm: InboxViewModel = hiltViewModel()
                 val scope = androidx.compose.runtime.rememberCoroutineScope()
                 val activeAccount by authManager.activeAccountFlow.collectAsState(initial = authManager.currentUser)
                 InboxScreen(
@@ -245,15 +215,7 @@ fun NavGraph(
                 )
             }
             composable(Screen.Settings.route) {
-                val app = context.applicationContext as MonoMailApp
-                val settingsViewModel: SettingsViewModel = viewModel(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return SettingsViewModel(app.settingsDataStore) as T
-                        }
-                    }
-                )
+                val settingsViewModel: SettingsViewModel = hiltViewModel()
                 val accounts by authManager.accountsFlow.collectAsState(initial = emptyList())
                 SettingsScreen(
                     viewModel = settingsViewModel,
@@ -279,17 +241,8 @@ fun NavGraph(
                 arguments = listOf(navArgument("threadId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val threadId = backStackEntry.arguments?.getString("threadId") ?: return@composable
-                val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
-                    initial = com.shrivatsav.monomail.data.settings.AppSettings()
-                )
-                val vm: EmailDetailViewModel = viewModel(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return EmailDetailViewModel(emailRepository, threadId) as T
-                        }
-                    }
-                )
+                val vm: EmailDetailViewModel = hiltViewModel()
+                val appSettings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
                 EmailDetailScreen(
                     viewModel = vm,
                     onBack    = { navController.popBackStack() },
@@ -338,30 +291,7 @@ fun NavGraph(
                 val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
                 val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
                 val scheduledId = dec(backStackEntry.arguments?.getString("scheduledId") ?: "").takeIf { it.isNotEmpty() }
-                val currentUser = authManager.currentUser
-                val fromEmail = currentUser?.email ?: ""
-                val accountId = currentUser?.id ?: "gmail_unknown"
-                val vm: ComposeViewModel = viewModel(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return ComposeViewModel(
-                                repository = emailRepository,
-                                contactProvider = contactProvider,
-                                fromEmail = fromEmail,
-                                accountId = accountId,
-                                app = app,
-                                settingsDataStore = app.settingsDataStore,
-                                mode = mode,
-                                replyTo = to,
-                                originalSubject = subject,
-                                threadId = threadId,
-                                messageId = messageId,
-                                scheduledId = scheduledId
-                            ) as T
-                        }
-                    }
-                )
+                val vm: ComposeViewModel = hiltViewModel()
                 ComposeScreen(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
@@ -369,16 +299,7 @@ fun NavGraph(
                 )
             }
             composable(Screen.Scheduled.route) {
-                val currentUser = authManager.currentUser
-                val accountId = currentUser?.id ?: "gmail_unknown"
-                val vm: ScheduledMessagesViewModel = viewModel(
-                    factory = object : ViewModelProvider.Factory {
-                        @Suppress("UNCHECKED_CAST")
-                        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                            return ScheduledMessagesViewModel(emailRepository, accountId) as T
-                        }
-                    }
-                )
+                val vm: ScheduledMessagesViewModel = hiltViewModel()
                 ScheduledMessagesScreen(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },

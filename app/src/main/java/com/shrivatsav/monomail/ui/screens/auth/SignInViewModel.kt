@@ -1,5 +1,7 @@
 package com.shrivatsav.monomail.ui.screens.auth
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.auth.AuthManager
@@ -7,12 +9,12 @@ import com.shrivatsav.monomail.auth.SignInResult
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
-import android.content.Intent
-import android.app.Activity
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 sealed class SignInState {
     object Idle    : SignInState()
     object Loading : SignInState()
@@ -20,7 +22,8 @@ sealed class SignInState {
     data class NeedsConsent(val intent: Intent)    : SignInState()
     data class Error(val message: String)          : SignInState()
 }
-class SignInViewModel(
+@HiltViewModel
+class SignInViewModel @Inject constructor(
     private val authManager: AuthManager,
     private val emailRepository: EmailRepository
 ) : ViewModel() {
