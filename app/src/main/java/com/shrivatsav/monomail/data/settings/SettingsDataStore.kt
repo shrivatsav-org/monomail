@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.map
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
+enum class AppFont { DEFAULT, INTER, MANROPE, SPACE_GROTESK, IBM_PLEX_SANS }
 enum class SwipeAction { ARCHIVE, STAR, DELETE, READ_UNREAD }
 enum class DefaultReply { REPLY, REPLY_ALL }
 enum class SyncFrequency { MIN_15, MIN_30, HOUR_1, MANUAL }
@@ -26,6 +27,11 @@ data class DockConfig(
         fun defaults() = DockConfig()
     }
 }
+data class AccountNotificationSettings(
+    val soundEnabled: Boolean = true,
+    val vibrationEnabled: Boolean = true,
+    val importance: String = "DEFAULT"
+)
 data class EmailTemplate(
     val name: String,
     val subject: String,
@@ -34,6 +40,7 @@ data class EmailTemplate(
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontScale: FontScale = FontScale.DEFAULT,
+    val appFont: AppFont = AppFont.DEFAULT,
     val showDividers: Boolean = false,
     val compactList: Boolean = false,
     val showSnippet: Boolean = true,
@@ -58,6 +65,7 @@ class SettingsDataStore(private val context: Context) {
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val FONT_SCALE = stringPreferencesKey("font_scale")
+        val APP_FONT = stringPreferencesKey("app_font")
         val SHOW_DIVIDERS = booleanPreferencesKey("show_dividers")
         val COMPACT_LIST = booleanPreferencesKey("compact_list")
         val SHOW_SNIPPET = booleanPreferencesKey("show_snippet")
@@ -83,6 +91,7 @@ class SettingsDataStore(private val context: Context) {
         AppSettings(
             themeMode = prefs[Keys.THEME_MODE]?.let { ThemeMode.valueOf(it) } ?: ThemeMode.SYSTEM,
             fontScale = prefs[Keys.FONT_SCALE]?.let { FontScale.valueOf(it) } ?: FontScale.DEFAULT,
+            appFont = prefs[Keys.APP_FONT]?.let { AppFont.valueOf(it) } ?: AppFont.DEFAULT,
             showDividers = prefs[Keys.SHOW_DIVIDERS] ?: false,
             compactList = prefs[Keys.COMPACT_LIST] ?: false,
             showSnippet = prefs[Keys.SHOW_SNIPPET] ?: true,
@@ -110,6 +119,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setFontScale(scale: FontScale) {
         context.dataStore.edit { it[Keys.FONT_SCALE] = scale.name }
+    }
+    suspend fun setAppFont(font: AppFont) {
+        context.dataStore.edit { it[Keys.APP_FONT] = font.name }
     }
     suspend fun setShowDividers(show: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_DIVIDERS] = show }
@@ -184,5 +196,25 @@ class SettingsDataStore(private val context: Context) {
             val type = object : TypeToken<Array<EmailTemplate>>() {}.type
             gson.fromJson<Array<EmailTemplate>>(json, type).toList()
         } catch (e: Exception) { emptyList() }
+    }
+    private object AccountNotifKeys {
+        val NOTIF_SETTINGS = stringPreferencesKey("account_notif_settings")
+    }
+    suspend fun setAccountNotificationSettings(accountId: String, settings: AccountNotificationSettings) {
+        context.dataStore.edit { prefs ->
+            val json = prefs[AccountNotifKeys.NOTIF_SETTINGS] ?: "{}"
+            @Suppress("UNCHECKED_CAST")
+            val map = try { (gson.fromJson(json, MutableMap::class.java) as? MutableMap<String, Any>) ?: mutableMapOf() } catch (e: Exception) { mutableMapOf<String, Any>() }
+            map[accountId] = gson.toJsonTree(settings)
+            prefs[AccountNotifKeys.NOTIF_SETTINGS] = gson.toJson(map)
+        }
+    }
+    suspend fun getAccountNotificationSettings(accountId: String): AccountNotificationSettings {
+        val prefs = context.dataStore.data.first()
+        val json = prefs[AccountNotifKeys.NOTIF_SETTINGS] ?: return AccountNotificationSettings()
+        @Suppress("UNCHECKED_CAST")
+        val map = try { (gson.fromJson(json, Map::class.java) as? Map<String, Any>) ?: emptyMap() } catch (e: Exception) { emptyMap<String, Any>() }
+        val entry = map[accountId] ?: return AccountNotificationSettings()
+        return try { gson.fromJson(gson.toJson(entry), AccountNotificationSettings::class.java) } catch (e: Exception) { AccountNotificationSettings() }
     }
 }

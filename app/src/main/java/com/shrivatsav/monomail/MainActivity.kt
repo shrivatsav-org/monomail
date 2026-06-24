@@ -28,11 +28,17 @@ import androidx.work.WorkManager
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.AppFont
 import com.shrivatsav.monomail.data.settings.AppSettings
 import com.shrivatsav.monomail.data.settings.FontScale
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.ui.navigation.NavGraph
+import com.shrivatsav.monomail.ui.theme.GoogleSansRoundedFamily
+import com.shrivatsav.monomail.ui.theme.IBMPlexSansFamily
+import com.shrivatsav.monomail.ui.theme.InterFamily
+import com.shrivatsav.monomail.ui.theme.ManropeFamily
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
+import com.shrivatsav.monomail.ui.theme.SpaceGroteskFamily
 import com.shrivatsav.monomail.worker.EmailSyncWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -71,6 +77,13 @@ class MainActivity : ComponentActivity() {
                 FontScale.LARGE       -> 1.15f
                 FontScale.EXTRA_LARGE -> 1.3f
             }
+            val fontFamily = when (settings.appFont) {
+                AppFont.DEFAULT -> GoogleSansRoundedFamily
+                AppFont.INTER -> InterFamily
+                AppFont.MANROPE -> ManropeFamily
+                AppFont.SPACE_GROTESK -> SpaceGroteskFamily
+                AppFont.IBM_PLEX_SANS -> IBMPlexSansFamily
+            }
             val density = LocalDensityComposable.current
             androidx.compose.runtime.CompositionLocalProvider(
                 LocalDensityComposable provides Density(
@@ -78,7 +91,7 @@ class MainActivity : ComponentActivity() {
                     fontScale = density.fontScale * fontScaleMultiplier
                 )
             ) {
-                MonoMailTheme(themeMode = settings.themeMode.name) {
+                MonoMailTheme(themeMode = settings.themeMode.name, fontFamily = fontFamily) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         NavGraph(
                             authManager = authManager,

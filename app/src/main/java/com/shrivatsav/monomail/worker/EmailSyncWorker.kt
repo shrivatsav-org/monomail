@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.media.AudioAttributes
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -19,9 +20,12 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
+import android.net.Uri
+import android.provider.Settings
 import com.shrivatsav.monomail.MainActivity
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.AccountNotificationSettings
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
@@ -31,6 +35,7 @@ import java.util.concurrent.TimeUnit
 class EmailSyncWorker @AssistedInject constructor(
     private val emailRepository: EmailRepository,
     private val accountManager: AccountManager,
+    private val settingsDataStore: com.shrivatsav.monomail.data.settings.SettingsDataStore,
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
@@ -97,7 +102,7 @@ class EmailSyncWorker @AssistedInject constructor(
         )
     }
 
-    private fun showNotification(
+    private suspend fun showNotification(
         accountId: String,
         thread: com.shrivatsav.monomail.data.model.EmailThread,
         notificationId: Int
@@ -110,7 +115,8 @@ class EmailSyncWorker @AssistedInject constructor(
                 return
             }
         }
-        createNotificationChannel(context, accountId, thread.from)
+        val notifSettings = settingsDataStore.getAccountNotificationSettings(accountId)
+        createNotificationChannel(context, accountId, thread.from, notifSettings)
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -161,14 +167,27 @@ class EmailSyncWorker @AssistedInject constructor(
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
     }
 
-    private fun createNotificationChannel(context: Context, accountId: String, accountName: String) {
+    private fun createNotificationChannel(context: Context, accountId: String, accountName: String, settings: AccountNotificationSettings) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channelId = channelIdForAccount(accountId)
             val channelName = "$accountName ($accountId)"
             val descriptionText = "Notifications for $accountName"
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
+            val importance = when (settings.importance) {
+                "LOW" -> NotificationManager.IMPORTANCE_LOW
+                "HIGH" -> NotificationManager.IMPORTANCE_HIGH
+                "URGENT" -> NotificationManager.IMPORTANCE_HIGH // ponytail: no URGENT on standard channels
+                else -> NotificationManager.IMPORTANCE_DEFAULT
+            }
             val channel = NotificationChannel(channelId, channelName, importance).apply {
                 description = descriptionText
+                setSound(
+                    if (settings.soundEnabled) Settings.System.DEFAULT_NOTIFICATION_URI else null,
+                    AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build()
+                )
+                enableVibration(settings.vibrationEnabled)
+                if (settings.vibrationEnabled && settings.soundEnabled) {
+                    vibrationPattern = longArrayOf(0, 100, 200, 100)
+                }
             }
             val notificationManager: NotificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 
 private val LightColors = lightColorScheme(
     primary                = Black,
@@ -87,6 +88,7 @@ object MonoMailTheme {
 @Composable
 fun MonoMailTheme(
     themeMode: String = "SYSTEM",
+    fontFamily: FontFamily = GoogleSansRoundedFamily,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -99,7 +101,7 @@ fun MonoMailTheme(
     CompositionLocalProvider(LocalMonoMailExtendedColors provides extendedColors) {
         MaterialExpressiveTheme(
             colorScheme  = if (darkTheme) DarkColors else LightColors,
-            typography   = AppTypography,
+            typography   = AppTypography(fontFamily),
             shapes       = MonoMailShapes,
             motionScheme = MotionScheme.expressive(),
             content      = content

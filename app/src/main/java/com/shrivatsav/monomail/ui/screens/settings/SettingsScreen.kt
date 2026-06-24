@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.settings.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -37,7 +38,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
-    accountCount: Int = 0
+    accounts: List<UserProfile> = emptyList()
 ) {
     val settings by viewModel.settings.collectAsState()
     val scrollState = rememberScrollState()
@@ -80,19 +81,27 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Spacer(Modifier.height(4.dp))
-            SettingsCard {
-                SectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
-                ThemeSelectorRow(
-                    currentTheme = settings.themeMode,
-                    onThemeSelected = { viewModel.setThemeMode(it) }
-                )
-                CardDivider()
-                FontSizeRow(
-                    currentScale = settings.fontScale,
-                    onScaleChanged = { viewModel.setFontScale(it) }
-                )
-                CardDivider()
-                SettingsToggleRow(
+                SettingsCard {
+                    SectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
+                    ThemeSelectorRow(
+                        currentTheme = settings.themeMode,
+                        onThemeSelected = { viewModel.setThemeMode(it) }
+                    )
+                    CardDivider()
+                    FontSizeRow(
+                        currentScale = settings.fontScale,
+                        onScaleChanged = { viewModel.setFontScale(it) }
+                    )
+                    CardDivider()
+                    BottomSheetPickerRow(
+                        icon = Icons.Outlined.FontDownload,
+                        title = "Font",
+                        currentValue = settings.appFont.displayName(),
+                        options = AppFont.entries.map { it.displayName() },
+                        onSelected = { idx -> viewModel.setAppFont(AppFont.entries[idx]) }
+                    )
+                    CardDivider()
+                    SettingsToggleRow(
                     icon = Icons.Outlined.HorizontalRule,
                     title = "Show Dividers",
                     subtitle = "Show lines between emails",
@@ -218,11 +227,11 @@ fun SettingsScreen(
                 SettingsToggleRow(
                     icon = Icons.Outlined.Inbox,
                     title = "Unified Inbox",
-                    subtitle = if (accountCount > 1) "Show emails from all accounts in one tab"
+                    subtitle = if (accounts.size > 1) "Show emails from all accounts in one tab"
                                else "Add another account to enable",
                     checked = settings.unifiedInboxEnabled,
                     onCheckedChange = { viewModel.setUnifiedInboxEnabled(it) },
-                    enabled = accountCount > 1
+                    enabled = accounts.size > 1
                 )
                 CardDivider()
                 NavSizeRow(
@@ -254,6 +263,15 @@ fun SettingsScreen(
                     options = SyncFrequency.entries.map { it.displayName() },
                     onSelected = { idx -> viewModel.setSyncFrequency(SyncFrequency.entries[idx]) }
                 )
+                if (accounts.size > 1) {
+                    accounts.forEach { account ->
+                        CardDivider()
+                        AccountNotificationRow(
+                            account = account,
+                            viewModel = viewModel
+                        )
+                    }
+                }
             }
             TemplatesCard(viewModel = viewModel)
             val updateState by viewModel.updateState.collectAsState()
@@ -925,6 +943,13 @@ private fun SyncFrequency.displayName() = when (this) {
     SyncFrequency.MANUAL  -> "Manual"
 }
 private fun UndoSendWindow.displayName() = "${seconds}s"
+private fun AppFont.displayName() = when (this) {
+    AppFont.DEFAULT -> "Default (Google Sans)"
+    AppFont.INTER -> "Inter"
+    AppFont.MANROPE -> "Manrope"
+    AppFont.SPACE_GROTESK -> "Space Grotesk"
+    AppFont.IBM_PLEX_SANS -> "IBM Plex Sans"
+}
 
 @Composable
 private fun TemplatesCard(viewModel: SettingsViewModel) {
@@ -1201,6 +1226,259 @@ private fun dockTabLabel(tab: DockTabId): String = when (tab) {
     DockTabId.STARRED -> "Starred"
     DockTabId.TRASH -> "Trash"
     DockTabId.SPAM -> "Spam"
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountNotificationRow(
+    account: UserProfile,
+    viewModel: SettingsViewModel
+) {
+    var showSheet by remember { mutableStateOf(false) }
+    val notifSettings by viewModel.accountNotifSettings(account.id).collectAsState(initial = AccountNotificationSettings())
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showSheet = true }
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Notifications,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = account.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = account.email,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            imageVector = Icons.Outlined.Settings,
+            contentDescription = "Notification settings",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+    }
+    if (showSheet) {
+        AccountNotificationSheet(
+            account = account,
+            settings = notifSettings,
+            onDismiss = { showSheet = false },
+            onUpdate = { s -> viewModel.setAccountNotificationSettings(account.id, s) }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AccountNotificationSheet(
+    account: UserProfile,
+    settings: AccountNotificationSettings,
+    onDismiss: () -> Unit,
+    onUpdate: (AccountNotificationSettings) -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 32.dp)
+        ) {
+            Text(
+                text = "${account.displayName} Notification",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            NotifToggleRow(
+                icon = Icons.Outlined.Notifications,
+                title = "Sound",
+                checked = settings.soundEnabled,
+                onCheckedChange = { onUpdate(settings.copy(soundEnabled = it)) }
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+            NotifToggleRow(
+                icon = Icons.Outlined.Vibration,
+                title = "Vibrate",
+                checked = settings.vibrationEnabled,
+                onCheckedChange = { onUpdate(settings.copy(vibrationEnabled = it)) }
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+            val importanceOptions = listOf("Low", "Default", "High", "Urgent")
+            val importanceValues = listOf("LOW", "DEFAULT", "HIGH", "URGENT")
+            val currentImportanceIdx = importanceValues.indexOf(settings.importance).coerceAtLeast(0)
+            ImportancePickerRow(
+                currentValue = importanceOptions[currentImportanceIdx],
+                options = importanceOptions,
+                onSelected = { idx ->
+                    onUpdate(settings.copy(importance = importanceValues[idx]))
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun NotifToggleRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onCheckedChange(!checked) }
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedTrackColor = MaterialTheme.colorScheme.primary,
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary
+            )
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ImportancePickerRow(
+    currentValue: String,
+    options: List<String>,
+    onSelected: (Int) -> Unit
+) {
+    var showSheet by remember { mutableStateOf(false) }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { showSheet = true }
+            .padding(horizontal = 24.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.PriorityHigh,
+            contentDescription = "Importance",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(14.dp))
+        Text(
+            text = "Importance",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            text = currentValue,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.width(4.dp))
+        Icon(
+            imageVector = Icons.Outlined.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+    if (showSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showSheet = false },
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp)
+            ) {
+                Text(
+                    text = "Importance",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                )
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                options.forEachIndexed { index, option ->
+                    val isSelected = option == currentValue
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                onSelected(index)
+                                showSheet = false
+                            }
+                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = option,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (isSelected) MaterialTheme.colorScheme.onSurface
+                            else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (isSelected) {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable

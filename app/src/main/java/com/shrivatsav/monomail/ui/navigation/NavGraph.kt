@@ -223,7 +223,7 @@ fun NavGraph(
                     onNavigateToLegal = { type ->
                         navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
                     },
-                    accountCount = accounts.size
+                    accounts = accounts
                 )
             }
             composable(

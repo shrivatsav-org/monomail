@@ -3,10 +3,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.data.settings.*
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -23,6 +25,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { settingsDataStore.setThemeMode(mode) }
     fun setFontScale(scale: FontScale) = viewModelScope.launch { settingsDataStore.setFontScale(scale) }
+    fun setAppFont(font: AppFont) = viewModelScope.launch { settingsDataStore.setAppFont(font) }
     fun setShowDividers(show: Boolean) = viewModelScope.launch { settingsDataStore.setShowDividers(show) }
     fun setCompactList(compact: Boolean) = viewModelScope.launch { settingsDataStore.setCompactList(compact) }
     fun setShowSnippet(show: Boolean) = viewModelScope.launch { settingsDataStore.setShowSnippet(show) }
@@ -53,6 +56,11 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun saveTemplates(templates: List<EmailTemplate>) = viewModelScope.launch {
         settingsDataStore.saveTemplates(templates)
+    }
+    fun accountNotifSettings(accountId: String): Flow<AccountNotificationSettings> =
+        settingsDataStore.settingsFlow.map { settingsDataStore.getAccountNotificationSettings(accountId) }
+    fun setAccountNotificationSettings(accountId: String, settings: AccountNotificationSettings) {
+        viewModelScope.launch { settingsDataStore.setAccountNotificationSettings(accountId, settings) }
     }
     private val _updateState = MutableStateFlow(UpdateState.IDLE)
     val updateState = _updateState.asStateFlow()
