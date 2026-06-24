@@ -1,29 +1,36 @@
 package com.shrivatsav.monomail.data.worker
 import android.content.Context
+import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.shrivatsav.monomail.MonoMailApp
+import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.data.remote.RetrofitClient
-class SyncWorker(
-    appContext: Context,
-    workerParams: WorkerParameters
+import com.shrivatsav.monomail.data.repository.EmailRepository
+import dagger.assisted.Assisted
+import dagger.assisted.AssistedInject
+
+@HiltWorker
+class SyncWorker @AssistedInject constructor(
+    private val accountManager: AccountManager,
+    private val emailRepository: EmailRepository,
+    @Assisted appContext: Context,
+    @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
         val action = inputData.getString(KEY_ACTION) ?: return Result.failure()
         val accountId = inputData.getString(KEY_ACCOUNT_ID) ?: return Result.failure()
         val threadId = inputData.getString(KEY_THREAD_ID)
         val emailIdsJson = inputData.getString(KEY_EMAIL_IDS)
-        val app = applicationContext as MonoMailApp
-        val accounts = app.accountManager.getAccounts()
+        val accounts = accountManager.getAccounts()
         val targetProfile = accounts.find { it.id == accountId } ?: return Result.failure()
         return try {
-            val oldActive = app.accountManager.getActiveAccount()
+            val oldActive = accountManager.getActiveAccount()
             if (oldActive?.id != accountId) {
-                app.accountManager.setActiveAccountId(accountId)
+                accountManager.setActiveAccountId(accountId)
             }
-            val provider = app.emailRepository.getActiveProvider() ?: return Result.failure()
+            val provider = emailRepository.getActiveProvider() ?: return Result.failure()
             when (action) {
                 ACTION_TOGGLE_STAR -> {
                     val isStarred = inputData.getBoolean(KEY_IS_STARRED, false)
@@ -56,11 +63,10 @@ class SyncWorker(
                 }
             }
             if (oldActive?.id != accountId && oldActive != null) {
-                app.accountManager.setActiveAccountId(oldActive.id)
+                accountManager.setActiveAccountId(oldActive.id)
             }
             Result.success()
         } catch (e: RetrofitClient.AuthFailedException) {
-            // Don't retry auth failures — user must re-authenticate
             Result.failure()
         } catch (e: Exception) {
             Result.retry()

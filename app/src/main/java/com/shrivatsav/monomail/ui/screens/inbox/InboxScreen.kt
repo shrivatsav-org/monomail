@@ -60,8 +60,7 @@ fun InboxScreen(
     var showClearSpamWarning by remember { mutableStateOf(false) }
     var isTrashCountdownActive by remember { mutableStateOf(false) }
     var isSpamCountdownActive by remember { mutableStateOf(false) }
-    val app = context.applicationContext as com.shrivatsav.monomail.MonoMailApp
-    val appSettings by app.settingsDataStore.settingsFlow.collectAsState(
+    val appSettings by viewModel.settingsFlow.collectAsState(
         initial = com.shrivatsav.monomail.data.settings.AppSettings()
     )
     val fontSizeScale = when (appSettings.fontScale) {
@@ -136,7 +135,7 @@ fun InboxScreen(
     }
 
     LaunchedEffect(Unit) {
-        app.scheduledEmailEvents.collect { event ->
+        viewModel.scheduledEmailEvents.collect { event ->
             val formatted = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
                 .format(java.util.Date(event.scheduledAt))
             snackbarHostState.showSnackbar(
