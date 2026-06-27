@@ -47,17 +47,13 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var emailRepository: EmailRepository
     @Inject lateinit var settingsDataStore: SettingsDataStore
     @Inject lateinit var accountManager: AccountManager
-    private val requestPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted: Boolean ->
-        if (isGranted) {
+    private val requestPermissionsLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        if (permissions[Manifest.permission.POST_NOTIFICATIONS] == true) {
             scheduleBackgroundSync()
         }
     }
-
-    private val requestContactsPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { _: Boolean -> }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,15 +85,29 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        requestNotificationPermissionAndScheduleSync()
-        requestContactsPermission()
+        requestPermissionsOnLaunch()
     }
 
-    private fun requestContactsPermission() {
+    private fun requestPermissionsOnLaunch() {
+        val permissionsToRequest = mutableListOf<String>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissionsToRequest.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            requestContactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+            permissionsToRequest.add(Manifest.permission.READ_CONTACTS)
+        }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            scheduleBackgroundSync()
+        }
+        if (permissionsToRequest.isNotEmpty()) {
+            requestPermissionsLauncher.launch(permissionsToRequest.toTypedArray())
+        } else {
+            scheduleBackgroundSync()
         }
     }
 
@@ -127,24 +137,6 @@ class MainActivity : ComponentActivity() {
             ExistingWorkPolicy.REPLACE,
             workRequest
         )
-    }
-
-    private fun requestNotificationPermissionAndScheduleSync() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            when {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) == PackageManager.PERMISSION_GRANTED -> {
-                    scheduleBackgroundSync()
-                }
-                else -> {
-                    requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-        } else {
-            scheduleBackgroundSync()
-        }
     }
 
     private fun scheduleBackgroundSync() {
