@@ -12,6 +12,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+@Suppress("DEPRECATION")
 object SecurityUtil {
     private const val KEY_ALIAS = "monomail_data_keystore_alias"
     private const val PREFS_NAME = "monomail_secure_prefs"
@@ -92,6 +93,46 @@ object SecurityUtil {
         } catch (e: Exception) {
             android.util.Log.e("SecurityUtil", "decryptString failed", e)
             null
+        }
+    }
+
+    fun saveCustomGoogleClientId(context: Context, clientId: String) {
+        val prefs = getSecurePrefs(context)
+        prefs.edit().putString("custom_google_client_id", clientId).apply()
+    }
+
+    fun getGoogleClientId(context: Context): String {
+        val prefs = getSecurePrefs(context)
+        val customId = prefs.getString("custom_google_client_id", null)
+        if (!customId.isNullOrBlank()) {
+            return customId
+        }
+        return com.shrivatsav.monomail.BuildConfig.GOOGLE_CLIENT_ID
+    }
+
+    fun getAppSigningSha256(context: Context): String {
+        return try {
+            val pm = context.packageManager
+            val packageName = context.packageName
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                val info = pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                info.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                val info = pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+                info.signatures
+            }
+            if (signatures != null && signatures.isNotEmpty()) {
+                val md = java.security.MessageDigest.getInstance("SHA-256")
+                md.update(signatures[0].toByteArray())
+                val digest = md.digest()
+                digest.joinToString(":") { String.format("%02X", it) }
+            } else {
+                "SHA-256 not found"
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SecurityUtil", "getAppSigningSha256 failed", e)
+            "Error retrieving SHA-256"
         }
     }
 }

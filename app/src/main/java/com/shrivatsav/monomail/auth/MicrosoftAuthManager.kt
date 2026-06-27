@@ -14,6 +14,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+@Suppress("DEPRECATION")
 class MicrosoftAuthManager(private val context: Context, private val accountManager: AccountManager) {
     private var msalApp: com.microsoft.identity.client.IMultipleAccountPublicClientApplication? = null
     private val scopes = arrayOf("User.Read", "Mail.Read", "Mail.ReadWrite", "Mail.Send")

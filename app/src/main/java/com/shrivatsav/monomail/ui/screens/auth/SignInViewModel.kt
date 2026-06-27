@@ -83,4 +83,12 @@ class SignInViewModel @Inject constructor(
             }
         }
     }
+
+    fun getCustomGoogleClientId(context: Context): String {
+        return com.shrivatsav.monomail.security.SecurityUtil.getGoogleClientId(context)
+    }
+
+    fun saveCustomGoogleClientId(context: Context, clientId: String) {
+        com.shrivatsav.monomail.security.SecurityUtil.saveCustomGoogleClientId(context, clientId)
+    }
 }

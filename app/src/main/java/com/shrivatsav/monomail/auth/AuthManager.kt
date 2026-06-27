@@ -27,7 +27,6 @@ class AuthManager(
 ) {
     val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     companion object {
-        val CLIENT_ID = com.shrivatsav.monomail.BuildConfig.GOOGLE_CLIENT_ID
         const val GMAIL_SCOPE = "oauth2:https://www.googleapis.com/auth/gmail.modify"
     }
     private val credentialManager = CredentialManager.create(context)
@@ -90,9 +89,13 @@ class AuthManager(
     }
     suspend fun signIn(activityContext: Context): SignInResult {
         return try {
+            val clientId = com.shrivatsav.monomail.security.SecurityUtil.getGoogleClientId(activityContext)
+            if (clientId.isBlank()) {
+                return SignInResult.Failure(Exception("Google Client ID is not configured. Please set your API key first."))
+            }
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(CLIENT_ID)
+                .setServerClientId(clientId)
                 .setAutoSelectEnabled(false)
                 .build()
             val request = GetCredentialRequest.Builder()

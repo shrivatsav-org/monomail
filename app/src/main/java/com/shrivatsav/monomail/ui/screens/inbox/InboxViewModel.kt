@@ -109,8 +109,8 @@ class InboxViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, accountId, _, organize ->
-                Quad(tab, accountId, organize, tab)
+            combine(_currentTab, _activeAccountId, _unifiedInboxEnabled, _organizeByThread) { tab, accountId, unifiedEnabled, organize ->
+                Quad(tab, accountId, organize, unifiedEnabled)
             }
                 .flatMapLatest { (tab, accountId, organize, _) ->
                     if (accountId == null) {
