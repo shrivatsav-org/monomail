@@ -32,8 +32,8 @@ data class ImapAccountConfig(
             val lower = emailOrHost.lowercase()
             return when {
                 lower.contains("zoho") -> ImapAccountConfig(
-                    imapHost = "imap.zoho.in", imapPort = 993, imapSsl = true, imapStartTls = false,
-                    smtpHost = "smtp.zoho.in", smtpPort = 465, smtpSsl = true, smtpStartTls = false,
+                    imapHost = "imap.zoho.com", imapPort = 993, imapSsl = true, imapStartTls = false,
+                    smtpHost = "smtp.zoho.com", smtpPort = 465, smtpSsl = true, smtpStartTls = false,
                     username = ""
                 )
                 lower.contains("gmail") || lower.contains("googlemail") -> ImapAccountConfig(

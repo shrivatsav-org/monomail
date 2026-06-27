@@ -16,6 +16,10 @@ interface EmailDao {
     suspend fun updateThreadStarred(threadId: String, accountId: String, isStarred: Boolean)
     @Query("UPDATE emails SET isRead = 1 WHERE id IN (:emailIds) AND accountId = :accountId")
     suspend fun markEmailsAsRead(emailIds: List<String>, accountId: String)
+    @Query("SELECT id FROM emails WHERE accountId = :accountId AND threadId IN (:threadIds) AND isRead = 0")
+    suspend fun getUnreadEmailIdsForThreads(threadIds: List<String>, accountId: String): List<String>
+    @Query("UPDATE emails SET isRead = 1 WHERE accountId = :accountId AND threadId IN (:threadIds)")
+    suspend fun markThreadEmailsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun deleteThreadEmails(threadId: String, accountId: String)
     @Query("DELETE FROM emails WHERE accountId = :accountId")
@@ -65,4 +69,12 @@ interface EmailDao {
     suspend fun snoozeThreadEmails(threadId: String, accountId: String, untilTimestamp: Long)
     @Query("UPDATE emails SET inInbox = 1, isSnoozed = 0, snoozedUntil = 0 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun unsnoozeThreadEmails(threadId: String, accountId: String)
+
+    @Query("SELECT id, isRead FROM emails WHERE accountId = :accountId")
+    suspend fun getEmailReadStatuses(accountId: String): List<EmailReadStatusProjection>
 }
+
+data class EmailReadStatusProjection(
+    val id: String,
+    val isRead: Boolean
+)

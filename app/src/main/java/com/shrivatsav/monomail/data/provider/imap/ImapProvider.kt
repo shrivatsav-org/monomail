@@ -177,18 +177,6 @@ class ImapProvider(
                 var plainBody = ""
 
                 try {
-                    val rawStream = java.io.ByteArrayOutputStream()
-                    msg.writeTo(rawStream)
-
-                    val tempProps = java.util.Properties().apply {
-                        put("mail.mime.multipart.ignoreexistingboundaryparameter", "true")
-                        put("mail.mime.multipart.ignoremissingboundaryparameter", "true")
-                        put("mail.mime.base64.ignoreerrors", "true")
-                        put("mail.mime.decodetext.strict", "false")
-                    }
-                    val tempSession = jakarta.mail.Session.getInstance(tempProps)
-                    val snapshot = jakarta.mail.internet.MimeMessage(tempSession, java.io.ByteArrayInputStream(rawStream.toByteArray()))
-
                     fun processPart(part: Part) {
                         try {
                             val disposition = part.disposition
@@ -229,7 +217,7 @@ class ImapProvider(
                             android.util.Log.w("ImapProvider", "listThreads processPart error: ${e.message}")
                         }
                     }
-                    processPart(snapshot)
+                    processPart(msg)
                 } catch (e: Exception) {
                     android.util.Log.w("ImapProvider", "listThreads body parse error: ${e.message}")
                 }
@@ -313,158 +301,151 @@ class ImapProvider(
             )
         }.distinct()
 
-        val matchingMessages = mutableListOf<Message>()
-        val imapFolders = mutableListOf<Folder>()
+        val rawMessages = mutableListOf<ImapRawMessage>()
 
         try {
             for (folderName in searchFolders) {
                 val f = store.getFolder(folderName)
                 if (f.exists()) {
                     f.open(Folder.READ_ONLY)
-                    imapFolders.add(f)
-                    
-                    // Header search term for Message-ID or References
-                    val msgIdTerm = jakarta.mail.search.HeaderTerm("Message-ID", threadId)
-                    val refTerm = jakarta.mail.search.HeaderTerm("References", threadId)
-                    val inReplyTerm = jakarta.mail.search.HeaderTerm("In-Reply-To", threadId)
-                    
-                    val orTerm = jakarta.mail.search.OrTerm(
-                        msgIdTerm,
-                        jakarta.mail.search.OrTerm(refTerm, inReplyTerm)
-                    )
-                    
-                    matchingMessages.addAll(f.search(orTerm))
+                    try {
+                        val msgIdTerm = jakarta.mail.search.HeaderTerm("Message-ID", threadId)
+                        val refTerm = jakarta.mail.search.HeaderTerm("References", threadId)
+                        val inReplyTerm = jakarta.mail.search.HeaderTerm("In-Reply-To", threadId)
+                        val orTerm = jakarta.mail.search.OrTerm(
+                            msgIdTerm,
+                            jakarta.mail.search.OrTerm(refTerm, inReplyTerm)
+                        )
+                        val matchingMessages = f.search(orTerm)
+                        if (matchingMessages.isNotEmpty()) {
+                            val profile = jakarta.mail.FetchProfile().apply {
+                                add(jakarta.mail.FetchProfile.Item.ENVELOPE)
+                                add(jakarta.mail.FetchProfile.Item.FLAGS)
+                                add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
+                            }
+                            f.fetch(matchingMessages, profile)
+
+                            for (msg in matchingMessages) {
+                                val folderSet = mutableSetOf<EmailFolder>()
+                                val fname = msg.folder.name
+                                folderNamesCache.entries.find { it.value == fname }?.key?.let { folderSet.add(it) }
+
+                                val messageId = msg.getHeader("Message-ID")?.firstOrNull() ?: continue
+                                val references = msg.getHeader("References")?.joinToString(" ") ?: ""
+                                val inReplyTo = msg.getHeader("In-Reply-To")?.firstOrNull() ?: ""
+                                val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
+
+                                val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
+                                val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+                                val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+
+                                val isRead = msg.isSet(Flags.Flag.SEEN)
+                                val isStarred = msg.isSet(Flags.Flag.FLAGGED)
+                                if (isStarred) folderSet.add(EmailFolder.STARRED)
+
+                                val attachments = mutableListOf<EmailAttachmentInfo>()
+                                var htmlBody = ""
+                                var plainBody = ""
+
+                                val rawStream = java.io.ByteArrayOutputStream()
+                                msg.writeTo(rawStream)
+                                
+                                val tempProps = java.util.Properties().apply {
+                                    put("mail.mime.multipart.ignoreexistingboundaryparameter", "true")
+                                    put("mail.mime.multipart.ignoremissingboundaryparameter", "true")
+                                    put("mail.mime.base64.ignoreerrors", "true")
+                                    put("mail.mime.decodetext.strict", "false")
+                                }
+                                val tempSession = jakarta.mail.Session.getInstance(tempProps)
+                                val snapshot = jakarta.mail.internet.MimeMessage(tempSession, java.io.ByteArrayInputStream(rawStream.toByteArray()))
+
+                                fun processPart(part: Part) {
+                                    val disposition = part.disposition
+                                    val contentType = part.contentType.lowercase()
+
+                                    if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) || 
+                                        (disposition == null && contentType.contains("application/"))) {
+                                        val name = part.fileName ?: "attachment"
+                                        attachments.add(
+                                            EmailAttachmentInfo(
+                                                id = name,
+                                                messageId = messageId,
+                                                mimeType = contentType.substringBefore(";"),
+                                                name = name,
+                                                size = part.size
+                                            )
+                                        )
+                                    } else if (part.isMimeType("text/plain") && plainBody.isEmpty()) {
+                                        plainBody = part.getBodyText() ?: ""
+                                    } else if (part.isMimeType("text/html") && htmlBody.isEmpty()) {
+                                        htmlBody = part.getBodyText() ?: ""
+                                    } else if (part.isMimeType("multipart/*")) {
+                                        try {
+                                            val content = part.content
+                                            val mp = if (content is Multipart) {
+                                                content
+                                            } else if (content is java.io.InputStream) {
+                                                jakarta.mail.internet.MimeMultipart(jakarta.mail.util.ByteArrayDataSource(content, part.contentType))
+                                            } else {
+                                                null
+                                            }
+                                            if (mp != null) {
+                                                for (i in 0 until mp.count) {
+                                                    processPart(mp.getBodyPart(i))
+                                                }
+                                            }
+                                        } catch (e: Exception) {
+                                            android.util.Log.e("ImapProvider", "Error parsing multipart", e)
+                                        }
+                                    }
+                                }
+
+                                processPart(snapshot)
+
+                                val body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
+                                val snippet = plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
+                                    htmlBody.replace(Regex("<[^>]+>"), " ").take(150).replace(Regex("\\s+"), " ").trim()
+                                }
+
+                                val providerMsg = ProviderMessage(
+                                    id = messageId,
+                                    threadId = threadId,
+                                    subject = msg.subject ?: "",
+                                    from = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: "",
+                                    fromEmail = fromAddrs.firstOrNull()?.address ?: "",
+                                    to = toAddrs.joinToString(", ") { it.address },
+                                    cc = ccAddrs.joinToString(", ") { it.address },
+                                    bcc = "",
+                                    snippet = snippet,
+                                    body = body,
+                                    date = date,
+                                    isRead = isRead,
+                                    isStarred = isStarred,
+                                    folders = folderSet,
+                                    attachments = attachments
+                                )
+
+                                rawMessages.add(ImapRawMessage(messageId, references, inReplyTo, date, providerMsg))
+                            }
+                        }
+                    } finally {
+                        if (f.isOpen) f.close(false)
+                    }
                 }
             }
 
-            if (matchingMessages.isEmpty()) {
+            if (rawMessages.isEmpty()) {
                 return@withContext ProviderThread(threadId, emptyList())
             }
 
-            // Fetch FULL contents
-            val profile = jakarta.mail.FetchProfile().apply {
-                add(jakarta.mail.FetchProfile.Item.ENVELOPE)
-                add(jakarta.mail.FetchProfile.Item.FLAGS)
-                add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
-            }
-
-            val rawMessages = mutableListOf<ImapRawMessage>()
-
-            for (msg in matchingMessages) {
-                // Determine folder set
-                val folderSet = mutableSetOf<EmailFolder>()
-                val fname = msg.folder.name
-                folderNamesCache.entries.find { it.value == fname }?.key?.let { folderSet.add(it) }
-
-                val messageId = msg.getHeader("Message-ID")?.firstOrNull() ?: continue
-                val references = msg.getHeader("References")?.joinToString(" ") ?: ""
-                val inReplyTo = msg.getHeader("In-Reply-To")?.firstOrNull() ?: ""
-                val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
-
-                val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
-                val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-                val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-
-                val isRead = msg.isSet(Flags.Flag.SEEN)
-                val isStarred = msg.isSet(Flags.Flag.FLAGGED)
-                if (isStarred) folderSet.add(EmailFolder.STARRED)
-
-                // Extract body and attachments
-                val attachments = mutableListOf<EmailAttachmentInfo>()
-                var htmlBody = ""
-                var plainBody = ""
-
-                // Snapshot the message so all parts are read synchronously and we don't hit lazy eval errors
-                val rawStream = java.io.ByteArrayOutputStream()
-                msg.writeTo(rawStream)
-                
-                val tempProps = java.util.Properties().apply {
-                    put("mail.mime.multipart.ignoreexistingboundaryparameter", "true")
-                    put("mail.mime.multipart.ignoremissingboundaryparameter", "true")
-                    put("mail.mime.base64.ignoreerrors", "true")
-                    put("mail.mime.decodetext.strict", "false")
-                }
-                val tempSession = jakarta.mail.Session.getInstance(tempProps)
-                val snapshot = jakarta.mail.internet.MimeMessage(tempSession, java.io.ByteArrayInputStream(rawStream.toByteArray()))
-
-                fun processPart(part: Part) {
-                    val disposition = part.disposition
-                    val contentType = part.contentType.lowercase()
-
-                    if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) || 
-                        (disposition == null && contentType.contains("application/"))) {
-                        val name = part.fileName ?: "attachment"
-                        attachments.add(
-                            EmailAttachmentInfo(
-                                id = name, // Use filename as ID for IMAP
-                                messageId = messageId,
-                                mimeType = contentType.substringBefore(";"),
-                                name = name,
-                                size = part.size
-                            )
-                        )
-                    } else if (part.isMimeType("text/plain") && plainBody.isEmpty()) {
-                        plainBody = part.getBodyText() ?: ""
-                    } else if (part.isMimeType("text/html") && htmlBody.isEmpty()) {
-                        htmlBody = part.getBodyText() ?: ""
-                    } else if (part.isMimeType("multipart/*")) {
-                        try {
-                            val content = part.content
-                            val mp = if (content is Multipart) {
-                                content
-                            } else if (content is java.io.InputStream) {
-                                jakarta.mail.internet.MimeMultipart(jakarta.mail.util.ByteArrayDataSource(content, part.contentType))
-                            } else {
-                                null
-                            }
-                            if (mp != null) {
-                                for (i in 0 until mp.count) {
-                                    processPart(mp.getBodyPart(i))
-                                }
-                            }
-                        } catch (e: Exception) {
-                            android.util.Log.e("ImapProvider", "Error parsing multipart", e)
-                        }
-                    }
-                }
-
-                processPart(snapshot)
-
-                val body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
-                val snippet = plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
-                    // Very crude HTML to text
-                    htmlBody.replace(Regex("<[^>]+>"), " ").take(150).replace(Regex("\\s+"), " ").trim()
-                }
-
-                val providerMsg = ProviderMessage(
-                    id = messageId,
-                    threadId = threadId,
-                    subject = msg.subject ?: "",
-                    from = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: "",
-                    fromEmail = fromAddrs.firstOrNull()?.address ?: "",
-                    to = toAddrs.joinToString(", ") { it.address },
-                    cc = ccAddrs.joinToString(", ") { it.address },
-                    bcc = "",
-                    snippet = snippet,
-                    body = body,
-                    date = date,
-                    isRead = isRead,
-                    isStarred = isStarred,
-                    folders = folderSet,
-                    attachments = attachments
-                )
-
-                rawMessages.add(ImapRawMessage(messageId, references, inReplyTo, date, providerMsg))
-            }
-
             val threadsMap = ImapThreader.groupByReferences(rawMessages)
-            // Just return the first thread since we queried for it specifically
             return@withContext threadsMap.values.firstOrNull()?.let { msgs ->
                 ProviderThread(threadId, msgs)
             } ?: ProviderThread(threadId, emptyList())
 
-        } finally {
-            imapFolders.forEach { if (it.isOpen) it.close(false) }
+        } catch (e: Exception) {
+            android.util.Log.e("ImapProvider", "getThread error", e)
+            return@withContext ProviderThread(threadId, emptyList())
         }
     }
 
@@ -648,11 +629,13 @@ class ImapProvider(
             if (f.exists()) {
                 f.open(Folder.READ_WRITE)
                 try {
-                    val terms = messageIds.map { jakarta.mail.search.HeaderTerm("Message-ID", it) }.toTypedArray()
-                    val orTerm = jakarta.mail.search.OrTerm(terms)
-                    val messages = f.search(orTerm)
-                    if (messages.isNotEmpty()) {
-                        f.setFlags(messages, Flags(Flags.Flag.SEEN), true)
+                    messageIds.chunked(100).forEach { chunk ->
+                        val terms = chunk.map { jakarta.mail.search.HeaderTerm("Message-ID", it) }.toTypedArray()
+                        val orTerm = jakarta.mail.search.OrTerm(terms)
+                        val messages = f.search(orTerm)
+                        if (messages.isNotEmpty()) {
+                            f.setFlags(messages, Flags(Flags.Flag.SEEN), true)
+                        }
                     }
                 } finally {
                     f.close(false)

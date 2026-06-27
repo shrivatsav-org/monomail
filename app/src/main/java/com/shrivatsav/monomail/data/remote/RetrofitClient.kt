@@ -30,16 +30,25 @@ class RetrofitClient(
         }
         val response = chain.proceed(newRequest)
         if (response.code == 401) {
-            val newToken = tokenRefresher()
+            response.close()
+            val newToken = synchronized(this) {
+                val currentToken = cachedToken.get()
+                if (currentToken != null && currentToken != token) {
+                    currentToken
+                } else {
+                    val refreshed = tokenRefresher()
+                    if (refreshed != null) {
+                        cachedToken.set(refreshed)
+                    }
+                    refreshed
+                }
+            }
             if (newToken != null) {
-                cachedToken.set(newToken)
-                response.close()
                 val retryRequest = request.newBuilder()
                     .header("Authorization", "Bearer $newToken")
                     .build()
                 return@Interceptor chain.proceed(retryRequest)
             }
-            response.close()
             onRefreshFailed()
             throw AuthFailedException("Authentication failed. Please sign in again.")
         }
@@ -49,6 +58,9 @@ class RetrofitClient(
         level = HttpLoggingInterceptor.Level.BASIC
     }
     private val baseHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .addInterceptor(createAuthInterceptor())
         .addInterceptor(loggingInterceptor)
         .build()
