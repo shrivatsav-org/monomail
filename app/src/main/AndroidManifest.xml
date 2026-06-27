@@ -64,7 +64,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:host="com.shrivatsav.monomail"
-                    android:path="/E0quig71zTCyJHk4+hOUDs0dkXE="
+                    android:pathPrefix="/"
                     android:scheme="msauth" />
             </intent-filter>
         </activity>
