@@ -336,7 +336,9 @@ class InboxViewModel @Inject constructor(
             }
         )
         viewModelScope.launch {
-            ids.forEach { repository.markThreadAsRead(it) }
+            repository.markThreadsAsRead(ids).onFailure { e ->
+                _uiError.emit(e.message ?: "Failed to mark emails as read")
+            }
         }
     }
     fun markThreadAsRead(threadId: String) {

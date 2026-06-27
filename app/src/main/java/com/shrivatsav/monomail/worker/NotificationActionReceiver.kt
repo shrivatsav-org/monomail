@@ -123,11 +123,6 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val account = deps.accountManager().getAccounts().find { it.id == accountId } ?: return
         val repository = deps.emailRepository()
 
-        val oldActive = deps.accountManager().getActiveAccount()
-        if (oldActive?.id != accountId) {
-            deps.accountManager().setActiveAccountId(accountId)
-        }
-
         createReplyStatusChannel(context)
         showReplyNotification(context, replyNotificationId, "Sending reply...", isProgress = true)
 
@@ -138,12 +133,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
             body = replyText,
             threadId = threadId,
             inReplyToMessageId = messageId,
-            references = messageId
+            references = messageId,
+            explicitAccountId = accountId
         )
-
-        if (oldActive?.id != accountId && oldActive != null) {
-            deps.accountManager().setActiveAccountId(oldActive.id)
-        }
 
         if (result.isSuccess) {
             showReplyNotification(context, replyNotificationId, "Reply sent", isProgress = false)
@@ -162,16 +154,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
         val deps = getDependencies(context)
 
-        val oldActive = deps.accountManager().getActiveAccount()
-        if (oldActive?.id != accountId) {
-            deps.accountManager().setActiveAccountId(accountId)
-        }
-
-        deps.emailRepository().archiveThread(threadId)
-
-        if (oldActive?.id != accountId && oldActive != null) {
-            deps.accountManager().setActiveAccountId(oldActive.id)
-        }
+        deps.emailRepository().archiveThread(threadId, explicitAccountId = accountId)
 
         val undoIntent = Intent(context, NotificationActionReceiver::class.java).apply {
             action = ACTION_UNDO_ARCHIVE
@@ -204,16 +187,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
 
         val deps = getDependencies(context)
 
-        val oldActive = deps.accountManager().getActiveAccount()
-        if (oldActive?.id != accountId) {
-            deps.accountManager().setActiveAccountId(accountId)
-        }
-
-        deps.emailRepository().unarchiveThread(threadId)
-
-        if (oldActive?.id != accountId && oldActive != null) {
-            deps.accountManager().setActiveAccountId(oldActive.id)
-        }
+        deps.emailRepository().unarchiveThread(threadId, explicitAccountId = accountId)
 
         val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
         NotificationManagerCompat.from(context).cancel(notificationId)

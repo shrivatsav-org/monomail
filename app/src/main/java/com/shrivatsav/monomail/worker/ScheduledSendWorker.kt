@@ -32,14 +32,15 @@ class ScheduledSendWorker @AssistedInject constructor(
         return try {
             val provider = emailRepository.getProviderForAccount(message.accountId)
             if (provider == null) return Result.retry()
-            provider.sendEmail(
+            emailRepository.sendEmail(
                 from = message.fromEmail,
                 to = message.to,
                 cc = message.cc,
                 bcc = message.bcc,
                 subject = message.subject,
                 body = message.body,
-                attachments = attachments
+                attachments = attachments,
+                explicitAccountId = message.accountId
             )
             dao.markAsSent(messageId)
             cleanupCachedFiles(attachments)

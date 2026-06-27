@@ -32,6 +32,8 @@ interface ThreadDao {
     suspend fun unarchiveThread(threadId: String, accountId: String)
     @Query("UPDATE threads SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun updateThreadReadStatus(threadId: String, accountId: String, isRead: Boolean)
+    @Query("UPDATE threads SET isRead = 1 WHERE accountId = :accountId AND threadId IN (:threadIds)")
+    suspend fun markThreadsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM threads WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun deleteThread(threadId: String, accountId: String)
     @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
@@ -60,7 +62,15 @@ interface ThreadDao {
 
     @Query("SELECT threadId, snippet FROM threads WHERE accountId = :accountId AND snippet != ''")
     suspend fun getSnippetsForAccount(accountId: String): List<ThreadSnippetProjection>
+
+    @Query("SELECT threadId, isRead FROM threads WHERE accountId = :accountId")
+    suspend fun getReadStatuses(accountId: String): List<ThreadReadStatusProjection>
 }
+
+data class ThreadReadStatusProjection(
+    val threadId: String,
+    val isRead: Boolean
+)
 
 data class ThreadSnippetProjection(
     val threadId: String,

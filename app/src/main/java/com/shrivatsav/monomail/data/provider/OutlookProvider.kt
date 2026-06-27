@@ -37,7 +37,12 @@ class OutlookProvider(
         return try {
             java.time.Instant.parse(dateStr).toEpochMilli()
         } catch (e: Exception) {
-            0L
+            try {
+                java.time.ZonedDateTime.parse(dateStr, java.time.format.DateTimeFormatter.ISO_DATE_TIME).toInstant().toEpochMilli()
+            } catch (e2: Exception) {
+                android.util.Log.w("OutlookProvider", "Failed to parse date: $dateStr", e2)
+                0L
+            }
         }
     }
 
@@ -242,9 +247,10 @@ class OutlookProvider(
     }
     override suspend fun batchMarkRead(messageIds: List<String>) {
         withContext(Dispatchers.IO) {
+            val limitedParallelism = Dispatchers.IO.limitedParallelism(3)
             coroutineScope {
                 messageIds.map { id ->
-                    async {
+                    async(limitedParallelism) {
                         try { api.updateMessage(id, OutlookUpdateMessageRequest(isRead = true)) } catch (_: Exception) {}
                     }
                 }.awaitAll()
@@ -272,7 +278,17 @@ class OutlookProvider(
         } else null
         val draftAttachments = attachments.mapNotNull { att ->
             context.contentResolver.openInputStream(att.uri)?.use { stream ->
-                val size = stream.available()
+                var size = stream.available().toLong()
+                try {
+                    context.contentResolver.query(att.uri, null, null, null, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                            if (sizeIndex != -1) {
+                                size = cursor.getLong(sizeIndex)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
                 if (size > 3 * 1024 * 1024) {
                     throw IllegalArgumentException("Attachment ${att.name} exceeds the 3MB limit for Outlook.")
                 }

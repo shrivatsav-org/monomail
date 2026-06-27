@@ -26,11 +26,7 @@ class SyncWorker @AssistedInject constructor(
         val accounts = accountManager.getAccounts()
         val targetProfile = accounts.find { it.id == accountId } ?: return Result.failure()
         return try {
-            val oldActive = accountManager.getActiveAccount()
-            if (oldActive?.id != accountId) {
-                accountManager.setActiveAccountId(accountId)
-            }
-            val provider = emailRepository.getActiveProvider() ?: return Result.failure()
+            val provider = emailRepository.getProviderForAccount(accountId) ?: return Result.failure()
             when (action) {
                 ACTION_TOGGLE_STAR -> {
                     val isStarred = inputData.getBoolean(KEY_IS_STARRED, false)
@@ -61,9 +57,6 @@ class SyncWorker @AssistedInject constructor(
                 ACTION_RESTORE -> {
                     provider.restoreThread(threadId!!)
                 }
-            }
-            if (oldActive?.id != accountId && oldActive != null) {
-                accountManager.setActiveAccountId(oldActive.id)
             }
             Result.success()
         } catch (e: RetrofitClient.AuthFailedException) {

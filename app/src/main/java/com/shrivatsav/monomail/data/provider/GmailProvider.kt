@@ -32,7 +32,20 @@ class GmailProvider(
             folder == EmailFolder.ARCHIVE -> null
             else -> "INBOX"
         }
-        val finalQuery = if (folder == EmailFolder.ARCHIVE && query.isNullOrEmpty()) "-label:inbox -label:trash -label:sent" else query
+        val finalQuery = when {
+            !query.isNullOrEmpty() -> {
+                val folderLabel = when (folder) {
+                    EmailFolder.SENT -> "label:sent"
+                    EmailFolder.TRASH -> "label:trash"
+                    EmailFolder.SPAM -> "label:spam"
+                    EmailFolder.STARRED -> "label:starred"
+                    else -> ""
+                }
+                if (folderLabel.isNotEmpty() && !query.contains("label:")) "$query $folderLabel" else query
+            }
+            folder == EmailFolder.ARCHIVE -> "-label:inbox -label:trash -label:sent"
+            else -> null
+        }
         val response = api.listThreads(
             maxResults = maxResults,
             pageToken = pageToken,
@@ -46,6 +59,8 @@ class GmailProvider(
                 async(limitedParallelism) {
                     try {
                         api.getThread(ref.id)
+                    } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
+                        throw e
                     } catch (e: Exception) {
                         e.printStackTrace()
                         null
@@ -126,6 +141,8 @@ class GmailProvider(
                     val base64 = data.replace("-", "+").replace("_", "/")
                     android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
                 }
+            } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
+                throw e
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
@@ -163,7 +180,13 @@ class GmailProvider(
     }
     override suspend fun batchMarkRead(messageIds: List<String>) {
         messageIds.chunked(1000).forEach { chunk ->
-            api.batchModifyMessages(BatchModifyMessagesRequest(ids = chunk, removeLabelIds = listOf("UNREAD")))
+            try {
+                api.batchModifyMessages(BatchModifyMessagesRequest(ids = chunk, removeLabelIds = listOf("UNREAD")))
+            } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
+                throw e
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
     override suspend fun sendEmail(
