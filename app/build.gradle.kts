@@ -32,8 +32,21 @@ android {
         versionCode = 16
         versionName = "1.5.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
-        buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
+    }
+
+    flavorDimensions += "distribution"
+
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"\"")
+            buildConfigField("Boolean", "IS_GITHUB_BUILD", "true")
+        }
+        create("playstore") {
+            dimension = "distribution"
+            buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
+            buildConfigField("Boolean", "IS_GITHUB_BUILD", "false")
+        }
     }
 
     signingConfigs {

@@ -624,6 +624,7 @@ private fun MessageBody(
                             }
                             return super.shouldOverrideUrlLoading(view, request)
                         }
+                        @Suppress("DEPRECATION")
                         @Deprecated("Deprecated in Java")
                         override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
                             url?.let {

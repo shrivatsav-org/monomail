@@ -157,7 +157,7 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 ### Prerequisites
 
 - Android Studio Ladybug or later.
-- A Google Cloud project with the Gmail API enabled and an OAuth 2.0 Web Client ID (type: Web application, not Android).
+- A Google Cloud project with the Gmail API enabled.
 - A Microsoft Azure App Registration with Outlook / Microsoft Graph API scopes (`Mail.Read`, `Mail.ReadWrite`, `Mail.Send`, `User.Read`) and a Mobile/Desktop platform redirect URI (`msal{client_id}://auth`).
 - JDK 17+.
 
@@ -168,7 +168,7 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
    git clone https://github.com/shrivatsav-0/monomail.git
    ```
 
-2. Create a `secrets.properties` file in the root project directory:
+2. Create a `secrets.properties` file in the root project directory (for building the `playstore` flavor):
    ```properties
    GOOGLE_CLIENT_ID=your_web_client_id_here
    ```
@@ -185,7 +185,28 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 
 4. Sync Gradle and run on a device or emulator running Android 8.0 (API 26) or above.
 
-### Installing the APK
+### Installing the APK (GitHub vs Play Store Builds)
+
+MonoMail is built using two distinct distribution flavors to protect API secrets:
+- **Play Store Build (`playstore`)**: Comes bundled with the developer's official Google OAuth Web Client ID.
+- **GitHub Release Build (`github`)**: Excludes the developer's private OAuth Web Client ID, allowing users to supply their own API credentials securely at runtime.
+
+#### Configuring Google Sign-In for GitHub Builds
+
+When using a GitHub release APK, Google Credential Manager requires you to create **two OAuth Client IDs** in your [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
+
+1. **Step 1: Create an Android OAuth Client ID**
+   - In your Google Cloud project, navigate to **APIs & Services > Credentials**.
+   - Click **Create Credentials > OAuth client ID**.
+   - Select Application type: **Android**.
+   - Enter the Package name: `com.shrivatsav.monomail`.
+   - Enter the **SHA-256 certificate fingerprint**. (You can easily copy your APK's exact SHA-256 fingerprint directly from the in-app configuration dialog).
+
+2. **Step 2: Create a Web Application OAuth Client ID**
+   - In the same Google Cloud project, click **Create Credentials > OAuth client ID**.
+   - Select Application type: **Web application**.
+   - Copy the resulting **Client ID** (ending in `.apps.googleusercontent.com`).
+   - Open MonoMail, click **"⚙️ Configure Google API Key"** on the sign-in screen, paste the Web Client ID, and click **Save**.
 
 Download the latest release from the [Releases page](https://github.com/shrivatsav-0/monomail/releases/latest) and install directly. You may need to enable "Install unknown apps" in your device settings.
 

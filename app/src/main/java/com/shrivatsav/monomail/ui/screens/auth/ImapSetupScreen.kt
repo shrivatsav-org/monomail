@@ -130,7 +130,7 @@ fun ImapSetupScreen(
                         label = { Text("Provider Setup") },
                         trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) },
                         colors = androidx.compose.material3.ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                        modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
                     )
                     ExposedDropdownMenu(
                         expanded = expandedProvider,
@@ -339,7 +339,7 @@ fun ImapSetupScreen(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         LinearProgressIndicator(
-                            progress = progress.value,
+                            progress = { progress.value },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(6.dp)

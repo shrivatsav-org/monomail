@@ -192,12 +192,12 @@ fun NavGraph(
                         scope.launch {
                             authManager.signOutActiveAccount()
                             val accounts = authManager.getAccounts()
-                            if (accounts.isEmpty()) {
-                                emailRepository.clearLocalData()
-                                navController.navigate(Screen.SignIn.route) {
-                                    popUpTo(0) { inclusive = true }
-                                }
+                        if (accounts.isEmpty()) {
+                            navController.navigate(Screen.SignIn.route) {
+                                popUpTo(0) { inclusive = true }
                             }
+                            emailRepository.clearLocalData()
+                        }
                         }
                     },
                     onCompose = {
