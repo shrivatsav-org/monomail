@@ -40,6 +40,7 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.ShortText
 import androidx.compose.material.icons.automirrored.outlined.Send
 import androidx.compose.material.icons.outlined.AttachFile
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FormatBold
@@ -279,16 +280,15 @@ fun ComposeScreen(
                         )
                     } else if (!state.isSent) {
                         val canSend = state.to.isNotBlank()
-                        TextButton(
+                        IconButton(
                             onClick = { viewModel.showSchedulePicker() },
-                            enabled = canSend,
-                            modifier = Modifier.padding(end = 4.dp)
+                            enabled = canSend
                         ) {
-                            Text(
-                                "Schedule",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = if (canSend)
-                                    MaterialTheme.colorScheme.primary
+                            Icon(
+                                imageVector = Icons.Outlined.Schedule,
+                                contentDescription = "Schedule",
+                                tint = if (canSend)
+                                    MaterialTheme.colorScheme.onSurface
                                 else
                                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                             )
