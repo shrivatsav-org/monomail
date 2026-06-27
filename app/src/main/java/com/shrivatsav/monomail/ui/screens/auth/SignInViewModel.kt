@@ -52,9 +52,9 @@ class SignInViewModel @Inject constructor(
     fun signInMicrosoft(activity: Activity) {
         viewModelScope.launch {
             _state.value = SignInState.Loading
-            val initialized = authManager.microsoftAuthManager.initialize()
-            if (!initialized) {
-                _state.value = SignInState.Error("Failed to initialize Microsoft login")
+            val initError = authManager.microsoftAuthManager.initialize()
+            if (initError != null) {
+                _state.value = SignInState.Error("Microsoft login failed: $initError")
                 return@launch
             }
             _state.value = when (val result = authManager.microsoftAuthManager.signIn(activity)) {
@@ -90,5 +90,9 @@ class SignInViewModel @Inject constructor(
 
     fun saveCustomGoogleClientId(context: Context, clientId: String) {
         com.shrivatsav.monomail.security.SecurityUtil.saveCustomGoogleClientId(context, clientId)
+    }
+
+    fun clearCustomGoogleClientId(context: Context) {
+        com.shrivatsav.monomail.security.SecurityUtil.clearCustomGoogleClientId(context)
     }
 }

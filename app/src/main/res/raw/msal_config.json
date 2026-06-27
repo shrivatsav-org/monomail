@@ -1,7 +1,7 @@
 {
   "client_id": "9f61613a-57a4-412d-a78d-6792ad0091b4",
   "authorization_user_agent": "DEFAULT",
-  "redirect_uri": "msauth://com.shrivatsav.monomail/E0quig71zTCyJHk4+hOUDs0dkXE=",
+  "redirect_uri": "msauth://com.shrivatsav.monomail/E0quig71zTCyJHk4%2BhOUDs0dkXE%3D",
   "account_mode": "MULTIPLE",
   "broker_redirect_uri_registered": true,
   "authorities": [

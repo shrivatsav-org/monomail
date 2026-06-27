@@ -310,9 +310,46 @@ fun SignInScreen(
                             )
                         }
                     }
+                    if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD && hasApiKey) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                text = "Change Client ID",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.clickable {
+                                    showProviderSheet = false
+                                    showApiKeyScreen = true
+                                },
+                            )
+                            Text(
+                                text = "  •  ",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            )
+                            Text(
+                                text = "Reset Client ID",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.clickable {
+                                    viewModel.clearCustomGoogleClientId(context)
+                                    hasApiKey = viewModel.getCustomGoogleClientId(context).isNotBlank()
+                                    Toast.makeText(context, "Google Client ID reset", Toast.LENGTH_SHORT).show()
+                                },
+                            )
+                        }
+                    }
                     Spacer(modifier = Modifier.height(16.dp))
                     Button(
-                        onClick = { viewModel.signInMicrosoft(context as Activity) },
+                        onClick = {
+                            context.findActivity()?.let { activity ->
+                                viewModel.signInMicrosoft(activity)
+                            } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
+                        },
                         enabled = state !is SignInState.Loading,
                         modifier = Modifier
                             .fillMaxWidth()
@@ -478,6 +515,38 @@ fun ProviderSelectionDialog(
                     )
                 }
             }
+            if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD && hasApiKey) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "Change Client ID",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable {
+                            showApiKeyScreen = true
+                        },
+                    )
+                    Text(
+                        text = "  •  ",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    )
+                    Text(
+                        text = "Reset Client ID",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.clickable {
+                            viewModel.clearCustomGoogleClientId(context)
+                            hasApiKey = viewModel.getCustomGoogleClientId(context).isNotBlank()
+                            Toast.makeText(context, "Google Client ID reset", Toast.LENGTH_SHORT).show()
+                        },
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(12.dp))
             Button(
                 onClick = {
@@ -596,7 +665,7 @@ fun ApiKeyConfigurationScreen(
     val context = LocalContext.current
     var currentStep by remember { mutableIntStateOf(0) }
     var apiKey by remember { mutableStateOf(viewModel.getCustomGoogleClientId(context)) }
-    val shaKey = remember { com.shrivatsav.monomail.security.SecurityUtil.getAppSigningSha256(context) }
+    val shaKey = remember { com.shrivatsav.monomail.security.SecurityUtil.getAppSigningSha1(context) }
 
     val progressAnim = remember { Animatable(0f) }
     LaunchedEffect(currentStep) {
@@ -995,13 +1064,13 @@ private fun Step3Body(shaKey: String, packageName: String, context: Context) {
         InstructionItem(2, "Click Create Credentials > OAuth client ID")
         InstructionItem(3, "Under Application type, select Android")
         InstructionItem(4, "Enter any name, e.g. \"MonoMail Android Client\"")
-        InstructionItem(5, "Copy the package name and SHA-256 fingerprint below and paste them in")
+        InstructionItem(5, "Copy the package name and SHA-1 fingerprint below and paste them in")
         InstructionItem(6, "Click Create — you don't need to save the resulting ID anywhere")
         Spacer(modifier = Modifier.height(4.dp))
         SectionLabel("Your App Credentials")
         CopyableChip(label = "Package Name", value = packageName, context = context)
         Spacer(modifier = Modifier.height(6.dp))
-        CopyableChip(label = "SHA-256 Fingerprint — tap to copy", value = shaKey, context = context)
+        CopyableChip(label = "SHA-1 Fingerprint — tap to copy", value = shaKey, context = context)
         Spacer(modifier = Modifier.height(4.dp))
         InfoBox {
             Row(verticalAlignment = Alignment.Top) {
@@ -1015,7 +1084,7 @@ private fun Step3Body(shaKey: String, packageName: String, context: Context) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "The SHA-256 above is computed live from your installed APK, so it exactly matches the key Google will validate during sign-in.",
+                    text = "The SHA-1 above is computed live from your installed APK, so it exactly matches the key Google will validate during sign-in.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

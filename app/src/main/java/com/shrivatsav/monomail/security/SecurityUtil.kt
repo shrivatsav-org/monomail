@@ -101,6 +101,11 @@ object SecurityUtil {
         prefs.edit().putString("custom_google_client_id", clientId).apply()
     }
 
+    fun clearCustomGoogleClientId(context: Context) {
+        val prefs = getSecurePrefs(context)
+        prefs.edit().remove("custom_google_client_id").apply()
+    }
+
     fun getGoogleClientId(context: Context): String {
         val prefs = getSecurePrefs(context)
         val customId = prefs.getString("custom_google_client_id", null)
@@ -133,6 +138,32 @@ object SecurityUtil {
         } catch (e: Exception) {
             android.util.Log.e("SecurityUtil", "getAppSigningSha256 failed", e)
             "Error retrieving SHA-256"
+        }
+    }
+
+    fun getAppSigningSha1(context: Context): String {
+        return try {
+            val pm = context.packageManager
+            val packageName = context.packageName
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                val info = pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+                info.signingInfo?.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                val info = pm.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+                info.signatures
+            }
+            if (signatures != null && signatures.isNotEmpty()) {
+                val md = java.security.MessageDigest.getInstance("SHA-1")
+                md.update(signatures[0].toByteArray())
+                val digest = md.digest()
+                digest.joinToString(":") { String.format("%02X", it) }
+            } else {
+                "SHA-1 not found"
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("SecurityUtil", "getAppSigningSha1 failed", e)
+            "Error retrieving SHA-1"
         }
     }
 }

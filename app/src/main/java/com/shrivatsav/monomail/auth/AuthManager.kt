@@ -67,8 +67,8 @@ class AuthManager(
                     updateAccessToken(updated)
                 }
             } else if (profile.provider == "outlook") {
-                val initialized = microsoftAuthManager.initialize()
-                if (!initialized) {
+                val initError = microsoftAuthManager.initialize()
+                if (initError != null) {
                     notifyReauthRequired(profile.email, profile.provider)
                     return
                 }

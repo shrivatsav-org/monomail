@@ -18,9 +18,9 @@ import kotlin.coroutines.resumeWithException
 class MicrosoftAuthManager(private val context: Context, private val accountManager: AccountManager) {
     private var msalApp: com.microsoft.identity.client.IMultipleAccountPublicClientApplication? = null
     private val scopes = arrayOf("User.Read", "Mail.Read", "Mail.ReadWrite", "Mail.Send")
-    suspend fun initialize(): Boolean = suspendCancellableCoroutine { continuation ->
+    suspend fun initialize(): String? = suspendCancellableCoroutine { continuation ->
         if (msalApp != null) {
-            continuation.resume(true)
+            continuation.resume(null)
             return@suspendCancellableCoroutine
         }
         PublicClientApplication.createMultipleAccountPublicClientApplication(
@@ -29,11 +29,11 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
             object : IPublicClientApplication.IMultipleAccountApplicationCreatedListener {
                 override fun onCreated(application: com.microsoft.identity.client.IMultipleAccountPublicClientApplication) {
                     msalApp = application
-                    continuation.resume(true)
+                    continuation.resume(null)
                 }
                 override fun onError(exception: MsalException) {
                     android.util.Log.e("MicrosoftAuth", "MSAL init failed", exception)
-                    continuation.resume(false)
+                    continuation.resume(exception.message ?: "MSAL initialization failed")
                 }
             }
         )
