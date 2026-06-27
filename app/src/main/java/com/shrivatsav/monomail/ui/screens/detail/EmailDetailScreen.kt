@@ -546,7 +546,7 @@ private fun MessageBody(
             }
         }
         val htmlContent = remember(email.id, email.body, bgColor, textColor, linkColor) {
-            val cleanBody = stripQuotedText(email.body)
+            val cleanBody = autolinkHtml(stripQuotedText(email.body))
             """
             <!DOCTYPE html>
             <html>
@@ -571,7 +571,7 @@ private fun MessageBody(
                         height: auto !important;
                     }
                     img { display: block; }
-                    a { color: $linkColor; word-break: break-all; }
+                    a, a * { color: $linkColor !important; text-decoration: underline !important; word-break: break-word; }
                     table {
                         max-width: 100% !important;
                         word-break: break-word;
@@ -606,6 +606,40 @@ private fun MessageBody(
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
+                    webViewClient = object : android.webkit.WebViewClient() {
+                        override fun shouldOverrideUrlLoading(
+                            view: android.webkit.WebView?,
+                            request: android.webkit.WebResourceRequest?
+                        ): Boolean {
+                            request?.url?.let { uri ->
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
+                                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                    return true
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                            return super.shouldOverrideUrlLoading(view, request)
+                        }
+                        @Deprecated("Deprecated in Java")
+                        override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+                            url?.let {
+                                try {
+                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it)).apply {
+                                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    context.startActivity(intent)
+                                    return true
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
+                            return super.shouldOverrideUrlLoading(view, url)
+                        }
+                    }
                 }
             },
             update = { webView ->
@@ -876,4 +910,59 @@ private fun stripQuotedText(html: String): String {
     result = result.replace(Regex("\\n\\s*On .{10,80} wrote:\\s*\\n", RegexOption.IGNORE_CASE), "")
     result = result.replace(Regex("(^|<br>)(&gt;|>)\\s?.*", RegexOption.IGNORE_CASE), "")
     return result.trim()
+}
+
+private fun autolinkHtml(html: String): String {
+    if (!html.contains("http://", ignoreCase = true) && !html.contains("https://", ignoreCase = true)) {
+        return html
+    }
+    val urlRegex = Regex("""\b(https?://[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|])""")
+    val sb = StringBuilder()
+    var i = 0
+    val len = html.length
+    var inAnchor = false
+
+    while (i < len) {
+        val nextTag = html.indexOf('<', i)
+        if (nextTag == -1) {
+            val text = html.substring(i)
+            if (inAnchor) {
+                sb.append(text)
+            } else {
+                sb.append(urlRegex.replace(text) { match ->
+                    val url = match.groupValues[1]
+                    """<a href="$url">$url</a>"""
+                })
+            }
+            break
+        }
+
+        if (nextTag > i) {
+            val text = html.substring(i, nextTag)
+            if (inAnchor) {
+                sb.append(text)
+            } else {
+                sb.append(urlRegex.replace(text) { match ->
+                    val url = match.groupValues[1]
+                    """<a href="$url">$url</a>"""
+                })
+            }
+        }
+
+        val tagEnd = html.indexOf('>', nextTag)
+        if (tagEnd == -1) {
+            sb.append(html.substring(nextTag))
+            break
+        }
+
+        val tag = html.substring(nextTag, tagEnd + 1)
+        sb.append(tag)
+        if (tag.startsWith("<a ", ignoreCase = true) || tag.startsWith("<a>", ignoreCase = true)) {
+            inAnchor = true
+        } else if (tag.startsWith("</a>", ignoreCase = true)) {
+            inAnchor = false
+        }
+        i = tagEnd + 1
+    }
+    return sb.toString()
 }
