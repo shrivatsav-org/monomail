@@ -7,6 +7,7 @@ import com.shrivatsav.monomail.data.remote.OutlookBody
 import com.shrivatsav.monomail.data.remote.OutlookDraftAttachment
 import com.shrivatsav.monomail.data.remote.OutlookDraftMessage
 import com.shrivatsav.monomail.data.remote.OutlookEmailAddress
+import com.shrivatsav.monomail.data.remote.OutlookMessage
 import com.shrivatsav.monomail.data.remote.OutlookMoveMessageRequest
 import com.shrivatsav.monomail.data.remote.OutlookRecipient
 import com.shrivatsav.monomail.data.remote.OutlookSendMailRequest
@@ -16,14 +17,21 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
-import java.text.SimpleDateFormat
 import java.util.Locale
-import java.util.TimeZone
 class OutlookProvider(
     private val api: OutlookApi,
     private val context: Context
 ) : EmailProvider {
     override val providerName: String = "outlook"
+    private val folderIdCache = mutableMapOf<EmailFolder, String>()
+    private val outlookFolderNames = mapOf(
+        EmailFolder.INBOX to "inbox",
+        EmailFolder.SENT to "sentitems",
+        EmailFolder.ARCHIVE to "archive",
+        EmailFolder.TRASH to "deleteditems",
+        EmailFolder.SPAM to "junkemail"
+    )
+
     private fun parseDate(dateStr: String?): Long {
         if (dateStr == null) return 0L
         return try {
@@ -32,6 +40,46 @@ class OutlookProvider(
             0L
         }
     }
+
+    private fun messageDate(message: OutlookMessage): Long =
+        parseDate(message.receivedDateTime ?: message.sentDateTime)
+
+    private suspend fun ensureFolderIdCache() {
+        outlookFolderNames.forEach { (folder, outlookName) ->
+            if (!folderIdCache.containsKey(folder)) {
+                try {
+                    folderIdCache[folder] = api.getMailFolder(outlookName).id
+                } catch (_: Exception) {
+                }
+            }
+        }
+    }
+
+    private fun folderFromParentFolderId(parentFolderId: String?): EmailFolder? {
+        val normalized = parentFolderId?.lowercase(Locale.US) ?: return null
+        outlookFolderNames.entries.firstOrNull { it.value == normalized }?.let { return it.key }
+        return folderIdCache.entries.firstOrNull { (_, id) ->
+            id.equals(parentFolderId, ignoreCase = true)
+        }?.key
+    }
+
+    private fun foldersForMessage(
+        message: OutlookMessage,
+        fallback: EmailFolder? = null
+    ): Set<EmailFolder> {
+        val folders = mutableSetOf<EmailFolder>()
+        folderFromParentFolderId(message.parentFolderId)?.let { folders.add(it) }
+        if (message.categories?.contains("Yellow category") == true) {
+            folders.add(EmailFolder.STARRED)
+        }
+        if (folders.isEmpty() && fallback != null) {
+            folders.add(fallback)
+        }
+        return folders
+    }
+
+    private fun graphFolderName(folder: EmailFolder): String? = outlookFolderNames[folder]
+
     override suspend fun listThreads(
         folder: EmailFolder,
         maxResults: Int,
@@ -39,33 +87,42 @@ class OutlookProvider(
         query: String?
     ): ProviderThreadListResult {
         val skip = pageToken?.toIntOrNull() ?: 0
-        val filter = buildString {
-            if (!query.isNullOrEmpty()) {
-            } else {
-                when (folder) {
-                    EmailFolder.INBOX -> append("parentFolderId eq 'inbox'")
-                    EmailFolder.SENT -> append("parentFolderId eq 'sentitems'")
-                    EmailFolder.ARCHIVE -> append("parentFolderId eq 'archive'")
-                    EmailFolder.TRASH -> append("parentFolderId eq 'deleteditems'")
-                    EmailFolder.STARRED -> append("categories/any(c:c eq 'Yellow category')")
-                    EmailFolder.SPAM -> append("parentFolderId eq 'junkemail'")
+        ensureFolderIdCache()
+        val response = when {
+            !query.isNullOrEmpty() -> api.listMessages(
+                maxResults = maxResults,
+                skip = skip,
+                search = query,
+                orderby = "receivedDateTime DESC"
+            )
+            folder == EmailFolder.STARRED -> api.listMessages(
+                maxResults = maxResults,
+                skip = skip,
+                filter = "categories/any(c:c eq 'Yellow category')",
+                orderby = "receivedDateTime DESC"
+            )
+            else -> {
+                val folderName = graphFolderName(folder)
+                if (folderName != null) {
+                    api.listFolderMessages(
+                        folderId = folderName,
+                        maxResults = maxResults,
+                        skip = skip,
+                        orderby = "receivedDateTime DESC"
+                    )
+                } else {
+                    api.listMessages(
+                        maxResults = maxResults,
+                        skip = skip,
+                        orderby = "receivedDateTime DESC"
+                    )
                 }
             }
-        }.takeIf { it.isNotEmpty() }
-        val search = query.takeIf { !it.isNullOrEmpty() }
-        val response = api.listMessages(
-            maxResults = maxResults,
-            skip = skip,
-            filter = filter,
-            search = search,
-            orderby = "receivedDateTime DESC"
-        )
+        }
         val threadsMap = response.value.groupBy { it.conversationId }
         val providerThreads = threadsMap.map { (convId, messages) ->
             val providerMessages = messages.map { msg ->
-                val date = parseDate(msg.receivedDateTime)
-                val folders = mutableSetOf<EmailFolder>()
-                folders.add(folder)
+                val date = messageDate(msg)
                 ProviderMessage(
                     id = msg.id,
                     threadId = convId,
@@ -80,7 +137,7 @@ class OutlookProvider(
                     date = date,
                     isRead = msg.isRead,
                     isStarred = msg.categories?.contains("Yellow category") == true,
-                    folders = folders,
+                    folders = foldersForMessage(msg, fallback = folder),
                     attachments = emptyList()
                 )
             }
@@ -90,12 +147,13 @@ class OutlookProvider(
         return ProviderThreadListResult(providerThreads, nextSkip)
     }
     override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withContext(Dispatchers.IO) {
+        ensureFolderIdCache()
         val response = api.listMessages(
             maxResults = 100,
             filter = sanitizeFilter(threadId)
         )
         val providerMessages = response.value.map { msg ->
-            val date = parseDate(msg.receivedDateTime)
+            val date = messageDate(msg)
             val attachments = if (msg.hasAttachments == true) {
                 try {
                     api.getAttachments(msg.id).value.map { att ->
@@ -123,7 +181,7 @@ class OutlookProvider(
                 date = date,
                 isRead = msg.isRead,
                 isStarred = msg.categories?.contains("Yellow category") == true,
-                folders = setOf(EmailFolder.INBOX),
+                folders = foldersForMessage(msg),
                 attachments = attachments
             )
         }

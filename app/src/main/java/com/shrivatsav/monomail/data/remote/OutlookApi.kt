@@ -14,13 +14,26 @@ interface OutlookApi {
         @Query("\$skip") skip: Int = 0,
         @Query("\$filter") filter: String? = null,
         @Query("\$search") search: String? = null,
-        @Query("\$select") select: String? = "id,conversationId,subject,from,toRecipients,bodyPreview,body,receivedDateTime,isRead,categories,hasAttachments",
+        @Query("\$select") select: String? = OUTLOOK_MESSAGE_SELECT,
         @Query("\$orderby") orderby: String? = null
     ): OutlookMessageListResponse
+    @GET("me/mailFolders/{folderId}/messages")
+    suspend fun listFolderMessages(
+        @Path("folderId") folderId: String,
+        @Query("\$top") maxResults: Int = 20,
+        @Query("\$skip") skip: Int = 0,
+        @Query("\$select") select: String? = OUTLOOK_MESSAGE_SELECT,
+        @Query("\$orderby") orderby: String? = null
+    ): OutlookMessageListResponse
+    @GET("me/mailFolders/{folderId}")
+    suspend fun getMailFolder(
+        @Path("folderId") folderId: String,
+        @Query("\$select") select: String? = "id,displayName"
+    ): OutlookMailFolder
     @GET("me/messages/{id}")
     suspend fun getMessage(
         @Path("id") id: String,
-        @Query("\$select") select: String? = "id,conversationId,subject,from,toRecipients,bodyPreview,body,receivedDateTime,isRead,categories,hasAttachments"
+        @Query("\$select") select: String? = OUTLOOK_MESSAGE_SELECT
     ): OutlookMessage
     @GET("me/messages/{id}/attachments")
     suspend fun getAttachments(
@@ -49,10 +62,18 @@ interface OutlookApi {
     suspend fun sendMail(
         @Body request: OutlookSendMailRequest
     )
+    companion object {
+        const val OUTLOOK_MESSAGE_SELECT =
+            "id,conversationId,subject,from,toRecipients,ccRecipients,bccRecipients,bodyPreview,body,receivedDateTime,sentDateTime,parentFolderId,isRead,categories,hasAttachments"
+    }
 }
 data class OutlookMessageListResponse(
     val value: List<OutlookMessage>,
     @com.google.gson.annotations.SerializedName("@odata.nextLink") val nextLink: String?
+)
+data class OutlookMailFolder(
+    val id: String,
+    val displayName: String?
 )
 data class OutlookMessage(
     val id: String,
@@ -64,7 +85,9 @@ data class OutlookMessage(
     val bccRecipients: List<OutlookRecipient>? = null,
     val bodyPreview: String?,
     val body: OutlookBody?,
-    val receivedDateTime: String,
+    val receivedDateTime: String?,
+    val sentDateTime: String?,
+    val parentFolderId: String?,
     val isRead: Boolean,
     val categories: List<String>?,
     val hasAttachments: Boolean?
