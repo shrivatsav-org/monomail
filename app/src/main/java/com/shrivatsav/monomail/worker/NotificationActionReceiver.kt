@@ -27,6 +27,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val ACTION_REPLY = "com.shrivatsav.monomail.REPLY"
         const val ACTION_ARCHIVE = "com.shrivatsav.monomail.ARCHIVE"
         const val ACTION_UNDO_ARCHIVE = "com.shrivatsav.monomail.UNDO_ARCHIVE"
+        const val ACTION_SNOOZE = "com.shrivatsav.monomail.SNOOZE"
+        const val ACTION_UNDO_SNOOZE = "com.shrivatsav.monomail.UNDO_SNOOZE"
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val REPLY_STATUS_CHANNEL = "monomail_reply_status"
         const val ARCHIVE_CONFIRM_CHANNEL = "monomail_archive_confirm"
@@ -42,6 +44,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val REPLY_REQUEST_CODE_BASE = 10000
         const val ARCHIVE_REQUEST_CODE_BASE = 20000
         const val UNDO_REQUEST_CODE_BASE = 30000
+        const val SNOOZE_REQUEST_CODE_BASE = 40000
+        const val UNDO_SNOOZE_REQUEST_CODE_BASE = 50000
 
         fun createReplyPendingIntent(
             context: Context, accountId: String, threadId: String,
@@ -60,7 +64,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             }
             return PendingIntent.getBroadcast(
                 context, REPLY_REQUEST_CODE_BASE + notificationId, intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
         }
 
@@ -75,6 +79,21 @@ class NotificationActionReceiver : BroadcastReceiver() {
             }
             return PendingIntent.getBroadcast(
                 context, ARCHIVE_REQUEST_CODE_BASE + notificationId, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        fun createSnoozePendingIntent(
+            context: Context, accountId: String, threadId: String, notificationId: Int
+        ): PendingIntent {
+            val intent = Intent(context, NotificationActionReceiver::class.java).apply {
+                action = ACTION_SNOOZE
+                putExtra(EXTRA_ACCOUNT_ID, accountId)
+                putExtra(EXTRA_THREAD_ID, threadId)
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            }
+            return PendingIntent.getBroadcast(
+                context, SNOOZE_REQUEST_CODE_BASE + notificationId, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
@@ -97,6 +116,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     ACTION_REPLY -> handleReply(context, intent)
                     ACTION_ARCHIVE -> handleArchive(context, intent)
                     ACTION_UNDO_ARCHIVE -> handleUndoArchive(context, intent)
+                    ACTION_SNOOZE -> handleSnooze(context, intent)
+                    ACTION_UNDO_SNOOZE -> handleUndoSnooze(context, intent)
                 }
             } finally {
                 pendingResult.finish()
@@ -188,6 +209,53 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val deps = getDependencies(context)
 
         deps.emailRepository().unarchiveThread(threadId, explicitAccountId = accountId)
+
+        val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
+        NotificationManagerCompat.from(context).cancel(notificationId)
+    }
+
+    private suspend fun handleSnooze(context: Context, intent: Intent) {
+        val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID) ?: return
+        val threadId = intent.getStringExtra(EXTRA_THREAD_ID) ?: return
+        val originalNotificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
+
+        val deps = getDependencies(context)
+
+        val snoozeUntil = System.currentTimeMillis() + 24 * 60 * 60 * 1000L
+        deps.emailRepository().snoozeThread(threadId, snoozeUntil, explicitAccountId = accountId)
+
+        val undoIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+            action = ACTION_UNDO_SNOOZE
+            putExtra(EXTRA_ACCOUNT_ID, accountId)
+            putExtra(EXTRA_THREAD_ID, threadId)
+            putExtra(EXTRA_NOTIFICATION_ID, originalNotificationId)
+        }
+        val undoPendingIntent = PendingIntent.getBroadcast(
+            context, UNDO_SNOOZE_REQUEST_CODE_BASE + originalNotificationId, undoIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        createArchiveConfirmChannel(context)
+        val undoBuilder = NotificationCompat.Builder(context, ARCHIVE_CONFIRM_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_menu_recent_history)
+            .setContentTitle("Snoozed")
+            .setContentText("Thread snoozed until tomorrow")
+            .addAction(android.R.drawable.ic_menu_revert, "Undo", undoPendingIntent)
+            .setAutoCancel(true)
+            .setTimeoutAfter(60000)
+
+        NotificationManagerCompat.from(context).notify(
+            UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
+        )
+    }
+
+    private suspend fun handleUndoSnooze(context: Context, intent: Intent) {
+        val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID) ?: return
+        val threadId = intent.getStringExtra(EXTRA_THREAD_ID) ?: return
+
+        val deps = getDependencies(context)
+
+        deps.emailRepository().unsnoozeThread(threadId, explicitAccountId = accountId)
 
         val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
         NotificationManagerCompat.from(context).cancel(notificationId)

@@ -1,0 +1,16 @@
+{
+  "name": "monomail-push-backend",
+  "version": "1.0.0",
+  "description": "Lightweight Cloudflare Worker backend for Monomail FCM push notifications (Gmail Pub/Sub & Outlook Webhooks)",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250109.0",
+    "typescript": "^5.5.4",
+    "wrangler": "4"
+  }
+}

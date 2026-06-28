@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    id("com.google.gms.google-services")
 }
 
 val secretsFile = rootProject.file("secrets.properties")
@@ -14,6 +15,7 @@ if (secretsFile.exists()) {
     secrets.load(FileInputStream(secretsFile))
 }
 val googleClientId = secrets.getProperty("GOOGLE_CLIENT_ID") ?: ""
+val pushBackendUrl = secrets.getProperty("PUSH_BACKEND_URL") ?: "https://monomail-push.yourdomain.workers.dev"
 
 val keystoreFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties()
@@ -29,8 +31,8 @@ android {
         applicationId = "com.shrivatsav.monomail"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "1.5.2"
+        versionCode = 18
+        versionName = "1.5.4"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -40,11 +42,13 @@ android {
         create("github") {
             dimension = "distribution"
             buildConfigField("String", "GOOGLE_CLIENT_ID", "\"\"")
+            buildConfigField("String", "PUSH_BACKEND_URL", "\"$pushBackendUrl\"")
             buildConfigField("Boolean", "IS_GITHUB_BUILD", "true")
         }
         create("playstore") {
             dimension = "distribution"
             buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
+            buildConfigField("String", "PUSH_BACKEND_URL", "\"$pushBackendUrl\"")
             buildConfigField("Boolean", "IS_GITHUB_BUILD", "false")
         }
     }
@@ -78,7 +82,6 @@ android {
     }
 
     composeCompiler {
-        enableStrongSkippingMode = true
     }
 
     packaging {
@@ -132,6 +135,7 @@ dependencies {
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.google.identity.googleid)
     implementation(libs.google.play.services.auth)
+    "playstoreImplementation"(libs.firebase.messaging)
 
     // Networking
     implementation(libs.retrofit)
@@ -175,6 +179,7 @@ dependencies {
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.navigation.compose)
     implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
 
     // Test
     testImplementation(libs.junit)
