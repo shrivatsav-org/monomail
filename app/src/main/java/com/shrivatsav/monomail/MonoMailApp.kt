@@ -2,12 +2,14 @@ package com.shrivatsav.monomail
 import android.app.Application
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.shrivatsav.monomail.data.worker.ActionQueueManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 @HiltAndroidApp
 class MonoMailApp : Application(), Configuration.Provider {
 
     @Inject lateinit var workerFactory: HiltWorkerFactory
+    @Inject lateinit var actionQueueManager: ActionQueueManager
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -18,6 +20,7 @@ class MonoMailApp : Application(), Configuration.Provider {
         super.onCreate()
         initializeMailcap()
         System.loadLibrary("sqlcipher")
+        actionQueueManager.start()
     }
 
     private fun initializeMailcap() {

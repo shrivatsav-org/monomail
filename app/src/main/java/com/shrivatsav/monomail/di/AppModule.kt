@@ -134,6 +134,7 @@ object AppModule {
         providerFactory: (@JvmSuppressWildcards (UserProfile) -> EmailProvider),
         database: com.shrivatsav.monomail.data.local.AppDatabase,
         @ApplicationContext context: Context,
-        accountManager: AccountManager
-    ): EmailRepository = EmailRepository(providerFactory, database, context, accountManager)
+        accountManager: AccountManager,
+        pendingActionDao: com.shrivatsav.monomail.data.local.PendingActionDao
+    ): EmailRepository = EmailRepository(providerFactory, database, context, accountManager, pendingActionDao)
 }

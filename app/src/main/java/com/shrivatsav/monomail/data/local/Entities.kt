@@ -133,6 +133,28 @@ data class ScheduledMessageEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+enum class PendingActionType {
+    TOGGLE_STAR, MARK_READ, MARK_UNREAD, ARCHIVE, UNARCHIVE, DELETE, RESTORE
+}
+
+enum class PendingActionStatus {
+    PENDING, IN_FLIGHT, FAILED
+}
+
+@Entity(tableName = "pending_actions")
+data class PendingActionEntity(
+    @PrimaryKey val id: String,
+    val accountId: String,
+    val actionType: PendingActionType,
+    val threadId: String,
+    val payload: String = "",
+    val emailIdsJson: String = "",
+    val status: PendingActionStatus = PendingActionStatus.PENDING,
+    val createdAt: Long = System.currentTimeMillis(),
+    val retryCount: Int = 0,
+    val errorMessage: String = ""
+)
+
 private val gson = Gson()
 fun Email.toEntity(accountId: String) = EmailEntity(
     id = id,
