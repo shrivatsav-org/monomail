@@ -1,0 +1,25 @@
+name = "monomail-push-backend"
+main = "src/index.ts"
+compatibility_date = "2025-01-09"
+
+# Bind a KV Namespace to store email -> FCM token and accountId mappings.
+# Replace the id below with your actual KV namespace ID after running: wrangler kv:namespace create FCM_TOKENS
+[[kv_namespaces]]
+binding = "FCM_TOKENS"
+id = "36c6042608ff4f71adf1be8d58398e57"
+
+[vars]
+# For Gmail Pub/Sub push notification setup
+GCP_PROJECT_ID = "monomail-500604"
+PUBSUB_TOPIC = "projects/monomail-500604/topics/monomail-push"
+
+# For Outlook Microsoft Graph Webhooks setup
+WORKER_BASE_URL = "https://monomail-push-backend.monomail.workers.dev"
+
+# Note: Set your Google Service Account JSON key for FCM HTTP v1 API as a secret via:
+# wrangler secret put GCP_SERVICE_ACCOUNT_KEY
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+

@@ -13,6 +13,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import androidx.core.content.ContextCompat
+import androidx.core.text.HtmlCompat
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
@@ -35,6 +36,7 @@ class EmailSyncWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     companion object {
+        const val KEY_ACCOUNT_ID = "account_id"
         private const val ADAPTIVE_INTERVAL_MINUTES = 2L
         private const val ADAPTIVE_ACTIVITY_WINDOW_MINUTES = 5L
         private const val FALLBACK_INTERVAL_MINUTES = 15L
@@ -44,14 +46,25 @@ class EmailSyncWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
-        val accounts = accountManager.getAccounts()
-        if (accounts.isEmpty()) return Result.success()
+        val specificAccountId = inputData.getString(KEY_ACCOUNT_ID)
+        val allAccounts = accountManager.getAccounts()
+        val accounts = if (specificAccountId != null) {
+            allAccounts.filter { it.id == specificAccountId }
+        } else {
+            allAccounts
+        }
+        if (accounts.isEmpty()) {
+            Log.w("EmailSyncWorker", "No accounts found to sync")
+            return Result.success()
+        }
         var hasFailure = false
         var hasAuthFailure = false
         for (account in accounts) {
             val accountId = account.id
             val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
+            Log.i("EmailSyncWorker", "Starting sync for account $accountId (lastKnownTimestamp: $lastKnownTimestamp)")
             val result = emailRepository.refreshInbox(InboxTab.INBOX, accountId = accountId)
+            Log.i("EmailSyncWorker", "Refresh result for $accountId: isSuccess=${result.isSuccess}")
             if (result.isFailure) {
                 val error = result.exceptionOrNull()
                 val msg = error?.message ?: ""
@@ -67,14 +80,22 @@ class EmailSyncWorker @AssistedInject constructor(
             val newestThread = emailRepository.getLatestInboxThread(accountId)
             if (newestThread != null) {
                 val newTimestamp = newestThread.date
+                Log.i("EmailSyncWorker", "Latest thread for $accountId: subject='${newestThread.subject}', date=$newTimestamp")
                 if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp) {
+                    Log.i("EmailSyncWorker", "New email detected for $accountId! Showing notification...")
                     showNotification(
                         accountId = accountId,
                         thread = newestThread,
                         notificationId = accountId.hashCode()
                     )
+                } else if (lastKnownTimestamp == null) {
+                    Log.i("EmailSyncWorker", "lastKnownTimestamp was null (first sync baseline). Skipping notification banner.")
+                } else {
+                    Log.i("EmailSyncWorker", "No new emails detected (timestamp matched lastKnownTimestamp).")
                 }
                 accountManager.setLastKnownEmailId(accountId, newTimestamp.toString())
+            } else {
+                Log.w("EmailSyncWorker", "getLatestInboxThread returned null for $accountId")
             }
         }
         scheduleNextAdaptiveSync(applicationContext, accountManager)
@@ -107,9 +128,11 @@ class EmailSyncWorker @AssistedInject constructor(
             if (ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
             ) {
+                Log.e("EmailSyncWorker", "POST_NOTIFICATIONS permission not granted! Aborting notification display.")
                 return
             }
         }
+        Log.i("EmailSyncWorker", "Creating notification channel and building notification for $accountId...")
         createNotificationChannel(context, accountId, thread.from)
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -147,18 +170,36 @@ class EmailSyncWorker @AssistedInject constructor(
             android.R.drawable.ic_menu_edit, "Archive", archivePendingIntent
         ).build()
 
+        val snoozePendingIntent = NotificationActionReceiver.createSnoozePendingIntent(
+            context = context,
+            accountId = accountId,
+            threadId = thread.threadId,
+            notificationId = notificationId
+        )
+        val snoozeAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_recent_history, "Snooze", snoozePendingIntent
+        ).build()
+
+        val cleanSnippet = thread.snippet.replace(Regex("\\bOn\\s+[A-Z][a-z]{2},.*?wrote:.*"), "").trim()
         val channelId = channelIdForAccount(accountId)
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(com.shrivatsav.monomail.R.drawable.ic_notification_leaf)
             .setContentTitle(thread.from)
             .setContentText(thread.subject)
+            .setStyle(
+                NotificationCompat.BigTextStyle()
+                    .setBigContentTitle(thread.from)
+                    .bigText(HtmlCompat.fromHtml("<b>" + thread.subject + "</b><br>" + cleanSnippet, HtmlCompat.FROM_HTML_MODE_LEGACY))
+            )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(openPendingIntent)
             .addAction(replyAction)
             .addAction(archiveAction)
+            .addAction(snoozeAction)
             .setAutoCancel(true)
 
         NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+        Log.i("EmailSyncWorker", "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")
     }
 
     private fun createNotificationChannel(context: Context, accountId: String, accountName: String) {

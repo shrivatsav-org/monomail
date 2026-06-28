@@ -511,13 +511,13 @@ class EmailRepository(
     fun getPendingScheduledMessagesFlow(accountId: String) = scheduledMessageDao.getPendingScheduledMessages(accountId)
     fun getPendingScheduledCountFlow(accountId: String) = scheduledMessageDao.getPendingCount(accountId)
     suspend fun getScheduledMessageById(id: String) = scheduledMessageDao.getScheduledMessageById(id)
-    suspend fun snoozeThread(threadId: String, untilTimestamp: Long) {
-        val activeAccountId = getActiveAccountId()
+    suspend fun snoozeThread(threadId: String, untilTimestamp: Long, explicitAccountId: String? = null) {
+        val activeAccountId = explicitAccountId ?: getActiveAccountId()
         threadDao.snoozeThread(threadId, activeAccountId, untilTimestamp)
         emailDao.snoozeThreadEmails(threadId, activeAccountId, untilTimestamp)
     }
-    suspend fun unsnoozeThread(threadId: String) {
-        val activeAccountId = getActiveAccountId()
+    suspend fun unsnoozeThread(threadId: String, explicitAccountId: String? = null) {
+        val activeAccountId = explicitAccountId ?: getActiveAccountId()
         threadDao.unsnoozeThread(threadId, activeAccountId)
         emailDao.unsnoozeThreadEmails(threadId, activeAccountId)
     }

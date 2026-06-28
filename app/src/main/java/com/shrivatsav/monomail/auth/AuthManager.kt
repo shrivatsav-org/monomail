@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import com.shrivatsav.monomail.push.PushNotificationManager
+
 data class ReauthInfo(val email: String, val provider: String)
 sealed class SignInResult {
     data class Success(val profile: UserProfile) : SignInResult()
@@ -23,7 +25,8 @@ sealed class SignInResult {
 }
 class AuthManager(
     private val context: Context,
-    private val accountManager: AccountManager
+    private val accountManager: AccountManager,
+    private val pushNotificationManager: PushNotificationManager
 ) {
     val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     companion object {
@@ -49,6 +52,7 @@ class AuthManager(
         _userProfile = profile
         _isSignedIn.value = true
         refreshCurrentToken()
+        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
         return true
     }
     private suspend fun refreshCurrentToken() {
@@ -132,6 +136,7 @@ class AuthManager(
     suspend fun getAccounts(): List<UserProfile> = accountManager.getAccounts()
     suspend fun addAccount(profile: UserProfile) {
         accountManager.addAccount(profile)
+        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
     }
     suspend fun switchAccount(accountId: String) {
         accountManager.setActiveAccountId(accountId)
@@ -158,6 +163,7 @@ class AuthManager(
             } catch (e: Exception) { }
         }
         accountManager.removeAccount(active.id)
+        try { pushNotificationManager.unregisterForPushNotifications(active.id) } catch (e: Exception) { }
         val newActive = accountManager.getActiveAccount()
         if (newActive != null) {
             _userProfile = newActive
@@ -174,6 +180,9 @@ class AuthManager(
             android.util.Log.w("AuthManager", "signOutAll clearCredentialState failed", e)
         }
         val accounts = accountManager.getAccounts()
+        accounts.forEach {
+            try { pushNotificationManager.unregisterForPushNotifications(it.id) } catch (e: Exception) { }
+        }
         accounts.filter { it.provider == "outlook" }.forEach {
             try { microsoftAuthManager.signOut(it.id) } catch (e: Exception) {
                 android.util.Log.w("AuthManager", "Outlook signOut failed for ${it.id}", e)
@@ -236,6 +245,7 @@ class AuthManager(
             _isSignedIn.value = true
             accountManager.addAccount(profile)
             accountManager.setActiveAccountId(profile.id)
+            try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
             SignInResult.Success(profile)
         } catch (e: UserRecoverableAuthException) {
             _userProfile = UserProfile(
