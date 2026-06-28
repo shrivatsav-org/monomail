@@ -255,15 +255,20 @@ fun SettingsScreen(
                     onSelected = { idx -> viewModel.setSyncFrequency(SyncFrequency.entries[idx]) }
                 )
                 CardDivider()
-                val buildFlavorText = if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) {
-                    "GitHub Release • FCM Push Disabled"
-                } else {
-                    "Play Store Release • FCM Push Enabled"
+                val isFcmCompiled = remember {
+                    try {
+                        Class.forName("com.google.firebase.messaging.FirebaseMessaging")
+                        true
+                    } catch (e: ClassNotFoundException) {
+                        false
+                    }
                 }
+                val buildFlavorName = if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) "GitHub Release" else "Play Store Release"
+                val fcmStatusText = if (isFcmCompiled) "FCM Push Enabled" else "FCM Push Disabled"
                 InfoRow(
                     icon = Icons.Outlined.AppSettingsAlt,
                     title = "Build Distribution",
-                    value = buildFlavorText
+                    value = "$buildFlavorName • $fcmStatusText"
                 )
             }
             TemplatesCard(viewModel = viewModel)
