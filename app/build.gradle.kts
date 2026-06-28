@@ -31,8 +31,8 @@ android {
         applicationId = "com.shrivatsav.monomail"
         minSdk = 26
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.5.4"
+        versionCode = 20
+        versionName = "1.5.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -191,4 +191,4 @@ dependencies {
 
 tasks.matching { it.name.contains("Github", ignoreCase = true) && it.name.contains("GoogleServices", ignoreCase = true) }.configureEach {
     enabled = false
-}
+}
