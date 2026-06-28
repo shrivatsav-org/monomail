@@ -188,3 +188,7 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.androidx.junit)
 }
+
+tasks.matching { it.name.contains("Github", ignoreCase = true) && it.name.contains("GoogleServices", ignoreCase = true) }.configureEach {
+    enabled = false
+}
