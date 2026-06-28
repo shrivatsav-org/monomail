@@ -4,9 +4,7 @@ import android.net.Uri
 import android.util.Log
 import java.io.File
 import androidx.room.withTransaction
-import androidx.work.Constraints
 import androidx.work.Data
-import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.shrivatsav.monomail.worker.ScheduledSendWorker
@@ -22,7 +20,6 @@ import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.remote.RetrofitClient
-import com.shrivatsav.monomail.data.worker.SyncWorker
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -30,11 +27,13 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+
 class EmailRepository(
     private val providerFactory: (UserProfile) -> EmailProvider,
     private val database: AppDatabase,
     private val context: Context,
-    private val accountManager: AccountManager
+    private val accountManager: AccountManager,
+    private val pendingActionDao: PendingActionDao
 ) {
     private fun cleanSubject(subject: String): String {
         return subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "")
@@ -42,11 +41,8 @@ class EmailRepository(
     private val threadDao = database.threadDao()
     private val emailDao = database.emailDao()
     private val scheduledMessageDao = database.scheduledMessageDao()
-    private val workManager = WorkManager.getInstance(context)
-    private val networkConstraints = Constraints.Builder()
-        .setRequiredNetworkType(NetworkType.CONNECTED)
-        .build()
     private val gson = Gson()
+
     suspend fun getActiveProvider(): EmailProvider? {
         val activeAccount = accountManager.getActiveAccount() ?: return null
         return providerFactory(activeAccount)
@@ -62,13 +58,19 @@ class EmailRepository(
         val account = accountManager.getAccounts().find { it.id == accountId } ?: return null
         return providerFactory(account)
     }
-    private fun enqueueSync(data: Data) {
-        val request = OneTimeWorkRequestBuilder<SyncWorker>()
-            .setConstraints(networkConstraints)
-            .setInputData(data)
-            .build()
-        workManager.enqueue(request)
+
+    private suspend fun insertPendingAction(actionType: PendingActionType, accountId: String, threadId: String, payload: String = "", emailIdsJson: String = "") {
+        val action = PendingActionEntity(
+            id = UUID.randomUUID().toString(),
+            accountId = accountId,
+            actionType = actionType,
+            threadId = threadId,
+            payload = payload,
+            emailIdsJson = emailIdsJson
+        )
+        pendingActionDao.insert(action)
     }
+
     fun getInboxThreadsFlow(tab: InboxTab, accountId: String): Flow<List<EmailThread>> {
         return when (tab) {
             InboxTab.UNIFIED -> threadDao.getAllInboxThreads()
@@ -114,6 +116,7 @@ class EmailRepository(
         val activeAccountId = getActiveAccountId()
         emitAll(emailDao.getEmailsForThread(threadId, activeAccountId).map { list -> list.map { it.toDomainModel() } })
     }
+
     suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> {
         return try {
             val provider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
@@ -140,13 +143,18 @@ class EmailRepository(
                 threadDao.getSnippetsForAccount(targetAccountId)
                     .associateBy { it.threadId }
             } else emptyMap()
+
+            // ponytail: skip threads with pending actions so local changes aren't overwritten by server
+            val pendingThreadIds = pendingActionDao.getPendingForAccount(targetAccountId)
+                .map { it.threadId }.toSet()
+
             if (listResponse.threads.isNotEmpty()) {
                 val existingThreadReadStatuses = threadDao.getReadStatuses(targetAccountId)
                     .associate { it.threadId to it.isRead }
                 val existingEmailReadStatuses = emailDao.getEmailReadStatuses(targetAccountId)
                     .associate { it.id to it.isRead }
                 val existingEmailIdSet = existingEmailReadStatuses.keys
-                val entities = listResponse.threads.map { providerThread ->
+                val entities = listResponse.threads.filter { it.threadId !in pendingThreadIds }.map { providerThread ->
                     val messages = providerThread.messages
                     val latest = messages.maxByOrNull { it.date }
                     val allFolders = messages.flatMap { it.folders }.toSet()
@@ -180,7 +188,7 @@ class EmailRepository(
                         inSpam = EmailFolder.SPAM in allFolders
                     )
                 }
-                val allEmails = listResponse.threads.flatMap { providerThread ->
+                val allEmails = listResponse.threads.filter { it.threadId !in pendingThreadIds }.flatMap { providerThread ->
                     providerThread.messages.map { msg ->
                         Email(
                             id = msg.id,
@@ -249,37 +257,21 @@ class EmailRepository(
     suspend fun toggleStar(threadId: String, currentStarred: Boolean) {
         val newStarred = !currentStarred
         val activeAccountId = getActiveAccountId()
+        insertPendingAction(PendingActionType.TOGGLE_STAR, activeAccountId, threadId, payload = newStarred.toString())
         threadDao.updateThreadStarred(threadId, activeAccountId, newStarred)
         emailDao.updateThreadStarred(threadId, activeAccountId, newStarred)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_TOGGLE_STAR)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .putBoolean(SyncWorker.KEY_IS_STARRED, newStarred)
-            .build()
-        enqueueSync(data)
     }
     suspend fun markEmailsAsRead(emailIds: List<String>) {
         if (emailIds.isEmpty()) return
         val activeAccountId = getActiveAccountId()
         emailDao.markEmailsAsRead(emailIds, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_EMAILS_READ)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_EMAIL_IDS, gson.toJson(emailIds))
-            .build()
-        enqueueSync(data)
+        insertPendingAction(PendingActionType.MARK_READ, activeAccountId, "", emailIdsJson = emailIds.joinToString(","))
     }
     suspend fun markThreadAsRead(threadId: String) {
         val activeAccountId = getActiveAccountId()
+        insertPendingAction(PendingActionType.MARK_READ, activeAccountId, threadId)
         threadDao.updateThreadReadStatus(threadId, activeAccountId, true)
         emailDao.updateThreadEmailsReadStatus(threadId, activeAccountId, true)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_READ)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
     }
     suspend fun markThreadsAsRead(threadIds: List<String>): Result<Unit> {
         if (threadIds.isEmpty()) return Result.success(Unit)
@@ -307,36 +299,21 @@ class EmailRepository(
     }
     suspend fun markThreadAsUnread(threadId: String) {
         val activeAccountId = getActiveAccountId()
+        insertPendingAction(PendingActionType.MARK_UNREAD, activeAccountId, threadId)
         threadDao.updateThreadReadStatus(threadId, activeAccountId, false)
         emailDao.updateThreadEmailsReadStatus(threadId, activeAccountId, false)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_MARK_THREAD_UNREAD)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
     }
     suspend fun archiveThread(threadId: String, explicitAccountId: String? = null) {
         val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        insertPendingAction(PendingActionType.ARCHIVE, activeAccountId, threadId)
         threadDao.archiveThread(threadId, activeAccountId)
         emailDao.archiveThreadEmails(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_ARCHIVE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
     }
     suspend fun unarchiveThread(threadId: String, explicitAccountId: String? = null) {
         val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        insertPendingAction(PendingActionType.UNARCHIVE, activeAccountId, threadId)
         threadDao.unarchiveThread(threadId, activeAccountId)
         emailDao.unarchiveThreadEmails(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_UNARCHIVE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
     }
     suspend fun emptyTrash() {
         val activeAccountId = getActiveAccountId()
@@ -357,25 +334,15 @@ class EmailRepository(
     }
     suspend fun deleteThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
+        insertPendingAction(PendingActionType.DELETE, activeAccountId, threadId)
         threadDao.moveToTrash(threadId, activeAccountId)
         emailDao.moveThreadEmailsToTrash(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_DELETE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
     }
     suspend fun restoreThread(threadId: String) {
         val activeAccountId = getActiveAccountId()
+        insertPendingAction(PendingActionType.RESTORE, activeAccountId, threadId)
         threadDao.restoreFromTrash(threadId, activeAccountId)
         emailDao.restoreThreadEmailsFromTrash(threadId, activeAccountId)
-        val data = Data.Builder()
-            .putString(SyncWorker.KEY_ACTION, SyncWorker.ACTION_RESTORE)
-            .putString(SyncWorker.KEY_ACCOUNT_ID, activeAccountId)
-            .putString(SyncWorker.KEY_THREAD_ID, threadId)
-            .build()
-        enqueueSync(data)
     }
     suspend fun reportNotSpam(threadId: String) {
         val activeAccountId = getActiveAccountId()
@@ -493,12 +460,11 @@ class EmailRepository(
         scheduledMessageDao.insertScheduledMessage(entity)
         val delay = scheduledAt - System.currentTimeMillis()
         val workRequest = OneTimeWorkRequestBuilder<ScheduledSendWorker>()
-            .setConstraints(networkConstraints)
             .setInitialDelay(maxOf(delay, 0), TimeUnit.MILLISECONDS)
             .setInputData(Data.Builder().putString(ScheduledSendWorker.KEY_SCHEDULED_MESSAGE_ID, id).build())
             .addTag("scheduled_send_$id")
             .build()
-        workManager.enqueue(workRequest)
+        WorkManager.getInstance(context).enqueue(workRequest)
     }
     suspend fun cancelScheduledMessage(id: String) {
         val msg = scheduledMessageDao.getScheduledMessageById(id)
@@ -506,7 +472,7 @@ class EmailRepository(
             cleanupScheduledAttachmentFiles(msg.attachmentsJson)
             scheduledMessageDao.deleteScheduledMessage(id)
         }
-        workManager.cancelAllWorkByTag("scheduled_send_$id")
+        WorkManager.getInstance(context).cancelAllWorkByTag("scheduled_send_$id")
     }
     private fun cleanupScheduledAttachmentFiles(attachmentsJson: String) {
         try {

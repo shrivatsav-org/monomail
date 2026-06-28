@@ -7,8 +7,8 @@ import androidx.room.TypeConverters
 import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
-    entities = [ThreadEntity::class, EmailEntity::class, ScheduledMessageEntity::class],
-    version = 8,
+    entities = [ThreadEntity::class, EmailEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class],
+    version = 9,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -16,6 +16,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun threadDao(): ThreadDao
     abstract fun emailDao(): EmailDao
     abstract fun scheduledMessageDao(): ScheduledMessageDao
+    abstract fun pendingActionDao(): PendingActionDao
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -29,7 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
@@ -73,5 +74,10 @@ val MIGRATION_7_8 = object : androidx.room.migration.Migration(7, 8) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE threads ADD COLUMN inSpam INTEGER NOT NULL DEFAULT 0")
         db.execSQL("ALTER TABLE emails ADD COLUMN inSpam INTEGER NOT NULL DEFAULT 0")
+    }
+}
+val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS `pending_actions` (`id` TEXT NOT NULL, `accountId` TEXT NOT NULL, `actionType` TEXT NOT NULL, `threadId` TEXT NOT NULL, `payload` TEXT NOT NULL DEFAULT '', `emailIdsJson` TEXT NOT NULL DEFAULT '', `status` TEXT NOT NULL DEFAULT 'PENDING', `createdAt` INTEGER NOT NULL, `retryCount` INTEGER NOT NULL DEFAULT 0, `errorMessage` TEXT NOT NULL DEFAULT '', PRIMARY KEY(`id`))")
     }
 }
