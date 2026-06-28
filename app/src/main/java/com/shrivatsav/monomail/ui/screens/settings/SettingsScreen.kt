@@ -254,6 +254,32 @@ fun SettingsScreen(
                     options = SyncFrequency.entries.map { it.displayName() },
                     onSelected = { idx -> viewModel.setSyncFrequency(SyncFrequency.entries[idx]) }
                 )
+                CardDivider()
+                val context = androidx.compose.ui.platform.LocalContext.current
+                val notificationManager = remember {
+                    context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+                }
+                val areNotificationsEnabled = remember { notificationManager.areNotificationsEnabled() }
+                val buildFlavorText = if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
+                val permissionText = if (areNotificationsEnabled) "Enabled" else "Disabled"
+                InfoRow(
+                    icon = Icons.Outlined.AppSettingsAlt,
+                    title = "Push & Distribution",
+                    value = "$buildFlavorText • Notifications $permissionText",
+                    onClick = {
+                        try {
+                            val intent = android.content.Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                                putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                            }
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            val backupIntent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                data = android.net.Uri.fromParts("package", context.packageName, null)
+                            }
+                            context.startActivity(backupIntent)
+                        }
+                    }
+                )
             }
             TemplatesCard(viewModel = viewModel)
             val updateState by viewModel.updateState.collectAsState()
