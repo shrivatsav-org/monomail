@@ -189,24 +189,7 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 
 MonoMail is built using two distinct distribution flavors to protect API secrets:
 - **Play Store Build (`playstore`)**: Comes bundled with the developer's official Google OAuth Web Client ID.
-- **GitHub Release Build (`github`)**: Excludes the developer's private OAuth Web Client ID, allowing users to supply their own API credentials securely at runtime.
-
-#### Configuring Google Sign-In for GitHub Builds
-
-When using a GitHub release APK, Google Credential Manager requires you to create **two OAuth Client IDs** in your [Google Cloud Console](https://console.cloud.google.com/apis/credentials):
-
-1. **Step 1: Create an Android OAuth Client ID**
-   - In your Google Cloud project, navigate to **APIs & Services > Credentials**.
-   - Click **Create Credentials > OAuth client ID**.
-   - Select Application type: **Android**.
-   - Enter the Package name: `com.shrivatsav.monomail`.
-   - Enter the **SHA-256 certificate fingerprint**. (You can easily copy your APK's exact SHA-256 fingerprint directly from the in-app configuration dialog).
-
-2. **Step 2: Create a Web Application OAuth Client ID**
-   - In the same Google Cloud project, click **Create Credentials > OAuth client ID**.
-   - Select Application type: **Web application**.
-   - Copy the resulting **Client ID** (ending in `.apps.googleusercontent.com`).
-   - Open MonoMail, click **"⚙️ Configure Google API Key"** on the sign-in screen, paste the Web Client ID, and click **Save**.
+- **GitHub Release Build (`github`)**: Excludes the developer's private OAuth Web Client ID. Note: Google Sign-In is temporarily disabled on GitHub builds while Google's OAuth verification is in progress. Once verification completes, it will be enabled. You can use Microsoft Outlook or IMAP/SMTP accounts without restriction in the meantime.
 
 Download the latest release from the [Releases page](https://github.com/shrivatsav-0/monomail/releases/latest) and install directly. You may need to enable "Install unknown apps" in your device settings.
 

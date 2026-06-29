@@ -34,6 +34,7 @@ import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.ui.navigation.NavGraph
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
 import com.shrivatsav.monomail.worker.EmailSyncWorker
+import com.shrivatsav.monomail.worker.GraphSubscriptionRenewalWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -153,6 +154,21 @@ class MainActivity : ComponentActivity() {
             "EmailSyncWork",
             ExistingPeriodicWorkPolicy.KEEP,
             workRequest
+        )
+
+        val renewalWorkRequest = PeriodicWorkRequestBuilder<GraphSubscriptionRenewalWorker>(
+            24, TimeUnit.HOURS
+        )
+            .setConstraints(
+                Constraints.Builder()
+                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                    .build()
+            )
+            .build()
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "GraphSubscriptionRenewalWork",
+            ExistingPeriodicWorkPolicy.KEEP,
+            renewalWorkRequest
         )
     }
 }
