@@ -129,7 +129,8 @@ data class OutlookDraftMessage(
     val toRecipients: List<OutlookRecipient>,
     val ccRecipients: List<OutlookRecipient>? = null,
     val bccRecipients: List<OutlookRecipient>? = null,
-    val attachments: List<OutlookDraftAttachment>? = null
+    val attachments: List<OutlookDraftAttachment>? = null,
+    val sender: OutlookRecipient? = null
 )
 data class OutlookDraftAttachment(
     @com.google.gson.annotations.SerializedName("@odata.type") val odataType: String = "#microsoft.graph.fileAttachment",

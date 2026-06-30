@@ -209,6 +209,11 @@ class OutlookProvider(
     }
     private fun sanitizeFilter(threadId: String): String = "conversationId eq '${threadId.replace("'", "''")}'"
 
+    private fun outlookRecipientForEmail(email: String): OutlookRecipient? {
+        if (email.isBlank()) return null
+        return OutlookRecipient(OutlookEmailAddress(null, email.trim()))
+    }
+
     override suspend fun archiveThread(threadId: String) {
         val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
         msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("archive")) }
@@ -303,15 +308,24 @@ class OutlookProvider(
                 )
             }
         }
+        val senderRecipient = outlookRecipientForEmail(from)
+
         val msg = OutlookDraftMessage(
             subject = subject,
             body = OutlookBody("HTML", body),
             toRecipients = recipients,
             ccRecipients = ccRecipients,
             bccRecipients = bccRecipients,
-            attachments = draftAttachments.takeIf { it.isNotEmpty() }
+            attachments = draftAttachments.takeIf { it.isNotEmpty() },
+            sender = senderRecipient
         )
         api.sendMail(OutlookSendMailRequest(msg))
         return null
+    }
+
+    override suspend fun getSendAsAliases(): List<SendAsAlias> {
+        // Personal Microsoft accounts (the current scope) don't support send-as
+        // Organizational accounts would require /users/{id}/mailboxSettings
+        return emptyList()
     }
 }

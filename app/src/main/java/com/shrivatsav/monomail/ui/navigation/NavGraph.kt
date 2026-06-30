@@ -26,12 +26,12 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.dialog
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.data.settings.AppSettings
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.ui.screens.auth.ImapSetupScreen
 import com.shrivatsav.monomail.ui.screens.auth.ImapSetupViewModel
@@ -89,10 +89,12 @@ fun NavGraph(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(true) }
     var isAuthenticated by remember { mutableStateOf(false) }
-    val appSettings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
+    var hasSeenWelcomePrompt by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
         // Phase A — fast: read cached auth state so the first frame renders immediately
         isAuthenticated = authManager.restoreSessionQuick()
+        // One-time read: avoid subscribing to the full settings flow for just hasSeenWelcomePrompt
+        hasSeenWelcomePrompt = settingsDataStore.settingsFlow.first().hasSeenWelcomePrompt
         isLoading = false
         onContentReady()
         // Phase B — background: refresh tokens and register push without blocking the UI
@@ -113,7 +115,7 @@ fun NavGraph(
     }
     val startDestination = if (isAuthenticated) {
         Screen.Inbox.route
-    } else if (!appSettings.hasSeenWelcomePrompt) {
+    } else if (!hasSeenWelcomePrompt) {
         Screen.Onboarding.route
     } else {
         Screen.SignIn.route
@@ -269,21 +271,9 @@ fun NavGraph(
             ) { backStackEntry ->
                 val threadId = backStackEntry.arguments?.getString("threadId") ?: return@composable
                 val vm: EmailDetailViewModel = hiltViewModel()
-                val appSettings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
-                val fontScaleMultiplier = when (appSettings.fontScale) {
-                    com.shrivatsav.monomail.data.settings.FontScale.EXTRA_SMALL -> 0.8f
-                    com.shrivatsav.monomail.data.settings.FontScale.SMALL       -> 0.9f
-                    com.shrivatsav.monomail.data.settings.FontScale.DEFAULT     -> 1.0f
-                    com.shrivatsav.monomail.data.settings.FontScale.LARGE       -> 1.15f
-                    com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE -> 1.3f
-                }
                 EmailDetailScreen(
                     viewModel = vm,
                     onBack    = { navController.popBackStack() },
-                    isConversationView = appSettings.organizeByThread,
-                    fontScaleMultiplier = fontScaleMultiplier,
-                    loadRemoteImages = appSettings.loadRemoteImages,
-                    renderMarkdown = appSettings.renderMarkdown,
                     onReply   = { to, subject, body, tid, messageId ->
                         navController.navigate(
                             Screen.Compose.createRoute(

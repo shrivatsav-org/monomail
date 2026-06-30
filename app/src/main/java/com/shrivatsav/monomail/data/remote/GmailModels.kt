@@ -34,6 +34,17 @@ data class MessagePartBody(
     @SerializedName("data") val data: String?,
     @SerializedName("attachmentId") val attachmentId: String?
 )
+data class GmailSendAsAlias(
+    @SerializedName("sendAsEmail") val sendAsEmail: String,
+    @SerializedName("displayName") val displayName: String? = null,
+    @SerializedName("isDefault") val isDefault: Boolean = false,
+    @SerializedName("isVerified") val isVerified: Boolean = false
+)
+
+data class GmailSendAsListResponse(
+    @SerializedName("sendAs") val sendAs: List<GmailSendAsAlias>?
+)
+
 data class GmailProfile(
     @SerializedName("emailAddress") val emailAddress: String?,
     @SerializedName("messagesTotal") val messagesTotal: Int?,

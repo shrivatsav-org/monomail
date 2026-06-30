@@ -10,6 +10,7 @@ import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.provider.ProviderMessage
 import com.shrivatsav.monomail.data.provider.ProviderThread
 import com.shrivatsav.monomail.data.provider.ProviderThreadListResult
+import com.shrivatsav.monomail.data.provider.SendAsAlias
 import jakarta.mail.Flags
 import jakarta.mail.Folder
 import jakarta.mail.Message
@@ -788,6 +789,11 @@ class ImapProvider(
             store?.takeIf { it.isConnected }?.close()
             store = null
         }
+    }
+
+    override suspend fun getSendAsAliases(): List<SendAsAlias> {
+        // IMAP/SMTP doesn't have a "send-as" alias API
+        return emptyList()
     }
 }
 

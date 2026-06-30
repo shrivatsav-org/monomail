@@ -4,6 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.FontScale
+import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -20,11 +22,36 @@ sealed class EmailDetailState {
 @HiltViewModel
 class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
+    private val settingsDataStore: SettingsDataStore,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val threadId: String = savedStateHandle.get<String>("threadId") ?: ""
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+    val fontScaleMultiplier: StateFlow<Float> = settingsDataStore.settingsFlow
+        .map { settings ->
+            when (settings.fontScale) {
+                FontScale.EXTRA_SMALL -> 0.8f
+                FontScale.SMALL       -> 0.9f
+                FontScale.DEFAULT     -> 1.0f
+                FontScale.LARGE       -> 1.15f
+                FontScale.EXTRA_LARGE -> 1.3f
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 1.0f)
+
+    val isConversationView: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.organizeByThread }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val loadRemoteImages: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.loadRemoteImages }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    val renderMarkdown: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.renderMarkdown }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val state: StateFlow<EmailDetailState> = kotlinx.coroutines.flow.combine(
         repository.getThreadEmailsFlow(threadId),
         _isLoading,

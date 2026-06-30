@@ -88,14 +88,15 @@ import java.util.Locale
 fun EmailDetailScreen(
     viewModel: EmailDetailViewModel,
     onBack: () -> Unit,
-    isConversationView: Boolean = true,
-    fontScaleMultiplier: Float = 1f,
-    loadRemoteImages: Boolean = true,
-    renderMarkdown: Boolean = false,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _, _ -> },
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> },
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
 ) {
+    // Read settings from ViewModel (consolidated — no direct DataStore collection)
+    val isConversationView by viewModel.isConversationView.collectAsState()
+    val fontScaleMultiplier by viewModel.fontScaleMultiplier.collectAsState()
+    val loadRemoteImages by viewModel.loadRemoteImages.collectAsState()
+    val renderMarkdown by viewModel.renderMarkdown.collectAsState()
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
     Scaffold(

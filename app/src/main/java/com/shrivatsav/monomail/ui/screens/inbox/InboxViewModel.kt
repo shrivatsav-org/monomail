@@ -98,7 +98,8 @@ class InboxViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     private val _lastSelectedThreadId = MutableStateFlow<String?>(null)
     val lastSelectedThreadId: StateFlow<String?> = _lastSelectedThreadId.asStateFlow()
-    val settingsFlow = settingsDataStore.settingsFlow
+    private val _appSettings = MutableStateFlow(AppSettings())
+    val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()
     private var pollingIntervalMs = 120_000L
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
     val state: StateFlow<InboxState> = _state.asStateFlow()
@@ -178,6 +179,7 @@ class InboxViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
+                _appSettings.value = settings
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
                 pollingIntervalMs = when (settings.syncFrequency) {

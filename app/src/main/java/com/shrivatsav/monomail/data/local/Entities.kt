@@ -157,7 +157,8 @@ data class ScheduledMessageEntity(
     val attachmentsJson: String = "[]",
     val scheduledAt: Long,
     val isSent: Boolean = false,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val fromAlias: String? = null
 )
 
 enum class PendingActionType {

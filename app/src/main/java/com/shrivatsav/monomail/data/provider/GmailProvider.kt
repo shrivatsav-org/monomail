@@ -249,4 +249,21 @@ class GmailProvider(
         )
         return response.threadId
     }
+
+    override suspend fun getSendAsAliases(): List<SendAsAlias> {
+        return try {
+            val response = api.getSendAsAliases()
+            response.sendAs?.map { alias ->
+                SendAsAlias(
+                    email = alias.sendAsEmail,
+                    displayName = alias.displayName ?: "",
+                    isDefault = alias.isDefault,
+                    isVerified = alias.isVerified
+                )
+            } ?: emptyList()
+        } catch (e: Exception) {
+            android.util.Log.e("GmailProvider", "Failed to fetch send-as aliases", e)
+            emptyList()
+        }
+    }
 }

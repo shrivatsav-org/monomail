@@ -23,6 +23,9 @@ interface GmailApi {
         @Path("messageId") messageId: String,
         @Path("id") id: String
     ): MessagePartBody
+    @GET("users/me/settings/sendAs")
+    suspend fun getSendAsAliases(): GmailSendAsListResponse
+
     @GET("users/me/profile")
     suspend fun getProfile(): GmailProfile
     @POST("users/me/messages/batchModify")

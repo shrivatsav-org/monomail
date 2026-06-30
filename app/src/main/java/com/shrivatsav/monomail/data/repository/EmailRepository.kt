@@ -19,10 +19,12 @@ import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
+import com.shrivatsav.monomail.data.provider.SendAsAlias
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -435,7 +437,8 @@ class EmailRepository(
         scheduledAt: Long,
         cc: String = "",
         bcc: String = "",
-        attachments: List<EmailAttachment> = emptyList()
+        attachments: List<EmailAttachment> = emptyList(),
+        fromAlias: String? = null
     ) {
         val id = UUID.randomUUID().toString()
         val entity = ScheduledMessageEntity(
@@ -457,7 +460,8 @@ class EmailRepository(
                     )
                 }
             ),
-            scheduledAt = scheduledAt
+            scheduledAt = scheduledAt,
+            fromAlias = fromAlias
         )
         scheduledMessageDao.insertScheduledMessage(entity)
         val delay = scheduledAt - System.currentTimeMillis()
@@ -510,6 +514,22 @@ class EmailRepository(
             }
         }
     }
+    // --- Send-as aliases ---
+    private val _sendAsAliases = kotlinx.coroutines.flow.MutableStateFlow<List<SendAsAlias>>(emptyList())
+    val sendAsAliasesFlow: kotlinx.coroutines.flow.StateFlow<List<SendAsAlias>> = _sendAsAliases.asStateFlow()
+
+    suspend fun refreshSendAsAliases() {
+        val activeAccount = accountManager.getActiveAccount() ?: return
+        val provider = providerFactory(activeAccount)
+        val aliases = try {
+            provider.getSendAsAliases()
+        } catch (e: Exception) {
+            Log.e("EmailRepo", "Failed to refresh send-as aliases", e)
+            emptyList()
+        }
+        _sendAsAliases.value = aliases
+    }
+
     fun getPendingScheduledMessagesFlow(accountId: String) = scheduledMessageDao.getPendingScheduledMessages(accountId)
     fun getPendingScheduledCountFlow(accountId: String) = scheduledMessageDao.getPendingCount(accountId)
     suspend fun getScheduledMessageById(id: String) = scheduledMessageDao.getScheduledMessageById(id)

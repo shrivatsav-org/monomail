@@ -60,9 +60,7 @@ fun InboxScreen(
     var showClearSpamWarning by remember { mutableStateOf(false) }
     var isTrashCountdownActive by remember { mutableStateOf(false) }
     var isSpamCountdownActive by remember { mutableStateOf(false) }
-    val appSettings by viewModel.settingsFlow.collectAsState(
-        initial = com.shrivatsav.monomail.data.settings.AppSettings()
-    )
+    val appSettings by viewModel.appSettingsState.collectAsState()
     val fontSizeScale = when (appSettings.fontScale) {
         com.shrivatsav.monomail.data.settings.FontScale.EXTRA_SMALL -> 0.7f
         com.shrivatsav.monomail.data.settings.FontScale.SMALL -> 0.85f

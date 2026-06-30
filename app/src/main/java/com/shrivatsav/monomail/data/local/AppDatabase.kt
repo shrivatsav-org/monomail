@@ -8,7 +8,7 @@ import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
     entities = [ThreadEntity::class, EmailEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class],
-    version = 10,
+    version = 11,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -31,7 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
@@ -85,5 +85,10 @@ val MIGRATION_8_9 = object : androidx.room.migration.Migration(8, 9) {
 val MIGRATION_9_10 = object : androidx.room.migration.Migration(9, 10) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE emails ADD COLUMN bodyIsHtml INTEGER NOT NULL DEFAULT 1")
+    }
+}
+val MIGRATION_10_11 = object : androidx.room.migration.Migration(10, 11) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE scheduled_messages ADD COLUMN fromAlias TEXT DEFAULT NULL")
     }
 }

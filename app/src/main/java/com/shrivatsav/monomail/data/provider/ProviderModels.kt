@@ -1,5 +1,15 @@
 package com.shrivatsav.monomail.data.provider
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
+
+/**
+ * Represents a send-as alias for an email account.
+ */
+data class SendAsAlias(
+    val email: String,
+    val displayName: String = "",
+    val isDefault: Boolean = false,
+    val isVerified: Boolean = false
+)
 data class ProviderThreadListResult(
     val threads: List<ProviderThread>,
     val nextPageToken: String?

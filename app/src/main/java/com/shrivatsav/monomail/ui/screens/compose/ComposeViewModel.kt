@@ -7,6 +7,7 @@ import com.shrivatsav.monomail.ScheduledEmailEvent
 import com.shrivatsav.monomail.SentEmailEvent
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.model.EmailAttachment
+import com.shrivatsav.monomail.data.provider.SendAsAlias
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
@@ -25,6 +26,9 @@ import javax.inject.Inject
 enum class ComposeMode { NEW, REPLY, FORWARD }
 
 data class ComposeUiState(
+    val from: String = "",
+    val fromAliases: List<SendAsAlias> = emptyList(),
+    val showFromDropdown: Boolean = false,
     val to: String = "",
     val cc: String = "",
     val bcc: String = "",
@@ -68,6 +72,7 @@ class ComposeViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(
         ComposeUiState(
+            from = fromEmail,
             mode = mode,
             to = when (mode) {
                 ComposeMode.REPLY -> replyTo
@@ -118,6 +123,17 @@ class ComposeViewModel @Inject constructor(
                 }
             }
         }
+        viewModelScope.launch {
+            repository.refreshSendAsAliases()
+            repository.sendAsAliasesFlow.collect { aliases ->
+                val currentFrom = _state.value.from
+                val fromAlias = aliases.firstOrNull { it.email == currentFrom }
+                _state.value = _state.value.copy(
+                    fromAliases = aliases,
+                    from = currentFrom.ifEmpty { fromEmail }
+                )
+            }
+        }
     }
 
     private val _suggestions = MutableStateFlow<List<ContactSuggestionProvider.EmailContact>>(emptyList())
@@ -133,6 +149,18 @@ class ComposeViewModel @Inject constructor(
                 .map { query -> contactProvider.suggest(query) }
                 .collect { _suggestions.value = it }
         }
+    }
+
+    fun selectAlias(alias: SendAsAlias) {
+        _state.value = _state.value.copy(from = alias.email, showFromDropdown = false)
+    }
+
+    fun toggleFromDropdown() {
+        _state.value = _state.value.copy(showFromDropdown = !_state.value.showFromDropdown)
+    }
+
+    fun dismissFromDropdown() {
+        _state.value = _state.value.copy(showFromDropdown = false)
     }
 
     fun updateTo(value: String) {
@@ -221,7 +249,7 @@ class ComposeViewModel @Inject constructor(
                 }
             }
             val result = repository.sendEmail(
-                from = fromEmail,
+                from = current.from,
                 to = current.to,
                 cc = current.cc,
                 bcc = current.bcc,
@@ -266,16 +294,18 @@ class ComposeViewModel @Inject constructor(
                 "schedule_${System.currentTimeMillis()}",
                 current.attachments
             )
+            val fromAlias = current.from.takeIf { it != fromEmail }
             repository.scheduleSend(
                 accountId = accountId,
-                fromEmail = fromEmail,
+                fromEmail = current.from,
                 to = current.to,
                 subject = current.subject,
                 body = current.body,
                 scheduledAt = scheduledAt,
                 cc = current.cc,
                 bcc = current.bcc,
-                attachments = cachedAttachments
+                attachments = cachedAttachments,
+                fromAlias = fromAlias
             )
             scheduledEmailEvents.tryEmit(
                 ScheduledEmailEvent(

@@ -23,5 +23,7 @@ interface EmailProvider {
         cc: String = "", bcc: String = "",
         threadId: String? = null, attachments: List<EmailAttachment> = emptyList()
     ): String?
+
+    suspend fun getSendAsAliases(): List<SendAsAlias>
 }
 enum class EmailFolder { INBOX, SENT, ARCHIVE, STARRED, TRASH, SPAM }
