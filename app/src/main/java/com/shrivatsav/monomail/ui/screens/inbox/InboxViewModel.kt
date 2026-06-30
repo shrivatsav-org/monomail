@@ -5,7 +5,6 @@ import com.shrivatsav.monomail.ScheduledEmailEvent
 import com.shrivatsav.monomail.SentEmailEvent
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.UserProfile
-import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository

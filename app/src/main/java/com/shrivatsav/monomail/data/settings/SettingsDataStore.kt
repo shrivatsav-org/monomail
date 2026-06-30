@@ -5,15 +5,15 @@ import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
@@ -61,6 +61,9 @@ data class AppSettings(
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
+
+    /** Scope that starts reading DataStore during singleton construction. */
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val FONT_SCALE = stringPreferencesKey("font_scale")
@@ -84,10 +87,10 @@ class SettingsDataStore(private val context: Context) {
         val TEMPLATES = stringPreferencesKey("email_templates")
         val DOCK_CONFIG = stringPreferencesKey("dock_config")
     }
-    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-    val settingsFlow: StateFlow<AppSettings> = context.dataStore.data.map { prefs ->
+
+    private fun mapToSettings(prefs: Preferences): AppSettings {
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
-        AppSettings(
+        return AppSettings(
             themeMode = prefs[Keys.THEME_MODE]?.let { ThemeMode.valueOf(it) } ?: ThemeMode.SYSTEM,
             fontScale = prefs[Keys.FONT_SCALE]?.let { FontScale.valueOf(it) } ?: FontScale.DEFAULT,
             showDividers = prefs[Keys.SHOW_DIVIDERS] ?: false,
@@ -111,11 +114,16 @@ class SettingsDataStore(private val context: Context) {
                 try { gson.fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults()
         )
-    }.stateIn(
-        scope = scope,
-        started = SharingStarted.Eagerly,
-        initialValue = AppSettings()
-    )
+    }
+
+    /**
+     * Pre-heated settings flow — subscribes to DataStore immediately during singleton
+     * construction so that the first collector in [MainActivity] gets the cached value
+     * instead of [AppSettings] defaults.
+     */
+    val settingsFlow: StateFlow<AppSettings> = context.dataStore.data
+        .map { mapToSettings(it) }
+        .stateIn(scope, SharingStarted.Eagerly, AppSettings())
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
     }

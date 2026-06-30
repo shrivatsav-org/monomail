@@ -42,5 +42,5 @@ fun googleSansFlex(rond: Float = 0f): FontFamily {
     fontFamilyCache.put(key, family)
     return family
 }
-val GoogleSansFamily = googleSansFlex(0f)
-val GoogleSansRoundedFamily = googleSansFlex(100f)
+val GoogleSansFamily by lazy { googleSansFlex(0f) }
+val GoogleSansRoundedFamily by lazy { googleSansFlex(100f) }

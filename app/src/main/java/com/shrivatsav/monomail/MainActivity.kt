@@ -4,15 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalDensity as LocalDensityComposable
 import androidx.compose.ui.unit.Density
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -23,7 +24,6 @@ import androidx.work.WorkManager
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.data.settings.AppSettings
 import com.shrivatsav.monomail.data.settings.FontScale
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.ui.navigation.NavGraph
@@ -44,11 +44,21 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var settingsDataStore: SettingsDataStore
     @Inject lateinit var accountManager: AccountManager
 
+    /** Tracks whether content is ready for the SplashScreen transition. */
+    @Volatile
+    var isContentReady: Boolean = false
+        private set
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        splashScreen.setKeepOnScreenCondition {
+            // Keep splash visible until content is ready
+            !isContentReady
+        }
         enableEdgeToEdge()
         setContent {
-            val settings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
+            val settings by settingsDataStore.settingsFlow.collectAsState()
             val fontScaleMultiplier = when (settings.fontScale) {
                 FontScale.EXTRA_SMALL -> 0.8f
                 FontScale.SMALL       -> 0.9f
@@ -68,10 +78,16 @@ class MainActivity : ComponentActivity() {
                         NavGraph(
                             authManager = authManager,
                             emailRepository = emailRepository,
-                            settingsDataStore = settingsDataStore
+                            settingsDataStore = settingsDataStore,
+                            onContentReady = { isContentReady = true }
                         )
                     }
                 }
+            }
+            // Background sync is triggered from onStop; no permission requests at launch
+            // — permissions are handled during onboarding.
+            LaunchedEffect(Unit) {
+                scheduleBackgroundSync()
             }
         }
     }

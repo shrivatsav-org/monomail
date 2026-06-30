@@ -55,6 +55,18 @@ class AuthManager(
         try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
         return true
     }
+
+    /**
+     * Fast path for cold start: reads the stored profile and sets signed-in state
+     * without blocking on token refresh or push registration.
+     * Returns true if a previously-signed-in account exists.
+     */
+    suspend fun restoreSessionQuick(): Boolean {
+        val profile = accountManager.getActiveAccount() ?: return false
+        _userProfile = profile
+        _isSignedIn.value = true
+        return true
+    }
     private suspend fun refreshCurrentToken() {
         val profile = _userProfile ?: return
         try {

@@ -52,7 +52,7 @@ object AppModule {
     fun provideContactSuggestionProvider(): ContactSuggestionProvider =
         ContactSuggestionProvider()
 
-@Provides @Singleton
+    @Provides @Singleton
     fun provideSentEmailEvents(): MutableSharedFlow<SentEmailEvent> =
         MutableSharedFlow(replay = 1)
 
