@@ -9,6 +9,7 @@ import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.AppSettings
+import com.shrivatsav.monomail.data.settings.SyncFrequency
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshotFlow
@@ -96,6 +97,7 @@ class InboxViewModel @Inject constructor(
     val selectedCount: StateFlow<Int> = _selectedThreadIds.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val settingsFlow = settingsDataStore.settingsFlow
+    private var pollingIntervalMs = 120_000L
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
     val state: StateFlow<InboxState> = _state.asStateFlow()
 
@@ -176,6 +178,12 @@ class InboxViewModel @Inject constructor(
             settingsDataStore.settingsFlow.collect { settings ->
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
+                pollingIntervalMs = when (settings.syncFrequency) {
+                    SyncFrequency.MIN_15 -> 15 * 60 * 1000L
+                    SyncFrequency.MIN_30 -> 30 * 60 * 1000L
+                    SyncFrequency.HOUR_1 -> 60 * 60 * 1000L
+                    SyncFrequency.MANUAL -> Long.MAX_VALUE
+                }
                 if (!settings.hasSeenWelcomePrompt && authManager.currentUser != null) {
                     _showWelcomePrompt.value = true
                 }
@@ -245,7 +253,8 @@ class InboxViewModel @Inject constructor(
     private fun startForegroundPolling() {
         viewModelScope.launch {
             while (true) {
-                delay(120_000) 
+                delay(pollingIntervalMs)
+                if (pollingIntervalMs == Long.MAX_VALUE) continue
                 repository.refreshInbox(InboxTab.INBOX)
                 if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
                     repository.refreshInbox(_currentTab.value)

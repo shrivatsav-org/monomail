@@ -9,7 +9,6 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import android.net.Uri
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,7 +21,6 @@ import kotlinx.coroutines.launch
 internal fun SwipeableEmailItem(
     modifier: Modifier = Modifier,
     thread: EmailThread,
-    contactPhotoUri: Uri? = null,
     tabForSwipe: InboxTab,
     appSettings: com.shrivatsav.monomail.data.settings.AppSettings,
     viewModel: InboxViewModel,
@@ -38,6 +36,10 @@ internal fun SwipeableEmailItem(
 ) {
     var optIsRead by remember(thread.isRead) { mutableStateOf(thread.isRead) }
     var optIsStarred by remember(thread.isStarred) { mutableStateOf(thread.isStarred) }
+
+    val displayThread by remember(thread, optIsRead, optIsStarred) {
+        derivedStateOf { thread.copy(isRead = optIsRead, isStarred = optIsStarred) }
+    }
 
     val dismissState = rememberSwipeToDismissBoxState()
     val scope = rememberCoroutineScope()
@@ -80,8 +82,7 @@ internal fun SwipeableEmailItem(
     ) {
         if (isBulkMode) {
             EmailItem(
-                thread = thread.copy(isRead = optIsRead, isStarred = optIsStarred),
-                contactPhotoUri = contactPhotoUri,
+                thread = displayThread,
                 onClick = onEmailClick,
                 onLongClick = onLongClick,
                 showSnippet = appSettings.showSnippet,
@@ -159,8 +160,7 @@ internal fun SwipeableEmailItem(
             }
         ) {
             EmailItem(
-                thread = thread.copy(isRead = optIsRead, isStarred = optIsStarred),
-                contactPhotoUri = contactPhotoUri,
+                thread = displayThread,
                 onClick = onEmailClick,
                 onLongClick = onLongClick,
                 showSnippet = appSettings.showSnippet,

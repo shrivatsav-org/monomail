@@ -239,20 +239,7 @@ fun InboxScreen(
                         }
 
                         is InboxState.Success -> {
-                            val currentTab = s.currentTab
-                            AnimatedContent(
-                                targetState = currentTab,
-                                transitionSpec = {
-                                    val direction = targetState.ordinal - initialState.ordinal
-                                    val offset = { fullWidth: Int -> if (direction > 0) fullWidth else -fullWidth }
-                                    val opposite = { fullWidth: Int -> if (direction > 0) -fullWidth else fullWidth }
-                                    (slideInHorizontally(animationSpec = tween(280)) { offset(it) } +
-                                            fadeIn(animationSpec = tween(280))) togetherWith
-                                            (slideOutHorizontally(animationSpec = tween(280)) { opposite(it) } +
-                                                    fadeOut(animationSpec = tween(280)))
-                                },
-                                label = "tabTransition"
-                            ) { currentTab ->
+                            key(currentTab) {
                             val threadsToDisplay = localFilteredThreads ?: s.threads
                             val isSearchActive = localFilteredThreads != null
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable {
@@ -367,7 +354,6 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = null,
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
@@ -394,7 +380,6 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = null,
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
@@ -457,13 +442,13 @@ fun InboxScreen(
                                     }
                                 }
                             }
-                            } // End of AnimatedContent(currentTab)
+                            } // key(currentTab)
                         }
                     }
                 }
             }
 
-            
+
             AnimatedVisibility(
                 visible = longPressedThread == null && activeModal == null && !isBulkMode,
                 enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.9f),

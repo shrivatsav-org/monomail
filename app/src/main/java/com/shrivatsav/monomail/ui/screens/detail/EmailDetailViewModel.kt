@@ -31,10 +31,6 @@ class EmailDetailViewModel @Inject constructor(
         _error
     ) { emails, isLoading, error ->
         if (emails.isNotEmpty()) {
-            val unreadIds = emails.filter { !it.isRead }.map { it.id }
-            if (unreadIds.isNotEmpty()) {
-                repository.markEmailsAsRead(unreadIds)
-            }
             val needsBodyFetch = emails.any { it.body.isEmpty() }
             EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
         } else if (error != null) {
@@ -64,6 +60,16 @@ class EmailDetailViewModel @Inject constructor(
             _isLoading.value = false
             result.onFailure {
                 _error.value = it.message ?: "Failed to refresh thread"
+            }
+        }
+        viewModelScope.launch {
+            state.collect { s ->
+                if (s is EmailDetailState.Success) {
+                    val unreadIds = s.emails.filter { !it.isRead }.map { it.id }
+                    if (unreadIds.isNotEmpty()) {
+                        repository.markEmailsAsRead(unreadIds)
+                    }
+                }
             }
         }
     }
