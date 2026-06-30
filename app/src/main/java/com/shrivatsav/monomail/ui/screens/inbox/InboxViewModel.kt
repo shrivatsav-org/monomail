@@ -7,11 +7,10 @@ import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
-import com.shrivatsav.monomail.data.repository.ContactPhotoProvider
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import android.net.Uri
 import com.shrivatsav.monomail.data.settings.AppSettings
+import com.shrivatsav.monomail.data.settings.SyncFrequency
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.snapshotFlow
@@ -33,10 +32,8 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED, SNOOZED, SPAM }
 sealed class InboxState {
@@ -55,7 +52,6 @@ sealed class InboxState {
 class InboxViewModel @Inject constructor(
     private val repository: EmailRepository,
     private val contactProvider: ContactSuggestionProvider,
-    private val contactPhotoProvider: ContactPhotoProvider,
     private val authManager: AuthManager,
     private val settingsDataStore: SettingsDataStore,
     private val sentEmailEvents: MutableSharedFlow<SentEmailEvent>,
@@ -102,10 +98,9 @@ class InboxViewModel @Inject constructor(
     val selectedCount: StateFlow<Int> = _selectedThreadIds.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     val settingsFlow = settingsDataStore.settingsFlow
+    private var pollingIntervalMs = 120_000L
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
     val state: StateFlow<InboxState> = _state.asStateFlow()
-    private val _contactPhotoUris = MutableStateFlow<Map<String, Uri?>>(emptyMap())
-    val contactPhotoUris: StateFlow<Map<String, Uri?>> = _contactPhotoUris.asStateFlow()
 
     init {
         viewModelScope.launch {
@@ -184,6 +179,12 @@ class InboxViewModel @Inject constructor(
             settingsDataStore.settingsFlow.collect { settings ->
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
+                pollingIntervalMs = when (settings.syncFrequency) {
+                    SyncFrequency.MIN_15 -> 15 * 60 * 1000L
+                    SyncFrequency.MIN_30 -> 30 * 60 * 1000L
+                    SyncFrequency.HOUR_1 -> 60 * 60 * 1000L
+                    SyncFrequency.MANUAL -> Long.MAX_VALUE
+                }
                 if (!settings.hasSeenWelcomePrompt && authManager.currentUser != null) {
                     _showWelcomePrompt.value = true
                 }
@@ -197,16 +198,6 @@ class InboxViewModel @Inject constructor(
             InboxTab.values().forEach { tab ->
                 if (tab != _currentTab.value && tab != InboxTab.UNIFIED) {
                     repository.refreshInbox(tab)
-                }
-            }
-        }
-        viewModelScope.launch {
-            state.collect { s ->
-                if (s is InboxState.Success) {
-                    val uris = withContext(Dispatchers.IO) {
-                        s.threads.associate { it.fromEmail to contactPhotoProvider.getPhotoUri(it.fromEmail) }
-                    }
-                    _contactPhotoUris.value = uris
                 }
             }
         }
@@ -263,7 +254,8 @@ class InboxViewModel @Inject constructor(
     private fun startForegroundPolling() {
         viewModelScope.launch {
             while (true) {
-                delay(120_000) 
+                delay(pollingIntervalMs)
+                if (pollingIntervalMs == Long.MAX_VALUE) continue
                 repository.refreshInbox(InboxTab.INBOX)
                 if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
                     repository.refreshInbox(_currentTab.value)

@@ -1,11 +1,23 @@
 package com.shrivatsav.monomail.data.local
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.google.gson.Gson
-@Entity(tableName = "threads")
+@Entity(
+    tableName = "threads",
+    indices = [
+        Index(value = ["accountId", "inInbox", "date"]),
+        Index(value = ["accountId", "inSent", "date"]),
+        Index(value = ["accountId", "inArchived", "date"]),
+        Index(value = ["accountId", "isStarred", "date"]),
+        Index(value = ["accountId", "inTrash", "date"]),
+        Index(value = ["accountId", "inSpam", "date"]),
+        Index(value = ["accountId", "isSnoozed", "snoozedUntil"])
+    ]
+)
 data class ThreadEntity(
     @PrimaryKey val threadId: String,
     val accountId: String,
@@ -41,7 +53,20 @@ data class ThreadEntity(
         participants = participants
     )
 }
-@Entity(tableName = "emails")
+@Entity(
+    tableName = "emails",
+    indices = [
+        Index(value = ["accountId", "threadId"]),
+        Index(value = ["accountId", "inInbox", "date"]),
+        Index(value = ["accountId", "inSent", "date"]),
+        Index(value = ["accountId", "inArchived", "date"]),
+        Index(value = ["accountId", "isStarred", "date"]),
+        Index(value = ["accountId", "inTrash", "date"]),
+        Index(value = ["accountId", "inSpam", "date"]),
+        Index(value = ["accountId", "isSnoozed", "snoozedUntil"]),
+        Index(value = ["threadId", "accountId"])
+    ]
+)
 data class EmailEntity(
     @PrimaryKey val id: String,
     val accountId: String,
@@ -141,7 +166,7 @@ enum class PendingActionStatus {
     PENDING, IN_FLIGHT, FAILED
 }
 
-@Entity(tableName = "pending_actions")
+@Entity(tableName = "pending_actions", indices = [Index(value = ["status"])])
 data class PendingActionEntity(
     @PrimaryKey val id: String,
     val accountId: String,

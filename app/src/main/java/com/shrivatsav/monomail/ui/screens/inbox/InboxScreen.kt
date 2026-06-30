@@ -53,7 +53,6 @@ fun InboxScreen(
     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
     val scheduledCount by viewModel.scheduledCount.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
-    val contactPhotoUris by viewModel.contactPhotoUris.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
@@ -353,7 +352,6 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = contactPhotoUris[displayItem.thread.fromEmail],
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
@@ -380,7 +378,6 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = contactPhotoUris[displayItem.thread.fromEmail],
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,

@@ -4,7 +4,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -38,11 +37,6 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import android.net.Uri
-import coil.compose.AsyncImagePainter
-import coil.compose.rememberAsyncImagePainter
-import coil.request.ImageRequest
-import androidx.compose.ui.platform.LocalContext
 import com.shrivatsav.monomail.data.model.EmailThread
 import java.time.Instant
 import java.time.LocalDate
@@ -55,7 +49,6 @@ private val domainRegex = Regex("@(.+)$")
 @Composable
 fun EmailItem(
     thread: EmailThread,
-    contactPhotoUri: Uri? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     showSnippet: Boolean = true,
@@ -105,7 +98,6 @@ fun EmailItem(
             SenderAvatar(
                 domain = domain,
                 senderInitial = senderInitial,
-                contactPhotoUri = contactPhotoUri,
                 isSelected = isSelected,
                 isBulkMode = isBulkMode,
                 onClick = avatarClickAction,
@@ -199,7 +191,6 @@ fun EmailItem(
 private fun SenderAvatar(
     domain: String?,
     senderInitial: String,
-    contactPhotoUri: Uri? = null,
     isSelected: Boolean = false,
     isBulkMode: Boolean = false,
     onClick: () -> Unit = {},
@@ -209,22 +200,6 @@ private fun SenderAvatar(
     val avatarModifier = modifier
         .size(40.dp)
         .clip(CircleShape)
-    val context = LocalContext.current
-    val imageUrl = when {
-        contactPhotoUri != null -> contactPhotoUri.toString()
-        domain != null -> "https://www.google.com/s2/favicons?domain=$domain&sz=128"
-        else -> null
-    }
-    val painter = if (imageUrl != null) {
-        rememberAsyncImagePainter(
-            model = ImageRequest.Builder(context)
-                .data(imageUrl)
-                .crossfade(true)
-                .build(),
-            placeholder = null
-        )
-    } else null
-    val imageSuccess = painter?.state is AsyncImagePainter.State.Success
     Box(
         modifier = avatarModifier
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
@@ -258,12 +233,6 @@ private fun SenderAvatar(
                     modifier = Modifier.fillMaxSize().padding(2.dp)
                 )
             }
-        } else if (imageSuccess) {
-            Image(
-                painter = painter,
-                contentDescription = "Sender avatar",
-                modifier = Modifier.fillMaxSize()
-            )
         } else {
             Text(
                 text = senderInitial,
