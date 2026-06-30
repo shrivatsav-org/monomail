@@ -19,7 +19,6 @@ class MonoMailApp : Application(), Configuration.Provider {
     override fun onCreate() {
         super.onCreate()
         initializeMailcap()
-        System.loadLibrary("sqlcipher")
         actionQueueManager.start()
     }
 

@@ -53,7 +53,6 @@ fun InboxScreen(
     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
     val scheduledCount by viewModel.scheduledCount.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
-    val contactPhotoUris by viewModel.contactPhotoUris.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
@@ -85,9 +84,6 @@ fun InboxScreen(
     val isBulkMode by viewModel.isBulkSelectMode.collectAsState()
     val selectedThreadIds by viewModel.selectedThreadIds.collectAsState()
     val selectedCount by viewModel.selectedCount.collectAsState()
-
-    val currentTab = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
-    LaunchedEffect(immediateTab) { listState.scrollToItem(0) }
     if (isBulkMode) {
         BackHandler { viewModel.exitBulkSelectMode() }
     }
@@ -243,6 +239,20 @@ fun InboxScreen(
                         }
 
                         is InboxState.Success -> {
+                            val currentTab = s.currentTab
+                            AnimatedContent(
+                                targetState = currentTab,
+                                transitionSpec = {
+                                    val direction = targetState.ordinal - initialState.ordinal
+                                    val offset = { fullWidth: Int -> if (direction > 0) fullWidth else -fullWidth }
+                                    val opposite = { fullWidth: Int -> if (direction > 0) -fullWidth else fullWidth }
+                                    (slideInHorizontally(animationSpec = tween(280)) { offset(it) } +
+                                            fadeIn(animationSpec = tween(280))) togetherWith
+                                            (slideOutHorizontally(animationSpec = tween(280)) { opposite(it) } +
+                                                    fadeOut(animationSpec = tween(280)))
+                                },
+                                label = "tabTransition"
+                            ) { currentTab ->
                             val threadsToDisplay = localFilteredThreads ?: s.threads
                             val isSearchActive = localFilteredThreads != null
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable {
@@ -250,7 +260,7 @@ fun InboxScreen(
                             }
                             var inboxStructure by remember { mutableStateOf(InboxStructure(emptyList(), emptyList())) }
                             var isComputingStructure by remember { mutableStateOf(true) }
-                            LaunchedEffect(threadsToDisplay, appSettings.smartGroupingEnabled, appSettings.smartGroupingRecentOnly, currentTab) {
+                            LaunchedEffect(threadsToDisplay, appSettings.smartGroupingEnabled, appSettings.smartGroupingRecentOnly) {
                                 isComputingStructure = true
                                 kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                                     val useGrouping = appSettings.smartGroupingEnabled &&
@@ -267,7 +277,11 @@ fun InboxScreen(
                                 }
                             }
                             val displayItems = remember(inboxStructure, expandedGroupsList) {
-                                flattenDisplayItems(inboxStructure, expandedGroupsList.toSet())
+                                flattenDisplayItems(inboxStructure, expandedGroupsList.toSet(), tabPrefix = currentTab.name)
+                            }
+                            // Reset scroll to top on tab entry
+                            LaunchedEffect(Unit) {
+                                listState.scrollToItem(0)
                             }
 
                             PullToRefreshBox(
@@ -353,7 +367,7 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = contactPhotoUris[displayItem.thread.fromEmail],
+                                                        contactPhotoUri = null,
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
@@ -380,7 +394,7 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = contactPhotoUris[displayItem.thread.fromEmail],
+                                                        contactPhotoUri = null,
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
@@ -443,6 +457,7 @@ fun InboxScreen(
                                     }
                                 }
                             }
+                            } // End of AnimatedContent(currentTab)
                         }
                     }
                 }

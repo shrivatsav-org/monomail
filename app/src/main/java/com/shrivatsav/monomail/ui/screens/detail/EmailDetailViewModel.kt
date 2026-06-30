@@ -2,12 +2,9 @@ package com.shrivatsav.monomail.ui.screens.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import android.net.Uri
 import com.shrivatsav.monomail.data.model.Email
-import com.shrivatsav.monomail.data.repository.ContactPhotoProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +12,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import javax.inject.Inject
 sealed class EmailDetailState {
     data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) : EmailDetailState()
@@ -24,7 +20,6 @@ sealed class EmailDetailState {
 @HiltViewModel
 class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
-    private val contactPhotoProvider: ContactPhotoProvider,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val threadId: String = savedStateHandle.get<String>("threadId") ?: ""
@@ -61,8 +56,6 @@ class EmailDetailViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = false
         )
-    private val _contactPhotoUris = MutableStateFlow<Map<String, Uri?>>(emptyMap())
-    val contactPhotoUris: StateFlow<Map<String, Uri?>> = _contactPhotoUris.asStateFlow()
     init {
         viewModelScope.launch {
             repository.markThreadAsRead(threadId)
@@ -71,16 +64,6 @@ class EmailDetailViewModel @Inject constructor(
             _isLoading.value = false
             result.onFailure {
                 _error.value = it.message ?: "Failed to refresh thread"
-            }
-        }
-        viewModelScope.launch {
-            state.collect { s ->
-                if (s is EmailDetailState.Success) {
-                    val uris = withContext(Dispatchers.IO) {
-                        s.emails.associate { it.fromEmail to contactPhotoProvider.getPhotoUri(it.fromEmail) }
-                    }
-                    _contactPhotoUris.value = uris
-                }
             }
         }
     }
