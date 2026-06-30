@@ -46,6 +46,7 @@ import com.shrivatsav.monomail.ui.screens.inbox.InboxScreen
 import com.shrivatsav.monomail.ui.screens.inbox.InboxViewModel
 import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesScreen
 import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
+import com.shrivatsav.monomail.ui.screens.pgp.PgpKeyManagementScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
 import java.net.URLDecoder
@@ -76,6 +77,7 @@ sealed class Screen(val route: String) {
     object Legal : Screen("legal/{type}") {
         fun createRoute(type: String) = "legal/$type"
     }
+    object PgpKeys : Screen("pgp_keys")
 }
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
@@ -252,7 +254,15 @@ fun NavGraph(
                     onNavigateToLegal = { type ->
                         navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
                     },
+                    onNavigateToPgpKeys = {
+                        navController.navigate(Screen.PgpKeys.route) { launchSingleTop = true }
+                    },
                     accountCount = accounts.size
+                )
+            }
+            composable(Screen.PgpKeys.route) {
+                PgpKeyManagementScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(
