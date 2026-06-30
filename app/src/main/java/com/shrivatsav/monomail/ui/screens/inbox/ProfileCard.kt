@@ -11,9 +11,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -161,7 +161,7 @@ internal fun ProfileCard(
                                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
                             )
                             Icon(
-                                Icons.Default.KeyboardArrowDown,
+                                Icons.Rounded.KeyboardArrowDown,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                                 modifier = Modifier.size(14.dp)
@@ -181,7 +181,7 @@ internal fun ProfileCard(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                ProfileMenuItem(Icons.Outlined.Settings, "Settings", onSettings)
+                ProfileMenuItem(Icons.Rounded.Settings, "Settings", onSettings)
             }
 
             HorizontalDivider(
@@ -224,7 +224,7 @@ internal fun ProfileCard(
                     ),
                     contentPadding = PaddingValues(vertical = 12.dp)
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
                     Text(
                         "Add account",

@@ -5,7 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -36,27 +36,27 @@ internal fun BulkActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             BulkAction(
-                icon = Icons.Outlined.Archive,
+                icon = Icons.Rounded.Archive,
                 label = "Archive",
                 onClick = onArchive
             )
             BulkAction(
-                icon = Icons.Outlined.Delete,
+                icon = Icons.Rounded.Delete,
                 label = "Delete",
                 onClick = onDelete
             )
             BulkAction(
-                icon = Icons.Outlined.CheckCircle,
+                icon = Icons.Rounded.CheckCircle,
                 label = "Read",
                 onClick = onMarkRead
             )
             BulkAction(
-                icon = Icons.Outlined.MarkEmailUnread,
+                icon = Icons.Rounded.MarkEmailUnread,
                 label = "Unread",
                 onClick = onMarkUnread
             )
             BulkAction(
-                icon = Icons.Outlined.StarOutline,
+                icon = Icons.Rounded.Star,
                 label = "Star",
                 onClick = onToggleStar
             )

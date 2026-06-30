@@ -8,8 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -46,6 +46,7 @@ internal fun InboxSearchBar(
     onOpenProfile: () -> Unit,
     isBulkMode: Boolean = false,
     selectedCount: Int = 0,
+    totalCount: Int = 0,
     onSelectAll: () -> Unit = {},
     onDeselectAll: () -> Unit = {},
     onDone: () -> Unit = {},
@@ -73,43 +74,70 @@ internal fun InboxSearchBar(
     ) {
         if (isBulkMode) {
             Surface(
-                color = bulkModeContainerColor,
+                modifier = Modifier.fillMaxWidth(),
                 shape = MaterialTheme.shapes.extraLarge,
-                modifier = Modifier.fillMaxWidth()
+                color = bulkModeContainerColor,
+                tonalElevation = SearchBarDefaults.Elevation
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp)
-                        .padding(horizontal = 16.dp),
+                        .heightIn(min = 56.dp)
+                        .padding(start = 20.dp, end = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = if (selectedCount == 1) "1 selected" else "$selectedCount selected",
+                    AnimatedContent(
+                        targetState = selectedCount,
+                        label = "selectedCount",
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    TextButton(
-                        onClick = onSelectAll,
-                        shape = RoundedCornerShape(24.dp),
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.primary
+                        transitionSpec = {
+                            (fadeIn(tween(200)) + scaleIn(tween(200))).togetherWith(
+                                fadeOut(tween(150)) + scaleOut(tween(150))
+                            )
+                        }
+                    ) { count ->
+                        Text(
+                            text = if (count == 1) "1 selected" else "$count selected",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                    ) {
-                        Text("Select all")
                     }
-                    Spacer(Modifier.width(4.dp))
-                    IconButton(
-                        onClick = onDone,
-                        modifier = Modifier.size(40.dp)
-                    ) {
-                        Icon(
-                            Icons.Outlined.Close,
-                            contentDescription = "Done",
-                            tint = MaterialTheme.colorScheme.onSurface
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (selectedCount < totalCount) {
+                            TextButton(
+                                onClick = onSelectAll,
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text("Select all")
+                            }
+                        } else {
+                            TextButton(
+                                onClick = onDeselectAll,
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text("Deselect all")
+                            }
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(
+                            onClick = onDone,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Close,
+                                contentDescription = "Done",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -128,11 +156,11 @@ internal fun InboxSearchBar(
                     ) {
                         if (toast != null) {
                             val icon = when (toast.actionType) {
-                                InboxViewModel.ActionType.ARCHIVE -> Icons.Outlined.Archive
-                                InboxViewModel.ActionType.DELETE -> Icons.Outlined.Delete
-                                InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Outlined.Delete
-                                InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Outlined.Send
-                                InboxViewModel.ActionType.SNOOZE -> Icons.Outlined.Schedule
+                                InboxViewModel.ActionType.ARCHIVE -> Icons.Rounded.Archive
+                                InboxViewModel.ActionType.DELETE -> Icons.Rounded.Delete
+                                InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Rounded.Delete
+                                InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Rounded.Send
+                                InboxViewModel.ActionType.SNOOZE -> Icons.Rounded.Schedule
                             }
                             Row(
                                 modifier = Modifier
@@ -190,7 +218,7 @@ internal fun InboxSearchBar(
                                         )
                                     } else {
                                         Icon(
-                                            Icons.Outlined.Search,
+                                            Icons.Rounded.Search,
                                             contentDescription = "Search",
                                             tint = MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.padding(start = 8.dp)
@@ -222,7 +250,7 @@ internal fun InboxSearchBar(
                                                 modifier = Modifier.size(40.dp)
                                             ) {
                                                 Icon(
-                                                    Icons.Outlined.CalendarMonth,
+                                                    Icons.Rounded.CalendarMonth,
                                                     contentDescription = "Scheduled",
                                                     tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                                     modifier = Modifier.size(25.dp)
@@ -234,7 +262,7 @@ internal fun InboxSearchBar(
                                             modifier = Modifier.size(40.dp)
                                         ) {
                                             Icon(
-                                                Icons.Outlined.CheckCircle,
+                                                Icons.Rounded.CheckCircle,
                                                 contentDescription = "Mark all as read",
                                                 tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                                                 modifier = Modifier.size(25.dp)

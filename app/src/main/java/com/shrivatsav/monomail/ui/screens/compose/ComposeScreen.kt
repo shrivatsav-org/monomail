@@ -36,18 +36,18 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import java.io.ByteArrayInputStream
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.ShortText
-import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.outlined.AttachFile
-import androidx.compose.material.icons.outlined.Schedule
-import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.FormatBold
-import androidx.compose.material.icons.outlined.FormatItalic
-import androidx.compose.material.icons.outlined.FormatUnderlined
-import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
-import androidx.compose.material.icons.outlined.FormatListNumbered
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ShortText
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.AttachFile
+import androidx.compose.material.icons.rounded.Schedule
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.FormatBold
+import androidx.compose.material.icons.rounded.FormatItalic
+import androidx.compose.material.icons.rounded.FormatUnderlined
+import androidx.compose.material.icons.automirrored.rounded.FormatListBulleted
+import androidx.compose.material.icons.rounded.FormatListNumbered
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.HorizontalDivider
@@ -185,7 +185,7 @@ fun ComposeScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Back",
                             tint = MaterialTheme.colorScheme.onSurface
                         )
@@ -194,7 +194,7 @@ fun ComposeScreen(
                 actions = {
                     IconButton(onClick = { launcher.launch("*/*") }) {
                         Icon(
-                            imageVector = Icons.Outlined.AttachFile,
+                            imageVector = Icons.Rounded.AttachFile,
                             contentDescription = "Attach",
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -203,7 +203,7 @@ fun ComposeScreen(
                     val templates by viewModel.templatesFlow.collectAsState(initial = emptyList())
                     IconButton(onClick = { showTemplates = true }) {
                         Icon(
-                            imageVector = Icons.Outlined.Description,
+                            imageVector = Icons.Rounded.Description,
                             contentDescription = "Templates",
                             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                         )
@@ -285,7 +285,7 @@ fun ComposeScreen(
                             enabled = canSend
                         ) {
                             Icon(
-                                imageVector = Icons.Outlined.Schedule,
+                                imageVector = Icons.Rounded.Schedule,
                                 contentDescription = "Schedule",
                                 tint = if (canSend)
                                     MaterialTheme.colorScheme.onSurface
@@ -298,7 +298,7 @@ fun ComposeScreen(
                             enabled = canSend
                         ) {
                             Icon(
-                                imageVector = Icons.AutoMirrored.Outlined.Send,
+                                imageVector = Icons.AutoMirrored.Rounded.Send,
                                 contentDescription = "Send",
                                 tint = if (canSend)
                                     MaterialTheme.colorScheme.onSurface
@@ -628,23 +628,23 @@ private fun FormattingToolbar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('bold',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Outlined.FormatBold, "Bold", tint = if (isBold) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.FormatBold, "Bold", tint = if (isBold) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
         }
         IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('italic',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Outlined.FormatItalic, "Italic", tint = if (isItalic) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.FormatItalic, "Italic", tint = if (isItalic) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
         }
         IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('underline',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Outlined.FormatUnderlined, "Underline", tint = if (isUnderline) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.FormatUnderlined, "Underline", tint = if (isUnderline) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.width(8.dp))
         IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('insertUnorderedList',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.AutoMirrored.Outlined.FormatListBulleted, "Bullet list", tint = if (isBullet) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, "Bullet list", tint = if (isBullet) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
         }
         IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('insertOrderedList',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Outlined.FormatListNumbered, "Numbered list", tint = if (isNumber) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+            Icon(Icons.Rounded.FormatListNumbered, "Numbered list", tint = if (isNumber) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
         }
         IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('formatBlock',false,'<blockquote>');reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.AutoMirrored.Outlined.ShortText, "Quote", tint = if (isQuote) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+            Icon(Icons.AutoMirrored.Rounded.ShortText, "Quote", tint = if (isQuote) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
         }
         Spacer(modifier = Modifier.weight(1f))
     }
@@ -731,7 +731,7 @@ private fun AttachmentPreview(
                 verticalArrangement = Arrangement.Center
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Description,
+                    imageVector = Icons.Rounded.Description,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(32.dp)
@@ -755,7 +755,7 @@ private fun AttachmentPreview(
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f), CircleShape)
         ) {
             Icon(
-                imageVector = Icons.Outlined.Close,
+                imageVector = Icons.Rounded.Close,
                 contentDescription = "Remove",
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant

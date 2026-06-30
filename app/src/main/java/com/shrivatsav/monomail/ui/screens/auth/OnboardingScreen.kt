@@ -18,7 +18,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -97,11 +97,11 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                     verticalArrangement = Arrangement.Center
                 ) {
                     val icon = when (page) {
-                        0 -> Icons.Outlined.Email
-                        1 -> Icons.Outlined.AccountTree
-                        2 -> Icons.Outlined.DashboardCustomize
-                        3 -> Icons.Outlined.VolunteerActivism
-                        else -> Icons.Outlined.Security
+                        0 -> Icons.Rounded.Email
+                        1 -> Icons.Rounded.AccountTree
+                        2 -> Icons.Rounded.DashboardCustomize
+                        3 -> Icons.Rounded.VolunteerActivism
+                        else -> Icons.Rounded.Security
                     }
                     val title = when (page) {
                         0 -> "Welcome to Monomail"
@@ -176,7 +176,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                                             tint = Color.Unspecified
                                         )
                                     } else {
-                                        Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, modifier = Modifier.size(22.dp))
+                                        Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(22.dp))
                                     }
                                 }
                                 OnboardingSupportCard(
@@ -184,7 +184,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                                     label = "Pay with UPI",
                                     onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }
                                 ) {
-                                    Icon(Icons.Outlined.Payments, contentDescription = null, modifier = Modifier.size(22.dp))
+                                    Icon(Icons.Rounded.Payments, contentDescription = null, modifier = Modifier.size(22.dp))
                                 }
                             }
 
@@ -199,14 +199,14 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                                     label = "Star on GitHub",
                                     onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }
                                 ) {
-                                    Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = Modifier.size(22.dp))
+                                    Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(22.dp))
                                 }
                                 OnboardingSupportCard(
                                     modifier = Modifier.weight(1f),
                                     label = "Join Discord",
                                     onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }
                                 ) {
-                                    Icon(Icons.Outlined.HeadsetMic, contentDescription = null, modifier = Modifier.size(22.dp))
+                                    Icon(Icons.Rounded.HeadsetMic, contentDescription = null, modifier = Modifier.size(22.dp))
                                 }
                             }
 
@@ -221,7 +221,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                                 horizontalArrangement = Arrangement.SpaceEvenly
                             ) {
                                 OnboardingSupportIconAction(
-                                    icon = Icons.Outlined.Share,
+                                    icon = Icons.Rounded.Share,
                                     contentDescription = "Share Monomail",
                                     onClick = {
                                         val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
@@ -235,12 +235,12 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                                     }
                                 )
                                 OnboardingSupportIconAction(
-                                    icon = Icons.Outlined.BugReport,
+                                    icon = Icons.Rounded.BugReport,
                                     contentDescription = "Report Issue",
                                     onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }
                                 )
                                 OnboardingSupportIconAction(
-                                    icon = Icons.Outlined.AccountBalanceWallet,
+                                    icon = Icons.Rounded.AccountBalanceWallet,
                                     contentDescription = "Donate Crypto (BASE)",
                                     onClick = {
                                         val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -275,7 +275,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                                 )
                             ) {
                                 Icon(
-                                    imageVector = if (permissionsGranted) Icons.Outlined.CheckCircle else Icons.Outlined.Notifications,
+                                    imageVector = if (permissionsGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Notifications,
                                     contentDescription = null,
                                     modifier = Modifier.size(20.dp)
                                 )
@@ -307,7 +307,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                                 )
                             ) {
                                 Icon(
-                                    imageVector = if (isIgnoringBatteryOptimizations) Icons.Outlined.CheckCircle else Icons.Outlined.BatteryChargingFull,
+                                    imageVector = if (isIgnoringBatteryOptimizations) Icons.Rounded.CheckCircle else Icons.Rounded.BatteryChargingFull,
                                     contentDescription = null,
                                     modifier = Modifier.size(20.dp)
                                 )

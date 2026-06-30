@@ -10,13 +10,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.Reply
-import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.automirrored.outlined.ShortText
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material.icons.outlined.SystemUpdate
-import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Reply
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.ShortText
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,7 +59,7 @@ fun SettingsScreen(
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
+                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Back",
                             tint = MaterialTheme.colorScheme.onSurface
                         )
@@ -81,7 +81,7 @@ fun SettingsScreen(
         ) {
             Spacer(Modifier.height(4.dp))
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.Palette, title = "Appearance")
+                SectionHeader(icon = Icons.Rounded.Palette, title = "Appearance")
                 ThemeSelectorRow(
                     currentTheme = settings.themeMode,
                     onThemeSelected = { viewModel.setThemeMode(it) }
@@ -93,7 +93,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
-                    icon = Icons.Outlined.HorizontalRule,
+                    icon = Icons.Rounded.HorizontalRule,
                     title = "Show Dividers",
                     subtitle = "Show lines between emails",
                     checked = settings.showDividers,
@@ -101,7 +101,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
-                    icon = Icons.Outlined.DensitySmall,
+                    icon = Icons.Rounded.DensitySmall,
                     title = "Compact List",
                     subtitle = "Reduce spacing in email list",
                     checked = settings.compactList,
@@ -109,7 +109,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
-                    icon = Icons.AutoMirrored.Outlined.ShortText,
+                    icon = Icons.AutoMirrored.Rounded.ShortText,
                     title = "Show Snippet Preview",
                     subtitle = "Display preview text below sender",
                     checked = settings.showSnippet,
@@ -117,7 +117,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
-                    icon = Icons.Outlined.ImageNotSupported,
+                    icon = Icons.Rounded.ImageNotSupported,
                     title = "Load Remote Images",
                     subtitle = "When off, external images in emails are blocked until you tap to load them",
                     checked = settings.loadRemoteImages,
@@ -125,9 +125,9 @@ fun SettingsScreen(
                 )
             }
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.TouchApp, title = "Behavior")
+                SectionHeader(icon = Icons.Rounded.TouchApp, title = "Behavior")
                 SettingsToggleRow(
-                    icon = Icons.Outlined.Forum,
+                    icon = Icons.Rounded.Forum,
                     title = if (settings.organizeByThread) "Conversation View" else "Message Chain",
                     subtitle = if (settings.organizeByThread) "Collapsible grouped threads in detail view" else "All messages expanded as a chain",
                     checked = settings.organizeByThread,
@@ -135,7 +135,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
-                    icon = Icons.Outlined.FolderSpecial,
+                    icon = Icons.Rounded.FolderSpecial,
                     title = "Smart Grouping",
                     subtitle = "Group frequent senders into folders",
                     checked = settings.smartGroupingEnabled,
@@ -154,7 +154,7 @@ fun SettingsScreen(
                     Column {
                         CardDivider()
                         SettingsToggleRow(
-                            icon = Icons.Outlined.Schedule,
+                            icon = Icons.Rounded.Schedule,
                             title = "Group Recent Only",
                             subtitle = "Only group emails from the last 24 hours",
                             checked = settings.smartGroupingRecentOnly,
@@ -165,7 +165,7 @@ fun SettingsScreen(
                 }
                 CardDivider()
                 BottomSheetPickerRow(
-                    icon = Icons.Outlined.SwipeLeft,
+                    icon = Icons.Rounded.SwipeLeft,
                     title = "Swipe Left",
                     currentValue = settings.swipeLeftAction.displayName(),
                     options = SwipeAction.entries.map { it.displayName() },
@@ -173,7 +173,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 BottomSheetPickerRow(
-                    icon = Icons.Outlined.SwipeRight,
+                    icon = Icons.Rounded.SwipeRight,
                     title = "Swipe Right",
                     currentValue = settings.swipeRightAction.displayName(),
                     options = SwipeAction.entries.map { it.displayName() },
@@ -181,7 +181,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
-                    icon = Icons.Outlined.CheckCircle,
+                    icon = Icons.Rounded.CheckCircle,
                     title = "Confirm Before Sending",
                     subtitle = "Show confirmation before send",
                     checked = settings.confirmBeforeSending,
@@ -189,7 +189,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 BottomSheetPickerRow(
-                    icon = Icons.AutoMirrored.Outlined.Reply,
+                    icon = Icons.AutoMirrored.Rounded.Reply,
                     title = "Default Reply",
                     currentValue = settings.defaultReply.displayName(),
                     options = DefaultReply.entries.map { it.displayName() },
@@ -197,7 +197,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 SettingsToggleRow(
-                    icon = Icons.Outlined.HistoryToggleOff,
+                    icon = Icons.Rounded.HistoryToggleOff,
                     title = "Undo Send",
                     subtitle = "Hold email for ${settings.undoSendWindow.seconds}s before sending",
                     checked = settings.undoSendEnabled,
@@ -211,7 +211,7 @@ fun SettingsScreen(
                     Column {
                         CardDivider()
                         BottomSheetPickerRow(
-                            icon = Icons.Outlined.Timer,
+                            icon = Icons.Rounded.Timer,
                             title = "Undo Window",
                             currentValue = settings.undoSendWindow.displayName(),
                             options = UndoSendWindow.entries.map { it.displayName() },
@@ -222,9 +222,9 @@ fun SettingsScreen(
                 }
             }
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.SpaceDashboard, title = "Dock Bar")
+                SectionHeader(icon = Icons.Rounded.SpaceDashboard, title = "Dock Bar")
                 SettingsToggleRow(
-                    icon = Icons.Outlined.Inbox,
+                    icon = Icons.Rounded.Inbox,
                     title = "Unified Inbox",
                     subtitle = if (accountCount > 1) "Show emails from all accounts in one tab"
                                else "Add another account to enable",
@@ -246,9 +246,9 @@ fun SettingsScreen(
                 )
             }
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.Notifications, title = "Notifications")
+                SectionHeader(icon = Icons.Rounded.Notifications, title = "Notifications")
                 SettingsToggleRow(
-                    icon = Icons.Outlined.NotificationsActive,
+                    icon = Icons.Rounded.NotificationsActive,
                     title = "Email Notifications",
                     subtitle = "Receive push notifications for new emails",
                     checked = settings.emailNotifications,
@@ -256,7 +256,7 @@ fun SettingsScreen(
                 )
                 CardDivider()
                 BottomSheetPickerRow(
-                    icon = Icons.Outlined.Sync,
+                    icon = Icons.Rounded.Sync,
                     title = "Sync Frequency",
                     currentValue = settings.syncFrequency.displayName(),
                     options = SyncFrequency.entries.map { it.displayName() },
@@ -264,7 +264,7 @@ fun SettingsScreen(
                 )
             }
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.Build, title = "Build Distribution")
+                SectionHeader(icon = Icons.Rounded.Build, title = "Build Distribution")
                 val buildFlavorName = if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
                 val buildTypeName = if (com.shrivatsav.monomail.BuildConfig.DEBUG) "Debug" else "Release"
                 val isFcmCompiled = remember {
@@ -277,19 +277,19 @@ fun SettingsScreen(
                 }
                 val fcmStatusText = if (isFcmCompiled) "FCM Push Enabled" else "FCM Push Disabled"
                 InfoRow(
-                    icon = Icons.Outlined.Layers,
+                    icon = Icons.Rounded.Layers,
                     title = "Product Flavor",
                     value = buildFlavorName
                 )
                 CardDivider()
                 InfoRow(
-                    icon = Icons.Outlined.SettingsApplications,
+                    icon = Icons.Rounded.SettingsApplications,
                     title = "Build Type",
                     value = buildTypeName
                 )
                 CardDivider()
                 InfoRow(
-                    icon = Icons.Outlined.CloudQueue,
+                    icon = Icons.Rounded.CloudQueue,
                     title = "Push Capability",
                     value = fcmStatusText
                 )
@@ -300,7 +300,7 @@ fun SettingsScreen(
             val context = androidx.compose.ui.platform.LocalContext.current
             val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.SystemUpdate, title = "Updates")
+                SectionHeader(icon = Icons.Rounded.SystemUpdate, title = "Updates")
                 val updateText = when (updateState) {
                     UpdateState.IDLE -> "Check for Updates"
                     UpdateState.CHECKING -> "Checking..."
@@ -309,7 +309,7 @@ fun SettingsScreen(
                     UpdateState.ERROR -> "Error checking for updates."
                 }
                 InfoRow(
-                    icon = if (updateState == UpdateState.UPDATE_AVAILABLE) Icons.Outlined.Download else Icons.Outlined.Refresh,
+                    icon = if (updateState == UpdateState.UPDATE_AVAILABLE) Icons.Rounded.Download else Icons.Rounded.Refresh,
                     title = updateText,
                     value = "",
                     onClick = {
@@ -322,41 +322,41 @@ fun SettingsScreen(
                 )
             }
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.Info, title = "About")
+                SectionHeader(icon = Icons.Rounded.Info, title = "About")
                 InfoRow(
-                    icon = Icons.Outlined.Info,
+                    icon = Icons.Rounded.Info,
                     title = "Version",
                     value = com.shrivatsav.monomail.BuildConfig.VERSION_NAME
                 )
                 CardDivider()
                 InfoRow(
-                    icon = Icons.Outlined.PrivacyTip,
+                    icon = Icons.Rounded.PrivacyTip,
                     title = "Privacy Policy",
                     value = "",
                     onClick = { onNavigateToLegal("privacy") }
                 )
                 CardDivider()
                 InfoRow(
-                    icon = Icons.Outlined.Gavel,
+                    icon = Icons.Rounded.Gavel,
                     title = "Terms of Service",
                     value = "",
                     onClick = { onNavigateToLegal("tos") }
                 )
                 CardDivider()
                 InfoRow(
-                    icon = Icons.Outlined.Description,
+                    icon = Icons.Rounded.Description,
                     title = "Open Source Licenses",
                     value = ""
                 )
                 CardDivider()
                 InfoRow(
-                    icon = Icons.Outlined.Code,
+                    icon = Icons.Rounded.Code,
                     title = "License",
                     value = "GNU GPL v3.0"
                 )
             }
             SettingsCard {
-                SectionHeader(icon = Icons.Outlined.FavoriteBorder, title = "Support")
+                SectionHeader(icon = Icons.Rounded.FavoriteBorder, title = "Support")
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -374,16 +374,16 @@ fun SettingsScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         SupportButton(label = "Buy me a coffee", onClick = { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }) { modifier ->
                             if (kofiIcon != null) Icon(painter = kofiIcon, contentDescription = null, modifier = modifier, tint = Color.Unspecified)
-                            else Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, modifier = modifier)
+                            else Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = modifier)
                         }
                         SupportButton(label = "Pay with UPI", onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }) { modifier ->
-                            Icon(Icons.Outlined.Payments, contentDescription = null, modifier = modifier)
+                            Icon(Icons.Rounded.Payments, contentDescription = null, modifier = modifier)
                         }
                         SupportButton(label = "Star on GitHub", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }) { modifier ->
-                            Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = modifier)
+                            Icon(Icons.Rounded.Star, contentDescription = null, modifier = modifier)
                         }
                         SupportButton(label = "Join Discord Server", onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }) { modifier ->
-                            Icon(Icons.Outlined.HeadsetMic, contentDescription = null, modifier = modifier)
+                            Icon(Icons.Rounded.HeadsetMic, contentDescription = null, modifier = modifier)
                         }
                         SupportButton(label = "Share Monomail", onClick = {
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
@@ -392,17 +392,17 @@ fun SettingsScreen(
                             }
                             context.startActivity(android.content.Intent.createChooser(intent, "Share Monomail"))
                         }) { modifier ->
-                            Icon(Icons.Outlined.Share, contentDescription = null, modifier = modifier)
+                            Icon(Icons.Rounded.Share, contentDescription = null, modifier = modifier)
                         }
                         SupportButton(label = "Report Issue", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }) { modifier ->
-                            Icon(Icons.Outlined.BugReport, contentDescription = null, modifier = modifier)
+                            Icon(Icons.Rounded.BugReport, contentDescription = null, modifier = modifier)
                         }
                         SupportButton(label = "Donate Crypto (BASE)", onClick = {
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crypto Address", "0xB27Ba9241de81F6DBCB322aDd76a9d9686462e9E"))
                             android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
                         }) { modifier ->
-                            Icon(Icons.Outlined.AccountBalanceWallet, contentDescription = null, modifier = modifier)
+                            Icon(Icons.Rounded.AccountBalanceWallet, contentDescription = null, modifier = modifier)
                         }
                     }
                 }
@@ -529,7 +529,7 @@ private fun ThemeSelectorRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Outlined.DarkMode,
+                imageVector = Icons.Rounded.DarkMode,
                 contentDescription = "Theme",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
@@ -606,7 +606,7 @@ private fun FontSizeRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Outlined.FormatSize,
+                imageVector = Icons.Rounded.FormatSize,
                 contentDescription = "Font Size",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
@@ -687,7 +687,7 @@ private fun NavSizeRow(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                imageVector = Icons.Outlined.SpaceDashboard,
+                imageVector = Icons.Rounded.SpaceDashboard,
                 contentDescription = "Navigation Size",
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(20.dp)
@@ -827,7 +827,7 @@ private fun BottomSheetPickerRow(
         )
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
-            imageVector = Icons.Outlined.ChevronRight,
+            imageVector = Icons.Rounded.ChevronRight,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
             modifier = Modifier.size(18.dp)
@@ -877,7 +877,7 @@ private fun BottomSheetPickerRow(
                         )
                         if (isSelected) {
                             Icon(
-                                imageVector = Icons.Outlined.Check,
+                                imageVector = Icons.Rounded.Check,
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(20.dp)
@@ -927,7 +927,7 @@ private fun InfoRow(
         if (onClick != null) {
             Spacer(modifier = Modifier.width(4.dp))
             Icon(
-                imageVector = Icons.Outlined.ChevronRight,
+                imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.size(18.dp)
@@ -974,7 +974,7 @@ private fun TemplatesCard(viewModel: SettingsViewModel) {
     var subjectInput by remember { mutableStateOf("") }
     var bodyInput by remember { mutableStateOf("") }
     SettingsCard {
-        SectionHeader(icon = Icons.Outlined.Description, title = "Templates")
+        SectionHeader(icon = Icons.Rounded.Description, title = "Templates")
         if (templates.isEmpty()) {
             Text(
                 text = "No templates yet",
@@ -1012,13 +1012,13 @@ private fun TemplatesCard(viewModel: SettingsViewModel) {
                         bodyInput = template.body
                         showEditor = true
                     }) {
-                        Icon(Icons.Outlined.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = {
                         val updated = templates.toMutableList().apply { removeAt(index) }
                         viewModel.saveTemplates(updated)
                     }) {
-                        Icon(Icons.Outlined.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Rounded.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
                     }
                 }
                 if (index < templates.lastIndex) CardDivider()
@@ -1035,7 +1035,7 @@ private fun TemplatesCard(viewModel: SettingsViewModel) {
             },
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(6.dp))
             Text("Add Template")
         }
@@ -1139,7 +1139,7 @@ private fun DockBarEditor(
                     modifier = Modifier.size(32.dp),
                     enabled = index > 0
                 ) {
-                    Icon(Icons.Outlined.KeyboardArrowUp, contentDescription = "Move up", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move up", modifier = Modifier.size(18.dp))
                 }
                 IconButton(
                     onClick = {
@@ -1152,7 +1152,7 @@ private fun DockBarEditor(
                     modifier = Modifier.size(32.dp),
                     enabled = index < dockConfig.primaryTabs.lastIndex
                 ) {
-                    Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = "Move down", modifier = Modifier.size(18.dp))
+                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move down", modifier = Modifier.size(18.dp))
                 }
                 if (dockConfig.primaryTabs.size > 1) {
                     IconButton(
@@ -1163,7 +1163,7 @@ private fun DockBarEditor(
                         },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Outlined.RemoveCircleOutline, contentDescription = "Remove", modifier = Modifier.size(18.dp),
+                        Icon(Icons.Rounded.RemoveCircleOutline, contentDescription = "Remove", modifier = Modifier.size(18.dp),
                              tint = MaterialTheme.colorScheme.error)
                     }
                 } else {
@@ -1210,7 +1210,7 @@ private fun DockBarEditor(
                             list.add(tabId)
                             onConfigChanged(DockConfig(primaryTabs = list))
                         }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Outlined.AddCircleOutline, contentDescription = "Add", modifier = Modifier.size(18.dp),
+                            Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Add", modifier = Modifier.size(18.dp),
                                  tint = MaterialTheme.colorScheme.primary)
                         }
                     }
@@ -1221,14 +1221,14 @@ private fun DockBarEditor(
 }
 
 private fun dockTabIcon(tab: DockTabId): ImageVector = when (tab) {
-    DockTabId.UNIFIED -> Icons.Outlined.Inbox
-    DockTabId.INBOX -> Icons.Outlined.Inbox
-    DockTabId.SENT -> Icons.AutoMirrored.Outlined.Send
-    DockTabId.ARCHIVED -> Icons.Outlined.Archive
-    DockTabId.SNOOZED -> Icons.Outlined.Schedule
-    DockTabId.STARRED -> Icons.Outlined.StarOutline
-    DockTabId.TRASH -> Icons.Outlined.Delete
-    DockTabId.SPAM -> Icons.Outlined.Report
+    DockTabId.UNIFIED -> Icons.Rounded.Inbox
+    DockTabId.INBOX -> Icons.Rounded.Inbox
+    DockTabId.SENT -> Icons.AutoMirrored.Rounded.Send
+    DockTabId.ARCHIVED -> Icons.Rounded.Archive
+    DockTabId.SNOOZED -> Icons.Rounded.Schedule
+    DockTabId.STARRED -> Icons.Rounded.Star
+    DockTabId.TRASH -> Icons.Rounded.Delete
+    DockTabId.SPAM -> Icons.Rounded.Report
 }
 
 private fun dockTabLabel(tab: DockTabId): String = when (tab) {

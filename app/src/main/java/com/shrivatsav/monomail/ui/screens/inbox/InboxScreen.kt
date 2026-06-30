@@ -11,9 +11,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
@@ -198,7 +198,9 @@ fun InboxScreen(
                         scheduledCount = scheduledCount,
                         isBulkMode = isBulkMode,
                         selectedCount = selectedCount,
+                        totalCount = localFilteredThreads?.size ?: currentThreads.size,
                         onSelectAll = { viewModel.selectAll() },
+                        onDeselectAll = { viewModel.deselectAll() },
                         onDone = { viewModel.exitBulkSelectMode() }
                     )
 
@@ -266,6 +268,17 @@ fun InboxScreen(
                             }
                             val displayItems = remember(inboxStructure, expandedGroupsList) {
                                 flattenDisplayItems(inboxStructure, expandedGroupsList.toSet(), tabPrefix = currentTab.name)
+                            }
+                            val orderedThreadIds by remember(displayItems) {
+                                derivedStateOf {
+                                    displayItems.mapNotNull { item ->
+                                        when (item) {
+                                            is InboxDisplayItem.SingleThread -> item.thread.threadId
+                                            is InboxDisplayItem.NestedThread -> item.thread.threadId
+                                            else -> null
+                                        }
+                                    }
+                                }
                             }
                             // Reset scroll to top on tab entry
                             LaunchedEffect(Unit) {
@@ -371,6 +384,7 @@ fun InboxScreen(
                                                         isBulkMode = isBulkMode,
                                                         isSelected = displayItem.thread.threadId in selectedThreadIds,
                                                         onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                        onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
                                                         onAvatarLongClick = {
                                                             viewModel.enterBulkSelectMode(displayItem.thread.threadId)
                                                         }
@@ -397,6 +411,7 @@ fun InboxScreen(
                                                         isBulkMode = isBulkMode,
                                                         isSelected = displayItem.thread.threadId in selectedThreadIds,
                                                         onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                        onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
                                                         onAvatarLongClick = {
                                                             viewModel.enterBulkSelectMode(displayItem.thread.threadId)
                                                         }
@@ -496,7 +511,7 @@ fun InboxScreen(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                                        Icons.Outlined.Delete,
+                                        Icons.Rounded.Delete,
                                         contentDescription = "Empty Trash",
                                         modifier = Modifier.size((22 * appSettings.navScale).dp)
                                     )
@@ -522,7 +537,7 @@ fun InboxScreen(
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     Icon(
-                                        Icons.Outlined.Report,
+                                        Icons.Rounded.Report,
                                         contentDescription = "Empty Spam",
                                         modifier = Modifier.size((22 * appSettings.navScale).dp)
                                     )
@@ -542,7 +557,7 @@ fun InboxScreen(
                                 elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
                                 modifier = Modifier.size((52 * appSettings.navScale).dp)
                             ) {
-                                Icon(Icons.Outlined.Edit, contentDescription = "Compose")
+                                Icon(Icons.Rounded.Edit, contentDescription = "Compose")
                             }
                         }
                     }
@@ -636,7 +651,7 @@ fun InboxScreen(
                             ) {
                                 if (tabForMenu == InboxTab.SNOOZED) {
                                     LongPressAction(
-                                        icon = Icons.Outlined.Restore,
+                                        icon = Icons.Rounded.Restore,
                                         label = "Unsnooze",
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         onClick = {
@@ -646,7 +661,7 @@ fun InboxScreen(
                                     )
                                 } else {
                                     LongPressAction(
-                                        icon = if (thread.isStarred) Icons.Filled.Star else Icons.Outlined.StarOutline,
+                                        icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.Star,
                                         label = if (thread.isStarred) "Unstar" else "Star",
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         onClick = {
@@ -656,7 +671,7 @@ fun InboxScreen(
                                     )
                                 }
                                 LongPressAction(
-                                    icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Outlined.Inbox else Icons.Outlined.Archive,
+                                    icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
                                     label = when (tabForMenu) {
                                         InboxTab.ARCHIVED -> "Unarchive"
                                         InboxTab.SPAM -> "Not spam"
@@ -674,7 +689,7 @@ fun InboxScreen(
                                     }
                                 )
                                 LongPressAction(
-                                    icon = if (thread.isRead) Icons.Outlined.MarkEmailUnread else Icons.Outlined.CheckCircle,
+                                    icon = if (thread.isRead) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle,
                                     label = if (thread.isRead) "Unread" else "Read",
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     onClick = {
@@ -685,7 +700,7 @@ fun InboxScreen(
                                 )
                                 if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED && tabForMenu != InboxTab.SPAM) {
                                     LongPressAction(
-                                        icon = Icons.Outlined.Schedule,
+                                        icon = Icons.Rounded.Schedule,
                                         label = "Snooze",
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         onClick = {
@@ -695,7 +710,7 @@ fun InboxScreen(
                                     )
                                 }
                                 LongPressAction(
-                                    icon = if (tabForMenu == InboxTab.TRASH) Icons.Outlined.Restore else Icons.Outlined.Delete,
+                                    icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
                                     label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
                                     tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface
                                     else MaterialTheme.colorScheme.error,
@@ -795,7 +810,7 @@ fun InboxScreen(
                                 tint = Color.Unspecified
                             )
                         } else {
-                            Icon(Icons.Outlined.FavoriteBorder, contentDescription = null, modifier = Modifier.size(22.dp))
+                            Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(22.dp))
                         }
                     }
                     SupportCard(
@@ -803,7 +818,7 @@ fun InboxScreen(
                         label = "Pay with UPI",
                         onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }
                     ) {
-                        Icon(Icons.Outlined.Payments, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.Payments, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
                 }
 
@@ -818,14 +833,14 @@ fun InboxScreen(
                         label = "Star on GitHub",
                         onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }
                     ) {
-                        Icon(Icons.Outlined.StarOutline, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
                     SupportCard(
                         modifier = Modifier.weight(1f),
                         label = "Join Discord",
                         onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }
                     ) {
-                        Icon(Icons.Outlined.HeadsetMic, contentDescription = null, modifier = Modifier.size(22.dp))
+                        Icon(Icons.Rounded.HeadsetMic, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
                 }
 
@@ -841,7 +856,7 @@ fun InboxScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     SupportIconAction(
-                        icon = Icons.Outlined.Share,
+                        icon = Icons.Rounded.Share,
                         contentDescription = "Share Monomail",
                         onClick = {
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
@@ -855,12 +870,12 @@ fun InboxScreen(
                         }
                     )
                     SupportIconAction(
-                        icon = Icons.Outlined.BugReport,
+                        icon = Icons.Rounded.BugReport,
                         contentDescription = "Report Issue",
                         onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }
                     )
                     SupportIconAction(
-                        icon = Icons.Outlined.AccountBalanceWallet,
+                        icon = Icons.Rounded.AccountBalanceWallet,
                         contentDescription = "Donate Crypto (BASE)",
                         onClick = {
                             val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
@@ -1331,7 +1346,7 @@ private fun GroupHeaderItem(
             label = "chevron"
         )
         Icon(
-            imageVector = Icons.Outlined.ExpandMore,
+            imageVector = Icons.Rounded.ExpandMore,
             contentDescription = if (isExpanded) "Collapse" else "Expand",
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
             modifier = Modifier.rotate(rotation)

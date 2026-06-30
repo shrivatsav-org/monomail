@@ -8,10 +8,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.automirrored.outlined.Send
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.rounded.KeyboardArrowDown
+import androidx.compose.material.icons.rounded.KeyboardArrowUp
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -111,8 +111,8 @@ internal fun BottomDockBar(
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            if (showRemainingTabs) Icons.Default.KeyboardArrowUp
-                            else Icons.Default.KeyboardArrowDown,
+                            if (showRemainingTabs) Icons.Rounded.KeyboardArrowUp
+                            else Icons.Rounded.KeyboardArrowDown,
                             contentDescription = if (showRemainingTabs) "Collapse" else "More tabs",
                             tint = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.size((22 * appSettings.navScale).dp)
@@ -171,14 +171,14 @@ private fun DockTabId.toInboxTab(): InboxTab = when (this) {
 }
 
 internal fun DockTabId.icon(unifiedInboxEnabled: Boolean): ImageVector = when (this) {
-    DockTabId.UNIFIED -> Icons.Outlined.Inbox
-    DockTabId.INBOX -> if (unifiedInboxEnabled) Icons.Outlined.AccountCircle else Icons.Outlined.Inbox
-    DockTabId.SENT -> Icons.AutoMirrored.Outlined.Send
-    DockTabId.ARCHIVED -> Icons.Outlined.Archive
-    DockTabId.SNOOZED -> Icons.Outlined.Schedule
-    DockTabId.STARRED -> Icons.Outlined.StarOutline
-    DockTabId.TRASH -> Icons.Outlined.Delete
-    DockTabId.SPAM -> Icons.Outlined.Report
+    DockTabId.UNIFIED -> Icons.Rounded.Inbox
+    DockTabId.INBOX -> if (unifiedInboxEnabled) Icons.Rounded.AccountCircle else Icons.Rounded.Inbox
+    DockTabId.SENT -> Icons.AutoMirrored.Rounded.Send
+    DockTabId.ARCHIVED -> Icons.Rounded.Archive
+    DockTabId.SNOOZED -> Icons.Rounded.Schedule
+    DockTabId.STARRED -> Icons.Rounded.Star
+    DockTabId.TRASH -> Icons.Rounded.Delete
+    DockTabId.SPAM -> Icons.Rounded.Report
 }
 
 internal fun DockTabId.label(unifiedInboxEnabled: Boolean): String = when (this) {
