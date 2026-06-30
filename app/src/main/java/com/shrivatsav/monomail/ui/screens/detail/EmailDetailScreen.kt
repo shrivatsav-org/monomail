@@ -45,8 +45,11 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.ImageNotSupported
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LinearProgressIndicator
@@ -78,6 +81,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.model.Email
+import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
 import com.shrivatsav.monomail.util.HtmlSanitizer
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -99,6 +103,7 @@ fun EmailDetailScreen(
     val renderMarkdown by viewModel.renderMarkdown.collectAsState()
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
+    val decryptedBodies by viewModel.decryptedBodies.collectAsState()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -202,15 +207,17 @@ fun EmailDetailScreen(
                         }
                     } else {
                         val latestEmail = emails.last()
+                        val latestBody = decryptedBodies[latestEmail.id]?.decryptedBody ?: latestEmail.body
                         ThreadConversationContent(
                             emails = emails,
+                            decryptedBodies = decryptedBodies,
                             modifier = Modifier.weight(1f),
                             isConversationView = isConversationView,
                             fontScaleMultiplier = fontScaleMultiplier,
                             loadRemoteImages = loadRemoteImages,
                             renderMarkdown = renderMarkdown,
-                            onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
-                            onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
+                            onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
+                            onForward = { onForward(latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
                             onFetchAttachment = onFetchAttachment
                         )
                     }
@@ -222,6 +229,7 @@ fun EmailDetailScreen(
 @Composable
 private fun ThreadConversationContent(
     emails: List<Email>,
+    decryptedBodies: Map<String, PgpDecryptionResult> = emptyMap(),
     modifier: Modifier = Modifier,
     isConversationView: Boolean = true,
     fontScaleMultiplier: Float = 1f,
@@ -442,6 +450,7 @@ private fun ThreadConversationContent(
                             }
                             MessageBody(
                                 email = email,
+                                decryptedResult = decryptedBodies[email.id],
                                 bgColor = bgColor,
                                 textColor = textColor,
                                 linkColor = linkColor,
@@ -457,6 +466,7 @@ private fun ThreadConversationContent(
             } else {
                 MessageBody(
                     email = email,
+                    decryptedResult = decryptedBodies[email.id],
                     bgColor = bgColor,
                     textColor = textColor,
                     linkColor = linkColor,
@@ -526,6 +536,7 @@ private fun ThreadConversationContent(
 @Composable
 private fun MessageBody(
     email: Email,
+    decryptedResult: PgpDecryptionResult? = null,
     bgColor: String,
     textColor: String,
     linkColor: String,
@@ -537,18 +548,68 @@ private fun MessageBody(
     messageCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
+    val bodyText = decryptedResult?.decryptedBody ?: email.body
+    val bodyIsHtml = decryptedResult?.decryptedBody != null && email.bodyIsHtml
     Column(modifier = modifier) {
+        // Encryption badge
+        if (decryptedResult != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+                    .background(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
+                        RoundedCornerShape(6.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Lock,
+                    contentDescription = "Encrypted",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = "Encrypted",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                val sigs = decryptedResult.signatures
+                if (!sigs.isNullOrEmpty()) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    sigs.forEach { sig ->
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Icon(
+                            imageVector = if (sig.isValid) Icons.Rounded.CheckCircle else Icons.Rounded.Warning,
+                            contentDescription = if (sig.isValid) "Valid signature" else "Invalid signature",
+                            tint = if (sig.isValid) MaterialTheme.colorScheme.primary
+                                   else MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = sig.signer,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
     val fontSize = (15f * fontScaleMultiplier).coerceIn(10f, 28f)
     val smallFontSize = (13f * fontScaleMultiplier).coerceIn(9f, 24f)
     var showQuotedText by remember { mutableStateOf(false) }
     var showRemoteImages by remember { mutableStateOf(false) }
-    val hasQuotedText = remember(email.body) {
-        email.body.contains("<blockquote", ignoreCase = true) ||
-        email.body.contains("gmail_quote", ignoreCase = true) ||
-        email.body.contains("gmail_extra", ignoreCase = true) ||
-        email.body.contains("yahoo_quoted", ignoreCase = true) ||
-        email.body.contains("moz-cite-prefix", ignoreCase = true) ||
-        email.body.contains("On ", ignoreCase = true) && email.body.contains(" wrote:", ignoreCase = true)
+    val hasQuotedText = remember(bodyText) {
+        bodyText.contains("<blockquote", ignoreCase = true) ||
+        bodyText.contains("gmail_quote", ignoreCase = true) ||
+        bodyText.contains("gmail_extra", ignoreCase = true) ||
+        bodyText.contains("yahoo_quoted", ignoreCase = true) ||
+        bodyText.contains("moz-cite-prefix", ignoreCase = true) ||
+        bodyText.contains("On ", ignoreCase = true) && bodyText.contains(" wrote:", ignoreCase = true)
     }
     if (showSender) {
         val isMsgUnread = !email.isRead
@@ -658,22 +719,22 @@ private fun MessageBody(
 
         // Images blocked banner (shown when loadRemoteImages is off and showRemoteImages is still false)
 
-        val htmlContent = remember(email.id, email.body, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown) {
+        val htmlContent = remember(email.id, bodyText, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown) {
             // Determine body: preserve or strip quoted text
-            val bodyText = if (showQuotedText) email.body else stripQuotedText(email.body)
+            val displayBody = if (showQuotedText) bodyText else stripQuotedText(bodyText)
 
             // Convert markdown to HTML for plain text bodies if enabled
-            val preparedBody = if (email.bodyIsHtml) {
-                bodyText
+            val preparedBody = if (bodyIsHtml) {
+                displayBody
             } else if (renderMarkdown) {
                 try {
-                    markdownToHtml(bodyText)
+                    markdownToHtml(displayBody)
                 } catch (_: Exception) {
-                    TextUtils.htmlEncode(bodyText)
+                    TextUtils.htmlEncode(displayBody)
                         .replace("\n", "<br>")
                 }
             } else {
-                TextUtils.htmlEncode(bodyText)
+                TextUtils.htmlEncode(displayBody)
                     .replace("\n", "<br>")
             }
 
@@ -771,8 +832,8 @@ private fun MessageBody(
 
         // "Images blocked" banner — only shown when remote images are disabled by setting
         if (!loadRemoteImages && !showRemoteImages) {
-            val hasExternalImages = remember(email.body) {
-                email.body.contains("""src="http""", ignoreCase = true)
+            val hasExternalImages = remember(bodyText) {
+                bodyText.contains("""src="http""", ignoreCase = true)
             }
             if (hasExternalImages) {
                 Row(

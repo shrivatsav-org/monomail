@@ -145,6 +145,57 @@ class PgpManager @Inject constructor(
         }
     }
 
+    fun encryptAndSignBody(
+        plaintext: String,
+        toAddresses: List<String>,
+        signingFingerprint: String? = null
+    ): PgpEncryptionResult? {
+        val recipientRings = toAddresses.mapNotNull { address ->
+            val fp = keyManager.getPublicKeyForRecipientAsFingerprint(address) ?: return@mapNotNull null
+            val armored = storage.loadPublicKey(fp) ?: return@mapNotNull null
+            try {
+                PGPainless.readKeyRing().publicKeyRing(armored)
+            } catch (_: Exception) { null }
+        }
+
+        if (recipientRings.isEmpty()) return null
+
+        try {
+            val encryptionOptions = EncryptionOptions.get()
+            for (ring in recipientRings) {
+                encryptionOptions.addRecipient(ring)
+            }
+
+            val producerOptions: ProducerOptions = if (signingFingerprint != null) {
+                val armoredSecret = storage.loadPrivateKey(signingFingerprint) ?: return null
+                val secretKeyRing = try {
+                    PGPainless.readKeyRing().secretKeyRing(armoredSecret)!!
+                } catch (_: Exception) { return null }
+
+                val protector = SecretKeyRingProtector.unprotectedKeys()
+                val signingOptions = SigningOptions.get()
+                    .addInlineSignature(protector, secretKeyRing)
+
+                ProducerOptions.signAndEncrypt(encryptionOptions, signingOptions)
+            } else {
+                ProducerOptions.encrypt(encryptionOptions)
+            }
+
+            val outputStream = ByteArrayOutputStream()
+            val encryptionStream = PGPainless.encryptAndOrSign()
+                .onOutputStream(outputStream)
+                .withOptions(producerOptions)
+
+            encryptionStream.write(plaintext.toByteArray())
+            encryptionStream.close()
+
+            val encrypted = outputStream.toString(Charsets.UTF_8.name())
+            return PgpEncryptionResult(encryptedBody = encrypted)
+        } catch (e: Exception) {
+            return null
+        }
+    }
+
     fun getAvailableEncryptionKeys(): List<PgpKeyInfo> {
         return keyManager.listKeys().filter { !it.isPrivate }
     }
