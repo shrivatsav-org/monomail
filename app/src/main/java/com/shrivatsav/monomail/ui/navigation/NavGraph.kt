@@ -270,10 +270,19 @@ fun NavGraph(
                 val threadId = backStackEntry.arguments?.getString("threadId") ?: return@composable
                 val vm: EmailDetailViewModel = hiltViewModel()
                 val appSettings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
+                val fontScaleMultiplier = when (appSettings.fontScale) {
+                    com.shrivatsav.monomail.data.settings.FontScale.EXTRA_SMALL -> 0.8f
+                    com.shrivatsav.monomail.data.settings.FontScale.SMALL       -> 0.9f
+                    com.shrivatsav.monomail.data.settings.FontScale.DEFAULT     -> 1.0f
+                    com.shrivatsav.monomail.data.settings.FontScale.LARGE       -> 1.15f
+                    com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE -> 1.3f
+                }
                 EmailDetailScreen(
                     viewModel = vm,
                     onBack    = { navController.popBackStack() },
                     isConversationView = appSettings.organizeByThread,
+                    fontScaleMultiplier = fontScaleMultiplier,
+                    loadRemoteImages = appSettings.loadRemoteImages,
                     onReply   = { to, subject, body, tid, messageId ->
                         navController.navigate(
                             Screen.Compose.createRoute(

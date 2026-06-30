@@ -175,6 +175,8 @@ class ImapProvider(
                 val attachments = mutableListOf<EmailAttachmentInfo>()
                 var htmlBody = ""
                 var plainBody = ""
+                var bodyIsHtml = false
+                val cidMap = mutableMapOf<String, String>()
 
                 try {
                     fun processPart(part: Part) {
@@ -182,8 +184,22 @@ class ImapProvider(
                             val disposition = part.disposition
                             val contentType = part.contentType.lowercase()
 
+                            // Collect inline images (CID references)
+                            val contentId = part.getHeader("Content-ID")?.firstOrNull()
+                                ?.removeSurrounding("<", ">")
+                            if (contentId != null && contentType.startsWith("image/")) {
+                                try {
+                                    val stream = part.inputStream
+                                    val bytes = stream.readBytes()
+                                    val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                                    cidMap[contentId] = "data:$contentType;base64,$base64"
+                                } catch (e: Exception) {
+                                    android.util.Log.w("ImapProvider", "Failed to read inline image: ${e.message}")
+                                }
+                            }
+
                             if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
-                                (disposition == null && contentType.contains("application/"))) {
+                                (disposition == null && contentType.contains("application/") && contentId == null)) {
                                 val name = part.fileName ?: "attachment"
                                 attachments.add(
                                     EmailAttachmentInfo(
@@ -198,6 +214,7 @@ class ImapProvider(
                                 plainBody = part.getBodyText() ?: ""
                             } else if (part.isMimeType("text/html") && htmlBody.isEmpty()) {
                                 htmlBody = part.getBodyText() ?: ""
+                                bodyIsHtml = true
                             } else if (part.isMimeType("multipart/*")) {
                                 val content = part.content
                                 val mp = when (content) {
@@ -222,7 +239,11 @@ class ImapProvider(
                     android.util.Log.w("ImapProvider", "listThreads body parse error: ${e.message}")
                 }
 
-                val body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
+                var body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
+                // Replace CID references with inline data URIs
+                cidMap.forEach { (cid, dataUri) ->
+                    body = body.replace("cid:$cid", dataUri)
+                }
                 val cleanPlain = plainBody
                     .replace(Regex("https?://\\S+"), "")
                     .replace(Regex("={3,}"), "")
@@ -254,6 +275,7 @@ class ImapProvider(
                     bcc = "",
                     snippet = snippet,
                     body = body,
+                    bodyIsHtml = bodyIsHtml,
                     date = date,
                     isRead = isRead,
                     isStarred = isStarred,
@@ -346,10 +368,12 @@ class ImapProvider(
                                 val attachments = mutableListOf<EmailAttachmentInfo>()
                                 var htmlBody = ""
                                 var plainBody = ""
+                                var bodyIsHtml = false
+                                val cidMap = mutableMapOf<String, String>()
 
                                 val rawStream = java.io.ByteArrayOutputStream()
                                 msg.writeTo(rawStream)
-                                
+
                                 val tempProps = java.util.Properties().apply {
                                     put("mail.mime.multipart.ignoreexistingboundaryparameter", "true")
                                     put("mail.mime.multipart.ignoremissingboundaryparameter", "true")
@@ -363,8 +387,22 @@ class ImapProvider(
                                     val disposition = part.disposition
                                     val contentType = part.contentType.lowercase()
 
-                                    if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) || 
-                                        (disposition == null && contentType.contains("application/"))) {
+                                    // Collect inline images (CID references)
+                                    val contentId = part.getHeader("Content-ID")?.firstOrNull()
+                                        ?.removeSurrounding("<", ">")
+                                    if (contentId != null && contentType.startsWith("image/")) {
+                                        try {
+                                            val stream = part.inputStream
+                                            val bytes = stream.readBytes()
+                                            val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                                            cidMap[contentId] = "data:$contentType;base64,$base64"
+                                        } catch (e: Exception) {
+                                            android.util.Log.w("ImapProvider", "Failed to read inline image: ${e.message}")
+                                        }
+                                    }
+
+                                    if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
+                                        (disposition == null && contentType.contains("application/") && contentId == null)) {
                                         val name = part.fileName ?: "attachment"
                                         attachments.add(
                                             EmailAttachmentInfo(
@@ -379,6 +417,7 @@ class ImapProvider(
                                         plainBody = part.getBodyText() ?: ""
                                     } else if (part.isMimeType("text/html") && htmlBody.isEmpty()) {
                                         htmlBody = part.getBodyText() ?: ""
+                                        bodyIsHtml = true
                                     } else if (part.isMimeType("multipart/*")) {
                                         try {
                                             val content = part.content
@@ -402,7 +441,11 @@ class ImapProvider(
 
                                 processPart(snapshot)
 
-                                val body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
+                                var body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
+                                // Replace CID references with inline data URIs
+                                cidMap.forEach { (cid, dataUri) ->
+                                    body = body.replace("cid:$cid", dataUri)
+                                }
                                 val snippet = plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
                                     htmlBody.replace(Regex("<[^>]+>"), " ").take(150).replace(Regex("\\s+"), " ").trim()
                                 }
@@ -418,6 +461,7 @@ class ImapProvider(
                                     bcc = "",
                                     snippet = snippet,
                                     body = body,
+                                    bodyIsHtml = bodyIsHtml,
                                     date = date,
                                     isRead = isRead,
                                     isStarred = isStarred,

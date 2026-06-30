@@ -239,6 +239,7 @@ fun InboxScreen(
                         }
 
                         is InboxState.Success -> {
+                            val currentTab = s.currentTab
                             key(currentTab) {
                             val threadsToDisplay = localFilteredThreads ?: s.threads
                             val isSearchActive = localFilteredThreads != null

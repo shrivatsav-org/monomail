@@ -115,6 +115,14 @@ fun SettingsScreen(
                     checked = settings.showSnippet,
                     onCheckedChange = { viewModel.setShowSnippet(it) }
                 )
+                CardDivider()
+                SettingsToggleRow(
+                    icon = Icons.Outlined.ImageNotSupported,
+                    title = "Load Remote Images",
+                    subtitle = "When off, external images in emails are blocked until you tap to load them",
+                    checked = settings.loadRemoteImages,
+                    onCheckedChange = { viewModel.setLoadRemoteImages(it) }
+                )
             }
             SettingsCard {
                 SectionHeader(icon = Icons.Outlined.TouchApp, title = "Behavior")
