@@ -3,8 +3,8 @@ import com.shrivatsav.monomail.data.model.EmailThread
 import java.util.Calendar
 sealed class InboxDisplayItem {
     abstract val key: String
-    data class DateHeader(val title: String) : InboxDisplayItem() {
-        override val key: String get() = "header_$title"
+    data class DateHeader(val title: String, val tab: String = "") : InboxDisplayItem() {
+        override val key: String get() = "${tab}_header_$title"
     }
     data class GroupHeader(
         val groupName: String,
@@ -12,15 +12,16 @@ sealed class InboxDisplayItem {
         val unreadCount: Int,
         val latestDate: Long,
         val isExpanded: Boolean,
-        val avatarUrl: String?
+        val avatarUrl: String?,
+        val tab: String = ""
     ) : InboxDisplayItem() {
-        override val key: String get() = "group_$groupName"
+        override val key: String get() = "${tab}_group_$groupName"
     }
-    data class SingleThread(val thread: EmailThread) : InboxDisplayItem() {
-        override val key: String get() = thread.threadId
+    data class SingleThread(val thread: EmailThread, val tab: String = "") : InboxDisplayItem() {
+        override val key: String get() = "${tab}_${thread.threadId}"
     }
-    data class NestedThread(val thread: EmailThread, val groupName: String) : InboxDisplayItem() {
-        override val key: String get() = "${groupName}_${thread.threadId}"
+    data class NestedThread(val thread: EmailThread, val groupName: String, val tab: String = "") : InboxDisplayItem() {
+        override val key: String get() = "${tab}_${groupName}_${thread.threadId}"
     }
 }
 sealed class TempItem {
@@ -79,7 +80,8 @@ fun computeInboxStructure(
 }
 fun flattenDisplayItems(
     structure: InboxStructure,
-    expandedGroups: Set<String>
+    expandedGroups: Set<String>,
+    tabPrefix: String = ""
 ): List<InboxDisplayItem> {
     val displayItems = mutableListOf<InboxDisplayItem>()
     val today = Calendar.getInstance()
@@ -95,12 +97,13 @@ fun flattenDisplayItems(
                 unreadCount = unreadCount,
                 latestDate = group.date,
                 isExpanded = isExpanded,
-                avatarUrl = null
+                avatarUrl = null,
+                tab = tabPrefix
             )
         )
         if (isExpanded) {
             for (thread in group.threads) {
-                displayItems.add(InboxDisplayItem.NestedThread(thread, group.name))
+                displayItems.add(InboxDisplayItem.NestedThread(thread, group.name, tab = tabPrefix))
             }
         }
     }
@@ -113,10 +116,10 @@ fun flattenDisplayItems(
             else -> "Earlier"
         }
         if (dateHeader != currentHeader) {
-            displayItems.add(InboxDisplayItem.DateHeader(dateHeader))
+            displayItems.add(InboxDisplayItem.DateHeader(dateHeader, tab = tabPrefix))
             currentHeader = dateHeader
         }
-        displayItems.add(InboxDisplayItem.SingleThread(single.thread))
+        displayItems.add(InboxDisplayItem.SingleThread(single.thread, tab = tabPrefix))
     }
     return displayItems
 }
