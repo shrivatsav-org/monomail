@@ -3,9 +3,13 @@ import android.net.Uri
 import android.text.TextUtils
 import android.webkit.WebSettings
 import android.webkit.WebView
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -328,9 +332,23 @@ private fun ThreadConversationContent(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        Text(
+                            text = "to: ${email.to}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                         if (!isExpanded) {
+                            val snippetText = remember(email.snippet) {
+                                email.snippet
+                                    .replace(Regex("^\\s*(>|&gt;|\\|).*", RegexOption.MULTILINE), "")
+                                    .replace(Regex("On\\s.+\\swrote:"), "")
+                                    .replace(Regex("<blockquote[^>]*>[\\s\\S]*?</blockquote>"), "")
+                                    .trim()
+                            }
                             Text(
-                                text = email.snippet,
+                                text = snippetText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                                 maxLines = 1,
@@ -363,16 +381,73 @@ private fun ThreadConversationContent(
                                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             )
                         }
-                        MessageBody(
-                            email = email,
-                            bgColor = bgColor,
-                            textColor = textColor,
-                            linkColor = linkColor,
-                            fontScaleMultiplier = fontScaleMultiplier,
-                            loadRemoteImages = loadRemoteImages,
-                            onFetchAttachment = onFetchAttachment,
-                            modifier = Modifier.weight(1f)
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            // Show CC/BCC when expanded
+                            if (email.cc.isNotBlank() || email.bcc.isNotBlank()) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 8.dp, end = 12.dp, top = 4.dp, bottom = 2.dp)
+                                        .background(
+                                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                                ) {
+                                    Column {
+                                        if (email.cc.isNotBlank()) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "cc:",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.width(28.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = email.cc,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 5,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        if (email.bcc.isNotBlank()) {
+                                            if (email.cc.isNotBlank()) Spacer(modifier = Modifier.height(2.dp))
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = "bcc:",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    fontWeight = FontWeight.SemiBold,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    modifier = Modifier.width(28.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = email.bcc,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                    maxLines = 5,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            MessageBody(
+                                email = email,
+                                bgColor = bgColor,
+                                textColor = textColor,
+                                linkColor = linkColor,
+                                fontScaleMultiplier = fontScaleMultiplier,
+                                loadRemoteImages = loadRemoteImages,
+                                onFetchAttachment = onFetchAttachment,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             } else {
@@ -646,6 +721,14 @@ private fun MessageBody(
                     .show-quotes .moz-cite-prefix,
                     .show-quotes [name="quoted-content"] {
                         display: block;
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        background: transparent !important;
+                    }
+                    blockquote {
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        background: transparent !important;
                     }
                     /* Dark-mode overrides for emails with explicit light backgrounds */
                     @media (prefers-color-scheme: dark) {
@@ -705,94 +788,100 @@ private fun MessageBody(
             }
         }
 
-        AndroidView(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            factory = { context ->
-                WebView(context).apply {
-                    settings.javaScriptEnabled = false
-                    settings.loadWithOverviewMode = true
-                    settings.useWideViewPort = true
-                    settings.domStorageEnabled = false
-                    settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
-                    settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                    settings.loadsImagesAutomatically = loadRemoteImages || showRemoteImages
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = false
-                    webViewClient = object : android.webkit.WebViewClient() {
-                        override fun shouldOverrideUrlLoading(
-                            view: android.webkit.WebView?,
-                            request: android.webkit.WebResourceRequest?
-                        ): Boolean {
-                            request?.url?.let { uri ->
-                                try {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
-                                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+        AnimatedContent(targetState = showQuotedText, transitionSpec = {
+            fadeIn() togetherWith fadeOut()
+        }) { _ ->
+            Column {
+                AndroidView(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 4.dp),
+                    factory = { context ->
+                        WebView(context).apply {
+                            settings.javaScriptEnabled = false
+                            settings.loadWithOverviewMode = true
+                            settings.useWideViewPort = true
+                            settings.domStorageEnabled = false
+                            settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+                            settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            settings.loadsImagesAutomatically = loadRemoteImages || showRemoteImages
+                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                            isVerticalScrollBarEnabled = false
+                            isHorizontalScrollBarEnabled = false
+                            webViewClient = object : android.webkit.WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: android.webkit.WebView?,
+                                    request: android.webkit.WebResourceRequest?
+                                ): Boolean {
+                                    request?.url?.let { uri ->
+                                        try {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
+                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                            return true
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
                                     }
-                                    context.startActivity(intent)
-                                    return true
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
+                                    return super.shouldOverrideUrlLoading(view, request)
+                                }
+                                @Suppress("DEPRECATION")
+                                @Deprecated("Deprecated in Java")
+                                override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+                                    url?.let {
+                                        try {
+                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it)).apply {
+                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                                            }
+                                            context.startActivity(intent)
+                                            return true
+                                        } catch (e: Exception) {
+                                            e.printStackTrace()
+                                        }
+                                    }
+                                    return super.shouldOverrideUrlLoading(view, url)
                                 }
                             }
-                            return super.shouldOverrideUrlLoading(view, request)
                         }
-                        @Suppress("DEPRECATION")
-                        @Deprecated("Deprecated in Java")
-                        override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
-                            url?.let {
-                                try {
-                                    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it)).apply {
-                                        addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    context.startActivity(intent)
-                                    return true
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                }
-                            }
-                            return super.shouldOverrideUrlLoading(view, url)
+                    },
+                    update = { webView ->
+                        if (webView.tag != htmlContent) {
+                            webView.tag = htmlContent
+                            webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                         }
                     }
+                )
+
+                // "Show quoted text" toggle
+                if (hasQuotedText) {
+                    TextButton(
+                        onClick = { showQuotedText = !showQuotedText },
+                        modifier = Modifier.padding(start = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (showQuotedText) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (showQuotedText) "Hide quoted text" else "Show quoted text",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-            },
-            update = { webView ->
-                if (webView.tag != htmlContent) {
-                    webView.tag = htmlContent
-                    webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
+
+                Spacer(modifier = Modifier.height(12.dp))
+                if (email.attachments.isNotEmpty()) {
+                    AttachmentsSection(
+                        attachments = email.attachments,
+                        onFetchAttachment = onFetchAttachment
+                    )
                 }
             }
-        )
-
-        // "Show quoted text" toggle
-        if (hasQuotedText) {
-            TextButton(
-                onClick = { showQuotedText = !showQuotedText },
-                modifier = Modifier.padding(start = 12.dp)
-            ) {
-                Icon(
-                    imageVector = if (showQuotedText) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = if (showQuotedText) "Hide quoted text" else "Show quoted text",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        if (email.attachments.isNotEmpty()) {
-            AttachmentsSection(
-                attachments = email.attachments,
-                onFetchAttachment = onFetchAttachment
-            )
         }
     }
 }
