@@ -28,6 +28,7 @@ The architecture is offline-first: all reads and writes go through a local Room 
 - Swipe-to-dismiss gestures on each thread: left and right swipe actions are independently configurable (archive, star, delete, mark read/unread), with colour-coded backgrounds.
 - Long-press contextual overlay with blurred background and four action buttons: star/unstar, archive/unarchive (context-aware), mark read/unread, and delete/restore (context-aware).
 - Undo toast with a 4-second window for archive, delete, snooze, and send actions; dismiss to execute immediately.
+- **Bulk multi-select mode:** long-press any sender avatar to enter bulk mode with animated checkbox transitions, range select (tap body selects a range from the last toggled item), and select all/deselect all toggle — all with smooth animations.
 - Mark all as read button in the search bar.
 - Calendar badge in the search bar showing pending scheduled messages count.
 - Sender avatar with domain favicon (loaded via Coil with initial fallback).
@@ -75,6 +76,7 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 - Show Dividers: toggle lines between email items.
 - Compact List: reduce spacing in the email list.
 - Show Snippet Preview: display preview text below sender in the inbox.
+- All icons use the Material Rounded variant for a consistent, soft visual style.
 
 **Dock Bar:**
 - Unified Inbox: combine all accounts into one tab.
@@ -127,10 +129,13 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 
 ### Email Detail
 - HTML body rendering via WebView with JavaScript disabled.
-- Quoted text removal: strips Gmail, Yahoo, and Mozilla quoting blocks, "On ... wrote:" patterns, and `>` quoted lines.
-- Custom CSS injection for consistent typography and dark mode.
+- Collapsible quoted text: hidden by default with a "Show quoted text" toggle and animated reveal — keeps the view clean while preserving full context on demand.
+- Custom CSS injection for consistent typography — uses luminance-based dark mode detection for accurate theme matching regardless of system setting.
+- Snippet previews strip quoted text ("On ... wrote:" patterns, `>` lines, and blockquote HTML) for cleaner inbox previews.
+- CC and BCC recipients displayed in a styled container in the expanded message section, hidden by default until the user expands the message.
+- Conversation view headers show sender avatar, name, From/To email addresses, and relative timestamps.
 - Inline image attachments decoded and displayed as previews (max 280dp height) with loading spinner; click to open in system app.
-- File attachments displayed in a 2-column grid with file extension badge, name, and size; download and open via FileProvider.
+- File attachments displayed in a responsive grid (columns adapt to screen width) with file extension badge, name, and size; download and open via FileProvider.
 - Top bar actions: back, star/unstar, overflow menu (mark unread, archive, move to trash) -- each navigates back after action.
 - Reply and Forward buttons at the bottom.
 
