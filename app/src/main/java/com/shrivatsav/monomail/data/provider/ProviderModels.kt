@@ -19,6 +19,7 @@ data class ProviderMessage(
     val bcc: String = "",
     val snippet: String,
     val body: String,
+    val bodyIsHtml: Boolean = true,
     val date: Long,
     val isRead: Boolean,
     val isStarred: Boolean,
