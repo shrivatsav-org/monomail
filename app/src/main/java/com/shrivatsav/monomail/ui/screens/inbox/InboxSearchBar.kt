@@ -73,85 +73,77 @@ internal fun InboxSearchBar(
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
         if (isBulkMode) {
-            SearchBar(
-                inputField = {
-                    SearchBarDefaults.InputField(
-                        query = "",
-                        onQueryChange = {},
-                        onSearch = {},
-                        expanded = false,
-                        onExpandedChange = {},
-                        placeholder = {
-                            Box(
-                                modifier = Modifier.fillMaxWidth(),
-                                contentAlignment = Alignment.Center
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.extraLarge,
+                color = bulkModeContainerColor,
+                tonalElevation = SearchBarDefaults.Elevation
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                ) {
+                    AnimatedContent(
+                        targetState = selectedCount,
+                        label = "selectedCount",
+                        modifier = Modifier.align(Alignment.Center),
+                        transitionSpec = {
+                            (fadeIn(tween(200)) + scaleIn(tween(200))).togetherWith(
+                                fadeOut(tween(150)) + scaleOut(tween(150))
+                            )
+                        }
+                    ) { count ->
+                        Text(
+                            text = if (count == 1) "1 selected" else "$count selected",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Row(
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (selectedCount < totalCount) {
+                            TextButton(
+                                onClick = onSelectAll,
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
                             ) {
-                                AnimatedContent(
-                                    targetState = selectedCount,
-                                    label = "selectedCount",
-                                    transitionSpec = {
-                                        (fadeIn(tween(200)) + scaleIn(tween(200))).togetherWith(
-                                            fadeOut(tween(150)) + scaleOut(tween(150))
-                                        )
-                                    }
-                                ) { count ->
-                                    Text(
-                                        text = if (count == 1) "1 selected" else "$count selected",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
+                                Text("Select all")
                             }
-                        },
-                        leadingIcon = { Spacer(Modifier.width(8.dp)) },
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (selectedCount < totalCount) {
-                                    TextButton(
-                                        onClick = onSelectAll,
-                                        shape = RoundedCornerShape(24.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.primary
-                                        )
-                                    ) {
-                                        Text("Select all")
-                                    }
-                                } else {
-                                    TextButton(
-                                        onClick = onDeselectAll,
-                                        shape = RoundedCornerShape(24.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.primary
-                                        )
-                                    ) {
-                                        Text("Deselect all")
-                                    }
-                                }
-                                Spacer(Modifier.width(4.dp))
-                                IconButton(
-                                    onClick = onDone,
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Outlined.Close,
-                                        contentDescription = "Done",
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
+                        } else {
+                            TextButton(
+                                onClick = onDeselectAll,
+                                shape = RoundedCornerShape(24.dp),
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.primary
+                                )
+                            ) {
+                                Text("Deselect all")
                             }
                         }
-                    )
-                },
-                expanded = false,
-                onExpandedChange = {},
-                modifier = Modifier.fillMaxWidth(),
-                colors = SearchBarDefaults.colors(containerColor = bulkModeContainerColor),
-                shape = MaterialTheme.shapes.extraLarge,
-                windowInsets = WindowInsets(0.dp)
-            ) {}
+                        Spacer(Modifier.width(4.dp))
+                        IconButton(
+                            onClick = onDone,
+                            modifier = Modifier.size(40.dp)
+                        ) {
+                            Icon(
+                                Icons.Outlined.Close,
+                                contentDescription = "Done",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+                }
+            }
         } else {
         SearchBar(
             inputField = {
