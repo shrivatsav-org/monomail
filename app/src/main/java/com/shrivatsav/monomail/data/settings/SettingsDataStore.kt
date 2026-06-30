@@ -54,6 +54,7 @@ data class AppSettings(
     val smartGroupingEnabled: Boolean = true,
     val smartGroupingRecentOnly: Boolean = true,
     val organizeByThread: Boolean = true,
+    val loadRemoteImages: Boolean = true,
     val navScale: Float = 1f,
     val undoSendEnabled: Boolean = true,
     val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10,
@@ -81,6 +82,7 @@ class SettingsDataStore(private val context: Context) {
         val SMART_GROUPING_ENABLED = booleanPreferencesKey("smart_grouping_enabled")
         val SMART_GROUPING_RECENT_ONLY = booleanPreferencesKey("smart_grouping_recent_only")
         val ORGANIZE_BY_THREAD = booleanPreferencesKey("organize_by_thread")
+        val LOAD_REMOTE_IMAGES = booleanPreferencesKey("load_remote_images")
         val NAV_SCALE = floatPreferencesKey("nav_scale")
         val UNDO_SEND_ENABLED = booleanPreferencesKey("undo_send_enabled")
         val UNDO_SEND_WINDOW = stringPreferencesKey("undo_send_window")
@@ -107,6 +109,7 @@ class SettingsDataStore(private val context: Context) {
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
             smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: true,
             organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true,
+            loadRemoteImages = prefs[Keys.LOAD_REMOTE_IMAGES] ?: true,
             navScale = prefs[Keys.NAV_SCALE] ?: 1f,
             undoSendEnabled = prefs[Keys.UNDO_SEND_ENABLED] ?: true,
             undoSendWindow = prefs[Keys.UNDO_SEND_WINDOW]?.let { UndoSendWindow.valueOf(it) } ?: UndoSendWindow.SEC_10,
@@ -171,6 +174,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setOrganizeByThread(enabled: Boolean) {
         context.dataStore.edit { it[Keys.ORGANIZE_BY_THREAD] = enabled }
+    }
+    suspend fun setLoadRemoteImages(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.LOAD_REMOTE_IMAGES] = enabled }
     }
     suspend fun setNavScale(scale: Float) {
         context.dataStore.edit { it[Keys.NAV_SCALE] = scale }

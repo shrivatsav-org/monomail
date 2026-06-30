@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail.ui.screens.detail
 import android.net.Uri
+import android.text.TextUtils
 import android.webkit.WebSettings
 import android.webkit.WebView
 import androidx.compose.animation.AnimatedVisibility
@@ -10,6 +11,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,6 +40,7 @@ import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.ImageNotSupported
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.StarOutline
 import androidx.compose.material.icons.filled.Star
@@ -52,6 +55,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -59,6 +63,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -70,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.model.Email
+import com.shrivatsav.monomail.util.HtmlSanitizer
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -80,6 +86,8 @@ fun EmailDetailScreen(
     viewModel: EmailDetailViewModel,
     onBack: () -> Unit,
     isConversationView: Boolean = true,
+    fontScaleMultiplier: Float = 1f,
+    loadRemoteImages: Boolean = true,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _, _ -> },
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> },
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -193,6 +201,8 @@ fun EmailDetailScreen(
                             emails = emails,
                             modifier = Modifier.weight(1f),
                             isConversationView = isConversationView,
+                            fontScaleMultiplier = fontScaleMultiplier,
+                            loadRemoteImages = loadRemoteImages,
                             onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
                             onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
                             onFetchAttachment = onFetchAttachment
@@ -208,6 +218,8 @@ private fun ThreadConversationContent(
     emails: List<Email>,
     modifier: Modifier = Modifier,
     isConversationView: Boolean = true,
+    fontScaleMultiplier: Float = 1f,
+    loadRemoteImages: Boolean = true,
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -256,34 +268,59 @@ private fun ThreadConversationContent(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { expandedMap[email.id] = !isExpanded }
-                        .padding(horizontal = 20.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val initial = email.from.firstOrNull()?.uppercase() ?: "?"
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = initial,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface
+                        .background(
+                            if (index % 2 == 1 && isExpanded)
+                                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.3f)
+                            else MaterialTheme.colorScheme.background
                         )
+                        .clickable { expandedMap[email.id] = !isExpanded }
+                        .padding(start = 12.dp, end = 20.dp, top = 10.dp, bottom = 0.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    // Vertical connecting line + avatar column
+                    Box(
+                        modifier = Modifier.width(36.dp)
+                    ) {
+                        val initial = email.from.firstOrNull()?.uppercase() ?: "?"
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = initial,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = displayName(email.from),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = displayName(email.from),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Text(
+                                text = formatRelativeDate(email.date),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                                contentDescription = if (isExpanded) "Collapse" else "Expand",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                         Text(
                             text = email.fromEmail,
                             style = MaterialTheme.typography.bodySmall,
@@ -299,47 +336,44 @@ private fun ThreadConversationContent(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                        } else {
-                            Text(
-                                text = formatDetailDate(email.date),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                            )
-                        }
-                        if (email.cc.isNotBlank() || email.bcc.isNotBlank()) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = buildString {
-                                    if (email.cc.isNotBlank()) append("cc: ${email.cc}")
-                                    if (email.cc.isNotBlank() && email.bcc.isNotBlank()) append("  ")
-                                    if (email.bcc.isNotBlank()) append("bcc: ${email.bcc}")
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
                         }
                     }
-                    Icon(
-                        imageVector = if (isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
-                        contentDescription = if (isExpanded) "Collapse" else "Expand",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        modifier = Modifier.size(20.dp)
-                    )
                 }
                 AnimatedVisibility(
                     visible = isExpanded,
                     enter = expandVertically(),
                     exit = shrinkVertically()
                 ) {
-                    MessageBody(
-                        email = email,
-                        bgColor = bgColor,
-                        textColor = textColor,
-                        linkColor = linkColor,
-                        onFetchAttachment = onFetchAttachment
-                    )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(
+                                if (index % 2 == 1)
+                                    MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.3f)
+                                else MaterialTheme.colorScheme.background
+                            )
+                    ) {
+                        // Thread connecting line
+                        if (index < emails.lastIndex) {
+                            Box(
+                                modifier = Modifier
+                                    .width(2.dp)
+                                    .height(200.dp)
+                                    .padding(start = 24.dp)
+                                    .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                            )
+                        }
+                        MessageBody(
+                            email = email,
+                            bgColor = bgColor,
+                            textColor = textColor,
+                            linkColor = linkColor,
+                            fontScaleMultiplier = fontScaleMultiplier,
+                            loadRemoteImages = loadRemoteImages,
+                            onFetchAttachment = onFetchAttachment,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             } else {
                 MessageBody(
@@ -347,6 +381,8 @@ private fun ThreadConversationContent(
                     bgColor = bgColor,
                     textColor = textColor,
                     linkColor = linkColor,
+                    fontScaleMultiplier = fontScaleMultiplier,
+                    loadRemoteImages = loadRemoteImages,
                     onFetchAttachment = onFetchAttachment,
                     showSender = true,
                     messageCount = emails.size
@@ -413,45 +449,51 @@ private fun MessageBody(
     bgColor: String,
     textColor: String,
     linkColor: String,
+    fontScaleMultiplier: Float = 1f,
+    loadRemoteImages: Boolean = true,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
     showSender: Boolean = false,
-    messageCount: Int = 0
+    messageCount: Int = 0,
+    modifier: Modifier = Modifier
 ) {
-    Column {
-        if (showSender) {
-            val isMsgUnread = !email.isRead
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+    Column(modifier = modifier) {
+    val fontSize = (15f * fontScaleMultiplier).coerceIn(10f, 28f)
+    val smallFontSize = (13f * fontScaleMultiplier).coerceIn(9f, 24f)
+    var showQuotedText by remember { mutableStateOf(false) }
+    var showRemoteImages by remember { mutableStateOf(false) }
+    val hasQuotedText = remember(email.body) {
+        email.body.contains("<blockquote", ignoreCase = true) ||
+        email.body.contains("gmail_quote", ignoreCase = true) ||
+        email.body.contains("gmail_extra", ignoreCase = true) ||
+        email.body.contains("yahoo_quoted", ignoreCase = true) ||
+        email.body.contains("moz-cite-prefix", ignoreCase = true) ||
+        email.body.contains("On ", ignoreCase = true) && email.body.contains(" wrote:", ignoreCase = true)
+    }
+    if (showSender) {
+        val isMsgUnread = !email.isRead
+        var showCcBcc by remember { mutableStateOf(false) }
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 8.dp)
+        ) {
+            // Row 1: Avatar + Name + Date
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 val initial = email.from.firstOrNull()?.uppercase() ?: "?"
-                Box {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = initial,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    if (isMsgUnread) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .size(12.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                        )
-                    }
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = initial,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
@@ -463,73 +505,110 @@ private fun MessageBody(
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f, fill = false)
                         )
-                        if (messageCount > 1) {
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "$messageCount",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                                modifier = Modifier
-                                    .background(
-                                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                        shape = RoundedCornerShape(4.dp)
-                                    )
-                                    .padding(horizontal = 5.dp, vertical = 1.dp)
-                            )
-                        }
-                    }
-                    Text(
-                        text = email.fromEmail,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isMsgUnread) {
-                            Text(
-                                text = "\u2022  ",
-                                style = MaterialTheme.typography.bodySmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = formatDetailDate(email.date),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                         )
                     }
-                    if (email.cc.isNotBlank() || email.bcc.isNotBlank()) {
-                        Spacer(modifier = Modifier.width(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = buildString {
-                                if (email.cc.isNotBlank()) append("cc: ${email.cc}")
-                                if (email.cc.isNotBlank() && email.bcc.isNotBlank()) append("  ")
-                                if (email.bcc.isNotBlank()) append("bcc: ${email.bcc}")
-                            },
+                            text = email.fromEmail,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (isMsgUnread) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary)
+                            )
+                        }
                     }
                 }
             }
+            // Row 2: To / CC / BCC
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "to: ${email.to}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.clickable {
+                    if (email.cc.isNotBlank() || email.bcc.isNotBlank())
+                        showCcBcc = !showCcBcc
+                }
+            )
+            if (showCcBcc && (email.cc.isNotBlank() || email.bcc.isNotBlank())) {
+                if (email.cc.isNotBlank()) {
+                    Text(
+                        text = "cc: ${email.cc}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        maxLines = 5,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (email.bcc.isNotBlank()) {
+                    Text(
+                        text = "bcc: ${email.bcc}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        maxLines = 5,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            if (messageCount > 1) {
+                Text(
+                    text = "$messageCount messages in thread",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                )
+            }
         }
-        val htmlContent = remember(email.id, email.body, bgColor, textColor, linkColor) {
-            val cleanBody = autolinkHtml(stripQuotedText(email.body))
+    }
+
+        // Images blocked banner (shown when loadRemoteImages is off and showRemoteImages is still false)
+
+        val htmlContent = remember(email.id, email.body, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages) {
+            // Determine body: preserve or strip quoted text
+            val bodyText = if (showQuotedText) email.body else stripQuotedText(email.body)
+
+            // HTML-encode plain text bodies before wrapping
+            val preparedBody = if (email.bodyIsHtml) {
+                bodyText
+            } else {
+                TextUtils.htmlEncode(bodyText)
+                    .replace("\n", "<br>")
+            }
+
+            // Autolink URLs then sanitize
+            val cleanBody = HtmlSanitizer.sanitize(autolinkHtml(preparedBody))
+
+            // Image blocking CSS — block http/https images unless user explicitly allows them
+            val imgBlockCss = if (!loadRemoteImages && !showRemoteImages) """
+                img[src^="http://"] { display: none !important; }
+                img[src^="https://"] { display: none !important; }
+            """.trimIndent() else ""
+
             """
             <!DOCTYPE html>
-            <html>
+            <html style="color-scheme: light dark;">
             <head>
                 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; font-src 'none'; frame-src 'none';">
                 <style>
                     * { box-sizing: border-box; }
                     body {
                         font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
-                        font-size: 15px;
+                        font-size: ${fontSize}px;
                         line-height: 1.6;
                         margin: 12px 16px 0 16px;
                         padding: 0;
@@ -538,7 +617,6 @@ private fun MessageBody(
                         word-break: break-word;
                         overflow-wrap: break-word;
                     }
-                    body * { color: inherit !important; background: transparent !important; }
                     img, video, iframe, embed {
                         max-width: 100% !important;
                         height: auto !important;
@@ -546,22 +624,87 @@ private fun MessageBody(
                     img { display: block; }
                     a, a * { color: $linkColor !important; text-decoration: underline !important; word-break: break-word; }
                     table {
+                        width: 100% !important;
                         max-width: 100% !important;
-                        word-break: break-word;
-                        display: block;
+                        border-collapse: collapse;
                         overflow-x: auto;
+                        display: inline-table;
+                        word-break: break-word;
                     }
-                    td, th { word-break: break-word; }
-                    pre, code { white-space: pre-wrap; font-size: 13px; word-break: break-word; }
+                    td, th { word-break: break-word; padding: 4px 8px; border-color: inherit; }
+                    pre, code { white-space: pre-wrap; font-size: ${smallFontSize}px; word-break: break-word; }
+                    /* Collapsible quoted text \u2014 hidden by default, shown when parent has .show-quotes */
                     blockquote, .gmail_quote, .gmail_extra,
                     .yahoo_quoted, .moz-cite-prefix,
-                    [name="quoted-content"] { display: none !important; }
+                    [name="quoted-content"] {
+                        display: none;
+                    }
+                    .show-quotes blockquote,
+                    .show-quotes .gmail_quote,
+                    .show-quotes .gmail_extra,
+                    .show-quotes .yahoo_quoted,
+                    .show-quotes .moz-cite-prefix,
+                    .show-quotes [name="quoted-content"] {
+                        display: block;
+                    }
+                    /* Dark-mode overrides for emails with explicit light backgrounds */
+                    @media (prefers-color-scheme: dark) {
+                        body [style*="background-color:#"] {
+                            background-color: transparent !important;
+                        }
+                        body [style*="background:#"] {
+                            background: transparent !important;
+                        }
+                    }
+                    $imgBlockCss
                 </style>
             </head>
-            <body>$cleanBody</body>
+            <body class="${if (showQuotedText) "show-quotes" else ""}">$cleanBody</body>
             </html>
             """.trimIndent()
         }
+
+        // "Images blocked" banner — only shown when remote images are disabled by setting
+        if (!loadRemoteImages && !showRemoteImages) {
+            val hasExternalImages = remember(email.body) {
+                email.body.contains("""src="http""", ignoreCase = true)
+            }
+            if (hasExternalImages) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp)
+                        .background(
+                            MaterialTheme.colorScheme.surfaceContainerHigh,
+                            RoundedCornerShape(8.dp)
+                        )
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.ImageNotSupported,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Remote images blocked",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = { showRemoteImages = true }) {
+                        Text(
+                            text = "Show",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+        }
+
         AndroidView(
             modifier = Modifier
                 .fillMaxWidth()
@@ -571,11 +714,11 @@ private fun MessageBody(
                     settings.javaScriptEnabled = false
                     settings.loadWithOverviewMode = true
                     settings.useWideViewPort = true
-                    settings.domStorageEnabled = true
+                    settings.domStorageEnabled = false
                     settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
                     settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                    settings.loadsImagesAutomatically = true
+                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                    settings.loadsImagesAutomatically = loadRemoteImages || showRemoteImages
                     setBackgroundColor(android.graphics.Color.TRANSPARENT)
                     isVerticalScrollBarEnabled = false
                     isHorizontalScrollBarEnabled = false
@@ -623,6 +766,27 @@ private fun MessageBody(
                 }
             }
         )
+
+        // "Show quoted text" toggle
+        if (hasQuotedText) {
+            TextButton(
+                onClick = { showQuotedText = !showQuotedText },
+                modifier = Modifier.padding(start = 12.dp)
+            ) {
+                Icon(
+                    imageVector = if (showQuotedText) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                    text = if (showQuotedText) "Hide quoted text" else "Show quoted text",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
         Spacer(modifier = Modifier.height(12.dp))
         if (email.attachments.isNotEmpty()) {
             AttachmentsSection(
@@ -691,20 +855,27 @@ private fun AttachmentsSection(
             )
         }
         if (fileAttachments.isNotEmpty()) {
-            fileAttachments.chunked(2).forEach { rowItems ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    rowItems.forEach { attachment ->
-                        FileAttachmentCard(
-                            attachment = attachment,
-                            onFetchAttachment = onFetchAttachment,
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    if (rowItems.size == 1) {
-                        Spacer(modifier = Modifier.weight(1f))
+            // Responsive column count — each card minimum ~200dp
+            BoxWithConstraints {
+                val columnWidth = 200.dp
+                val availableWidth = maxWidth
+                val columns = maxOf(1, (availableWidth / columnWidth).toInt())
+                fileAttachments.chunked(columns).forEach { rowItems ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowItems.forEach { attachment ->
+                            FileAttachmentCard(
+                                attachment = attachment,
+                                onFetchAttachment = onFetchAttachment,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        // Fill remaining slots with spacers for consistent sizing
+                        repeat(columns - rowItems.size) {
+                            Spacer(modifier = Modifier.weight(1f))
+                        }
                     }
                 }
             }
@@ -866,6 +1037,32 @@ private fun FileAttachmentCard(
     }
 }
 private val detailDateFormat = SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault())
+
+/**
+ * Returns a relative timestamp for recent messages ("2h ago", "Yesterday")
+ * and falls back to the full date for older messages.
+ */
+private fun formatRelativeDate(epochMillis: Long): String {
+    if (epochMillis == 0L) return ""
+    val now = System.currentTimeMillis()
+    val diff = now - epochMillis
+    val minutes = diff / 60_000
+    val hours = minutes / 60
+    val days = hours / 24
+    return when {
+        minutes < 1  -> "just now"
+        minutes < 60 -> "${minutes}m ago"
+        hours < 24   -> "${hours}h ago"
+        days == 1L   -> "Yesterday"
+        days < 7     -> "${days}d ago"
+        days < 365   -> {
+            val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
+            val month = cal.getDisplayName(java.util.Calendar.MONTH, java.util.Calendar.SHORT, Locale.getDefault())
+            "${cal.get(java.util.Calendar.DAY_OF_MONTH)} $month"
+        }
+        else -> formatDetailDate(epochMillis)
+    }
+}
 
 private fun displayName(from: String): String {
     val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)

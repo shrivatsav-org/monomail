@@ -45,6 +45,7 @@ class SettingsViewModel @Inject constructor(
     fun setSmartGroupingEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingEnabled(enabled) }
     fun setSmartGroupingRecentOnly(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setSmartGroupingRecentOnly(enabled) }
     fun setOrganizeByThread(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setOrganizeByThread(enabled) }
+    fun setLoadRemoteImages(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setLoadRemoteImages(enabled) }
     fun setNavScale(scale: Float) = viewModelScope.launch { settingsDataStore.setNavScale(scale) }
     fun setUndoSendEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUndoSendEnabled(enabled) }
     fun setUndoSendWindow(window: UndoSendWindow) = viewModelScope.launch { settingsDataStore.setUndoSendWindow(window) }

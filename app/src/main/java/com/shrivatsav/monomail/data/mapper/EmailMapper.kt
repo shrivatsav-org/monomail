@@ -6,6 +6,13 @@ import com.shrivatsav.monomail.data.remote.GmailMessage
 import com.shrivatsav.monomail.data.remote.GmailThread
 import com.shrivatsav.monomail.data.remote.MessagePart
 object EmailMapper {
+
+    /** Result of extracting a body from a MIME part tree. */
+    private data class BodyResult(
+        val text: String,
+        val isHtml: Boolean
+    )
+
     private fun cleanSubject(subject: String): String {
         return subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "")
     }
@@ -20,6 +27,7 @@ object EmailMapper {
         val labels   = labelIds.orEmpty()
         val isRead   = "UNREAD" !in labels
         val isStarred = "STARRED" in labels
+        val bodyInfo = extractAndInjectImages(payload)
         return Email(
             id        = id,
             threadId  = threadId,
@@ -30,7 +38,8 @@ object EmailMapper {
             cc        = ccRaw,
             bcc       = bccRaw,
             snippet   = snippet?.decodeHtmlEntities() ?: "",
-            body      = extractAndInjectImages(payload),
+            body      = bodyInfo.text,
+            bodyIsHtml = bodyInfo.isHtml,
             date      = internalDate?.toLongOrNull() ?: 0L,
             isRead    = isRead,
             isStarred = isStarred,
@@ -89,39 +98,43 @@ object EmailMapper {
             Pair(raw.trim(), raw.trim())
         }
     }
-    private fun extractBody(part: MessagePart?): String {
-        if (part == null) return ""
+    private fun extractBody(part: MessagePart?): BodyResult {
+        if (part == null) return BodyResult("", isHtml = true)
         if (part.body?.data != null && part.parts.isNullOrEmpty()) {
             val decoded = decodeBase64Url(part.body.data)
-            if (part.mimeType == "text/plain" || part.mimeType == "text/html") {
-                return decoded
+            if (part.mimeType == "text/html") {
+                return BodyResult(decoded, isHtml = true)
+            }
+            if (part.mimeType == "text/plain") {
+                return BodyResult(decoded, isHtml = false)
             }
         }
         val children = part.parts.orEmpty()
         for (child in children) {
             if (child.mimeType == "text/html" && child.body?.data != null) {
-                return decodeBase64Url(child.body.data)
+                return BodyResult(decodeBase64Url(child.body.data), isHtml = true)
             }
         }
         for (child in children) {
             if (child.mimeType == "text/plain" && child.body?.data != null) {
-                return decodeBase64Url(child.body.data)
+                return BodyResult(decodeBase64Url(child.body.data), isHtml = false)
             }
         }
         for (child in children) {
             val result = extractBody(child)
-            if (result.isNotEmpty()) return result
+            if (result.text.isNotEmpty()) return result
         }
-        return ""
+        return BodyResult("", isHtml = true)
     }
-    private fun extractAndInjectImages(payload: MessagePart?): String {
-        var htmlBody = extractBody(payload)
+    private fun extractAndInjectImages(payload: MessagePart?): BodyResult {
+        val bodyInfo = extractBody(payload)
         val cidMap = mutableMapOf<String, String>()
         extractInlineImages(payload, cidMap)
+        var htmlBody = bodyInfo.text
         cidMap.forEach { (cid, dataUri) ->
             htmlBody = htmlBody.replace("cid:$cid", dataUri)
         }
-        return htmlBody
+        return BodyResult(htmlBody, bodyInfo.isHtml)
     }
     private fun extractInlineImages(part: MessagePart?, map: MutableMap<String, String>) {
         if (part == null) return
