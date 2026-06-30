@@ -79,15 +79,17 @@ internal fun InboxSearchBar(
                 color = bulkModeContainerColor,
                 tonalElevation = SearchBarDefaults.Elevation
             ) {
-                Box(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 56.dp)
+                        .padding(start = 20.dp, end = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     AnimatedContent(
                         targetState = selectedCount,
                         label = "selectedCount",
-                        modifier = Modifier.align(Alignment.Center),
+                        modifier = Modifier.weight(1f),
                         transitionSpec = {
                             (fadeIn(tween(200)) + scaleIn(tween(200))).togetherWith(
                                 fadeOut(tween(150)) + scaleOut(tween(150))
@@ -103,12 +105,7 @@ internal fun InboxSearchBar(
                             overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.CenterEnd)
-                            .padding(end = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         if (selectedCount < totalCount) {
                             TextButton(
                                 onClick = onSelectAll,
