@@ -242,6 +242,7 @@ fun InboxScreen(
                         }
 
                         is InboxState.Success -> {
+                            key(currentTab) {
                             val threadsToDisplay = localFilteredThreads ?: s.threads
                             val isSearchActive = localFilteredThreads != null
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable {
@@ -441,11 +442,12 @@ fun InboxScreen(
                                 }
                             }
                         }
+                            } // key(currentTab)
                     }
                 }
             }
 
-            
+
             AnimatedVisibility(
                 visible = longPressedThread == null && activeModal == null && !isBulkMode,
                 enter = fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.9f),
