@@ -51,6 +51,7 @@ import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
 import java.net.URLDecoder
 import java.net.URLEncoder
 sealed class Screen(val route: String) {
+    object Onboarding   : Screen("onboarding")
     object SignIn       : Screen("sign_in")
     object ImapSetup    : Screen("imap_setup")
     object Inbox        : Screen("inbox")
@@ -81,14 +82,25 @@ sealed class Screen(val route: String) {
 fun NavGraph(
     authManager: AuthManager,
     emailRepository: EmailRepository,
-    settingsDataStore: SettingsDataStore
+    settingsDataStore: SettingsDataStore,
+    onContentReady: () -> Unit = {}
 ) {
     val navController = rememberNavController()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
     var isLoading by remember { mutableStateOf(true) }
     var isAuthenticated by remember { mutableStateOf(false) }
+    val appSettings by settingsDataStore.settingsFlow.collectAsState(initial = AppSettings())
     LaunchedEffect(Unit) {
-        isAuthenticated = authManager.restoreSession()
+        // Phase A — fast: read cached auth state so the first frame renders immediately
+        isAuthenticated = authManager.restoreSessionQuick()
         isLoading = false
+        onContentReady()
+        // Phase B — background: refresh tokens and register push without blocking the UI
+        if (isAuthenticated) {
+            scope.launch {
+                authManager.restoreSession()
+            }
+        }
     }
     if (isLoading) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -101,6 +113,8 @@ fun NavGraph(
     }
     val startDestination = if (isAuthenticated) {
         Screen.Inbox.route
+    } else if (!appSettings.hasSeenWelcomePrompt) {
+        Screen.Onboarding.route
     } else {
         Screen.SignIn.route
     }
@@ -149,6 +163,19 @@ fun NavGraph(
                 }
             }
         ) {
+            composable(Screen.Onboarding.route) {
+                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                com.shrivatsav.monomail.ui.screens.auth.OnboardingScreen(
+                    onFinishOnboarding = {
+                        scope.launch {
+                            settingsDataStore.setHasSeenWelcomePrompt(true)
+                            navController.navigate(Screen.SignIn.route) {
+                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                            }
+                        }
+                    }
+                )
+            }
             composable(Screen.SignIn.route) {
                 val vm: SignInViewModel = hiltViewModel()
                 SignInScreen(

@@ -1,0 +1,121 @@
+# Baseline Profile for Monomail — guides ART AOT compilation on install
+# These are the critical startup paths: app init → auth restore → inbox render
+# Raw ART profile format (AGP 9.x compatible) — uses wildcard method descriptors
+
+# ── Application & DI ──────────────────────────────────────────────────
+Lcom/shrivatsav/monomail/MonoMailApp;
+HSPLcom/shrivatsav/monomail/MonoMailApp;->**(**)**
+HSPLcom/shrivatsav/monomail/MonoMailApp;->getWorkManagerConfiguration()**
+
+# Hilt generated application class & entry points
+Lcom/shrivatsav/monomail/MonoMailApp_HiltComponents;
+Lcom/shrivatsav/monomail/Hilt_MonoMailApp;
+Lcom/shrivatsav/monomail/Hilt_MainActivity;
+
+# ── MainActivity & Activity lifecycle ─────────────────────────────────
+Lcom/shrivatsav/monomail/MainActivity;
+HSPLcom/shrivatsav/monomail/MainActivity;->**(**)**
+HSPLcom/shrivatsav/monomail/MainActivity;->onResume()**
+HSPLcom/shrivatsav/monomail/MainActivity;->onStop()**
+
+# ── Auth / Session Restore ────────────────────────────────────────────
+Lcom/shrivatsav/monomail/auth/AuthManager;
+HSPLcom/shrivatsav/monomail/auth/AuthManager;->**(**)**
+Lcom/shrivatsav/monomail/auth/AccountManager;
+HSPLcom/shrivatsav/monomail/auth/AccountManager;->**(**)**
+Lcom/shrivatsav/monomail/auth/UserProfile;
+
+# ── Security / KeyStore / Encryption ──────────────────────────────────
+Lcom/shrivatsav/monomail/security/SecurityUtil;
+HSPLcom/shrivatsav/monomail/security/SecurityUtil;->**(**)**
+Lcom/shrivatsav/monomail/security/EncryptedStorage;
+
+# ── Database / SQLCipher / Room ───────────────────────────────────────
+Lcom/shrivatsav/monomail/data/local/AppDatabase;
+HSPLcom/shrivatsav/monomail/data/local/AppDatabase;->**(**)**
+Lcom/shrivatsav/monomail/data/local/AppDatabase_Impl;
+Lcom/shrivatsav/monomail/data/local/EmailDao_Impl;
+Lcom/shrivatsav/monomail/data/local/ThreadDao_Impl;
+Lcom/shrivatsav/monomail/data/local/Converters;
+Lnet/zetetic/database/sqlcipher/SupportOpenHelperFactory;
+Lnet/zetetic/database/sqlcipher/SupportOpenHelper;
+Lnet/zetetic/database/sqlcipher/SQLiteDatabase;
+Lnet/zetetic/database/sqlcipher/LoadLibrary;
+
+# ── Settings / DataStore ──────────────────────────────────────────────
+Lcom/shrivatsav/monomail/data/settings/SettingsDataStore;
+HSPLcom/shrivatsav/monomail/data/settings/SettingsDataStore;->**(**)**
+Lcom/shrivatsav/monomail/data/settings/AppSettings;
+Lcom/shrivatsav/monomail/data/settings/FontScale;
+Lcom/shrivatsav/monomail/data/settings/ThemeMode;
+Lcom/shrivatsav/monomail/data/settings/SwipeAction;
+
+# ── Repository / Provider Factory ─────────────────────────────────────
+Lcom/shrivatsav/monomail/data/repository/EmailRepository;
+Lcom/shrivatsav/monomail/di/AppModule;
+Lcom/shrivatsav/monomail/di/DatabaseModule;
+Lcom/shrivatsav/monomail/di/PushModule;
+
+# ── DI Modules ────────────────────────────────────────────────────────
+Lcom/shrivatsav/monomail/di/AppModule_ProvideProviderFactoryFactory;
+Lcom/shrivatsav/monomail/di/AppModule_ProvideAccountManagerFactory;
+Lcom/shrivatsav/monomail/di/AppModule_ProvideAuthManagerFactory;
+Lcom/shrivatsav/monomail/di/AppModule_ProvideSettingsDataStoreFactory;
+Lcom/shrivatsav/monomail/di/AppModule_ProvideEmailRepositoryFactory;
+
+# ── Compose Theme / Fonts ─────────────────────────────────────────────
+Lcom/shrivatsav/monomail/ui/theme/ThemeKt;
+HSPLcom/shrivatsav/monomail/ui/theme/ThemeKt;->MonoMailTheme(**)**
+Lcom/shrivatsav/monomail/ui/theme/FontFamiliesKt;
+Lcom/shrivatsav/monomail/ui/theme/TypeKt;
+
+# ── Navigation / NavGraph ─────────────────────────────────────────────
+Lcom/shrivatsav/monomail/ui/navigation/NavGraphKt;
+HSPLcom/shrivatsav/monomail/ui/navigation/NavGraphKt;->NavGraph(**)**
+Lcom/shrivatsav/monomail/ui/navigation/Screen;
+
+# ── Inbox Screen & ViewModel ──────────────────────────────────────────
+Lcom/shrivatsav/monomail/ui/screens/inbox/InboxScreenKt;
+HSPLcom/shrivatsav/monomail/ui/screens/inbox/InboxScreenKt;->InboxScreen(**)**
+Lcom/shrivatsav/monomail/ui/screens/inbox/InboxViewModel;
+Lcom/shrivatsav/monomail/ui/screens/inbox/InboxState;
+Lcom/shrivatsav/monomail/ui/screens/inbox/InboxTab;
+
+# ── Sign-In Flow ──────────────────────────────────────────────────────
+Lcom/shrivatsav/monomail/ui/screens/auth/SignInScreen;
+Lcom/shrivatsav/monomail/ui/screens/auth/SignInViewModel;
+
+# ── Background Worker ─────────────────────────────────────────────────
+Lcom/shrivatsav/monomail/data/worker/ActionQueueManager;
+HSPLcom/shrivatsav/monomail/data/worker/ActionQueueManager;->**(**)**
+Lcom/shrivatsav/monomail/worker/EmailSyncWorker;
+Lcom/shrivatsav/monomail/worker/GraphSubscriptionRenewalWorker;
+
+# ── Compose / UI Framework Critical Paths ─────────────────────────────
+Landroidx/compose/runtime/ComposerKt;
+Landroidx/compose/runtime/ComposablesKt;
+Landroidx/compose/runtime/Recomposer;
+Landroidx/compose/ui/platform/AndroidComposeView;
+Landroidx/compose/ui/platform/Wrapper;
+Landroidx/compose/foundation/lazy/LazyColumnKt;
+Landroidx/compose/foundation/lazy/LazyListStateKt;
+Landroidx/compose/material3/MaterialExpressiveTheme;
+Landroidx/compose/material3/Surface;
+Landroidx/compose/material3/LoadingIndicator;
+
+# ── Compose Navigation ────────────────────────────────────────────────
+Landroidx/navigation/compose/NavHostKt;
+HSPLandroidx/navigation/compose/NavHostKt;->NavHost(**)**
+Landroidx/navigation/NavController;
+Landroidx/navigation/NavGraphNavigator;
+
+# ── WorkManager ───────────────────────────────────────────────────────
+Landroidx/work/WorkManager;
+Landroidx/work/impl/WorkManagerImpl;
+Landroidx/work/impl/WorkManagerInitializer;
+
+# ── Hilt Core ─────────────────────────────────────────────────────────
+Ldagger/hilt/android/internal/managers/ViewComponentManager;
+Ldagger/hilt/internal/GeneratedComponentManagerHolder;
+Ldagger/hilt/android/HiltAndroidApp;
+Ldagger/hilt/android/internal/lifecycle/HiltViewModelFactory;

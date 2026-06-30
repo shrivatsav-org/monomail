@@ -21,6 +21,7 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
         fun getDatabase(context: Context): AppDatabase {
+            System.loadLibrary("sqlcipher")
             return INSTANCE ?: synchronized(this) {
                 val passphrase = String(SecurityUtil.getDatabasePassphrase(context)).toByteArray()
                 val factory = SupportOpenHelperFactory(passphrase)

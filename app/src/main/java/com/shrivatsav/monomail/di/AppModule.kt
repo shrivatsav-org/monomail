@@ -14,7 +14,6 @@ import com.shrivatsav.monomail.data.provider.OutlookProvider
 import com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig
 import com.shrivatsav.monomail.data.provider.imap.ImapProvider
 import com.shrivatsav.monomail.data.remote.RetrofitClient
-import com.shrivatsav.monomail.data.repository.ContactPhotoProvider
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
@@ -52,10 +51,6 @@ object AppModule {
     @Provides @Singleton
     fun provideContactSuggestionProvider(): ContactSuggestionProvider =
         ContactSuggestionProvider()
-
-    @Provides @Singleton
-    fun provideContactPhotoProvider(@ApplicationContext context: Context): ContactPhotoProvider =
-        ContactPhotoProvider(context)
 
     @Provides @Singleton
     fun provideSentEmailEvents(): MutableSharedFlow<SentEmailEvent> =

@@ -4,4 +4,10 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
+
+    <!-- SplashScreen theme – shown instantly on cold start, then handed off to Theme.MonoMail -->
+    <style name="Theme.MonoMail.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@android:color/white</item>
+        <item name="postSplashScreenTheme">@style/Theme.MonoMail</item>
+    </style>
 </resources>

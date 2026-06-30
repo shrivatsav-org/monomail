@@ -53,7 +53,6 @@ fun InboxScreen(
     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
     val scheduledCount by viewModel.scheduledCount.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
-    val contactPhotoUris by viewModel.contactPhotoUris.collectAsState()
 
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
@@ -241,11 +240,19 @@ fun InboxScreen(
 
                         is InboxState.Success -> {
                             val currentTab = s.currentTab
-                            // key(currentTab) destroys + recreates everything
-                            // inside when the folder changes, so no stale
-                            // scroll position, structure, or expanded-groups
-                            // can leak across tabs.
-                            key(currentTab) {
+                            AnimatedContent(
+                                targetState = currentTab,
+                                transitionSpec = {
+                                    val direction = targetState.ordinal - initialState.ordinal
+                                    val offset = { fullWidth: Int -> if (direction > 0) fullWidth else -fullWidth }
+                                    val opposite = { fullWidth: Int -> if (direction > 0) -fullWidth else fullWidth }
+                                    (slideInHorizontally(animationSpec = tween(280)) { offset(it) } +
+                                            fadeIn(animationSpec = tween(280))) togetherWith
+                                            (slideOutHorizontally(animationSpec = tween(280)) { opposite(it) } +
+                                                    fadeOut(animationSpec = tween(280)))
+                                },
+                                label = "tabTransition"
+                            ) { currentTab ->
                             val threadsToDisplay = localFilteredThreads ?: s.threads
                             val isSearchActive = localFilteredThreads != null
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable {
@@ -360,7 +367,7 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = contactPhotoUris[displayItem.thread.fromEmail],
+                                                        contactPhotoUri = null,
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
@@ -387,7 +394,7 @@ fun InboxScreen(
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
-                                                        contactPhotoUri = contactPhotoUris[displayItem.thread.fromEmail],
+                                                        contactPhotoUri = null,
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
@@ -450,7 +457,7 @@ fun InboxScreen(
                                     }
                                 }
                             }
-                            } // End of key(currentTab)
+                            } // End of AnimatedContent(currentTab)
                         }
                     }
                 }
