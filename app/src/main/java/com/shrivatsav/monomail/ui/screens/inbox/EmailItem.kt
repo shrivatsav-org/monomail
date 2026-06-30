@@ -20,8 +20,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -57,6 +57,7 @@ fun EmailItem(
     isSelected: Boolean = false,
     isBulkMode: Boolean = false,
     onSelectToggle: () -> Unit = {},
+    onRangeSelect: () -> Unit = {},
     onAvatarLongClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -81,7 +82,7 @@ fun EmailItem(
             .then(
                 if (isBulkMode) {
                     Modifier.combinedClickable(
-                        onClick = onSelectToggle,
+                        onClick = onRangeSelect,
                         onLongClick = onSelectToggle
                     )
                 } else {
@@ -209,36 +210,45 @@ private fun SenderAvatar(
             ),
         contentAlignment = Alignment.Center
     ) {
-        if (isBulkMode) {
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(2.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = "Selected",
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            } else {
-                Icon(
-                    imageVector = Icons.Outlined.RadioButtonUnchecked,
-                    contentDescription = "Not selected",
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                    modifier = Modifier.fillMaxSize().padding(2.dp)
-                )
-            }
-        } else {
+        AnimatedVisibility(
+            visible = !isBulkMode,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut()
+        ) {
             Text(
                 text = senderInitial,
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
+        }
+        AnimatedVisibility(
+            visible = isBulkMode,
+            enter = scaleIn() + fadeIn(),
+            exit = scaleOut() + fadeOut()
+        ) {
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(3.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Check,
+                        contentDescription = "Selected",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                }
+            } else {
+                Icon(
+                    imageVector = Icons.Rounded.RadioButtonUnchecked,
+                    contentDescription = "Not selected",
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                    modifier = Modifier.size(32.dp)
+                )
+            }
         }
     }
 }

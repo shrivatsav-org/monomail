@@ -96,6 +96,8 @@ class InboxViewModel @Inject constructor(
     val selectedThreadIds: StateFlow<Set<String>> = _selectedThreadIds.asStateFlow()
     val selectedCount: StateFlow<Int> = _selectedThreadIds.map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    private val _lastSelectedThreadId = MutableStateFlow<String?>(null)
+    val lastSelectedThreadId: StateFlow<String?> = _lastSelectedThreadId.asStateFlow()
     val settingsFlow = settingsDataStore.settingsFlow
     private var pollingIntervalMs = 120_000L
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
@@ -494,24 +496,43 @@ class InboxViewModel @Inject constructor(
     }
     fun enterBulkSelectMode(threadId: String) {
         _isBulkSelectMode.value = true
+        _lastSelectedThreadId.value = threadId
         _selectedThreadIds.value = setOf(threadId)
     }
     fun exitBulkSelectMode() {
         _isBulkSelectMode.value = false
+        _lastSelectedThreadId.value = null
         _selectedThreadIds.value = emptySet()
     }
     fun toggleThreadSelection(threadId: String) {
+        _lastSelectedThreadId.value = threadId
         _selectedThreadIds.value = _selectedThreadIds.value.let { current ->
             if (threadId in current) current - threadId else current + threadId
         }.also {
             if (it.isEmpty()) _isBulkSelectMode.value = false
         }
     }
+
+    fun rangeSelectTo(threadId: String, orderedThreadIds: List<String>) {
+        val lastId = _lastSelectedThreadId.value ?: threadId
+        val fromIdx = orderedThreadIds.indexOf(lastId)
+        val toIdx = orderedThreadIds.indexOf(threadId)
+        if (fromIdx == -1 || toIdx == -1) {
+            toggleThreadSelection(threadId)
+            return
+        }
+        val rangeIds = orderedThreadIds.subList(
+            minOf(fromIdx, toIdx), maxOf(fromIdx, toIdx) + 1
+        ).toSet()
+        _selectedThreadIds.value = _selectedThreadIds.value + rangeIds
+        _lastSelectedThreadId.value = threadId
+    }
     fun selectAll() {
         val threads = (state.value as? InboxState.Success)?.threads ?: return
         _selectedThreadIds.value = threads.map { it.threadId }.toSet()
     }
     fun deselectAll() {
+        _lastSelectedThreadId.value = null
         _selectedThreadIds.value = emptySet()
         _isBulkSelectMode.value = false
     }
