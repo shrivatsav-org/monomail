@@ -123,6 +123,14 @@ fun SettingsScreen(
                     checked = settings.loadRemoteImages,
                     onCheckedChange = { viewModel.setLoadRemoteImages(it) }
                 )
+                CardDivider()
+                SettingsToggleRow(
+                    icon = Icons.Rounded.Code,
+                    title = "Render Markdown",
+                    subtitle = "Convert markdown formatting in plain text emails",
+                    checked = settings.renderMarkdown,
+                    onCheckedChange = { viewModel.setRenderMarkdown(it) }
+                )
             }
             SettingsCard {
                 SectionHeader(icon = Icons.Rounded.TouchApp, title = "Behavior")

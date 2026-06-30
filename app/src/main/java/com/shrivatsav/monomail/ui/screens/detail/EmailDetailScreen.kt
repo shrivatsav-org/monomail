@@ -91,6 +91,7 @@ fun EmailDetailScreen(
     isConversationView: Boolean = true,
     fontScaleMultiplier: Float = 1f,
     loadRemoteImages: Boolean = true,
+    renderMarkdown: Boolean = false,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _, _ -> },
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> },
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -206,6 +207,7 @@ fun EmailDetailScreen(
                             isConversationView = isConversationView,
                             fontScaleMultiplier = fontScaleMultiplier,
                             loadRemoteImages = loadRemoteImages,
+                            renderMarkdown = renderMarkdown,
                             onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
                             onForward = { onForward(latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
                             onFetchAttachment = onFetchAttachment
@@ -223,6 +225,7 @@ private fun ThreadConversationContent(
     isConversationView: Boolean = true,
     fontScaleMultiplier: Float = 1f,
     loadRemoteImages: Boolean = true,
+    renderMarkdown: Boolean = false,
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -443,6 +446,7 @@ private fun ThreadConversationContent(
                                 linkColor = linkColor,
                                 fontScaleMultiplier = fontScaleMultiplier,
                                 loadRemoteImages = loadRemoteImages,
+                                renderMarkdown = renderMarkdown,
                                 onFetchAttachment = onFetchAttachment,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -457,6 +461,7 @@ private fun ThreadConversationContent(
                     linkColor = linkColor,
                     fontScaleMultiplier = fontScaleMultiplier,
                     loadRemoteImages = loadRemoteImages,
+                    renderMarkdown = renderMarkdown,
                     onFetchAttachment = onFetchAttachment,
                     showSender = true,
                     messageCount = emails.size
@@ -525,6 +530,7 @@ private fun MessageBody(
     linkColor: String,
     fontScaleMultiplier: Float = 1f,
     loadRemoteImages: Boolean = true,
+    renderMarkdown: Boolean = false,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
     showSender: Boolean = false,
     messageCount: Int = 0,
@@ -651,13 +657,20 @@ private fun MessageBody(
 
         // Images blocked banner (shown when loadRemoteImages is off and showRemoteImages is still false)
 
-        val htmlContent = remember(email.id, email.body, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages) {
+        val htmlContent = remember(email.id, email.body, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown) {
             // Determine body: preserve or strip quoted text
             val bodyText = if (showQuotedText) email.body else stripQuotedText(email.body)
 
-            // HTML-encode plain text bodies before wrapping
+            // Convert markdown to HTML for plain text bodies if enabled
             val preparedBody = if (email.bodyIsHtml) {
                 bodyText
+            } else if (renderMarkdown) {
+                try {
+                    markdownToHtml(bodyText)
+                } catch (_: Exception) {
+                    TextUtils.htmlEncode(bodyText)
+                        .replace("\n", "<br>")
+                }
             } else {
                 TextUtils.htmlEncode(bodyText)
                     .replace("\n", "<br>")
@@ -1233,4 +1246,88 @@ private fun autolinkHtml(html: String): String {
         i = tagEnd + 1
     }
     return sb.toString()
+}
+
+/**
+ * Converts a subset of Markdown syntax to HTML for WebView rendering.
+ * Handles: headers, bold, italic, inline code, code blocks, links,
+ * unordered lists, ordered lists, blockquotes, and horizontal rules.
+ */
+private fun markdownToHtml(markdown: String): String {
+    var html = markdown
+
+    // Escape HTML entities first to prevent XSS/injection
+    html = html.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+
+    // Code block (fenced) — must be before inline code
+    html = html.replace(Regex("""```(\w*)\n([\s\S]*?)```""")) { match ->
+        val code = match.groupValues[2].trimEnd()
+        "<pre><code>${code}</code></pre>"
+    }
+
+    // Indented code blocks (4 spaces at start of line)
+    html = html.replace(Regex("""(?m)^(?:    |\t)(.+)$""")) { match ->
+        "<code>${match.groupValues[1]}</code><br>"
+    }
+
+    // Headers (atx-style)
+    html = html.replace(Regex("""(?m)^##### (.+)$""")) { "<h5>${it.groupValues[1]}</h5>" }
+    html = html.replace(Regex("""(?m)^#### (.+)$""")) { "<h4>${it.groupValues[1]}</h4>" }
+    html = html.replace(Regex("""(?m)^### (.+)$""")) { "<h3>${it.groupValues[1]}</h3>" }
+    html = html.replace(Regex("""(?m)^## (.+)$""")) { "<h2>${it.groupValues[1]}</h2>" }
+    html = html.replace(Regex("""(?m)^# (.+)$""")) { "<h1>${it.groupValues[1]}</h1>" }
+
+    // Blockquotes
+    html = html.replace(Regex("""(?m)^&gt; (.*)$""")) { "<blockquote>${it.groupValues[1]}</blockquote>" }
+
+    // Horizontal rules
+    html = html.replace(Regex("""(?m)^([-*_]){3,}\s*$"""), "<hr>")
+
+    // Unordered lists
+    html = html.replace(Regex("""(?m)^[*-] (.+)$""")) { "<li>${it.groupValues[1]}</li>" }
+
+    // Ordered lists
+    html = html.replace(Regex("""(?m)^\d+\. (.+)$""")) { "<li>${it.groupValues[1]}</li>" }
+
+    // Wrap consecutive <li> in <ul> tags
+    html = html.replace(Regex("""(?:<li>.*?</li>)+""")) {
+        val listItems = it.value.split("</li>").filter { it.isNotBlank() }
+        if (listItems.size <= 1) return@replace it.value
+        "<ul>${it.value}</ul>"
+    }
+    // Fix: wrap isolated <li> items too
+    html = html.replace(Regex("""(<li>.*?</li>)(?!</li>)""")) { "<ul>${it.value}</ul>" }
+
+    // Inline code (must be after code blocks)
+    html = html.replace(Regex("""`([^`\n]+?)`""")) { "<code>${it.groupValues[1]}</code>" }
+
+    // Images — must be before links
+    html = html.replace(Regex("""!\[([^\]]*)\]\(([^)]+)\)""")) { "<img src=\"${it.groupValues[2]}\" alt=\"${it.groupValues[1]}\">" }
+
+    // Links [text](url)
+    html = html.replace(Regex("""\[([^\]]+)\]\(([^)]+)\)""")) { "<a href=\"${it.groupValues[2]}\">${it.groupValues[1]}</a>" }
+
+    // Bold
+    html = html.replace(Regex("""\*\*(.+?)\*\*""")) { "<strong>${it.groupValues[1]}</strong>" }
+    html = html.replace(Regex("""__(.+?)__""")) { "<strong>${it.groupValues[1]}</strong>" }
+
+    // Italic
+    html = html.replace(Regex("""\*(.+?)\*""")) { "<em>${it.groupValues[1]}</em>" }
+    html = html.replace(Regex("""_(.+?)_""")) { "<em>${it.groupValues[1]}</em>" }
+
+    // Strikethrough
+    html = html.replace(Regex("""~~(.+?)~~""")) { "<del>${it.groupValues[1]}</del>" }
+
+    // Line breaks (preserve double newlines as paragraph breaks, single as <br>)
+    html = html.replace(Regex("""\n\n+"""), "</p><p>")
+    html = html.replace(Regex("""\n(?!</)"""), "<br>")
+
+    // Wrap in paragraph if not already wrapped in block-level tags
+    if (!html.startsWith("<h") && !html.startsWith("<p") && !html.startsWith("<pre") && !html.startsWith("<ul") && !html.startsWith("<blockquote")) {
+        html = "<p>$html</p>"
+    }
+
+    return html
 }

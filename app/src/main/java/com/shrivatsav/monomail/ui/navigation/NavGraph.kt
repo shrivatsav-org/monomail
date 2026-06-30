@@ -283,6 +283,7 @@ fun NavGraph(
                     isConversationView = appSettings.organizeByThread,
                     fontScaleMultiplier = fontScaleMultiplier,
                     loadRemoteImages = appSettings.loadRemoteImages,
+                    renderMarkdown = appSettings.renderMarkdown,
                     onReply   = { to, subject, body, tid, messageId ->
                         navController.navigate(
                             Screen.Compose.createRoute(
