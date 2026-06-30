@@ -6,8 +6,14 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
@@ -78,7 +84,8 @@ class SettingsDataStore(private val context: Context) {
         val TEMPLATES = stringPreferencesKey("email_templates")
         val DOCK_CONFIG = stringPreferencesKey("dock_config")
     }
-    val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    val settingsFlow: StateFlow<AppSettings> = context.dataStore.data.map { prefs ->
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
         AppSettings(
             themeMode = prefs[Keys.THEME_MODE]?.let { ThemeMode.valueOf(it) } ?: ThemeMode.SYSTEM,
@@ -104,7 +111,11 @@ class SettingsDataStore(private val context: Context) {
                 try { gson.fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults()
         )
-    }
+    }.stateIn(
+        scope = scope,
+        started = SharingStarted.Eagerly,
+        initialValue = AppSettings()
+    )
     suspend fun setThemeMode(mode: ThemeMode) {
         context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
     }

@@ -2,9 +2,7 @@ package com.shrivatsav.monomail.ui.screens.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import android.net.Uri
 import com.shrivatsav.monomail.data.model.Email
-import com.shrivatsav.monomail.data.repository.ContactPhotoProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -24,7 +22,6 @@ sealed class EmailDetailState {
 @HiltViewModel
 class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
-    private val contactPhotoProvider: ContactPhotoProvider,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val threadId: String = savedStateHandle.get<String>("threadId") ?: ""
@@ -36,10 +33,6 @@ class EmailDetailViewModel @Inject constructor(
         _error
     ) { emails, isLoading, error ->
         if (emails.isNotEmpty()) {
-            val unreadIds = emails.filter { !it.isRead }.map { it.id }
-            if (unreadIds.isNotEmpty()) {
-                repository.markEmailsAsRead(unreadIds)
-            }
             val needsBodyFetch = emails.any { it.body.isEmpty() }
             EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
         } else if (error != null) {
@@ -61,8 +54,6 @@ class EmailDetailViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = false
         )
-    private val _contactPhotoUris = MutableStateFlow<Map<String, Uri?>>(emptyMap())
-    val contactPhotoUris: StateFlow<Map<String, Uri?>> = _contactPhotoUris.asStateFlow()
     init {
         viewModelScope.launch {
             repository.markThreadAsRead(threadId)
@@ -76,10 +67,10 @@ class EmailDetailViewModel @Inject constructor(
         viewModelScope.launch {
             state.collect { s ->
                 if (s is EmailDetailState.Success) {
-                    val uris = withContext(Dispatchers.IO) {
-                        s.emails.associate { it.fromEmail to contactPhotoProvider.getPhotoUri(it.fromEmail) }
+                    val unreadIds = s.emails.filter { !it.isRead }.map { it.id }
+                    if (unreadIds.isNotEmpty()) {
+                        repository.markEmailsAsRead(unreadIds)
                     }
-                    _contactPhotoUris.value = uris
                 }
             }
         }

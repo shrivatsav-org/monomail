@@ -20,7 +20,6 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -88,7 +87,6 @@ fun EmailDetailScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
-    val contactPhotoUris by viewModel.contactPhotoUris.collectAsState()
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -194,7 +192,6 @@ fun EmailDetailScreen(
                         val latestEmail = emails.last()
                         ThreadConversationContent(
                             emails = emails,
-                            contactPhotoUris = contactPhotoUris,
                             modifier = Modifier.weight(1f),
                             isConversationView = isConversationView,
                             onReply = { onReply(latestEmail.fromEmail, latestEmail.subject, latestEmail.body, latestEmail.threadId, latestEmail.id) },
@@ -210,7 +207,6 @@ fun EmailDetailScreen(
 @Composable
 private fun ThreadConversationContent(
     emails: List<Email>,
-    contactPhotoUris: Map<String, Uri?> = emptyMap(),
     modifier: Modifier = Modifier,
     isConversationView: Boolean = true,
     onReply: () -> Unit = {},
@@ -266,7 +262,6 @@ private fun ThreadConversationContent(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     val initial = email.from.firstOrNull()?.uppercase() ?: "?"
-                    val photoUri = contactPhotoUris[email.fromEmail]
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -274,20 +269,11 @@ private fun ThreadConversationContent(
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (photoUri != null) {
-                            coil.compose.AsyncImage(
-                                model = photoUri,
-                                contentDescription = "Contact photo",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                            )
-                        } else {
-                            Text(
-                                text = initial,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        Text(
+                            text = initial,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -350,7 +336,6 @@ private fun ThreadConversationContent(
                 ) {
                     MessageBody(
                         email = email,
-                        contactPhotoUri = contactPhotoUris[email.fromEmail],
                         bgColor = bgColor,
                         textColor = textColor,
                         linkColor = linkColor,
@@ -360,7 +345,6 @@ private fun ThreadConversationContent(
             } else {
                 MessageBody(
                     email = email,
-                    contactPhotoUri = contactPhotoUris[email.fromEmail],
                     bgColor = bgColor,
                     textColor = textColor,
                     linkColor = linkColor,
@@ -427,7 +411,6 @@ private fun ThreadConversationContent(
 @Composable
 private fun MessageBody(
     email: Email,
-    contactPhotoUri: Uri? = null,
     bgColor: String,
     textColor: String,
     linkColor: String,
@@ -453,20 +436,11 @@ private fun MessageBody(
                             .background(MaterialTheme.colorScheme.surfaceContainerHigh),
                         contentAlignment = Alignment.Center
                     ) {
-                        if (contactPhotoUri != null) {
-                            AsyncImage(
-                                model = contactPhotoUri,
-                                contentDescription = "Contact photo",
-                                modifier = Modifier.fillMaxSize(),
-                                contentScale = ContentScale.Crop
-                            )
-                        } else {
-                            Text(
-                                text = initial,
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
+                        Text(
+                            text = initial,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     if (isMsgUnread) {
                         Box(
