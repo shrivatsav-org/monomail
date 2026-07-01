@@ -8,6 +8,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.contentDescription
@@ -41,12 +42,12 @@ fun AnimatedDockTab(
     val transition = updateTransition(targetState = isActive, label = "dockTab")
 
     val bgColor by transition.animateColor(
-        transitionSpec = { tween(200) },
+        transitionSpec = { spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium) },
         label = "dockTabBg"
     ) { active -> if (active) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent }
 
     val iconColor by transition.animateColor(
-        transitionSpec = { tween(200) },
+        transitionSpec = { spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium) },
         label = "dockIconColor"
     ) { active ->
         if (active) MaterialTheme.colorScheme.onSurface
@@ -54,7 +55,7 @@ fun AnimatedDockTab(
     }
 
     val labelColor by transition.animateColor(
-        transitionSpec = { tween(180) },
+        transitionSpec = { spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium) },
         label = "dockLabelColor"
     ) { active ->
         if (active) MaterialTheme.colorScheme.onSurface
@@ -62,9 +63,14 @@ fun AnimatedDockTab(
     }
 
     val labelWidth by transition.animateDp(
-        transitionSpec = { tween(220, easing = FastOutSlowInEasing) },
+        transitionSpec = { spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium) },
         label = "dockLabelWidth"
     ) { active -> if (active) 72.dp else 0.dp }
+
+    val iconScale by transition.animateFloat(
+        transitionSpec = { spring(dampingRatio = 0.7f, stiffness = 400f) },
+        label = "dockIconScale"
+    ) { active -> if (active) 1.1f else 1f }
 
     Surface(
         shape = CircleShape,
@@ -84,7 +90,9 @@ fun AnimatedDockTab(
                 icon,
                 contentDescription = null,
                 tint = iconColor,
-                modifier = Modifier.size((22 * scale).dp)
+                modifier = Modifier
+                    .size((22 * scale).dp)
+                    .scale(iconScale)
             )
 
             Text(

@@ -73,7 +73,9 @@ class MainActivity : ComponentActivity() {
                     fontScale = density.fontScale * fontScaleMultiplier
                 )
             ) {
-                MonoMailTheme(themeMode = settings.themeMode.name) {
+                MonoMailTheme(
+                    themeMode = settings.themeMode.name
+                ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         NavGraph(
                             authManager = authManager,
