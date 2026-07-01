@@ -1,8 +1,11 @@
 package com.shrivatsav.monomail.ui.screens.compose
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,6 +46,7 @@ import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Lock
@@ -76,6 +80,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.viewinterop.AndroidView
@@ -117,6 +122,7 @@ fun ComposeScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val canSend = state.to.isNotBlank()
+    val showSentAnimation = remember { mutableStateOf(false) }
     val contentResolver = context.contentResolver
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -144,7 +150,11 @@ fun ComposeScreen(
         }
     }
     LaunchedEffect(state.isSent) {
-        if (state.isSent) onSent()
+        if (state.isSent) {
+            showSentAnimation.value = true
+            kotlinx.coroutines.delay(1500)
+            onSent()
+        }
     }
     LaunchedEffect(state.error) {
         state.error?.let {
@@ -175,7 +185,8 @@ fun ComposeScreen(
             onSchedule = { millis -> viewModel.scheduleSend(millis) }
         )
     }
-    Scaffold(
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
@@ -472,14 +483,11 @@ fun ComposeScreen(
                         }
                     }
                 }
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextButton(onClick = { showCcBcc = !showCcBcc }) {
+                Spacer(Modifier.width(8.dp))
+                TextButton(
+                    onClick = { showCcBcc = !showCcBcc },
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                ) {
                     Text(
                         text = if (showCcBcc) "Cc/Bcc" else "Cc/Bcc",
                         style = MaterialTheme.typography.labelLarge,
@@ -690,6 +698,39 @@ fun ComposeScreen(
             Spacer(Modifier.height(96.dp))
         }
     }
+    AnimatedVisibility(
+        visible = showSentAnimation.value,
+        enter = fadeIn(animationSpec = spring()) + scaleIn(
+            initialScale = 0.5f,
+            animationSpec = spring(dampingRatio = 0.5f, stiffness = 300f)
+        ),
+        exit = fadeOut() + scaleOut(),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(80.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    text = "Sent!",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+        }
+    }
+    }
 }
 @Composable
 private fun ComposeTextField(
@@ -833,7 +874,8 @@ private fun ComposeBottomBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp)
+            .padding(horizontal = 16.dp)
+            .padding(top = 8.dp, bottom = 28.dp)
     ) {
         Surface(
             shape = RoundedCornerShape(28.dp),

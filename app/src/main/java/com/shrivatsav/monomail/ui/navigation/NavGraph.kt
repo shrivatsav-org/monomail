@@ -340,6 +340,9 @@ fun NavGraph(
                 ScheduledMessagesScreen(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
+                    onCompose = {
+                        navController.navigate(Screen.Compose.createRoute())
+                    },
                     onEdit = { scheduled ->
                         navController.navigate(
                             Screen.Compose.createRoute(

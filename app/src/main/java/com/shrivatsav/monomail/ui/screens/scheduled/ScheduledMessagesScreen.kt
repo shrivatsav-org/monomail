@@ -6,6 +6,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Send
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material3.*
@@ -23,6 +25,7 @@ import java.util.*
 fun ScheduledMessagesScreen(
     viewModel: ScheduledMessagesViewModel,
     onBack: () -> Unit,
+    onCompose: () -> Unit = {},
     onEdit: (com.shrivatsav.monomail.data.local.ScheduledMessageEntity) -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
@@ -64,6 +67,23 @@ fun ScheduledMessagesScreen(
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Schedule emails to send later — they'll appear here\nuntil it's time to deliver them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                    Spacer(Modifier.height(24.dp))
+                    FilledTonalButton(
+                        onClick = onCompose,
+                        shape = RoundedCornerShape(20.dp)
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Compose a message", style = MaterialTheme.typography.labelLarge)
+                    }
                 }
             }
         } else {

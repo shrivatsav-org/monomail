@@ -24,6 +24,9 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -218,6 +221,14 @@ fun InboxScreen(
                         onDone = { viewModel.exitBulkSelectMode() }
                     )
 
+                    val isOnline = rememberConnectivityState()
+                    AnimatedVisibility(
+                        visible = !isOnline,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        OfflineBanner()
+                    }
                     when (val s = state) {
                         is InboxState.Loading -> {
                             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -1458,6 +1469,56 @@ private fun WelcomeActionButton(
             text = label,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun rememberConnectivityState(): Boolean {
+    val cm = androidx.compose.ui.platform.LocalContext.current
+        .getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val currentOnline = remember {
+        val activeNetwork = cm.activeNetwork
+        val caps = activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+    }
+    var isOnline by remember { mutableStateOf(currentOnline) }
+    DisposableEffect(Unit) {
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { isOnline = true }
+            override fun onLost(network: Network) { isOnline = false }
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                isOnline = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            }
+        }
+        cm.registerDefaultNetworkCallback(callback)
+        onDispose { cm.unregisterNetworkCallback(callback) }
+    }
+    return isOnline
+}
+
+@Composable
+private fun OfflineBanner() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            Icons.Rounded.CloudOff,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onErrorContainer
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            "You are offline",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onErrorContainer
         )
     }
 }
