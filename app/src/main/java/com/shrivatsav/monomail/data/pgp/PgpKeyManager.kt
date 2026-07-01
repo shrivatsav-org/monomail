@@ -6,6 +6,7 @@ import org.pgpainless.algorithm.PublicKeyAlgorithm
 import org.pgpainless.key.OpenPgpFingerprint
 import org.pgpainless.key.generation.KeySpec
 import org.pgpainless.key.generation.type.ecc.Ed25519
+import org.pgpainless.key.generation.type.ecc.X25519
 import org.pgpainless.key.protection.SecretKeyRingProtector
 import org.pgpainless.util.Passphrase
 import java.util.Date
@@ -19,7 +20,7 @@ class PgpKeyManager @Inject constructor(
     fun generateKeyPair(userId: String, passphrase: String? = null): PgpKeyInfo {
         val keySpec = KeySpec.getBuilder(Ed25519(), KeyFlag.SIGN_DATA, KeyFlag.CERTIFY_OTHER)
             .build()
-        val subkeySpec = KeySpec.getBuilder(Ed25519(), KeyFlag.ENCRYPT_COMMS, KeyFlag.ENCRYPT_STORAGE)
+        val subkeySpec = KeySpec.getBuilder(X25519(), KeyFlag.ENCRYPT_COMMS, KeyFlag.ENCRYPT_STORAGE)
             .build()
 
         val builder = PGPainless.buildKeyRing()

@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail.data.pgp
 
+import android.util.Log
 import org.bouncycastle.openpgp.PGPException
 import org.pgpainless.PGPainless
 import org.pgpainless.decryption_verification.ConsumerOptions
@@ -20,8 +21,7 @@ class PgpManager @Inject constructor(
     fun isPgpMessage(body: String): Boolean {
         return body.contains("-----BEGIN PGP MESSAGE-----") ||
                 body.contains("multipart/encrypted") ||
-                body.contains("application/pgp-encrypted") ||
-                body.contains("-----BEGIN PGP SIGNED MESSAGE-----")
+                body.contains("application/pgp-encrypted")
     }
 
     fun decryptBody(emailBody: String, fingerprintHint: String? = null): PgpDecryptionResult? {
@@ -31,16 +31,24 @@ class PgpManager @Inject constructor(
             listOf(fingerprintHint)
         } else {
             keyManager.listKeys()
-                .filter { it.isPrivate }
+                .filter { storage.privateKeyExists(it.fingerprint) }
                 .map { it.fingerprint }
         }
 
         for (fp in fingerprints) {
             try {
-                val armoredSecret = storage.loadPrivateKey(fp) ?: continue
+                val armoredSecret = storage.loadPrivateKey(fp)
+                if (armoredSecret == null) {
+                    Log.d("PgpManager", "No private key file for $fp, checking storage...")
+                    continue
+                }
                 val secretKeyRing = try {
-                    PGPainless.readKeyRing().secretKeyRing(armoredSecret)!!
-                } catch (_: Exception) { continue }
+                    PGPainless.readKeyRing().secretKeyRing(armoredSecret)
+                        ?: throw NullPointerException("readKeyRing returned null")
+                } catch (e: Exception) {
+                    Log.e("PgpManager", "Failed to parse private key ring for $fp", e)
+                    continue
+                }
 
                 val protector = SecretKeyRingProtector.unprotectedKeys()
 
@@ -72,7 +80,8 @@ class PgpManager @Inject constructor(
                     decryptedBody = decrypted,
                     signatures = signatures.ifEmpty { null }
                 )
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.e("PgpManager", "Decryption failed for $fp", e)
                 continue
             }
         }
@@ -197,10 +206,10 @@ class PgpManager @Inject constructor(
     }
 
     fun getAvailableEncryptionKeys(): List<PgpKeyInfo> {
-        return keyManager.listKeys().filter { !it.isPrivate }
+        return keyManager.listKeys().filter { storage.publicKeyExists(it.fingerprint) }
     }
 
     fun getAvailableSigningKeys(): List<PgpKeyInfo> {
-        return keyManager.listKeys().filter { it.isPrivate }
+        return keyManager.listKeys().filter { storage.privateKeyExists(it.fingerprint) }
     }
 }

@@ -2,6 +2,7 @@ package com.shrivatsav.monomail.ui.screens.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
 import com.shrivatsav.monomail.data.pgp.PgpManager
@@ -113,10 +114,13 @@ class EmailDetailViewModel @Inject constructor(
                 if (s is EmailDetailState.Success) {
                     val decrypted = mutableMapOf<String, PgpDecryptionResult>()
                     for (email in s.emails) {
-                        if (pgpManager.isPgpMessage(email.body)) {
+                        val isPgp = pgpManager.isPgpMessage(email.body)
+                        Log.d("EmailDetailVM", "Email ${email.id}: isPgp=$isPgp, bodyStart=${email.body.take(80)}")
+                        if (isPgp) {
                             val result = withContext(Dispatchers.Default) {
                                 pgpManager.decryptBody(email.body)
                             }
+                            Log.d("EmailDetailVM", "Decrypt result: ${result != null}")
                             if (result != null) {
                                 decrypted[email.id] = result
                             }
