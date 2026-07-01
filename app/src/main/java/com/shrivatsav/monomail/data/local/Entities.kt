@@ -15,7 +15,8 @@ import com.google.gson.Gson
         Index(value = ["accountId", "isStarred", "date"]),
         Index(value = ["accountId", "inTrash", "date"]),
         Index(value = ["accountId", "inSpam", "date"]),
-        Index(value = ["accountId", "isSnoozed", "snoozedUntil"])
+        Index(value = ["accountId", "isSnoozed", "snoozedUntil"]),
+        Index(value = ["isSnoozed", "snoozedUntil"])
     ]
 )
 data class ThreadEntity(
@@ -64,6 +65,7 @@ data class ThreadEntity(
         Index(value = ["accountId", "inTrash", "date"]),
         Index(value = ["accountId", "inSpam", "date"]),
         Index(value = ["accountId", "isSnoozed", "snoozedUntil"]),
+        Index(value = ["isSnoozed", "snoozedUntil"]),
         Index(value = ["threadId", "accountId"])
     ]
 )
