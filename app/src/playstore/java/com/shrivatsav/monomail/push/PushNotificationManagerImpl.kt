@@ -29,7 +29,6 @@ class PushNotificationManagerImpl @Inject constructor(
                 accountId = account.id,
                 email = account.email,
                 fcmToken = fcmToken,
-                accessToken = account.accessToken,
                 provider = account.provider
             )
             if (result.isSuccess) {
@@ -55,7 +54,6 @@ class PushNotificationManagerImpl @Inject constructor(
                         accountId = account.id,
                         email = account.email,
                         fcmToken = newToken,
-                        accessToken = account.accessToken,
                         provider = account.provider
                     )
                 }

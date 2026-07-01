@@ -553,7 +553,7 @@ private fun MessageBody(
             (email.body.contains("-----BEGIN PGP MESSAGE-----") ||
              email.body.contains("multipart/encrypted"))
     val bodyText = if (isEncryptedBlob) "" else (decryptedResult?.decryptedBody ?: email.body)
-    val bodyIsHtml = if (isEncryptedBlob) false else (decryptedResult?.decryptedBody != null && email.bodyIsHtml)
+    val bodyIsHtml = !isEncryptedBlob && email.bodyIsHtml
     Column(modifier = modifier) {
         // Encryption badge
         if (decryptedResult != null) {
