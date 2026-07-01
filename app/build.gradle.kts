@@ -115,7 +115,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons)
     implementation(libs.androidx.compose.ui.text.google.fonts)
-    implementation(libs.androidx.material3)
     implementation(libs.androidx.graphics.path)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
