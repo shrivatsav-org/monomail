@@ -37,6 +37,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
+    onNavigateToPgpKeys: () -> Unit = {},
     accountCount: Int = 0
 ) {
     val settings by viewModel.settings.collectAsState()
@@ -331,6 +332,13 @@ fun SettingsScreen(
             }
             SettingsCard {
                 SectionHeader(icon = Icons.Rounded.Info, title = "About")
+                InfoRow(
+                    icon = Icons.Rounded.Lock,
+                    title = "PGP Keys",
+                    value = "",
+                    onClick = onNavigateToPgpKeys
+                )
+                CardDivider()
                 InfoRow(
                     icon = Icons.Rounded.Info,
                     title = "Version",

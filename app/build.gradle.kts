@@ -175,6 +175,9 @@ dependencies {
     implementation(libs.sqlcipher)
     implementation(libs.androidx.sqlite.ktx)
 
+    // PGP — PGPainless (OpenPGP encryption)
+    implementation(libs.pgpainless.core)
+
     // Hilt
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

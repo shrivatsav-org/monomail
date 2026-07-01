@@ -7,6 +7,8 @@ import com.shrivatsav.monomail.ScheduledEmailEvent
 import com.shrivatsav.monomail.SentEmailEvent
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.model.EmailAttachment
+import com.shrivatsav.monomail.data.pgp.PgpManager
+import com.shrivatsav.monomail.data.pgp.PgpKeyInfo
 import com.shrivatsav.monomail.data.provider.SendAsAlias
 import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
@@ -45,7 +47,11 @@ data class ComposeUiState(
     val attachments: List<EmailAttachment> = emptyList(),
     val showConfirmSendDialog: Boolean = false,
     val showSchedulePicker: Boolean = false,
-    val scheduledAt: Long? = null
+    val scheduledAt: Long? = null,
+    val encryptEnabled: Boolean = false,
+    val signEnabled: Boolean = false,
+    val hasEncryptionKeys: Boolean = false,
+    val hasSigningKeys: Boolean = false
 )
 
 @HiltViewModel
@@ -56,6 +62,8 @@ class ComposeViewModel @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
     private val sentEmailEvents: MutableSharedFlow<SentEmailEvent>,
     private val scheduledEmailEvents: MutableSharedFlow<ScheduledEmailEvent>,
+    private val pgpManager: PgpManager,
+    private val pgpKeyManager: com.shrivatsav.monomail.data.pgp.PgpKeyManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -96,6 +104,15 @@ class ComposeViewModel @Inject constructor(
     private var confirmBeforeSending = false
 
     init {
+        // Load PGP key availability
+        viewModelScope.launch {
+            val encKeys = pgpManager.getAvailableEncryptionKeys()
+            val sigKeys = pgpManager.getAvailableSigningKeys()
+            _state.value = _state.value.copy(
+                hasEncryptionKeys = encKeys.isNotEmpty(),
+                hasSigningKeys = sigKeys.isNotEmpty()
+            )
+        }
         viewModelScope.launch {
             settingsDataStore.settingsFlow.collect { settings ->
                 confirmBeforeSending = settings.confirmBeforeSending
@@ -161,6 +178,14 @@ class ComposeViewModel @Inject constructor(
 
     fun dismissFromDropdown() {
         _state.value = _state.value.copy(showFromDropdown = false)
+    }
+
+    fun toggleEncrypt() {
+        _state.value = _state.value.copy(encryptEnabled = !_state.value.encryptEnabled)
+    }
+
+    fun toggleSign() {
+        _state.value = _state.value.copy(signEnabled = !_state.value.signEnabled)
     }
 
     fun updateTo(value: String) {
@@ -248,13 +273,16 @@ class ComposeViewModel @Inject constructor(
                     append("</blockquote>")
                 }
             }
+            val finalBody = if (current.encryptEnabled || current.signEnabled) {
+                applyPgp(current, fullBody) ?: return@launch
+            } else fullBody
             val result = repository.sendEmail(
                 from = current.from,
                 to = current.to,
                 cc = current.cc,
                 bcc = current.bcc,
                 subject = current.subject,
-                body = fullBody,
+                body = finalBody,
                 threadId = current.threadId,
                 inReplyToMessageId = current.inReplyToMessageId,
                 references = current.references,
@@ -290,6 +318,11 @@ class ComposeViewModel @Inject constructor(
         viewModelScope.launch {
             val sId = scheduledMessageId
             if (!sId.isNullOrEmpty()) repository.cancelScheduledMessage(sId)
+
+            val finalBody = if (current.encryptEnabled || current.signEnabled) {
+                applyPgp(current, current.body) ?: return@launch
+            } else current.body
+
             val cachedAttachments = repository.copyAttachmentsToCache(
                 "schedule_${System.currentTimeMillis()}",
                 current.attachments
@@ -300,7 +333,7 @@ class ComposeViewModel @Inject constructor(
                 fromEmail = current.from,
                 to = current.to,
                 subject = current.subject,
-                body = current.body,
+                body = finalBody,
                 scheduledAt = scheduledAt,
                 cc = current.cc,
                 bcc = current.bcc,
@@ -316,6 +349,61 @@ class ComposeViewModel @Inject constructor(
             )
             _state.value = _state.value.copy(isSent = true)
         }
+    }
+
+    /** Apply PGP encryption and/or signing. Returns the transformed body or null on failure (sets error). */
+    private suspend fun applyPgp(current: ComposeUiState, bodyText: String): String? {
+        return if (current.encryptEnabled) {
+            val recipients = parseRecipients(current.to, current.cc, current.bcc)
+            if (recipients.isEmpty()) {
+                _state.value = current.copy(isSending = false, error = "No valid recipient addresses for encryption")
+                return null
+            }
+            val signingFp = if (current.signEnabled) getBestSigningKey() else null
+            val result = if (signingFp != null) {
+                pgpManager.encryptAndSignBody(bodyText, recipients, signingFp)
+            } else {
+                pgpManager.encryptBody(bodyText, recipients)
+            }
+            if (result == null) {
+                _state.value = current.copy(
+                    isSending = false,
+                    error = "Missing PGP key for one or more recipients. Import their public key first."
+                )
+                return null
+            }
+            result.encryptedBody
+        } else if (current.signEnabled) {
+            val signingFp = getBestSigningKey()
+            if (signingFp == null) {
+                _state.value = current.copy(
+                    isSending = false,
+                    error = "No private key available for signing. Generate or import one in Settings > PGP Keys."
+                )
+                return null
+            }
+            pgpManager.signBody(bodyText, signingFp) ?: run {
+                _state.value = current.copy(isSending = false, error = "Failed to sign message")
+                return null
+            }
+        } else bodyText
+    }
+
+    private fun getBestSigningKey(): String? {
+        val keys = pgpManager.getAvailableSigningKeys()
+        if (keys.isEmpty()) return null
+        val currentEmail = authManager.currentUser?.email ?: ""
+        val matching = keys.find { it.userId.contains(currentEmail, ignoreCase = true) }
+        return matching?.fingerprint ?: keys.first().fingerprint
+    }
+
+    private fun parseRecipients(vararg fields: String): List<String> {
+        val emailRegex = Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}")
+        return fields.flatMap { field ->
+            field.split(",").mapNotNull { part ->
+                emailRegex.find(part.trim())?.value?.lowercase()
+            }
+        }.distinct()
     }
 
     fun cancelSchedule() {

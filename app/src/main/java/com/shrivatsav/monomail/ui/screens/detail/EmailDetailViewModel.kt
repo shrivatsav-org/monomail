@@ -2,11 +2,15 @@ package com.shrivatsav.monomail.ui.screens.detail
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.util.Log
 import com.shrivatsav.monomail.data.model.Email
+import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
+import com.shrivatsav.monomail.data.pgp.PgpManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.FontScale
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import javax.inject.Inject
 sealed class EmailDetailState {
     data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) : EmailDetailState()
@@ -23,11 +28,15 @@ sealed class EmailDetailState {
 class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
     private val settingsDataStore: SettingsDataStore,
+    private val pgpManager: PgpManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     private val threadId: String = savedStateHandle.get<String>("threadId") ?: ""
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+
+    private val _decryptedBodies = MutableStateFlow<Map<String, PgpDecryptionResult>>(emptyMap())
+    val decryptedBodies: StateFlow<Map<String, PgpDecryptionResult>> = _decryptedBodies.asStateFlow()
 
     val fontScaleMultiplier: StateFlow<Float> = settingsDataStore.settingsFlow
         .map { settings ->
@@ -96,6 +105,28 @@ class EmailDetailViewModel @Inject constructor(
                     if (unreadIds.isNotEmpty()) {
                         repository.markEmailsAsRead(unreadIds)
                     }
+                }
+            }
+        }
+        // PGP decryption — detect and decrypt encrypted messages
+        viewModelScope.launch {
+            state.collect { s ->
+                if (s is EmailDetailState.Success) {
+                    val decrypted = mutableMapOf<String, PgpDecryptionResult>()
+                    for (email in s.emails) {
+                        val isPgp = pgpManager.isPgpMessage(email.body)
+                        Log.d("EmailDetailVM", "Email ${email.id}: isPgp=$isPgp, bodyStart=${email.body.take(80)}")
+                        if (isPgp) {
+                            val result = withContext(Dispatchers.Default) {
+                                pgpManager.decryptBody(email.body)
+                            }
+                            Log.d("EmailDetailVM", "Decrypt result: ${result != null}")
+                            if (result != null) {
+                                decrypted[email.id] = result
+                            }
+                        }
+                    }
+                    _decryptedBodies.value = decrypted
                 }
             }
         }

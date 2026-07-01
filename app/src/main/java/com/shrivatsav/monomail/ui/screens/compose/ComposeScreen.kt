@@ -43,6 +43,8 @@ import androidx.compose.material.icons.rounded.AttachFile
 import androidx.compose.material.icons.rounded.Schedule
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.FormatBold
 import androidx.compose.material.icons.rounded.FormatItalic
 import androidx.compose.material.icons.rounded.FormatUnderlined
@@ -272,6 +274,31 @@ fun ComposeScreen(
                                     }
                                 }
                             }
+                        }
+                    }
+                    // PGP encrypt/sign toggles
+                    if (state.hasEncryptionKeys || state.hasSigningKeys) {
+                        IconButton(
+                            onClick = { viewModel.toggleEncrypt() },
+                            enabled = state.hasEncryptionKeys
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Lock,
+                                contentDescription = "Encrypt",
+                                tint = if (state.encryptEnabled) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                        }
+                        IconButton(
+                            onClick = { viewModel.toggleSign() },
+                            enabled = state.hasSigningKeys
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Edit,
+                                contentDescription = "Sign",
+                                tint = if (state.signEnabled) MaterialTheme.colorScheme.primary
+                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
                         }
                     }
                     if (state.isSending) {
