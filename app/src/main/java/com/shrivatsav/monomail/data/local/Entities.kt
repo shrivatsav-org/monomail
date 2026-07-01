@@ -162,7 +162,7 @@ data class ScheduledMessageEntity(
 )
 
 enum class PendingActionType {
-    TOGGLE_STAR, MARK_READ, MARK_UNREAD, ARCHIVE, UNARCHIVE, DELETE, RESTORE
+    TOGGLE_STAR, MARK_READ, MARK_UNREAD, ARCHIVE, UNARCHIVE, DELETE, RESTORE, SNOOZE, UNSNOOZE
 }
 
 enum class PendingActionStatus {

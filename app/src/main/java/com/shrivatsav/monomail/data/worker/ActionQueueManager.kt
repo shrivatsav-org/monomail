@@ -91,6 +91,15 @@ class ActionQueueManager @Inject constructor(
                 PendingActionType.UNARCHIVE -> provider.unarchiveThread(action.threadId)
                 PendingActionType.DELETE -> provider.trashThread(action.threadId)
                 PendingActionType.RESTORE -> provider.restoreThread(action.threadId)
+                PendingActionType.SNOOZE -> {
+                    // Provider-level snooze is not yet supported; the pending action
+                    // keeps the thread excluded during sync cycles so the local
+                    // snoozed state is not overwritten by the server response.
+                }
+                PendingActionType.UNSNOOZE -> {
+                    // No-op pending action to gate sync overwrites during the
+                    // brief window before the action is processed and deleted.
+                }
             }
             pendingActionDao.delete(action.id)
             Log.d(tag, "Completed ${action.actionType} for thread ${action.threadId}")

@@ -55,6 +55,9 @@ interface ThreadDao {
     suspend fun unsnoozeThread(threadId: String, accountId: String)
     @Query("SELECT * FROM threads WHERE isSnoozed = 1 AND snoozedUntil > 0 AND snoozedUntil <= :now")
     suspend fun getDueUnsnoozeThreads(now: Long): List<ThreadEntity>
+
+    @Query("SELECT threadId, isSnoozed, snoozedUntil FROM threads WHERE threadId IN (:threadIds) AND accountId = :accountId")
+    suspend fun getSnoozeStateForThreads(threadIds: List<String>, accountId: String): List<ThreadSnoozeProjection>
     @Query("DELETE FROM threads WHERE accountId = :accountId AND inTrash = 1")
     suspend fun emptyTrash(accountId: String)
     @Query("DELETE FROM threads WHERE accountId = :accountId AND inSpam = 1")
@@ -75,4 +78,10 @@ data class ThreadReadStatusProjection(
 data class ThreadSnippetProjection(
     val threadId: String,
     val snippet: String
+)
+
+data class ThreadSnoozeProjection(
+    val threadId: String,
+    val isSnoozed: Boolean,
+    val snoozedUntil: Long
 )

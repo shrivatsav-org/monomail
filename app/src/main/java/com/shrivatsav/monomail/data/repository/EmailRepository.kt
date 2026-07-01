@@ -212,8 +212,14 @@ class EmailRepository(
                         ).toEntity(targetAccountId)
                     }
                 }
+                val existingSnoozed = threadDao.getSnoozeStateForThreads(
+                    entities.map { it.threadId }, targetAccountId
+                ).filter { it.isSnoozed }.associateBy { it.threadId }
                 database.withTransaction {
                     threadDao.insertThreads(entities)
+                    existingSnoozed.forEach { (threadId, state) ->
+                        threadDao.snoozeThread(threadId, targetAccountId, state.snoozedUntil)
+                    }
                     emailDao.insertEmails(allEmails)
                 }
             }
@@ -537,11 +543,13 @@ class EmailRepository(
     suspend fun getScheduledMessageById(id: String) = scheduledMessageDao.getScheduledMessageById(id)
     suspend fun snoozeThread(threadId: String, untilTimestamp: Long, explicitAccountId: String? = null) {
         val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        insertPendingAction(PendingActionType.SNOOZE, activeAccountId, threadId, payload = untilTimestamp.toString())
         threadDao.snoozeThread(threadId, activeAccountId, untilTimestamp)
         emailDao.snoozeThreadEmails(threadId, activeAccountId, untilTimestamp)
     }
     suspend fun unsnoozeThread(threadId: String, explicitAccountId: String? = null) {
         val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        insertPendingAction(PendingActionType.UNSNOOZE, activeAccountId, threadId)
         threadDao.unsnoozeThread(threadId, activeAccountId)
         emailDao.unsnoozeThreadEmails(threadId, activeAccountId)
     }
