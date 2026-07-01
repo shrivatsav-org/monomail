@@ -36,6 +36,7 @@ class AuthManager(
     private val _isSignedIn = MutableStateFlow(false)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
     private var _userProfile: UserProfile? = null
+    private var _pendingConsentProfile: UserProfile? = null
     val currentUser: UserProfile? get() = _userProfile
     val accountsFlow = accountManager.accountsFlow
     val activeAccountFlow = accountManager.activeAccountFlow
@@ -138,11 +139,12 @@ class AuthManager(
         }
     }
     suspend fun handleConsentResult(activityContext: Context): SignInResult {
-        val profile = _userProfile
-            ?: return SignInResult.Failure(IllegalStateException("No profile available"))
+        val profile = _pendingConsentProfile
+            ?: return SignInResult.Failure(IllegalStateException("No pending consent profile"))
+        _pendingConsentProfile = null
         return requestAccessToken(
             activityContext, profile.email, profile.displayName,
-            profile.photoUrl, "" 
+            profile.photoUrl, ""
         )
     }
     suspend fun getAccounts(): List<UserProfile> = accountManager.getAccounts()
@@ -266,12 +268,12 @@ class AuthManager(
             try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
             SignInResult.Success(profile)
         } catch (e: UserRecoverableAuthException) {
-            _userProfile = UserProfile(
-                id = "gmail_$email", displayName = displayName, email = email,
-                photoUrl = photoUrl, accessToken = "", provider = "gmail", refreshToken = ""
-            )
             val consentIntent = e.intent
             if (consentIntent != null) {
+                _pendingConsentProfile = UserProfile(
+                    id = "gmail_$email", displayName = displayName, email = email,
+                    photoUrl = photoUrl, accessToken = "", provider = "gmail", refreshToken = ""
+                )
                 SignInResult.NeedsConsent(consentIntent)
             } else {
                 SignInResult.Failure(e)
