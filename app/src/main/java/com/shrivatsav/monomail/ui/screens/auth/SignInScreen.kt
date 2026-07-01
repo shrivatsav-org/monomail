@@ -36,9 +36,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -93,7 +94,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import androidx.compose.ui.res.painterResource
 
 // =============================================================================
 // SignInScreen
@@ -199,9 +200,9 @@ fun SignInScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            AsyncImage(
-                model = com.shrivatsav.monomail.R.mipmap.ic_launcher,
-                contentDescription = "Monomail Icon",
+            Image(
+                painter = painterResource(com.shrivatsav.monomail.R.drawable.ic_signin_mark),
+                contentDescription = "Monomail",
                 modifier = Modifier.size(96.dp),
             )
             Spacer(modifier = Modifier.height(24.dp))

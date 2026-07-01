@@ -94,11 +94,12 @@ fun MonoMailTheme(
         "DARK"  -> true
         else    -> isSystemInDarkTheme()
     }
+    val colorScheme = if (darkTheme) DarkColors else LightColors
     val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
 
     CompositionLocalProvider(LocalMonoMailExtendedColors provides extendedColors) {
         MaterialExpressiveTheme(
-            colorScheme  = if (darkTheme) DarkColors else LightColors,
+            colorScheme  = colorScheme,
             typography   = AppTypography,
             shapes       = MonoMailShapes,
             motionScheme = MotionScheme.expressive(),
