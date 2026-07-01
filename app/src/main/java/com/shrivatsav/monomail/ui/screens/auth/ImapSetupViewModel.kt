@@ -129,7 +129,6 @@ class ImapSetupViewModel @Inject constructor(
             try {
                 val provider = ImapProvider(config, _password.value, context)
                 provider.listThreads(com.shrivatsav.monomail.data.provider.EmailFolder.INBOX, 1)
-                provider.disconnect()
                 _testState.value = ImapTestState.Syncing
                 
                 saveAccountInternal(config, onSuccess)

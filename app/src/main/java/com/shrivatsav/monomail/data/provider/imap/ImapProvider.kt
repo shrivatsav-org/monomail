@@ -25,8 +25,6 @@ import jakarta.mail.internet.MimeMessage
 import jakarta.mail.internet.MimeMultipart
 import jakarta.mail.search.FlagTerm
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 import java.util.Properties
@@ -40,16 +38,9 @@ class ImapProvider(
 
     override val providerName: String = "imap"
 
-    private var store: Store? = null
-    private val storeMutex = Mutex()
     private val folderNamesCache = ConcurrentHashMap<EmailFolder, String>()
 
-    private suspend fun getStore(): Store = storeMutex.withLock {
-        val currentStore = store
-        if (currentStore != null && currentStore.isConnected) {
-            return currentStore
-        }
-
+    private suspend fun getStore(): Store {
         val props = Properties()
         val protocol = if (config.imapSsl) "imaps" else "imap"
         props["mail.store.protocol"] = protocol
@@ -68,8 +59,7 @@ class ImapProvider(
         val session = Session.getInstance(props)
         val newStore = session.getStore(protocol)
         newStore.connect(config.username, password)
-        store = newStore
-        
+
         // Populate folder cache
         folderNamesCache.clear()
         val defaultFolder = newStore.defaultFolder
@@ -110,51 +100,52 @@ class ImapProvider(
         query: String?
     ): ProviderThreadListResult = withContext(Dispatchers.IO) {
         val store = getStore()
-        val imapFolder = if (folder == EmailFolder.STARRED) {
-            store.getFolder(getFolderName(EmailFolder.INBOX) ?: "INBOX")
-        } else {
-            val folderName = getFolderName(folder) ?: return@withContext ProviderThreadListResult(emptyList(), null)
-            store.getFolder(folderName)
-        }
-
-        if (!imapFolder.exists()) {
-            return@withContext ProviderThreadListResult(emptyList(), null)
-        }
-
-        imapFolder.open(Folder.READ_ONLY)
         try {
-            val toFetch: Array<jakarta.mail.Message>
-            val fetchStart: Int
-            if (folder == EmailFolder.STARRED) {
-                val allStarred = imapFolder.search(FlagTerm(Flags(Flags.Flag.FLAGGED), true))
-                if (allStarred.isEmpty()) return@withContext ProviderThreadListResult(emptyList(), null)
-                toFetch = allStarred.takeLast(maxResults).toTypedArray()
-                fetchStart = 1
+            val imapFolder = if (folder == EmailFolder.STARRED) {
+                store.getFolder(getFolderName(EmailFolder.INBOX) ?: "INBOX")
             } else {
-                val total = imapFolder.messageCount
-                if (total == 0) return@withContext ProviderThreadListResult(emptyList(), null)
-
-                val offset = pageToken?.toIntOrNull() ?: total
-                val start = maxOf(1, offset - maxResults + 1)
-                val end = offset
-                if (start > end) return@withContext ProviderThreadListResult(emptyList(), null)
-
-                toFetch = imapFolder.getMessages(start, end)
-                fetchStart = start
+                val folderName = getFolderName(folder) ?: return@withContext ProviderThreadListResult(emptyList(), null)
+                store.getFolder(folderName)
             }
 
-            // Fetch envelope, flags, and content info for body parsing
-            val profile = jakarta.mail.FetchProfile().apply {
-                add(jakarta.mail.FetchProfile.Item.ENVELOPE)
-                add(jakarta.mail.FetchProfile.Item.FLAGS)
-                add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
-                add("Message-ID")
-                add("References")
-                add("In-Reply-To")
+            if (!imapFolder.exists()) {
+                return@withContext ProviderThreadListResult(emptyList(), null)
             }
-            imapFolder.fetch(toFetch, profile)
 
-            val rawMessages = toFetch.mapNotNull { msg ->
+            imapFolder.open(Folder.READ_ONLY)
+            try {
+                val toFetch: Array<jakarta.mail.Message>
+                val fetchStart: Int
+                if (folder == EmailFolder.STARRED) {
+                    val allStarred = imapFolder.search(FlagTerm(Flags(Flags.Flag.FLAGGED), true))
+                    if (allStarred.isEmpty()) return@withContext ProviderThreadListResult(emptyList(), null)
+                    toFetch = allStarred.takeLast(maxResults).toTypedArray()
+                    fetchStart = 1
+                } else {
+                    val total = imapFolder.messageCount
+                    if (total == 0) return@withContext ProviderThreadListResult(emptyList(), null)
+
+                    val offset = pageToken?.toIntOrNull() ?: total
+                    val start = maxOf(1, offset - maxResults + 1)
+                    val end = offset
+                    if (start > end) return@withContext ProviderThreadListResult(emptyList(), null)
+
+                    toFetch = imapFolder.getMessages(start, end)
+                    fetchStart = start
+                }
+
+                // Fetch envelope, flags, and content info for body parsing
+                val profile = jakarta.mail.FetchProfile().apply {
+                    add(jakarta.mail.FetchProfile.Item.ENVELOPE)
+                    add(jakarta.mail.FetchProfile.Item.FLAGS)
+                    add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
+                    add("Message-ID")
+                    add("References")
+                    add("In-Reply-To")
+                }
+                imapFolder.fetch(toFetch, profile)
+
+                val rawMessages = toFetch.mapNotNull { msg ->
                 val messageId = msg.getHeader("Message-ID")?.firstOrNull() ?: return@mapNotNull null
                 val references = msg.getHeader("References")?.joinToString(" ") ?: ""
                 val inReplyTo = msg.getHeader("In-Reply-To")?.firstOrNull() ?: ""
@@ -295,18 +286,21 @@ class ImapProvider(
             val nextToken = if (fetchStart > 1) (fetchStart - 1).toString() else null
             ProviderThreadListResult(threads, nextToken)
 
+            } finally {
+                if (imapFolder.isOpen) imapFolder.close(false)
+            }
         } finally {
-            if (imapFolder.isOpen) imapFolder.close(false)
+            if (store.isConnected) store.close()
         }
     }
 
     override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withContext(Dispatchers.IO) {
         val store = getStore()
-        
-        // Use folder hints if provided to avoid searching all folders.
-        // IMAP folder names are exactly the strings in the folderHints list (since they come from local DB which stores standard EmailFolder names)
-        val validFolderNames = folderNamesCache.values.toList()
-        val searchFolders = if (folderHints.isNotEmpty()) {
+        try {
+            // Use folder hints if provided to avoid searching all folders.
+            // IMAP folder names are exactly the strings in the folderHints list (since they come from local DB which stores standard EmailFolder names)
+            val validFolderNames = folderNamesCache.values.toList()
+            val searchFolders = if (folderHints.isNotEmpty()) {
             val mappedHints = folderHints.mapNotNull { hint -> 
                 try {
                     val enumVal = com.shrivatsav.monomail.data.provider.EmailFolder.valueOf(hint)
@@ -492,11 +486,15 @@ class ImapProvider(
             android.util.Log.e("ImapProvider", "getThread error", e)
             return@withContext ProviderThread(threadId, emptyList())
         }
+    } finally {
+        if (store.isConnected) store.close()
+    }
     }
 
     override suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? = withContext(Dispatchers.IO) {
         val store = getStore()
-        val searchFolders = listOfNotNull(
+        try {
+            val searchFolders = listOfNotNull(
             folderNamesCache[EmailFolder.INBOX],
             folderNamesCache[EmailFolder.SENT],
             folderNamesCache[EmailFolder.ARCHIVE]
@@ -537,28 +535,35 @@ class ImapProvider(
             }
         }
         return@withContext null
+    } finally {
+        if (store.isConnected) store.close()
+    }
     }
 
     private suspend fun moveThread(threadId: String, targetFolder: EmailFolder) = withContext(Dispatchers.IO) {
         val store = getStore()
-        val targetName = getFolderName(targetFolder) ?: return@withContext
-        val destFolder = store.getFolder(targetName)
-        if (!destFolder.exists()) destFolder.create(Folder.HOLDS_MESSAGES)
-
-        val srcName = getFolderName(EmailFolder.INBOX) ?: return@withContext
-        val srcFolder = store.getFolder(srcName)
-        if (!srcFolder.exists()) return@withContext
-
-        srcFolder.open(Folder.READ_WRITE)
         try {
-            val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
-            if (messages.isNotEmpty()) {
-                srcFolder.copyMessages(messages, destFolder)
-                srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
-                srcFolder.expunge()
+            val targetName = getFolderName(targetFolder) ?: return@withContext
+            val destFolder = store.getFolder(targetName)
+            if (!destFolder.exists()) destFolder.create(Folder.HOLDS_MESSAGES)
+
+            val srcName = getFolderName(EmailFolder.INBOX) ?: return@withContext
+            val srcFolder = store.getFolder(srcName)
+            if (!srcFolder.exists()) return@withContext
+
+            srcFolder.open(Folder.READ_WRITE)
+            try {
+                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                if (messages.isNotEmpty()) {
+                    srcFolder.copyMessages(messages, destFolder)
+                    srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
+                    srcFolder.expunge()
+                }
+            } finally {
+                srcFolder.close(true)
             }
         } finally {
-            srcFolder.close(true)
+            if (store.isConnected) store.close()
         }
     }
 
@@ -569,22 +574,26 @@ class ImapProvider(
     override suspend fun unarchiveThread(threadId: String) = withContext(Dispatchers.IO) {
         // Move back to INBOX, simplified since we only search INBOX for moving
         val store = getStore()
-        val srcName = getFolderName(EmailFolder.ARCHIVE) ?: return@withContext
-        val destName = getFolderName(EmailFolder.INBOX) ?: return@withContext
-        val srcFolder = store.getFolder(srcName)
-        val destFolder = store.getFolder(destName)
-        if (!srcFolder.exists()) return@withContext
-
-        srcFolder.open(Folder.READ_WRITE)
         try {
-            val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
-            if (messages.isNotEmpty()) {
-                srcFolder.copyMessages(messages, destFolder)
-                srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
-                srcFolder.expunge()
+            val srcName = getFolderName(EmailFolder.ARCHIVE) ?: return@withContext
+            val destName = getFolderName(EmailFolder.INBOX) ?: return@withContext
+            val srcFolder = store.getFolder(srcName)
+            val destFolder = store.getFolder(destName)
+            if (!srcFolder.exists()) return@withContext
+
+            srcFolder.open(Folder.READ_WRITE)
+            try {
+                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                if (messages.isNotEmpty()) {
+                    srcFolder.copyMessages(messages, destFolder)
+                    srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
+                    srcFolder.expunge()
+                }
+            } finally {
+                srcFolder.close(true)
             }
         } finally {
-            srcFolder.close(true)
+            if (store.isConnected) store.close()
         }
     }
 
@@ -594,63 +603,75 @@ class ImapProvider(
 
     override suspend fun restoreThread(threadId: String) = withContext(Dispatchers.IO) {
         val store = getStore()
-        val srcName = getFolderName(EmailFolder.TRASH) ?: return@withContext
-        val destName = getFolderName(EmailFolder.INBOX) ?: return@withContext
-        val srcFolder = store.getFolder(srcName)
-        val destFolder = store.getFolder(destName)
-        if (!srcFolder.exists()) return@withContext
-
-        srcFolder.open(Folder.READ_WRITE)
         try {
-            val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
-            if (messages.isNotEmpty()) {
-                srcFolder.copyMessages(messages, destFolder)
-                srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
-                srcFolder.expunge()
+            val srcName = getFolderName(EmailFolder.TRASH) ?: return@withContext
+            val destName = getFolderName(EmailFolder.INBOX) ?: return@withContext
+            val srcFolder = store.getFolder(srcName)
+            val destFolder = store.getFolder(destName)
+            if (!srcFolder.exists()) return@withContext
+
+            srcFolder.open(Folder.READ_WRITE)
+            try {
+                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                if (messages.isNotEmpty()) {
+                    srcFolder.copyMessages(messages, destFolder)
+                    srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
+                    srcFolder.expunge()
+                }
+            } finally {
+                srcFolder.close(true)
             }
         } finally {
-            srcFolder.close(true)
+            if (store.isConnected) store.close()
         }
     }
 
     override suspend fun permanentlyDeleteThread(threadId: String) = withContext(Dispatchers.IO) {
         val store = getStore()
-        val srcName = getFolderName(EmailFolder.TRASH) ?: return@withContext
-        val srcFolder = store.getFolder(srcName)
-        if (!srcFolder.exists()) return@withContext
-
-        srcFolder.open(Folder.READ_WRITE)
         try {
-            val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
-            if (messages.isNotEmpty()) {
-                srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
-                srcFolder.expunge()
+            val srcName = getFolderName(EmailFolder.TRASH) ?: return@withContext
+            val srcFolder = store.getFolder(srcName)
+            if (!srcFolder.exists()) return@withContext
+
+            srcFolder.open(Folder.READ_WRITE)
+            try {
+                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                if (messages.isNotEmpty()) {
+                    srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
+                    srcFolder.expunge()
+                }
+            } finally {
+                srcFolder.close(true)
             }
         } finally {
-            srcFolder.close(true)
+            if (store.isConnected) store.close()
         }
     }
 
     private suspend fun updateFlag(threadId: String, flag: Flags.Flag, set: Boolean) = withContext(Dispatchers.IO) {
         val store = getStore()
-        val searchFolders = listOfNotNull(
-            folderNamesCache[EmailFolder.INBOX],
-            folderNamesCache[EmailFolder.ARCHIVE]
-        ).distinct()
+        try {
+            val searchFolders = listOfNotNull(
+                folderNamesCache[EmailFolder.INBOX],
+                folderNamesCache[EmailFolder.ARCHIVE]
+            ).distinct()
 
-        for (folderName in searchFolders) {
-            val f = store.getFolder(folderName)
-            if (f.exists()) {
-                f.open(Folder.READ_WRITE)
-                try {
-                    val messages = f.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
-                    if (messages.isNotEmpty()) {
-                        f.setFlags(messages, Flags(flag), set)
+            for (folderName in searchFolders) {
+                val f = store.getFolder(folderName)
+                if (f.exists()) {
+                    f.open(Folder.READ_WRITE)
+                    try {
+                        val messages = f.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                        if (messages.isNotEmpty()) {
+                            f.setFlags(messages, Flags(flag), set)
+                        }
+                    } finally {
+                        f.close(false)
                     }
-                } finally {
-                    f.close(false)
                 }
             }
+        } finally {
+            if (store.isConnected) store.close()
         }
     }
 
@@ -664,28 +685,32 @@ class ImapProvider(
 
     override suspend fun batchMarkRead(messageIds: List<String>) = withContext(Dispatchers.IO) {
         val store = getStore()
-        val searchFolders = listOfNotNull(
-            folderNamesCache[EmailFolder.INBOX],
-            folderNamesCache[EmailFolder.ARCHIVE]
-        ).distinct()
+        try {
+            val searchFolders = listOfNotNull(
+                folderNamesCache[EmailFolder.INBOX],
+                folderNamesCache[EmailFolder.ARCHIVE]
+            ).distinct()
 
-        for (folderName in searchFolders) {
-            val f = store.getFolder(folderName)
-            if (f.exists()) {
-                f.open(Folder.READ_WRITE)
-                try {
-                    messageIds.chunked(100).forEach { chunk ->
-                        val terms = chunk.map { jakarta.mail.search.HeaderTerm("Message-ID", it) }.toTypedArray()
-                        val orTerm = jakarta.mail.search.OrTerm(terms)
-                        val messages = f.search(orTerm)
-                        if (messages.isNotEmpty()) {
-                            f.setFlags(messages, Flags(Flags.Flag.SEEN), true)
+            for (folderName in searchFolders) {
+                val f = store.getFolder(folderName)
+                if (f.exists()) {
+                    f.open(Folder.READ_WRITE)
+                    try {
+                        messageIds.chunked(100).forEach { chunk ->
+                            val terms = chunk.map { jakarta.mail.search.HeaderTerm("Message-ID", it) }.toTypedArray()
+                            val orTerm = jakarta.mail.search.OrTerm(terms)
+                            val messages = f.search(orTerm)
+                            if (messages.isNotEmpty()) {
+                                f.setFlags(messages, Flags(Flags.Flag.SEEN), true)
+                            }
                         }
+                    } finally {
+                        f.close(false)
                     }
-                } finally {
-                    f.close(false)
                 }
             }
+        } finally {
+            if (store.isConnected) store.close()
         }
     }
 
@@ -765,30 +790,29 @@ class ImapProvider(
         Transport.send(message)
 
         // Save to SENT folder best-effort
-        try {
-            val store = getStore()
-            val sentName = getFolderName(EmailFolder.SENT)
-            if (sentName != null) {
-                val sentFolder = store.getFolder(sentName)
-                if (sentFolder.exists()) {
-                    sentFolder.open(Folder.READ_WRITE)
-                    message.setFlag(Flags.Flag.SEEN, true)
-                    sentFolder.appendMessages(arrayOf(message))
-                    sentFolder.close(false)
+        val sentStore = try {
+            getStore()
+        } catch (_: Exception) { null }
+        if (sentStore != null) {
+            try {
+                val sentName = getFolderName(EmailFolder.SENT)
+                if (sentName != null) {
+                    val sentFolder = sentStore.getFolder(sentName)
+                    if (sentFolder.exists()) {
+                        sentFolder.open(Folder.READ_WRITE)
+                        message.setFlag(Flags.Flag.SEEN, true)
+                        sentFolder.appendMessages(arrayOf(message))
+                        sentFolder.close(false)
+                    }
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            } finally {
+                if (sentStore.isConnected) sentStore.close()
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
 
         return@withContext generatedMessageId
-    }
-
-    suspend fun disconnect() = withContext(Dispatchers.IO) {
-        storeMutex.withLock {
-            store?.takeIf { it.isConnected }?.close()
-            store = null
-        }
     }
 
     override suspend fun getSendAsAliases(): List<SendAsAlias> {
