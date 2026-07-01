@@ -60,14 +60,15 @@ class PgpKeyManager @Inject constructor(
 
         if (isPrivate) {
             val secretKeyRing = PGPainless.readKeyRing().secretKeyRing(armoredKey)
+                ?: throw IllegalArgumentException("Failed to parse private key — invalid or corrupted key data")
             val isProtected = try {
-                secretKeyRing!!.secretKey.keyEncryptionAlgorithm != 0
+                secretKeyRing.secretKey.keyEncryptionAlgorithm != 0
             } catch (_: Exception) { false }
 
-            val info = keyRingToInfo(secretKeyRing!!, isPrivate = true, isPassphraseProtected = isProtected)
+            val info = keyRingToInfo(secretKeyRing, isPrivate = true, isPassphraseProtected = isProtected)
 
             storage.savePrivateKey(info.fingerprint, armoredKey)
-            val publicKeyRing = PGPainless.extractCertificate(secretKeyRing!!)
+            val publicKeyRing = PGPainless.extractCertificate(secretKeyRing)
             val armoredPublic = PGPainless.asciiArmor(publicKeyRing)
             storage.savePublicKey(info.fingerprint, armoredPublic)
             storage.saveKeyMetadata(info.fingerprint, info)
@@ -77,7 +78,8 @@ class PgpKeyManager @Inject constructor(
             return info
         } else {
             val publicKeyRing = PGPainless.readKeyRing().publicKeyRing(armoredKey)
-            val info = keyRingToInfo(publicKeyRing!!, isPrivate = false)
+                ?: throw IllegalArgumentException("Failed to parse public key — invalid or corrupted key data")
+            val info = keyRingToInfo(publicKeyRing, isPrivate = false)
 
             storage.savePublicKey(info.fingerprint, armoredKey)
             storage.saveKeyMetadata(info.fingerprint, info)
