@@ -6,19 +6,19 @@ import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 @Dao
 interface ThreadDao {
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 500")
     fun getInboxThreads(accountId: String): Flow<List<ThreadEntity>>
-    @Query("SELECT * FROM threads WHERE inInbox = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE inInbox = 1 ORDER BY date DESC LIMIT 500")
     fun getAllInboxThreads(): Flow<List<ThreadEntity>>
     @Query("SELECT * FROM threads WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 1")
     suspend fun getLatestInboxThread(accountId: String): ThreadEntity?
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC LIMIT 500")
     fun getSentThreads(accountId: String): Flow<List<ThreadEntity>>
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC LIMIT 500")
     fun getArchivedThreads(accountId: String): Flow<List<ThreadEntity>>
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC LIMIT 500")
     fun getStarredThreads(accountId: String): Flow<List<ThreadEntity>>
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC LIMIT 500")
     fun getTrashThreads(accountId: String): Flow<List<ThreadEntity>>
     @Query("SELECT threadId FROM threads WHERE accountId = :accountId AND inTrash = 1")
     suspend fun getTrashThreadIds(accountId: String): List<String>
@@ -45,9 +45,9 @@ interface ThreadDao {
     @Query("DELETE FROM threads WHERE accountId = :accountId")
     suspend fun clearForAccount(accountId: String)
 
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inSpam = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inSpam = 1 ORDER BY date DESC LIMIT 500")
     fun getSpamThreads(accountId: String): Flow<List<ThreadEntity>>
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND isSnoozed = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND isSnoozed = 1 ORDER BY date DESC LIMIT 500")
     fun getSnoozedThreads(accountId: String): Flow<List<ThreadEntity>>
     @Query("UPDATE threads SET inInbox = 0, isSnoozed = 1, snoozedUntil = :untilTimestamp WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun snoozeThread(threadId: String, accountId: String, untilTimestamp: Long)

@@ -46,24 +46,24 @@ interface EmailDao {
     suspend fun restoreThreadEmailsFromTrash(threadId: String, accountId: String)
     @Query("UPDATE emails SET inSpam = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun reportThreadEmailsNotSpam(threadId: String, accountId: String)
-    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 500")
     fun getInboxEmails(accountId: String): Flow<List<EmailEntity>>
 
-    @Query("SELECT * FROM emails WHERE inInbox = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM emails WHERE inInbox = 1 ORDER BY date DESC LIMIT 500")
     fun getAllInboxEmails(): Flow<List<EmailEntity>>
 
-    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC LIMIT 500")
     fun getSentEmails(accountId: String): Flow<List<EmailEntity>>
 
-    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC LIMIT 500")
     fun getArchivedEmails(accountId: String): Flow<List<EmailEntity>>
 
-    @Query("SELECT * FROM emails WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC LIMIT 500")
     fun getStarredEmails(accountId: String): Flow<List<EmailEntity>>
 
-    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC LIMIT 500")
     fun getTrashEmails(accountId: String): Flow<List<EmailEntity>>
-    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSpam = 1 ORDER BY date DESC")
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSpam = 1 ORDER BY date DESC LIMIT 500")
     fun getSpamEmails(accountId: String): Flow<List<EmailEntity>>
     @Query("UPDATE emails SET isSnoozed = 1, snoozedUntil = :untilTimestamp WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun snoozeThreadEmails(threadId: String, accountId: String, untilTimestamp: Long)
