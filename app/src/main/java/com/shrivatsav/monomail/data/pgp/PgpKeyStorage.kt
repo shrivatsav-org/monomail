@@ -74,7 +74,7 @@ class PgpKeyStorage @Inject constructor(
     fun saveKeyMetadata(fingerprint: String, info: PgpKeyInfo) {
         val all = loadAllMetadata().toMutableMap()
         all[fingerprint] = info
-        prefs.edit().putString(PREF_KEYS, gson.toJson(all)).apply()
+        prefs.edit().putString(PREF_KEYS, gson.toJson(all)).commit()
     }
 
     fun loadKeyMetadata(fingerprint: String): PgpKeyInfo? {
@@ -94,7 +94,7 @@ class PgpKeyStorage @Inject constructor(
     fun deleteKeyMetadata(fingerprint: String) {
         val all = loadAllMetadata().toMutableMap()
         all.entries.removeIf { it.value.fingerprint == fingerprint }
-        prefs.edit().putString(PREF_KEYS, gson.toJson(all)).apply()
+        prefs.edit().putString(PREF_KEYS, gson.toJson(all)).commit()
     }
 
     fun keyFileExists(fingerprint: String): Boolean {
