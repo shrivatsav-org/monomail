@@ -335,6 +335,7 @@ class InboxViewModel @Inject constructor(
         val unreadThreads = currentState.threads.filter { !it.isRead }
         if (unreadThreads.isEmpty()) return
         val ids = unreadThreads.map { it.threadId }
+        val changedIds = unreadThreads.map { it.threadId }.toSet()
         _state.value = currentState.copy(
             threads = currentState.threads.map { thread ->
                 if (!thread.isRead) thread.copy(isRead = true) else thread
@@ -342,6 +343,11 @@ class InboxViewModel @Inject constructor(
         )
         viewModelScope.launch {
             repository.markThreadsAsRead(ids).onFailure { e ->
+                _state.value = currentState.copy(
+                    threads = currentState.threads.map { thread ->
+                        if (thread.threadId in changedIds) thread.copy(isRead = false) else thread
+                    }
+                )
                 _uiError.emit(e.message ?: "Failed to mark emails as read")
             }
         }
@@ -583,15 +589,28 @@ class InboxViewModel @Inject constructor(
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
         val currentState = _state.value
+        val changedIds = ids.toSet()
         if (currentState is InboxState.Success) {
             _state.value = currentState.copy(
                 threads = currentState.threads.map { thread ->
-                    if (thread.threadId in ids) thread.copy(isRead = true) else thread
+                    if (thread.threadId in changedIds) thread.copy(isRead = true) else thread
                 }
             )
         }
         viewModelScope.launch {
-            ids.forEach { repository.markThreadAsRead(it) }
+            try {
+                ids.forEach { repository.markThreadAsRead(it) }
+            } catch (e: Exception) {
+                if (currentState is InboxState.Success) {
+                    _state.value = currentState.copy(
+                        threads = currentState.threads.map { thread ->
+                            if (thread.threadId in changedIds) thread.copy(isRead = false) else thread
+                        }
+                    )
+                }
+                _uiError.emit(e.message ?: "Failed to mark emails as read")
+                return@launch
+            }
         }
         exitBulkSelectMode()
     }
@@ -599,15 +618,28 @@ class InboxViewModel @Inject constructor(
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
         val currentState = _state.value
+        val changedIds = ids.toSet()
         if (currentState is InboxState.Success) {
             _state.value = currentState.copy(
                 threads = currentState.threads.map { thread ->
-                    if (thread.threadId in ids) thread.copy(isRead = false) else thread
+                    if (thread.threadId in changedIds) thread.copy(isRead = false) else thread
                 }
             )
         }
         viewModelScope.launch {
-            ids.forEach { repository.markThreadAsUnread(it) }
+            try {
+                ids.forEach { repository.markThreadAsUnread(it) }
+            } catch (e: Exception) {
+                if (currentState is InboxState.Success) {
+                    _state.value = currentState.copy(
+                        threads = currentState.threads.map { thread ->
+                            if (thread.threadId in changedIds) thread.copy(isRead = true) else thread
+                        }
+                    )
+                }
+                _uiError.emit(e.message ?: "Failed to mark emails as unread")
+                return@launch
+            }
         }
         exitBulkSelectMode()
     }
