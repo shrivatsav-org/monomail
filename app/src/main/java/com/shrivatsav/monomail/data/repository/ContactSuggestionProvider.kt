@@ -8,9 +8,8 @@ class ContactSuggestionProvider {
     fun indexFromThreads(threads: List<com.shrivatsav.monomail.data.model.EmailThread>) {
         threads.forEach { thread ->
             contacts.add(EmailContact(thread.from, thread.fromEmail))
-            thread.participants.forEach { name ->
-                contacts.add(EmailContact(name, name))
-            }
+            // Participants list only contains names, not email addresses.
+            // Skip them to avoid using display names as email addresses.
         }
     }
     fun indexFromEmails(emails: List<com.shrivatsav.monomail.data.model.Email>) {
