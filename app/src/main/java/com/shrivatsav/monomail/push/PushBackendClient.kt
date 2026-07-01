@@ -19,7 +19,6 @@ class PushBackendClient @Inject constructor() {
         accountId: String,
         email: String,
         fcmToken: String,
-        accessToken: String,
         provider: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
@@ -32,7 +31,6 @@ class PushBackendClient @Inject constructor() {
                 put("accountId", accountId)
                 put("email", email)
                 put("fcmToken", fcmToken)
-                put("accessToken", accessToken)
                 put("provider", provider)
             }
 
