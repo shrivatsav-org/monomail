@@ -99,9 +99,21 @@ class AccountManager(private val context: Context) {
         }
     }
     suspend fun getActiveAccount(): UserProfile? {
-        val accounts = getAccounts()
-        if (accounts.isEmpty()) return null
         val prefs = context.dataStore.data.first()
+        val json = prefs[KEY_ACCOUNTS_JSON] ?: return null
+        val decryptedJson = SecurityUtil.decryptString(json)
+        if (decryptedJson == null) {
+            Log.w("AccountManager", "Failed to decrypt accounts data in getActiveAccount")
+            return null
+        }
+        val type = object : TypeToken<List<UserProfile>>() {}.type
+        val accounts: List<UserProfile> = try {
+            gson.fromJson(decryptedJson, type)
+        } catch (e: Exception) {
+            Log.e("AccountManager", "Failed to deserialize accounts in getActiveAccount", e)
+            return null
+        }
+        if (accounts.isEmpty()) return null
         val activeId = prefs[KEY_ACTIVE_ACCOUNT_ID]
         return accounts.find { it.id == activeId } ?: accounts.first()
     }
