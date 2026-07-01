@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "mobile-app-ui-design": {
+      "source": "ceorkm/mobile-app-ui-design",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "b55732a1e5fbd0d00eb205d52af2bc72cfb9dbd13f8a7fd38d25acdc96f7ac5e"
+    }
+  }
+}
