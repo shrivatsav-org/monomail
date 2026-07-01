@@ -54,6 +54,22 @@ fun InboxScreen(
     val scheduledCount by viewModel.scheduledCount.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
 
+    val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
+    DisposableEffect(lifecycle) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_RESUME -> viewModel.setForegroundPollingEnabled(true)
+                androidx.lifecycle.Lifecycle.Event.ON_PAUSE -> viewModel.setForegroundPollingEnabled(false)
+                else -> {}
+            }
+        }
+        lifecycle.addObserver(observer)
+        onDispose {
+            viewModel.setForegroundPollingEnabled(false)
+            lifecycle.removeObserver(observer)
+        }
+    }
+
     val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
     var showClearTrashWarning by remember { mutableStateOf(false) }

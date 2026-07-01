@@ -69,6 +69,7 @@ class InboxViewModel @Inject constructor(
     }
     private val pendingActionJobs = mutableMapOf<String, Job>()
     private val pendingHiddenTrashIds = mutableSetOf<String>()
+    private var trashOperationGeneration = 0L
     data class ToastState(
         val threadId: String,
         val message: String,
@@ -101,6 +102,7 @@ class InboxViewModel @Inject constructor(
     private val _appSettings = MutableStateFlow(AppSettings())
     val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()
     private var pollingIntervalMs = 120_000L
+    private var _isForegroundPollingEnabled = true
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
     val state: StateFlow<InboxState> = _state.asStateFlow()
 
@@ -254,11 +256,16 @@ class InboxViewModel @Inject constructor(
             refresh(showLoader = true)
         }
     }
+    fun setForegroundPollingEnabled(enabled: Boolean) {
+        _isForegroundPollingEnabled = enabled
+    }
+
     private fun startForegroundPolling() {
         viewModelScope.launch {
             while (true) {
                 delay(pollingIntervalMs)
                 if (pollingIntervalMs == Long.MAX_VALUE) continue
+                if (!_isForegroundPollingEnabled) continue
                 repository.refreshInbox(InboxTab.INBOX)
                 if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
                     repository.refreshInbox(_currentTab.value)
@@ -283,6 +290,9 @@ class InboxViewModel @Inject constructor(
                 repository.refreshInbox(_currentTab.value, query = query)
             }
             result.onSuccess { token ->
+                if (pageTokens.size >= 50) {
+                    pageTokens.keys.take(10).forEach { pageTokens.remove(it) }
+                }
                 if (token != null) {
                     pageTokens[getPageTokenKey()] = token
                 } else {
@@ -352,6 +362,12 @@ class InboxViewModel @Inject constructor(
         pendingHideIdsSnapshot[threadId] = true
         _toastState.value = ToastState(threadId, "Snoozed", ActionType.SNOOZE)
         pendingActionJobs[threadId]?.cancel()
+        if (pendingActionJobs.size >= 30) {
+            pendingActionJobs.entries.take(10).forEach { (key, job) ->
+                job.cancel()
+                pendingActionJobs.remove(key)
+            }
+        }
         pendingActionJobs[threadId] = viewModelScope.launch {
             delay(4000)
             if (_toastState.value?.threadId == threadId) {
@@ -368,21 +384,28 @@ class InboxViewModel @Inject constructor(
         if (trashIds.isEmpty()) return
 
         val sentinelId = "empty_trash"
+        val currentGen = ++trashOperationGeneration
         pendingHiddenTrashIds.clear()
         pendingHiddenTrashIds.addAll(trashIds)
         trashIds.forEach { pendingHideIdsSnapshot[it] = true }
         _toastState.value = ToastState(sentinelId, "Trash emptied", ActionType.EMPTY_TRASH)
 
+        if (pendingActionJobs.size >= 30) {
+            pendingActionJobs.entries.take(10).forEach { (key, job) ->
+                job.cancel()
+                pendingActionJobs.remove(key)
+            }
+        }
         pendingActionJobs[sentinelId]?.cancel()
         pendingActionJobs[sentinelId] = viewModelScope.launch {
             try {
                 delay(4000)
-                if (_toastState.value?.threadId == sentinelId) {
+                if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
                     repository.emptyTrash()
                 }
             } catch (e: Exception) {
             } finally {
-                if (_toastState.value?.threadId == sentinelId) {
+                if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
                     _toastState.value = null
                     pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
                     pendingHiddenTrashIds.clear()
@@ -418,6 +441,12 @@ class InboxViewModel @Inject constructor(
         pendingHideIdsSnapshot[threadId] = true
         _toastState.value = ToastState(threadId, message, type)
         pendingActionJobs[threadId]?.cancel()
+        if (pendingActionJobs.size >= 30) {
+            pendingActionJobs.entries.take(10).forEach { (key, job) ->
+                job.cancel()
+                pendingActionJobs.remove(key)
+            }
+        }
         pendingActionJobs[threadId] = viewModelScope.launch {
             try {
                 delay(4000)
