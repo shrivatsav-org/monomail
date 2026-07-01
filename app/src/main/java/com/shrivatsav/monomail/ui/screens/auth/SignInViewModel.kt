@@ -39,7 +39,10 @@ class SignInViewModel @Inject constructor(
             _state.value = SignInState.Loading
             when (val result = authManager.signIn(context)) {
                 is SignInResult.Success -> {
-                    emailRepository.refreshInbox(InboxTab.INBOX)
+                    val refreshResult = emailRepository.refreshInbox(InboxTab.INBOX)
+                    if (refreshResult.isFailure) {
+                        android.util.Log.w("SignInViewModel", "Initial inbox refresh failed after sign-in", refreshResult.exceptionOrNull())
+                    }
                     _state.value = SignInState.Success(result.profile)
                 }
                 is SignInResult.NeedsConsent -> _state.value = SignInState.NeedsConsent(result.intent)
@@ -61,7 +64,10 @@ class SignInViewModel @Inject constructor(
                 is SignInResult.Success -> {
                     authManager.addAccount(result.profile)
                     authManager.switchAccount(result.profile.id)
-                    emailRepository.refreshInbox(InboxTab.INBOX)
+                    val refreshResult = emailRepository.refreshInbox(InboxTab.INBOX)
+                    if (refreshResult.isFailure) {
+                        android.util.Log.w("SignInViewModel", "Initial inbox refresh failed after Microsoft sign-in", refreshResult.exceptionOrNull())
+                    }
                     SignInState.Success(result.profile)
                 }
                 is SignInResult.NeedsConsent -> SignInState.Error("Consent needed")
