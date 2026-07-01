@@ -2,6 +2,7 @@ package com.shrivatsav.monomail.data.pgp
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
@@ -87,6 +88,7 @@ class PgpKeyStorage @Inject constructor(
             val type = object : TypeToken<Map<String, PgpKeyInfo>>() {}.type
             gson.fromJson(json, type) ?: emptyMap()
         } catch (e: Exception) {
+            Log.w("PgpKeyStorage", "Failed to deserialize key metadata", e)
             emptyMap()
         }
     }
@@ -108,6 +110,26 @@ class PgpKeyStorage @Inject constructor(
 
     fun privateKeyExists(fingerprint: String): Boolean {
         return File(keysDir, "$fingerprint.asc").exists()
+    }
+
+    fun savePassphrase(fingerprint: String, passphrase: String) {
+        val encrypted = SecurityUtil.encryptString(passphrase)
+        File(keysDir, "${fingerprint}_pass.enc").writeText(encrypted)
+    }
+
+    fun loadPassphrase(fingerprint: String): String? {
+        val file = File(keysDir, "${fingerprint}_pass.enc")
+        if (!file.exists()) return null
+        val encrypted = file.readText()
+        return SecurityUtil.decryptString(encrypted)
+    }
+
+    fun deletePassphrase(fingerprint: String) {
+        File(keysDir, "${fingerprint}_pass.enc").delete()
+    }
+
+    fun isPassphraseProtected(fingerprint: String): Boolean {
+        return File(keysDir, "${fingerprint}_pass.enc").exists()
     }
 
     companion object {
