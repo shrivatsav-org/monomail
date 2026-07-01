@@ -52,10 +52,11 @@ val MIGRATION_3_4 = object : androidx.room.migration.Migration(3, 4) {
         db.execSQL("ALTER TABLE emails ADD COLUMN bccEmail TEXT NOT NULL DEFAULT ''")
     }
 }
+// NOTE: This is intentionally a no-op. MIGRATION_3_4 already added ccEmail and bccEmail columns.
+// Keeping this migration preserves the 4→5 migration path so users on DB v4 don't hit fallbackToDestructiveMigration.
 val MIGRATION_4_5 = object : androidx.room.migration.Migration(4, 5) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-        db.execSQL("ALTER TABLE emails ADD COLUMN ccEmail TEXT NOT NULL DEFAULT ''")
-        db.execSQL("ALTER TABLE emails ADD COLUMN bccEmail TEXT NOT NULL DEFAULT ''")
+        // No-op — columns already added by MIGRATION_3_4
     }
 }
 val MIGRATION_5_6 = object : androidx.room.migration.Migration(5, 6) {
