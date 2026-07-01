@@ -26,6 +26,11 @@ import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 @HiltWorker
@@ -57,49 +62,59 @@ class EmailSyncWorker @AssistedInject constructor(
             Log.w("EmailSyncWorker", "No accounts found to sync")
             return Result.success()
         }
-        var hasFailure = false
-        var hasAuthFailure = false
-        for (account in accounts) {
-            val accountId = account.id
-            val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
-            Log.i("EmailSyncWorker", "Starting sync for account $accountId (lastKnownTimestamp: $lastKnownTimestamp)")
-            val result = emailRepository.refreshInbox(InboxTab.INBOX, accountId = accountId)
-            Log.i("EmailSyncWorker", "Refresh result for $accountId: isSuccess=${result.isSuccess}")
-            if (result.isFailure) {
-                val error = result.exceptionOrNull()
-                val msg = error?.message ?: ""
-                if (msg.contains("sign in", ignoreCase = true) || msg.contains("Session expired", ignoreCase = true) || msg.contains("Authentication failed", ignoreCase = true)) {
-                    Log.w("EmailSyncWorker", "Auth failure for account $accountId — skipping retry")
-                    hasAuthFailure = true
-                } else {
-                    Log.e("EmailSyncWorker", "refreshInbox failed for account $accountId", error)
-                    hasFailure = true
+        val results = coroutineScope {
+            accounts.map { account ->
+                async(Dispatchers.IO) {
+                    val accountId = account.id
+                    val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
+                    Log.i("EmailSyncWorker", "Starting sync for account $accountId (lastKnownTimestamp: $lastKnownTimestamp)")
+                    val refreshResult = emailRepository.refreshInbox(InboxTab.INBOX, accountId = accountId)
+                    Log.i("EmailSyncWorker", "Refresh result for $accountId: isSuccess=${refreshResult.isSuccess}")
+
+                    var hasFailure = false
+                    var hasAuthFailure = false
+
+                    if (refreshResult.isFailure) {
+                        val error = refreshResult.exceptionOrNull()
+                        val msg = error?.message ?: ""
+                        if (msg.contains("sign in", ignoreCase = true) || msg.contains("Session expired", ignoreCase = true) || msg.contains("Authentication failed", ignoreCase = true)) {
+                            Log.w("EmailSyncWorker", "Auth failure for account $accountId — skipping retry")
+                            hasAuthFailure = true
+                        } else {
+                            Log.e("EmailSyncWorker", "refreshInbox failed for account $accountId", error)
+                            hasFailure = true
+                        }
+                    } else {
+                        val newestThread = emailRepository.getLatestInboxThread(accountId)
+                        if (newestThread != null) {
+                            val newTimestamp = newestThread.date
+                            Log.i("EmailSyncWorker", "Latest thread for $accountId: subject='${newestThread.subject}', date=$newTimestamp")
+                            if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp) {
+                                Log.i("EmailSyncWorker", "New email detected for $accountId! Showing notification...")
+                                showNotification(
+                                    accountId = accountId,
+                                    thread = newestThread,
+                                    notificationId = accountId.hashCode()
+                                )
+                            } else if (lastKnownTimestamp == null) {
+                                Log.i("EmailSyncWorker", "lastKnownTimestamp was null (first sync baseline). Skipping notification banner.")
+                            } else {
+                                Log.i("EmailSyncWorker", "No new emails detected (timestamp matched lastKnownTimestamp).")
+                            }
+                            accountManager.setLastKnownEmailId(accountId, newTimestamp.toString())
+                        } else {
+                            Log.w("EmailSyncWorker", "getLatestInboxThread returned null for $accountId")
+                        }
+                    }
+
+                    Pair(hasFailure, hasAuthFailure)
                 }
-                continue
-            }
-            val newestThread = emailRepository.getLatestInboxThread(accountId)
-            if (newestThread != null) {
-                val newTimestamp = newestThread.date
-                Log.i("EmailSyncWorker", "Latest thread for $accountId: subject='${newestThread.subject}', date=$newTimestamp")
-                if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp) {
-                    Log.i("EmailSyncWorker", "New email detected for $accountId! Showing notification...")
-                    showNotification(
-                        accountId = accountId,
-                        thread = newestThread,
-                        notificationId = accountId.hashCode()
-                    )
-                } else if (lastKnownTimestamp == null) {
-                    Log.i("EmailSyncWorker", "lastKnownTimestamp was null (first sync baseline). Skipping notification banner.")
-                } else {
-                    Log.i("EmailSyncWorker", "No new emails detected (timestamp matched lastKnownTimestamp).")
-                }
-                accountManager.setLastKnownEmailId(accountId, newTimestamp.toString())
-            } else {
-                Log.w("EmailSyncWorker", "getLatestInboxThread returned null for $accountId")
-            }
+            }.awaitAll()
         }
         scheduleNextAdaptiveSync(applicationContext, accountManager)
-        return if (hasFailure && !hasAuthFailure) Result.retry() else Result.success()
+        val overallHasFailure = results.any { it.first }
+        val overallHasAuthFailure = results.any { it.second }
+        return if (overallHasFailure && !overallHasAuthFailure) Result.retry() else Result.success()
     }
 
     private suspend fun scheduleNextAdaptiveSync(context: Context, accountManager: AccountManager) {
