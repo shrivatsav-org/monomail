@@ -54,7 +54,8 @@ class OutlookProvider(
             if (!folderIdCache.containsKey(folder)) {
                 try {
                     folderIdCache[folder] = api.getMailFolder(outlookName).id
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                    android.util.Log.w("OutlookProvider", "Failed to cache folder id for $outlookName", e)
                 }
             }
         }
@@ -258,7 +259,9 @@ class OutlookProvider(
             coroutineScope {
                 messageIds.map { id ->
                     async(limitedParallelism) {
-                        try { api.updateMessage(id, OutlookUpdateMessageRequest(isRead = true)) } catch (_: Exception) {}
+                        try { api.updateMessage(id, OutlookUpdateMessageRequest(isRead = true)) } catch (e: Exception) {
+                            android.util.Log.w("OutlookProvider", "Failed to mark message $id as read", e)
+                        }
                     }
                 }.awaitAll()
             }
@@ -295,7 +298,9 @@ class OutlookProvider(
                             }
                         }
                     }
-                } catch (_: Exception) {}
+                } catch (e: Exception) {
+                    android.util.Log.w("OutlookProvider", "Failed to query attachment size for ${att.name}", e)
+                }
                 if (size > 3 * 1024 * 1024) {
                     throw IllegalArgumentException("Attachment ${att.name} exceeds the 3MB limit for Outlook.")
                 }

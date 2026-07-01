@@ -491,7 +491,9 @@ class EmailRepository(
                     if (file.exists()) file.delete()
                 }
             }
-        } catch (_: Exception) { }
+        } catch (e: Exception) {
+            android.util.Log.w("EmailRepository", "Failed to cleanup scheduled attachment files", e)
+        }
     }
     suspend fun copyAttachmentsToCache(
         messageId: String,

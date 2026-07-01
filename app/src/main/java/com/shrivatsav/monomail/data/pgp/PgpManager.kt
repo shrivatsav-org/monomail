@@ -98,7 +98,10 @@ class PgpManager @Inject constructor(
             val armored = storage.loadPublicKey(fp) ?: return@mapNotNull null
             try {
                 PGPainless.readKeyRing().publicKeyRing(armored)
-            } catch (_: Exception) { null }
+            } catch (e: Exception) {
+                Log.w("PgpManager", "Failed to parse public key ring for recipient $address", e)
+                null
+            }
         }
 
         if (recipientRings.isEmpty()) return null
@@ -122,6 +125,7 @@ class PgpManager @Inject constructor(
             val encrypted = outputStream.toString(Charsets.UTF_8.name())
             return PgpEncryptionResult(encryptedBody = encrypted)
         } catch (e: Exception) {
+            Log.e("PgpManager", "Encryption failed", e)
             return null
         }
     }
@@ -130,7 +134,10 @@ class PgpManager @Inject constructor(
         val armoredSecret = storage.loadPrivateKey(fingerprint) ?: return null
         val secretKeyRing = try {
             PGPainless.readKeyRing().secretKeyRing(armoredSecret)!!
-        } catch (_: Exception) { return null }
+        } catch (e: Exception) {
+            Log.w("PgpManager", "Failed to parse secret key ring for signing $fingerprint", e)
+            return null
+        }
 
         try {
             val protector = SecretKeyRingProtector.unprotectedKeys()
@@ -150,6 +157,7 @@ class PgpManager @Inject constructor(
 
             return outputStream.toString(Charsets.UTF_8.name())
         } catch (e: Exception) {
+            Log.w("PgpManager", "Signing failed for $fingerprint", e)
             return null
         }
     }
@@ -164,7 +172,10 @@ class PgpManager @Inject constructor(
             val armored = storage.loadPublicKey(fp) ?: return@mapNotNull null
             try {
                 PGPainless.readKeyRing().publicKeyRing(armored)
-            } catch (_: Exception) { null }
+            } catch (e: Exception) {
+                Log.w("PgpManager", "Failed to parse public key ring for $address (encryptAndSign)", e)
+                null
+            }
         }
 
         if (recipientRings.isEmpty()) return null
@@ -179,7 +190,10 @@ class PgpManager @Inject constructor(
                 val armoredSecret = storage.loadPrivateKey(signingFingerprint) ?: return null
                 val secretKeyRing = try {
                     PGPainless.readKeyRing().secretKeyRing(armoredSecret)!!
-                } catch (_: Exception) { return null }
+                } catch (e: Exception) {
+                    Log.w("PgpManager", "Failed to parse secret key ring for signing $signingFingerprint (encryptAndSign)", e)
+                    return null
+                }
 
                 val protector = SecretKeyRingProtector.unprotectedKeys()
                 val signingOptions = SigningOptions.get()
@@ -201,6 +215,7 @@ class PgpManager @Inject constructor(
             val encrypted = outputStream.toString(Charsets.UTF_8.name())
             return PgpEncryptionResult(encryptedBody = encrypted)
         } catch (e: Exception) {
+            Log.e("PgpManager", "encryptAndSignBody failed", e)
             return null
         }
     }

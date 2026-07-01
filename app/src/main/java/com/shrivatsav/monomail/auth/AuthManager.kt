@@ -172,10 +172,14 @@ class AuthManager(
         } else if (active.provider == "outlook") {
             try {
                 microsoftAuthManager.signOut(active.id)
-            } catch (e: Exception) { }
+            } catch (e: Exception) {
+                android.util.Log.w("AuthManager", "Outlook signOut failed for ${active.id}", e)
+            }
         }
         accountManager.removeAccount(active.id)
-        try { pushNotificationManager.unregisterForPushNotifications(active.id) } catch (e: Exception) { }
+        try { pushNotificationManager.unregisterForPushNotifications(active.id) } catch (e: Exception) {
+            android.util.Log.w("AuthManager", "push unregister failed during signOut for ${active.id}", e)
+        }
         val newActive = accountManager.getActiveAccount()
         if (newActive != null) {
             _userProfile = newActive
@@ -193,7 +197,9 @@ class AuthManager(
         }
         val accounts = accountManager.getAccounts()
         accounts.forEach {
-            try { pushNotificationManager.unregisterForPushNotifications(it.id) } catch (e: Exception) { }
+            try { pushNotificationManager.unregisterForPushNotifications(it.id) } catch (e: Exception) {
+                android.util.Log.w("AuthManager", "push unregister failed during signOutAll for ${it.id}", e)
+            }
         }
         accounts.filter { it.provider == "outlook" }.forEach {
             try { microsoftAuthManager.signOut(it.id) } catch (e: Exception) {

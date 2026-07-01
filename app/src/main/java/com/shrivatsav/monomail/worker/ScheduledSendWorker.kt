@@ -73,7 +73,9 @@ class ScheduledSendWorker @AssistedInject constructor(
                 val file = File(a.uri.path ?: return@forEach)
                 file.delete()
                 file.parentFile?.delete()
-            } catch (_: Exception) { }
+            } catch (e: Exception) {
+                android.util.Log.w("ScheduledSendWorker", "Failed to cleanup cached file: ${a.uri.path}", e)
+            }
         }
     }
 }

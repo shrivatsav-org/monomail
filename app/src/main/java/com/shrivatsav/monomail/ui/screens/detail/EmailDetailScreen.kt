@@ -917,8 +917,14 @@ private fun MessageBody(
                         settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                         settings.loadsImagesAutomatically = loadRemoteImages || showRemoteImages
-                        setAllowFileAccess(false)
-                        setAllowContentAccess(false)
+                        try {
+                            WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java)
+                                .invoke(this, false)
+                        } catch (_: Exception) {}
+                        try {
+                            WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java)
+                                .invoke(this, false)
+                        } catch (_: Exception) {}
                         setBackgroundColor(android.graphics.Color.TRANSPARENT)
                         isVerticalScrollBarEnabled = false
                         isHorizontalScrollBarEnabled = false
