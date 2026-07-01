@@ -25,7 +25,7 @@ if (keystoreFile.exists()) {
 
 android {
     namespace = "com.shrivatsav.monomail"
-    compileSdk = 37
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.shrivatsav.monomail"
