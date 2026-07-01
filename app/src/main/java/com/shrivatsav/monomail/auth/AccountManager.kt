@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail.auth
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
@@ -27,11 +28,16 @@ class AccountManager(private val context: Context) {
         val prefs = context.dataStore.data.first()
         val json = prefs[KEY_ACCOUNTS_JSON]
         if (json != null) {
-            val decryptedJson = SecurityUtil.decryptString(json) ?: json
+            val decryptedJson = SecurityUtil.decryptString(json)
+            if (decryptedJson == null) {
+                Log.w("AccountManager", "Failed to decrypt accounts data — treating as corrupt")
+                return emptyList()
+            }
             val type = object : TypeToken<List<UserProfile>>() {}.type
             try {
                 return gson.fromJson(decryptedJson, type)
             } catch (e: Exception) {
+                Log.e("AccountManager", "Failed to deserialize accounts data", e)
                 return emptyList()
             }
         }
@@ -56,7 +62,11 @@ class AccountManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             val json = prefs[KEY_ACCOUNTS_JSON]
             val accounts = if (json != null) {
-                val decryptedJson = SecurityUtil.decryptString(json) ?: json
+                val decryptedJson = SecurityUtil.decryptString(json)
+                if (decryptedJson == null) {
+                    Log.w("AccountManager", "Failed to decrypt accounts in addAccount — treating as corrupt")
+                    return@edit
+                }
                 gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
             } else {
                 mutableListOf()
@@ -74,7 +84,11 @@ class AccountManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             val json = prefs[KEY_ACCOUNTS_JSON]
             if (json != null) {
-                val decryptedJson = SecurityUtil.decryptString(json) ?: json
+                val decryptedJson = SecurityUtil.decryptString(json)
+                if (decryptedJson == null) {
+                    Log.w("AccountManager", "Failed to decrypt accounts in removeAccount — treating as corrupt")
+                    return@edit
+                }
                 val accounts = gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
                 accounts.removeAll { it.id == accountId }
                 prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts))
@@ -100,7 +114,11 @@ class AccountManager(private val context: Context) {
         context.dataStore.edit { prefs ->
             val json = prefs[KEY_ACCOUNTS_JSON]
             if (json != null) {
-                val decryptedJson = SecurityUtil.decryptString(json) ?: json
+                val decryptedJson = SecurityUtil.decryptString(json)
+                if (decryptedJson == null) {
+                    Log.w("AccountManager", "Failed to decrypt accounts in updateAccountToken — treating as corrupt")
+                    return@edit
+                }
                 val accounts = gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
                 val index = accounts.indexOfFirst { it.id == accountId }
                 if (index != -1) {
@@ -134,13 +152,21 @@ class AccountManager(private val context: Context) {
     }
     val accountsFlow: Flow<List<UserProfile>> = context.dataStore.data.map { prefs ->
         val json = prefs[KEY_ACCOUNTS_JSON] ?: return@map emptyList()
-        val decryptedJson = SecurityUtil.decryptString(json) ?: json
+        val decryptedJson = SecurityUtil.decryptString(json)
+        if (decryptedJson == null) {
+            Log.w("AccountManager", "Failed to decrypt accounts data in accountsFlow")
+            return@map emptyList()
+        }
         val type = object : TypeToken<List<UserProfile>>() {}.type
         try { gson.fromJson(decryptedJson, type) } catch (e: Exception) { emptyList() }
     }
     val activeAccountFlow: Flow<UserProfile?> = context.dataStore.data.map { prefs ->
         val json = prefs[KEY_ACCOUNTS_JSON] ?: return@map null
-        val decryptedJson = SecurityUtil.decryptString(json) ?: json
+        val decryptedJson = SecurityUtil.decryptString(json)
+        if (decryptedJson == null) {
+            Log.w("AccountManager", "Failed to decrypt accounts data in activeAccountFlow")
+            return@map null
+        }
         val type = object : TypeToken<List<UserProfile>>() {}.type
         val accounts: List<UserProfile> = try { gson.fromJson(decryptedJson, type) } catch (e: Exception) { emptyList() }
         if (accounts.isEmpty()) return@map null
