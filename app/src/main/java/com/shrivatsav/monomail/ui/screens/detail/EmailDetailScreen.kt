@@ -1347,84 +1347,247 @@ private fun autolinkHtml(html: String): String {
 
 /**
  * Converts a subset of Markdown syntax to HTML for WebView rendering.
+ * Uses a single-pass line-by-line tokenizer instead of 25 sequential
+ * regex replacements, avoiding intermediate String allocations.
+ *
  * Handles: headers, bold, italic, inline code, code blocks, links,
  * unordered lists, ordered lists, blockquotes, and horizontal rules.
  */
 private fun markdownToHtml(markdown: String): String {
-    var html = markdown
-
-    // Escape HTML entities first to prevent XSS/injection
-    html = html.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-
-    // Code block (fenced) — must be before inline code
-    html = html.replace(Regex("""```(\w*)\n([\s\S]*?)```""")) { match ->
-        val code = match.groupValues[2].trimEnd()
-        "<pre><code>${code}</code></pre>"
+    // Single char-by-char pass to escape HTML entities
+    val escaped = StringBuilder(markdown.length)
+    for (c in markdown) {
+        when (c) {
+            '&' -> escaped.append("&amp;")
+            '<' -> escaped.append("&lt;")
+            '>' -> escaped.append("&gt;")
+            else -> escaped.append(c)
+        }
     }
 
-    // Indented code blocks (4 spaces at start of line)
-    html = html.replace(Regex("""(?m)^(?:    |\t)(.+)$""")) { match ->
-        "<code>${match.groupValues[1]}</code><br>"
+    // Single-pass line-by-line tokenization
+    val result = StringBuilder(escaped.length + (escaped.length shr 1))
+    val lines = escaped.split('\n')
+    var i = 0
+
+    while (i < lines.size) {
+        val line = lines[i]
+        val trimmed = line.trimStart()
+
+        when {
+            // Fenced code blocks
+            trimmed.startsWith("```") -> {
+                val lang = trimmed.removePrefix("```").trim()
+                result.append("<pre><code>")
+                i++
+                while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
+                    result.append(lines[i]).append('\n')
+                    i++
+                }
+                result.append("</code></pre>\n")
+                i++
+            }
+
+            // Indented code blocks (4 spaces or tab)
+            (line.startsWith("    ") || line.startsWith('\t')) &&
+                i + 1 < lines.size && !lines[i + 1].isBlank() -> {
+                result.append("<code>").append(trimmed).append("</code><br>\n")
+                i++
+            }
+
+            // ATX Headers
+            trimmed.startsWith("###### ") -> { result.append("<h6>").append(processInline(trimmed.removePrefix("###### "))).append("</h6>\n"); i++ }
+            trimmed.startsWith("##### ") -> { result.append("<h5>").append(processInline(trimmed.removePrefix("##### "))).append("</h5>\n"); i++ }
+            trimmed.startsWith("#### ") -> { result.append("<h4>").append(processInline(trimmed.removePrefix("#### "))).append("</h4>\n"); i++ }
+            trimmed.startsWith("### ") -> { result.append("<h3>").append(processInline(trimmed.removePrefix("### "))).append("</h3>\n"); i++ }
+            trimmed.startsWith("## ") -> { result.append("<h2>").append(processInline(trimmed.removePrefix("## "))).append("</h2>\n"); i++ }
+            trimmed.startsWith("# ") -> { result.append("<h1>").append(processInline(trimmed.removePrefix("# "))).append("</h1>\n"); i++ }
+
+            // Blockquotes
+            trimmed.startsWith("&gt; ") -> {
+                result.append("<blockquote>").append(processInline(trimmed.removePrefix("&gt; "))).append("</blockquote>\n")
+                i++
+            }
+
+            // Horizontal rules
+            line.matches(HORIZONTAL_RULE) -> {
+                result.append("<hr>\n")
+                i++
+            }
+
+            // Unordered list items
+            trimmed.matches(UNORDERED_LIST_ITEM) -> {
+                result.append("<ul>")
+                while (i < lines.size) {
+                    val l = lines[i].trimStart()
+                    if (!l.matches(UNORDERED_LIST_ITEM)) break
+                    result.append("<li>").append(processInline(l.drop(2))).append("</li>")
+                    i++
+                }
+                result.append("</ul>\n")
+            }
+
+            // Ordered list items
+            trimmed.matches(ORDERED_LIST_ITEM) -> {
+                result.append("<ol>")
+                while (i < lines.size) {
+                    val l = lines[i].trimStart()
+                    if (!l.matches(ORDERED_LIST_ITEM)) break
+                    result.append("<li>").append(processInline(l.dropWhile { it != '.' }.drop(1).trimStart())).append("</li>")
+                    i++
+                }
+                result.append("</ol>\n")
+            }
+
+            // Blank line
+            line.isBlank() -> { result.append('\n'); i++ }
+
+            // Regular text
+            else -> { result.append(processInline(line)).append('\n'); i++ }
+        }
     }
 
-    // Headers (atx-style)
-    html = html.replace(Regex("""(?m)^##### (.+)$""")) { "<h5>${it.groupValues[1]}</h5>" }
-    html = html.replace(Regex("""(?m)^#### (.+)$""")) { "<h4>${it.groupValues[1]}</h4>" }
-    html = html.replace(Regex("""(?m)^### (.+)$""")) { "<h3>${it.groupValues[1]}</h3>" }
-    html = html.replace(Regex("""(?m)^## (.+)$""")) { "<h2>${it.groupValues[1]}</h2>" }
-    html = html.replace(Regex("""(?m)^# (.+)$""")) { "<h1>${it.groupValues[1]}</h1>" }
+    var html = result.toString().trimEnd('\n')
 
-    // Blockquotes
-    html = html.replace(Regex("""(?m)^&gt; (.*)$""")) { "<blockquote>${it.groupValues[1]}</blockquote>" }
-
-    // Horizontal rules
-    html = html.replace(Regex("""(?m)^([-*_]){3,}\s*$"""), "<hr>")
-
-    // Unordered lists
-    html = html.replace(Regex("""(?m)^[*-] (.+)$""")) { "<li>${it.groupValues[1]}</li>" }
-
-    // Ordered lists
-    html = html.replace(Regex("""(?m)^\d+\. (.+)$""")) { "<li>${it.groupValues[1]}</li>" }
-
-    // Wrap consecutive <li> in <ul> tags
-    html = html.replace(Regex("""(?:<li>.*?</li>)+""")) {
-        val listItems = it.value.split("</li>").filter { it.isNotBlank() }
-        if (listItems.size <= 1) return@replace it.value
-        "<ul>${it.value}</ul>"
-    }
-    // Fix: wrap isolated <li> items too
-    html = html.replace(Regex("""(<li>.*?</li>)(?!</li>)""")) { "<ul>${it.value}</ul>" }
-
-    // Inline code (must be after code blocks)
-    html = html.replace(Regex("""`([^`\n]+?)`""")) { "<code>${it.groupValues[1]}</code>" }
-
-    // Images — must be before links
-    html = html.replace(Regex("""!\[([^\]]*)\]\(([^)]+)\)""")) { "<img src=\"${it.groupValues[2]}\" alt=\"${it.groupValues[1]}\">" }
-
-    // Links [text](url)
-    html = html.replace(Regex("""\[([^\]]+)\]\(([^)]+)\)""")) { "<a href=\"${it.groupValues[2]}\">${it.groupValues[1]}</a>" }
-
-    // Bold
-    html = html.replace(Regex("""\*\*(.+?)\*\*""")) { "<strong>${it.groupValues[1]}</strong>" }
-    html = html.replace(Regex("""__(.+?)__""")) { "<strong>${it.groupValues[1]}</strong>" }
-
-    // Italic
-    html = html.replace(Regex("""\*(.+?)\*""")) { "<em>${it.groupValues[1]}</em>" }
-    html = html.replace(Regex("""_(.+?)_""")) { "<em>${it.groupValues[1]}</em>" }
-
-    // Strikethrough
-    html = html.replace(Regex("""~~(.+?)~~""")) { "<del>${it.groupValues[1]}</del>" }
-
-    // Line breaks (preserve double newlines as paragraph breaks, single as <br>)
-    html = html.replace(Regex("""\n\n+"""), "</p><p>")
-    html = html.replace(Regex("""\n(?!</)"""), "<br>")
+    // Line break handling
+    html = html.replace("\n\n", "</p><p>")
+    html = html.replace(LINE_BREAK, "<br>")
 
     // Wrap in paragraph if not already wrapped in block-level tags
-    if (!html.startsWith("<h") && !html.startsWith("<p") && !html.startsWith("<pre") && !html.startsWith("<ul") && !html.startsWith("<blockquote")) {
+    if (!html.startsWith("<h") && !html.startsWith("<p") && !html.startsWith("<pre") &&
+        !html.startsWith("<ul") && !html.startsWith("<ol") && !html.startsWith("<blockquote")) {
         html = "<p>$html</p>"
     }
 
     return html
+}
+
+private val HORIZONTAL_RULE = Regex("^[-*_]{3,}\\s*$")
+private val UNORDERED_LIST_ITEM = Regex("^[*\\-] .+$")
+private val ORDERED_LIST_ITEM = Regex("^\\d+\\. .+$")
+private val LINE_BREAK = Regex("""\n(?!</)""")
+
+/**
+ * Single-pass inline formatting scanner. Processes one line for
+ * inline code, images, links, bold, italic, and strikethrough
+ * in a single forward scan to avoid intermediate allocations.
+ */
+private fun processInline(text: String): String {
+    val sb = StringBuilder(text.length)
+    var i = 0
+    while (i < text.length) {
+        val c = text[i]
+        val remaining = text.length - i
+
+        // Inline code `code`
+        if (c == '`' && remaining > 1) {
+            val end = text.indexOf('`', i + 1)
+            if (end != -1) {
+                sb.append("<code>").append(escapeXml(text.substring(i + 1, end))).append("</code>")
+                i = end + 1
+                continue
+            }
+        }
+
+        // Image ![alt](url)
+        if (c == '!' && remaining > 2 && text[i + 1] == '[') {
+            val closeBracket = text.indexOf(']', i + 2)
+            if (closeBracket != -1 && closeBracket + 1 < text.length && text[closeBracket + 1] == '(') {
+                val closeParen = text.indexOf(')', closeBracket + 2)
+                if (closeParen != -1) {
+                    val alt = text.substring(i + 2, closeBracket)
+                    val url = text.substring(closeBracket + 2, closeParen)
+                    sb.append("<img src=\"").append(url).append("\" alt=\"").append(alt).append("\">")
+                    i = closeParen + 1
+                    continue
+                }
+            }
+        }
+
+        // Link [text](url)
+        if (c == '[') {
+            val closeBracket = text.indexOf(']', i + 1)
+            if (closeBracket != -1 && closeBracket + 1 < text.length && text[closeBracket + 1] == '(') {
+                val closeParen = text.indexOf(')', closeBracket + 2)
+                if (closeParen != -1) {
+                    val linkText = text.substring(i + 1, closeBracket)
+                    val url = text.substring(closeBracket + 2, closeParen)
+                    sb.append("<a href=\"").append(url).append("\">").append(linkText).append("</a>")
+                    i = closeParen + 1
+                    continue
+                }
+            }
+        }
+
+        // Bold **text**
+        if (c == '*' && remaining > 1 && text[i + 1] == '*') {
+            val end = text.indexOf("**", i + 2)
+            if (end != -1) {
+                sb.append("<strong>").append(text.substring(i + 2, end)).append("</strong>")
+                i = end + 2
+                continue
+            }
+        }
+
+        // Bold __text__
+        if (c == '_' && remaining > 1 && text[i + 1] == '_') {
+            val end = text.indexOf("__", i + 2)
+            if (end != -1) {
+                sb.append("<strong>").append(text.substring(i + 2, end)).append("</strong>")
+                i = end + 2
+                continue
+            }
+        }
+
+        // Strikethrough ~~text~~
+        if (c == '~' && remaining > 1 && text[i + 1] == '~') {
+            val end = text.indexOf("~~", i + 2)
+            if (end != -1) {
+                sb.append("<del>").append(text.substring(i + 2, end)).append("</del>")
+                i = end + 2
+                continue
+            }
+        }
+
+        // Italic *text*
+        if (c == '*' && (remaining < 2 || text[i + 1] != '*')) {
+            val end = text.indexOf('*', i + 1)
+            if (end != -1 && (end + 1 >= text.length || text[end + 1] != '*')) {
+                sb.append("<em>").append(text.substring(i + 1, end)).append("</em>")
+                i = end + 1
+                continue
+            }
+        }
+
+        // Italic _text_
+        if (c == '_' && (remaining < 2 || text[i + 1] != '_')) {
+            val end = text.indexOf('_', i + 1)
+            if (end != -1 && (end + 1 >= text.length || text[end + 1] != '_')) {
+                sb.append("<em>").append(text.substring(i + 1, end)).append("</em>")
+                i = end + 1
+                continue
+            }
+        }
+
+        // Plain character
+        sb.append(c)
+        i++
+    }
+    return sb.toString()
+}
+
+/**
+ * Minimal XML entity escaping for code content.
+ */
+private fun escapeXml(s: String): String {
+    val sb = StringBuilder(s.length)
+    for (c in s) {
+        when (c) {
+            '&' -> sb.append("&amp;")
+            '<' -> sb.append("&lt;")
+            '>' -> sb.append("&gt;")
+            else -> sb.append(c)
+        }
+    }
+    return sb.toString()
 }
