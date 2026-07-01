@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 
 import androidx.compose.ui.text.font.FontWeight
@@ -388,13 +389,34 @@ fun SettingsScreen(
                         else null
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        SupportButton(label = "Buy me a coffee", onClick = { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }) { modifier ->
+                        GroupLabel(text = "Donate")
+                        SupportButton(
+                            label = "Buy me a coffee",
+                            onClick = { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") },
+                            primary = true
+                        ) { modifier ->
                             if (kofiIcon != null) Icon(painter = kofiIcon, contentDescription = null, modifier = modifier, tint = Color.Unspecified)
                             else Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = modifier)
                         }
-                        SupportButton(label = "Pay with UPI", onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }) { modifier ->
+                        SupportButton(
+                            label = "Pay with UPI",
+                            onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") },
+                            primary = true
+                        ) { modifier ->
                             Icon(Icons.Rounded.Payments, contentDescription = null, modifier = modifier)
                         }
+                        SupportButton(
+                            label = "Donate Crypto (BASE)",
+                            onClick = {
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crypto Address", "0xB27Ba9241de81F6DBCB322aDd76a9d9686462e9E"))
+                                android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
+                            },
+                            primary = true
+                        ) { modifier ->
+                            Icon(Icons.Rounded.AccountBalanceWallet, contentDescription = null, modifier = modifier)
+                        }
+                        GroupLabel(text = "Community", modifier = Modifier.padding(top = 6.dp))
                         SupportButton(label = "Star on GitHub", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }) { modifier ->
                             Icon(Icons.Rounded.Star, contentDescription = null, modifier = modifier)
                         }
@@ -404,26 +426,33 @@ fun SettingsScreen(
                         SupportButton(label = "Share Monomail", onClick = {
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-0/monomail")
+                                putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail — a private, open-source email client: https://github.com/shrivatsav-0/monomail")
                             }
                             context.startActivity(android.content.Intent.createChooser(intent, "Share Monomail"))
                         }) { modifier ->
                             Icon(Icons.Rounded.Share, contentDescription = null, modifier = modifier)
                         }
+                        GroupLabel(text = "Help", modifier = Modifier.padding(top = 6.dp))
                         SupportButton(label = "Report Issue", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }) { modifier ->
                             Icon(Icons.Rounded.BugReport, contentDescription = null, modifier = modifier)
-                        }
-                        SupportButton(label = "Donate Crypto (BASE)", onClick = {
-                            val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crypto Address", "0xB27Ba9241de81F6DBCB322aDd76a9d9686462e9E"))
-                            android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
-                        }) { modifier ->
-                            Icon(Icons.Rounded.AccountBalanceWallet, contentDescription = null, modifier = modifier)
                         }
                     }
                 }
             }
             Spacer(Modifier.height(24.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 16.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "Made with ❤️",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
         }
     }
 }
@@ -579,9 +608,21 @@ private fun ThemeSelectorRow(
                     else MaterialTheme.colorScheme.onSurfaceVariant,
                     animationSpec = tween(250), label = "themeText"
                 )
+                val scaleAnim by animateFloatAsState(
+                    targetValue = if (isSelected) 1.04f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "themeScale"
+                )
                 Box(
                     modifier = Modifier
                         .weight(1f)
+                        .graphicsLayer(
+                            scaleX = scaleAnim,
+                            scaleY = scaleAnim
+                        )
                         .clip(RoundedCornerShape(10.dp))
                         .background(bgColor)
                         .clickable { onThemeSelected(mode) }
@@ -992,12 +1033,32 @@ private fun TemplatesCard(viewModel: SettingsViewModel) {
     SettingsCard {
         SectionHeader(icon = Icons.Rounded.Description, title = "Templates")
         if (templates.isEmpty()) {
-            Text(
-                text = "No templates yet",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Description,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.size(36.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = "No templates yet",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Save your go-to replies for quick access",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            }
         } else {
             templates.forEachIndexed { index, template ->
                 Row(
@@ -1259,22 +1320,50 @@ private fun dockTabLabel(tab: DockTabId): String = when (tab) {
 }
 
 @Composable
+private fun GroupLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        modifier = modifier.padding(start = 4.dp)
+    )
+}
+
+@Composable
 private fun SupportButton(
     label: String,
     onClick: () -> Unit,
+    primary: Boolean = false,
     icon: @Composable (Modifier) -> Unit
 ) {
-    OutlinedButton(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(48.dp),
-        shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        colors = ButtonDefaults.outlinedButtonColors(
-            contentColor = MaterialTheme.colorScheme.onSurface
-        )
-    ) {
-        icon(Modifier.size(20.dp))
-        Spacer(Modifier.width(8.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    if (primary) {
+        FilledTonalButton(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.filledTonalButtonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        ) {
+            icon(Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = Modifier.fillMaxWidth().height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onSurface
+            )
+        ) {
+            icon(Modifier.size(20.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+        }
     }
 }
