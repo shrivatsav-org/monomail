@@ -66,6 +66,8 @@ The architecture is offline-first: all reads and writes go through a local Room 
 - **Schedule send:** pick a date & time to send later; attachments are cached and restored at send time. View/edit/cancel scheduled messages from the calendar icon in the search bar.
 - **Undo send:** immediate send with a "Undo for Ns" live countdown in the search bar. Configurable undo window (5–30s).
 - **Email templates:** save frequently-used bodies as templates. Apply from a bottom sheet in compose; manage in Settings.
+- **Send-as aliases:** pick which email address to send from via a dropdown in the From field when the account has multiple send-as addresses configured (Gmail/Outlook).
+- **PGP encryption & signing:** lock (encrypt) and pen (sign) toggles in the compose toolbar when PGP keys are available. If encryption is enabled, the email body is encrypted for all recipients using OpenPGP.
 
 ### Settings
 Accessible from the profile card. All settings are persisted via DataStore Preferences.
@@ -77,6 +79,10 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 - Compact List: reduce spacing in the email list.
 - Show Snippet Preview: display preview text below sender in the inbox.
 - All icons use the Material Rounded variant for a consistent, soft visual style.
+
+**Reading:**
+- Load Remote Images: block external images in email bodies (with per-email override).
+- Render Markdown: render plain-text emails as formatted Markdown (headers, bold, italic, code, links, lists).
 
 **Dock Bar:**
 - Unified Inbox: combine all accounts into one tab.
@@ -105,7 +111,9 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 - Check for Updates: queries the GitHub releases API and shows status. Tapping opens the download page.
 
 **About:**
-- Version (1.3.9), Privacy Policy, Terms of Service, and Open Source Licenses.
+- PGP Keys: manage OpenPGP keys (generate, import, export, delete) for end-to-end email encryption.
+- Build Distribution: shows Product Flavor (GitHub/Play Store), Build Type (Debug/Release), and FCM Push status.
+- Version (1.5.6), Privacy Policy, Terms of Service, and Open Source Licenses.
 
 **Support:**
 - Ko-fi, UPI, GitHub star, Discord, Share, Report Issue, Crypto donate.
@@ -136,8 +144,19 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 - Conversation view headers show sender avatar, name, From/To email addresses, and relative timestamps.
 - Inline image attachments decoded and displayed as previews (max 280dp height) with loading spinner; click to open in system app.
 - File attachments displayed in a responsive grid (columns adapt to screen width) with file extension badge, name, and size; download and open via FileProvider.
+- **PGP decryption:** detected and decrypted automatically with a green lock badge + signature verification status; undecrypted blobs show a "PGP Encrypted" placeholder.
+- **Markdown rendering:** plain-text emails rendered as formatted Markdown when enabled in Settings (headers, bold, italic, code blocks, links, lists).
+- **Remote image blocking:** external images blocked by default via Content Security Policy, with a "Show" banner for per-email override.
+- **Content Security Policy:** `default-src 'none'` with whitelisted img-src and style-src for defence-in-depth.
 - Top bar actions: back, star/unstar, overflow menu (mark unread, archive, move to trash) -- each navigates back after action.
 - Reply and Forward buttons at the bottom.
+
+### PGP Encryption
+- **End-to-end encryption:** compose and receive PGP-encrypted emails using OpenPGP via PGPainless.
+- **Key management:** generate Ed25519/X25519 key pairs, import ASCII-armored keys, export public keys, delete keys — all from the PGP Key Management screen in Settings.
+- **Encrypt & sign:** toggle encryption and signing on outgoing emails from the compose toolbar. Encryption is per-recipient using stored public keys.
+- **Auto-decryption:** incoming PGP/MIME and inline PGP messages are detected and decrypted automatically with signature verification. Decrypted messages show a green lock badge; undecrypted blobs show a "PGP Encrypted" placeholder.
+- **Key storage:** private keys stored as armored files in app-internal storage; metadata encrypted via Android KeyStore AES-GCM in EncryptedSharedPreferences.
 
 ### Welcome Box
 - One-time overlay shown on first install with 7 action buttons: Ko-fi, UPI, GitHub star, Discord, Share, Report Issue, and Crypto donate (copy to clipboard).
@@ -153,6 +172,8 @@ Accessible from the profile card. All settings are persisted via DataStore Prefe
 | Local Database | Room with SQLCipher encryption |
 | Background Sync | WorkManager |
 | Image Loading | Coil Compose |
+| IMAP/SMTP | Eclipse Angus Mail (Jakarta Mail 2.x) |
+| OpenPGP | PGPainless 2.0.3 (Bouncy Castle-based encryption/signing) |
 | Async | Kotlin Coroutines, Flow |
 | Secure Storage | AndroidX Security Crypto (EncryptedSharedPreferences), Android KeyStore |
 | Markdown Rendering | Markwon 4.6.2 |
