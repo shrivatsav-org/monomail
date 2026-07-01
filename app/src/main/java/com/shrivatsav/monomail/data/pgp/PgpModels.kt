@@ -6,7 +6,8 @@ data class PgpKeyInfo(
     val algorithm: String,
     val creationDate: Long,
     val isPrivate: Boolean,
-    val isExpired: Boolean
+    val isExpired: Boolean,
+    val isPassphraseProtected: Boolean = false
 )
 
 data class PgpSignature(
@@ -16,7 +17,9 @@ data class PgpSignature(
 
 data class PgpDecryptionResult(
     val decryptedBody: String,
-    val signatures: List<PgpSignature>? = null
+    val signatures: List<PgpSignature>? = null,
+    val needsPassphrase: Boolean = false,
+    val fingerprint: String? = null
 )
 
 data class PgpEncryptionResult(

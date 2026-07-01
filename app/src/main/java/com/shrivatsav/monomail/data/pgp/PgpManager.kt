@@ -8,6 +8,7 @@ import org.pgpainless.encryption_signing.EncryptionOptions
 import org.pgpainless.encryption_signing.ProducerOptions
 import org.pgpainless.encryption_signing.SigningOptions
 import org.pgpainless.key.protection.SecretKeyRingProtector
+import org.pgpainless.util.Passphrase
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
@@ -22,6 +23,20 @@ class PgpManager @Inject constructor(
         return body.contains("-----BEGIN PGP MESSAGE-----") ||
                 body.contains("multipart/encrypted") ||
                 body.contains("application/pgp-encrypted")
+    }
+
+    private fun getProtector(
+        secretKeyRing: org.bouncycastle.openpgp.PGPSecretKeyRing,
+        fingerprint: String
+    ): SecretKeyRingProtector {
+        val passphrase = storage.loadPassphrase(fingerprint)
+        if (passphrase != null) {
+            Log.d("PgpManager", "Using passphrase protector for key $fingerprint")
+            return SecretKeyRingProtector.unlockAnyKeyWith(
+                Passphrase.fromPassword(passphrase)
+            )
+        }
+        return SecretKeyRingProtector.unprotectedKeys()
     }
 
     fun decryptBody(emailBody: String, fingerprintHint: String? = null): PgpDecryptionResult? {
@@ -50,7 +65,7 @@ class PgpManager @Inject constructor(
                     continue
                 }
 
-                val protector = SecretKeyRingProtector.unprotectedKeys()
+                val protector = getProtector(secretKeyRing, fp)
 
                 val consumerOptions = ConsumerOptions.get()
                     .addDecryptionKey(secretKeyRing, protector)
@@ -82,6 +97,16 @@ class PgpManager @Inject constructor(
                 )
             } catch (e: Exception) {
                 Log.e("PgpManager", "Decryption failed for $fp", e)
+                // If the key is passphrase-protected but no passphrase is stored,
+                // signal the caller so the UI can prompt the user
+                val metadata = storage.loadKeyMetadata(fp)
+                if (metadata?.isPassphraseProtected == true && storage.loadPassphrase(fp) == null) {
+                    return PgpDecryptionResult(
+                        decryptedBody = "",
+                        needsPassphrase = true,
+                        fingerprint = fp
+                    )
+                }
                 continue
             }
         }
@@ -140,7 +165,7 @@ class PgpManager @Inject constructor(
         }
 
         try {
-            val protector = SecretKeyRingProtector.unprotectedKeys()
+            val protector = getProtector(secretKeyRing, fingerprint)
 
             val signingOptions = SigningOptions.get()
                 .addInlineSignature(protector, secretKeyRing)
@@ -195,7 +220,7 @@ class PgpManager @Inject constructor(
                     return null
                 }
 
-                val protector = SecretKeyRingProtector.unprotectedKeys()
+                val protector = getProtector(secretKeyRing, signingFingerprint)
                 val signingOptions = SigningOptions.get()
                     .addInlineSignature(protector, secretKeyRing)
 
