@@ -210,34 +210,60 @@ class OutlookProvider(
     }
     private fun sanitizeFilter(threadId: String): String = "conversationId eq '${threadId.replace("'", "''")}'"
 
+    /**
+     * Lists all messages in a thread and applies [operation] to each
+     * concurrently using [limitedParallelism] to avoid N+1 sequential
+     * API calls. Falls back to sequential on error.
+     */
+    private suspend fun forEachMessageInThread(
+        threadId: String,
+        parallelism: Int = 3,
+        operation: suspend (OutlookMessage) -> Unit
+    ) {
+        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
+        if (msgs.size <= 1) {
+            msgs.forEach { operation(it) }
+            return
+        }
+        coroutineScope {
+            msgs.map { msg ->
+                async(Dispatchers.IO.limitedParallelism(parallelism)) {
+                    try { operation(msg) } catch (e: Exception) {
+                        android.util.Log.w("OutlookProvider", "Failed operation for msg ${msg.id} in thread $threadId", e)
+                    }
+                }
+            }.awaitAll()
+        }
+    }
+
+    /** Reusable move-to-folder helper used by archive/unarchive/trash/restore. */
+    private fun moveToFolder(destinationId: String): suspend (OutlookMessage) -> Unit =
+        { msg -> api.moveMessage(msg.id, OutlookMoveMessageRequest(destinationId)) }
+
     private fun outlookRecipientForEmail(email: String): OutlookRecipient? {
         if (email.isBlank()) return null
         return OutlookRecipient(OutlookEmailAddress(null, email.trim()))
     }
 
     override suspend fun archiveThread(threadId: String) {
-        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
-        msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("archive")) }
+        forEachMessageInThread(threadId, operation = moveToFolder("archive"))
     }
     override suspend fun unarchiveThread(threadId: String) {
-        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
-        msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("inbox")) }
+        forEachMessageInThread(threadId, operation = moveToFolder("inbox"))
     }
     override suspend fun trashThread(threadId: String) {
-        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
-        msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("deleteditems")) }
+        forEachMessageInThread(threadId, operation = moveToFolder("deleteditems"))
     }
     override suspend fun restoreThread(threadId: String) {
-        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
-        msgs.forEach { api.moveMessage(it.id, OutlookMoveMessageRequest("inbox")) }
+        forEachMessageInThread(threadId, operation = moveToFolder("inbox"))
     }
     override suspend fun permanentlyDeleteThread(threadId: String) {
-        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
-        msgs.forEach { api.deleteMessage(it.id) }
+        forEachMessageInThread(threadId) { msg ->
+            api.deleteMessage(msg.id)
+        }
     }
     override suspend fun toggleStar(threadId: String, starred: Boolean) {
-        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
-        msgs.forEach { msg ->
+        forEachMessageInThread(threadId) { msg ->
             val categories = msg.categories?.toMutableList() ?: mutableListOf()
             if (starred) {
                 if (!categories.contains("Yellow category")) categories.add("Yellow category")
@@ -248,8 +274,7 @@ class OutlookProvider(
         }
     }
     override suspend fun markRead(threadId: String, read: Boolean) {
-        val msgs = api.listMessages(filter = sanitizeFilter(threadId)).value
-        msgs.forEach { msg ->
+        forEachMessageInThread(threadId) { msg ->
             api.updateMessage(msg.id, OutlookUpdateMessageRequest(isRead = read))
         }
     }
