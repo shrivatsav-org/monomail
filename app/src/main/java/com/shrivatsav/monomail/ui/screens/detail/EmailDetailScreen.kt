@@ -24,9 +24,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -264,7 +266,7 @@ private fun ThreadConversationContent(
         Text(
             text = subject,
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Normal,
+            fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)
         )
@@ -377,18 +379,19 @@ private fun ThreadConversationContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(IntrinsicSize.Min)
                             .background(
                                 if (index % 2 == 1)
                                     MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.3f)
                                 else MaterialTheme.colorScheme.background
                             )
                     ) {
-                        // Thread connecting line
+                        // Thread connecting line — height matches content dynamically
                         if (index < emails.lastIndex) {
                             Box(
                                 modifier = Modifier
                                     .width(2.dp)
-                                    .height(200.dp)
+                                    .fillMaxHeight()
                                     .padding(start = 24.dp)
                                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
                             )

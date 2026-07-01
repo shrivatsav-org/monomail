@@ -16,6 +16,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Outbound
+import androidx.compose.material.icons.rounded.MoveToInbox
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -114,7 +117,11 @@ fun ImapSetupScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
 
-                Text("Account Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Account Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                }
 
                 var expandedProvider by remember { mutableStateOf(false) }
                 var selectedProvider by remember { mutableStateOf("Custom Configuration") }
@@ -180,7 +187,11 @@ fun ImapSetupScreen(
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Incoming Server (IMAP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.MoveToInbox, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Incoming Server (IMAP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                }
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
@@ -225,7 +236,11 @@ fun ImapSetupScreen(
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("Outgoing Server (SMTP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.AutoMirrored.Rounded.Outbound, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Outgoing Server (SMTP)", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+                }
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(

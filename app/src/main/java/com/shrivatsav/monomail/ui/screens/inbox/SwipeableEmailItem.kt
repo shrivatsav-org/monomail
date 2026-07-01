@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
@@ -133,29 +134,70 @@ internal fun SwipeableEmailItem(
                 ) {
                     when (action) {
                         com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE ->
-                            Icon(
-                                if (tabForSwipe == InboxTab.ARCHIVED) Icons.Rounded.Inbox else if (tabForSwipe == InboxTab.SPAM) Icons.Rounded.Restore else Icons.Rounded.Archive,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    if (tabForSwipe == InboxTab.ARCHIVED) Icons.Rounded.Inbox else if (tabForSwipe == InboxTab.SPAM) Icons.Rounded.Restore else Icons.Rounded.Archive,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = when (tabForSwipe) {
+                                        InboxTab.ARCHIVED -> "Inbox"
+                                        InboxTab.SPAM -> "Restore"
+                                        else -> "Archive"
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            }
                         com.shrivatsav.monomail.data.settings.SwipeAction.STAR ->
-                            Icon(
-                                if (optIsStarred) Icons.Rounded.Star else Icons.Rounded.Star,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onTertiaryContainer
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    if (optIsStarred) Icons.Rounded.Star else Icons.Rounded.Star,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = if (optIsStarred) "Unstar" else "Star",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                                )
+                            }
                         com.shrivatsav.monomail.data.settings.SwipeAction.DELETE ->
-                            Icon(
-                                Icons.Rounded.Delete,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    Icons.Rounded.Delete,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = "Delete",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
                         com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD ->
-                            Icon(
-                                if (optIsRead) Icons.Rounded.MarkEmailRead else Icons.Rounded.MarkEmailUnread,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    if (optIsRead) Icons.Rounded.MarkEmailRead else Icons.Rounded.MarkEmailUnread,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = if (optIsRead) "Mark\nUnread" else "Mark\nRead",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                )
+                            }
                         else -> {}
                     }
                 }

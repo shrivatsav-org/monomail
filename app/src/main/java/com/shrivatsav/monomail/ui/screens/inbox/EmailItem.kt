@@ -1,5 +1,8 @@
 package com.shrivatsav.monomail.ui.screens.inbox
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -7,6 +10,8 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +37,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
@@ -75,18 +81,31 @@ fun EmailItem(
     val verticalPad = if (compactMode) 7.dp else 11.dp
     val hapticFeedback = LocalHapticFeedback.current
     val avatarClickAction = if (isBulkMode) onSelectToggle else onClick
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val rowScale by animateFloatAsState(
+        targetValue = if (isPressed) 0.985f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "rowScale"
+    )
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .scale(rowScale)
             .background(backgroundColor)
             .then(
                 if (isBulkMode) {
                     Modifier.combinedClickable(
+                        interactionSource = interactionSource,
                         onClick = onRangeSelect,
                         onLongClick = onSelectToggle
                     )
                 } else {
                     Modifier.combinedClickable(
+                        interactionSource = interactionSource,
                         onClick = onClick,
                         onLongClick = onLongClick
                     )

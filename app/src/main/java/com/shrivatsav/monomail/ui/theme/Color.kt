@@ -18,3 +18,14 @@ val DarkSurfaceContainer     = Color(0xFF141414)
 val DarkSurfaceContainerHigh = Color(0xFF1C1C1C)
 val DarkOutlineVariant       = Color(0xFF2A2A2A)
 val DarkOnSurfaceMuted       = Color(0xFFA0A0A0) // AA-contrast on black surfaces
+
+// Purple accent colors (M3 default purple palette)
+val PurplePrimaryLight       = Color(0xFF6750A4)
+val PurpleOnPrimaryLight     = Color(0xFFFFFFFF)
+val PurplePrimaryContainerLight = Color(0xFFEADDFF)
+val PurpleOnPrimaryContainerLight = Color(0xFF21005D)
+
+val PurplePrimaryDark        = Color(0xFFD0BCFF)
+val PurpleOnPrimaryDark      = Color(0xFF381E72)
+val PurplePrimaryContainerDark = Color(0xFF4F378B)
+val PurpleOnPrimaryContainerDark = Color(0xFFEADDFF)

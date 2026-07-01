@@ -32,7 +32,7 @@ internal fun BulkActionBar(
         Row(
             modifier = Modifier
                 .padding(horizontal = 8.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             BulkAction(
