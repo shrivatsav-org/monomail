@@ -85,8 +85,23 @@ class PgpKeyManager @Inject constructor(
         storage.deleteKeyMetadata(fingerprint)
     }
 
+    private fun extractEmailFromUserId(userId: String): String? {
+        // PGP User ID format: "Display Name <email@domain>" or just "email@domain"
+        val angleBracket = userId.lastIndexOf('<')
+        val closeAngle = userId.lastIndexOf('>')
+        if (angleBracket != -1 && closeAngle > angleBracket) {
+            return userId.substring(angleBracket + 1, closeAngle).trim()
+        }
+        // No angle brackets — the whole string might be an email address
+        val trimmed = userId.trim()
+        return if ('@' in trimmed) trimmed else null
+    }
+
     fun getPublicKeyForRecipient(email: String): ByteArray? {
-        val allKeys = listKeys().filter { it.userId.contains(email, ignoreCase = true) }
+        val allKeys = listKeys().filter { info ->
+            val extracted = extractEmailFromUserId(info.userId)
+            extracted != null && extracted.equals(email, ignoreCase = true)
+        }
         for (info in allKeys) {
             val armored = storage.loadPublicKey(info.fingerprint) ?: continue
             try {
@@ -98,7 +113,10 @@ class PgpKeyManager @Inject constructor(
     }
 
     fun getPublicKeyForRecipientAsFingerprint(email: String): String? {
-        val allKeys = listKeys().filter { it.userId.contains(email, ignoreCase = true) }
+        val allKeys = listKeys().filter { info ->
+            val extracted = extractEmailFromUserId(info.userId)
+            extracted != null && extracted.equals(email, ignoreCase = true)
+        }
         for (info in allKeys) {
             val armored = storage.loadPublicKey(info.fingerprint) ?: continue
             try {
