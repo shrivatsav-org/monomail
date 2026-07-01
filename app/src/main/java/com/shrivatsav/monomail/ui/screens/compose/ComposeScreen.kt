@@ -29,6 +29,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.TextButton
 import android.webkit.WebView
 import android.webkit.WebSettings
+import androidx.compose.runtime.DisposableEffect
 import android.view.ViewGroup
 import android.graphics.Color
 import android.webkit.JavascriptInterface
@@ -543,6 +544,21 @@ fun ComposeScreen(
             }
             Spacer(modifier = Modifier.height(8.dp))
             var bodyWebView by remember { mutableStateOf<WebView?>(null) }
+            var quotedWebView by remember { mutableStateOf<WebView?>(null) }
+            DisposableEffect(Unit) {
+                onDispose {
+                    bodyWebView?.apply {
+                        removeAllViews()
+                        destroy()
+                    }
+                    bodyWebView = null
+                    quotedWebView?.apply {
+                        removeAllViews()
+                        destroy()
+                    }
+                    quotedWebView = null
+                }
+            }
             val bodyTextColor = "#%06X".format(MaterialTheme.colorScheme.onBackground.toArgb() and 0xFFFFFF)
             var isBold by remember { mutableStateOf(false) }
             var isItalic by remember { mutableStateOf(false) }
@@ -654,6 +670,7 @@ fun ComposeScreen(
                                     append("""</body></html>""")
                                 }
                                 loadDataWithBaseURL(null, quoted.trimIndent(), "text/html", "UTF-8", null)
+                                quotedWebView = this
                             }
                         }
                     )

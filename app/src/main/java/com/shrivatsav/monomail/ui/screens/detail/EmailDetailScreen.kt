@@ -65,6 +65,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -889,99 +890,109 @@ private fun MessageBody(
             }
         }
 
-        AnimatedContent(targetState = showQuotedText, transitionSpec = {
-            fadeIn() togetherWith fadeOut()
-        }) { _ ->
-            Column {
-                AndroidView(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 4.dp),
-                    factory = { context ->
-                        WebView(context).apply {
-                            settings.javaScriptEnabled = false
-                            settings.loadWithOverviewMode = true
-                            settings.useWideViewPort = true
-                            settings.domStorageEnabled = false
-                            settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
-                            settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                            settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                            settings.loadsImagesAutomatically = loadRemoteImages || showRemoteImages
-                            setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                            isVerticalScrollBarEnabled = false
-                            isHorizontalScrollBarEnabled = false
-                            webViewClient = object : android.webkit.WebViewClient() {
-                                override fun shouldOverrideUrlLoading(
-                                    view: android.webkit.WebView?,
-                                    request: android.webkit.WebResourceRequest?
-                                ): Boolean {
-                                    request?.url?.let { uri ->
-                                        try {
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
-                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(intent)
-                                            return true
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
+        var emailContentWebView by remember { mutableStateOf<WebView?>(null) }
+        DisposableEffect(email.id) {
+            onDispose {
+                emailContentWebView?.apply {
+                    removeAllViews()
+                    destroy()
+                }
+                emailContentWebView = null
+            }
+        }
+
+        Column {
+            AndroidView(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp),
+                factory = { context ->
+                    WebView(context).apply {
+                        emailContentWebView = this
+                        settings.javaScriptEnabled = false
+                        settings.loadWithOverviewMode = true
+                        settings.useWideViewPort = true
+                        settings.domStorageEnabled = false
+                        settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+                        settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                        settings.loadsImagesAutomatically = loadRemoteImages || showRemoteImages
+                        setAllowFileAccess(false)
+                        setAllowContentAccess(false)
+                        setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        isVerticalScrollBarEnabled = false
+                        isHorizontalScrollBarEnabled = false
+                        webViewClient = object : android.webkit.WebViewClient() {
+                            override fun shouldOverrideUrlLoading(
+                                view: android.webkit.WebView?,
+                                request: android.webkit.WebResourceRequest?
+                            ): Boolean {
+                                request?.url?.let { uri ->
+                                    try {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply {
+                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
+                                        context.startActivity(intent)
+                                        return true
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
                                     }
-                                    return super.shouldOverrideUrlLoading(view, request)
                                 }
-                                @Suppress("DEPRECATION")
-                                @Deprecated("Deprecated in Java")
-                                override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
-                                    url?.let {
-                                        try {
-                                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it)).apply {
-                                                addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                                            }
-                                            context.startActivity(intent)
-                                            return true
-                                        } catch (e: Exception) {
-                                            e.printStackTrace()
+                                return super.shouldOverrideUrlLoading(view, request)
+                            }
+                            @Suppress("DEPRECATION")
+                            @Deprecated("Deprecated in Java")
+                            override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, url: String?): Boolean {
+                                url?.let {
+                                    try {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(it)).apply {
+                                            addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                                         }
+                                        context.startActivity(intent)
+                                        return true
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
                                     }
-                                    return super.shouldOverrideUrlLoading(view, url)
                                 }
+                                return super.shouldOverrideUrlLoading(view, url)
                             }
                         }
-                    },
-                    update = { webView ->
-                        if (webView.tag != htmlContent) {
-                            webView.tag = htmlContent
-                            webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
-                        }
                     }
-                )
-
-                // "Show quoted text" toggle
-                if (hasQuotedText) {
-                    TextButton(
-                        onClick = { showQuotedText = !showQuotedText },
-                        modifier = Modifier.padding(start = 12.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (showQuotedText) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (showQuotedText) "Hide quoted text" else "Show quoted text",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                },
+                update = { webView ->
+                    if (webView.tag != htmlContent) {
+                        webView.tag = htmlContent
+                        webView.loadDataWithBaseURL(null, htmlContent, "text/html", "UTF-8", null)
                     }
                 }
+            )
 
-                Spacer(modifier = Modifier.height(12.dp))
-                if (email.attachments.isNotEmpty()) {
-                    AttachmentsSection(
-                        attachments = email.attachments,
-                        onFetchAttachment = onFetchAttachment
+            // "Show quoted text" toggle
+            if (hasQuotedText) {
+                TextButton(
+                    onClick = { showQuotedText = !showQuotedText },
+                    modifier = Modifier.padding(start = 12.dp)
+                ) {
+                    Icon(
+                        imageVector = if (showQuotedText) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = if (showQuotedText) "Hide quoted text" else "Show quoted text",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            if (email.attachments.isNotEmpty()) {
+                AttachmentsSection(
+                    attachments = email.attachments,
+                    onFetchAttachment = onFetchAttachment
+                )
             }
         }
     }
