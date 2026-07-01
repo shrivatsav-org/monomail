@@ -73,7 +73,7 @@ class PgpKeyStorage @Inject constructor(
 
     fun saveKeyMetadata(fingerprint: String, info: PgpKeyInfo) {
         val all = loadAllMetadata().toMutableMap()
-        all[info.userId] = info
+        all[fingerprint] = info
         prefs.edit().putString(PREF_KEYS, gson.toJson(all)).apply()
     }
 
@@ -100,6 +100,14 @@ class PgpKeyStorage @Inject constructor(
     fun keyFileExists(fingerprint: String): Boolean {
         return File(keysDir, "$fingerprint.asc").exists() ||
                 File(publicKeysDir, "$fingerprint.asc").exists()
+    }
+
+    fun publicKeyExists(fingerprint: String): Boolean {
+        return File(publicKeysDir, "$fingerprint.asc").exists()
+    }
+
+    fun privateKeyExists(fingerprint: String): Boolean {
+        return File(keysDir, "$fingerprint.asc").exists()
     }
 
     companion object {

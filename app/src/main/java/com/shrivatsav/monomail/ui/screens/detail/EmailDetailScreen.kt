@@ -548,8 +548,11 @@ private fun MessageBody(
     messageCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    val bodyText = decryptedResult?.decryptedBody ?: email.body
-    val bodyIsHtml = decryptedResult?.decryptedBody != null && email.bodyIsHtml
+    val isEncryptedBlob = decryptedResult == null &&
+            (email.body.contains("-----BEGIN PGP MESSAGE-----") ||
+             email.body.contains("multipart/encrypted"))
+    val bodyText = if (isEncryptedBlob) "" else (decryptedResult?.decryptedBody ?: email.body)
+    val bodyIsHtml = if (isEncryptedBlob) false else (decryptedResult?.decryptedBody != null && email.bodyIsHtml)
     Column(modifier = modifier) {
         // Encryption badge
         if (decryptedResult != null) {
@@ -598,6 +601,21 @@ private fun MessageBody(
                     }
                 }
             }
+        }
+        // Show decrypting placeholder while PGP decryption is in progress
+        if (isEncryptedBlob) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 32.dp)
+            ) {
+                Text(
+                    text = "Decrypting…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            }
+            return
         }
     val fontSize = (15f * fontScaleMultiplier).coerceIn(10f, 28f)
     val smallFontSize = (13f * fontScaleMultiplier).coerceIn(9f, 24f)
