@@ -34,7 +34,9 @@ internal fun ModalOverlay(
     onBackToProfile: () -> Unit,
     onCycleAccount: (String) -> Unit,
     onSettings: () -> Unit,
-    onNavigateToImapSetup: () -> Unit
+    onNavigateToImapSetup: () -> Unit,
+    unifiedInboxEnabled: Boolean = false,
+    onToggleUnified: (Boolean) -> Unit = {},
 ) {
     var displayed by remember { mutableStateOf<ModalType?>(null) }
     displayed = activeModal ?: displayed
@@ -108,6 +110,8 @@ internal fun ModalOverlay(
                                     onCycleAccount = onCycleAccount,
                                     onSettings = onSettings,
                                     onAddAccount = onAddAccount,
+                                    unifiedInboxEnabled = unifiedInboxEnabled,
+                                    onToggleUnified = onToggleUnified,
                                 )
                             }
                         }

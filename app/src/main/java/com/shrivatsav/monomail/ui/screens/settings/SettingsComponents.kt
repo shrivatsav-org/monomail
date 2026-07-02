@@ -770,7 +770,7 @@ internal fun DockBarEditor(
     unifiedInboxEnabled: Boolean,
     onConfigChanged: (DockConfig) -> Unit
 ) {
-    val allTabs = DockTabId.values().filter { it != DockTabId.UNIFIED || unifiedInboxEnabled }
+    val allTabs = DockTabId.values().filter { if (unifiedInboxEnabled) it != DockTabId.UNIFIED else true }
     val availableTabs = allTabs.filter { it !in dockConfig.primaryTabs }
 
     Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {

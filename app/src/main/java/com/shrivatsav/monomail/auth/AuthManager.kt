@@ -163,6 +163,27 @@ class AuthManager(
             _userProfile = null
         }
     }
+    suspend fun removeAccount(accountId: String) {
+        val allAccounts = accountManager.getAccounts()
+        val target = allAccounts.find { it.id == accountId } ?: return
+        if (target.provider == "outlook") {
+            try { microsoftAuthManager.signOut(target.id) } catch (_: Exception) {}
+        }
+        accountManager.removeAccount(accountId)
+        try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (_: Exception) {}
+        val remaining = accountManager.getAccounts()
+        if (remaining.isNotEmpty()) {
+            val newActive = if (_userProfile?.id == accountId) remaining.first() else _userProfile
+            if (newActive != null) {
+                _userProfile = newActive
+                _isSignedIn.value = true
+                accountManager.setActiveAccountId(newActive.id)
+            }
+        } else {
+            _isSignedIn.value = false
+            _userProfile = null
+        }
+    }
     suspend fun signOutActiveAccount() {
         val active = _userProfile ?: return
         if (active.provider == "gmail") {

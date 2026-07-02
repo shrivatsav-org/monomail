@@ -99,6 +99,7 @@ fun InboxScreen(
     var activeModal by remember { mutableStateOf<ModalType?>(null) }
     var showSnoozePicker by remember { mutableStateOf(false) }
     var snoozeThreadId by remember { mutableStateOf<String?>(null) }
+    var showPerformanceWarningDialog by remember { mutableStateOf(false) }
     val onSnoozeSelected: (String) -> Unit = remember { { id -> snoozeThreadId = id; showSnoozePicker = true } }
     val isBulkMode by viewModel.isBulkSelectMode.collectAsState()
     val selectedThreadIds by viewModel.selectedThreadIds.collectAsState()
@@ -220,7 +221,8 @@ fun InboxScreen(
                         totalCount = localFilteredThreads?.size ?: currentThreads.size,
                         onSelectAll = { viewModel.selectAll() },
                         onDeselectAll = { viewModel.deselectAll() },
-                        onDone = { viewModel.exitBulkSelectMode() }
+                        onDone = { viewModel.exitBulkSelectMode() },
+                        unifiedInboxEnabled = unifiedInboxEnabled
                     )
 
                     val isOnline = rememberConnectivityState()
@@ -612,11 +614,15 @@ fun InboxScreen(
             ) {
                 BulkActionBar(
                     selectedCount = selectedCount,
+                    currentTab = immediateTab,
                     onArchive = { viewModel.bulkArchive() },
                     onDelete = { viewModel.bulkDelete() },
                     onMarkRead = { viewModel.bulkMarkRead() },
                     onMarkUnread = { viewModel.bulkMarkUnread() },
                     onToggleStar = { viewModel.bulkToggleStar() },
+                    onUnarchive = { viewModel.bulkUnarchive() },
+                    onRestore = { viewModel.bulkRestore() },
+                    onReportNotSpam = { viewModel.bulkReportNotSpam() },
                     modifier = Modifier.padding(bottom = navBarHeight + 8.dp)
                 )
             }
@@ -781,12 +787,16 @@ fun InboxScreen(
                         coroutineScope.launch {
                             snackbarHostState.showSnackbar("Maximum limit of 10 accounts reached.")
                         }
+                    } else if (accounts.size >= 3) {
+                        showPerformanceWarningDialog = true
                     } else activeModal = ModalType.ADD_ACCOUNT
                 },
                 onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
                 onBackToProfile = { activeModal = ModalType.PROFILE },
                 onSettings = { activeModal = null; onSettings() },
-                onNavigateToImapSetup = onNavigateToImapSetup
+                onNavigateToImapSetup = onNavigateToImapSetup,
+                unifiedInboxEnabled = unifiedInboxEnabled,
+                onToggleUnified = { viewModel.setUnifiedInboxEnabled(it) }
             )
         }
     }
@@ -939,7 +949,39 @@ fun InboxScreen(
         }
     }
 
-    
+
+    // Performance warning dialog for adding 4th+ account
+    if (showPerformanceWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showPerformanceWarningDialog = false },
+            title = {
+                Text("Heads up", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "Adding more accounts may affect performance. " +
+                    "The app might lag, email delivery may be delayed, " +
+                    "and you may experience slower sync times.\n\n" +
+                    "You can add up to 10 accounts total."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showPerformanceWarningDialog = false
+                    activeModal = ModalType.ADD_ACCOUNT
+                }) {
+                    Text("I understand, add anyway", fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPerformanceWarningDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+
     com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
         visible = threadToDelete != null,
         onDismiss = { threadToDelete = null }

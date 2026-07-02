@@ -53,6 +53,9 @@ class EmailRepository(
     suspend fun getActiveAccountId(): String {
         return accountManager.getActiveAccount()?.id ?: "gmail_unknown"
     }
+    private suspend fun resolveAccountId(threadId: String): String {
+        return threadDao.getAccountIdForThread(threadId) ?: getActiveAccountId()
+    }
     suspend fun getLatestInboxThread(accountId: String): EmailThread? {
         return threadDao.getLatestInboxThread(accountId)?.toDomainModel()
     }
@@ -94,12 +97,26 @@ class EmailRepository(
         threadDao.getSnoozedThreads(accountId).map { list -> list.map { it.toDomainModel() } }
     fun getSpamThreadsFlow(accountId: String): Flow<List<EmailThread>> =
         threadDao.getSpamThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getAllSentThreadsFlow(): Flow<List<EmailThread>> =
+        threadDao.getAllSentThreads().map { list -> list.map { it.toDomainModel() } }
+    fun getAllArchivedThreadsFlow(): Flow<List<EmailThread>> =
+        threadDao.getAllArchivedThreads().map { list -> list.map { it.toDomainModel() } }
+    fun getAllStarredThreadsFlow(): Flow<List<EmailThread>> =
+        threadDao.getAllStarredThreads().map { list -> list.map { it.toDomainModel() } }
+    fun getAllTrashThreadsFlow(): Flow<List<EmailThread>> =
+        threadDao.getAllTrashThreads().map { list -> list.map { it.toDomainModel() } }
+    fun getAllSnoozedThreadsFlow(): Flow<List<EmailThread>> =
+        threadDao.getAllSnoozedThreads().map { list -> list.map { it.toDomainModel() } }
+    fun getAllSpamThreadsFlow(): Flow<List<EmailThread>> =
+        threadDao.getAllSpamThreads().map { list -> list.map { it.toDomainModel() } }
     fun getInboxEmailsFlow(tab: InboxTab, accountId: String): Flow<List<Email>> {
         return when (tab) {
             InboxTab.UNIFIED -> emailDao.getAllInboxEmails()
             else -> emailDao.getInboxEmails(accountId)
         }.map { list -> list.map { it.toDomainModel() } }
     }
+    fun getAllInboxEmailsFlow(): Flow<List<Email>> =
+        emailDao.getAllInboxEmails().map { list -> list.map { it.toDomainModel() } }
     fun getSentEmailsFlow(accountId: String): Flow<List<Email>> =
         emailDao.getSentEmails(accountId).map { list -> list.map { it.toDomainModel() } }
     fun getArchivedEmailsFlow(accountId: String): Flow<List<Email>> =
@@ -110,13 +127,23 @@ class EmailRepository(
         emailDao.getTrashEmails(accountId).map { list -> list.map { it.toDomainModel() } }
     fun getSpamEmailsFlow(accountId: String): Flow<List<Email>> =
         emailDao.getSpamEmails(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getAllSentEmailsFlow(): Flow<List<Email>> =
+        emailDao.getAllSentEmails().map { list -> list.map { it.toDomainModel() } }
+    fun getAllArchivedEmailsFlow(): Flow<List<Email>> =
+        emailDao.getAllArchivedEmails().map { list -> list.map { it.toDomainModel() } }
+    fun getAllStarredEmailsFlow(): Flow<List<Email>> =
+        emailDao.getAllStarredEmails().map { list -> list.map { it.toDomainModel() } }
+    fun getAllTrashEmailsFlow(): Flow<List<Email>> =
+        emailDao.getAllTrashEmails().map { list -> list.map { it.toDomainModel() } }
+    fun getAllSpamEmailsFlow(): Flow<List<Email>> =
+        emailDao.getAllSpamEmails().map { list -> list.map { it.toDomainModel() } }
     suspend fun getEmailById(id: String): Email? {
         val activeAccountId = getActiveAccountId()
         return emailDao.getEmailById(id, activeAccountId)?.toDomainModel()
     }
     fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> = flow {
-        val activeAccountId = getActiveAccountId()
-        emitAll(emailDao.getEmailsForThread(threadId, activeAccountId).map { list -> list.map { it.toDomainModel() } })
+        val accountId = resolveAccountId(threadId)
+        emitAll(emailDao.getEmailsForThread(threadId, accountId).map { list -> list.map { it.toDomainModel() } })
     }
 
     suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> {
@@ -234,8 +261,10 @@ class EmailRepository(
     }
     suspend fun refreshThread(threadId: String): Result<Unit> {
         return try {
-            val provider = getActiveProvider() ?: return Result.failure(Exception("No active provider"))
-            val activeAccountId = getActiveAccountId()
+            val accountId = resolveAccountId(threadId)
+            val provider = getProviderForAccount(accountId)
+                ?: return Result.failure(Exception("No active provider"))
+
             val threadResponse = provider.getThread(threadId)
             val emails = threadResponse.messages.map { msg ->
                 val labels = msg.folders.map { it.name }
@@ -258,7 +287,7 @@ class EmailRepository(
                     attachments = msg.attachments
                 )
             }
-            emailDao.insertEmails(emails.map { it.toEntity(activeAccountId) })
+            emailDao.insertEmails(emails.map { it.toEntity(accountId) })
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
@@ -266,10 +295,10 @@ class EmailRepository(
     }
     suspend fun toggleStar(threadId: String, currentStarred: Boolean) {
         val newStarred = !currentStarred
-        val activeAccountId = getActiveAccountId()
-        insertPendingAction(PendingActionType.TOGGLE_STAR, activeAccountId, threadId, payload = newStarred.toString())
-        threadDao.updateThreadStarred(threadId, activeAccountId, newStarred)
-        emailDao.updateThreadStarred(threadId, activeAccountId, newStarred)
+        val accountId = resolveAccountId(threadId)
+        insertPendingAction(PendingActionType.TOGGLE_STAR, accountId, threadId, payload = newStarred.toString())
+        threadDao.updateThreadStarred(threadId, accountId, newStarred)
+        emailDao.updateThreadStarred(threadId, accountId, newStarred)
     }
     suspend fun markEmailsAsRead(emailIds: List<String>) {
         if (emailIds.isEmpty()) return
@@ -278,10 +307,10 @@ class EmailRepository(
         insertPendingAction(PendingActionType.MARK_READ, activeAccountId, "", emailIdsJson = emailIds.joinToString(","))
     }
     suspend fun markThreadAsRead(threadId: String) {
-        val activeAccountId = getActiveAccountId()
-        insertPendingAction(PendingActionType.MARK_READ, activeAccountId, threadId)
-        threadDao.updateThreadReadStatus(threadId, activeAccountId, true)
-        emailDao.updateThreadEmailsReadStatus(threadId, activeAccountId, true)
+        val accountId = resolveAccountId(threadId)
+        insertPendingAction(PendingActionType.MARK_READ, accountId, threadId)
+        threadDao.updateThreadReadStatus(threadId, accountId, true)
+        emailDao.updateThreadEmailsReadStatus(threadId, accountId, true)
     }
     suspend fun markThreadsAsRead(threadIds: List<String>): Result<Unit> {
         if (threadIds.isEmpty()) return Result.success(Unit)
@@ -308,19 +337,19 @@ class EmailRepository(
         }
     }
     suspend fun markThreadAsUnread(threadId: String) {
-        val activeAccountId = getActiveAccountId()
-        insertPendingAction(PendingActionType.MARK_UNREAD, activeAccountId, threadId)
-        threadDao.updateThreadReadStatus(threadId, activeAccountId, false)
-        emailDao.updateThreadEmailsReadStatus(threadId, activeAccountId, false)
+        val accountId = resolveAccountId(threadId)
+        insertPendingAction(PendingActionType.MARK_UNREAD, accountId, threadId)
+        threadDao.updateThreadReadStatus(threadId, accountId, false)
+        emailDao.updateThreadEmailsReadStatus(threadId, accountId, false)
     }
     suspend fun archiveThread(threadId: String, explicitAccountId: String? = null) {
-        val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        val activeAccountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.ARCHIVE, activeAccountId, threadId)
         threadDao.archiveThread(threadId, activeAccountId)
         emailDao.archiveThreadEmails(threadId, activeAccountId)
     }
     suspend fun unarchiveThread(threadId: String, explicitAccountId: String? = null) {
-        val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        val activeAccountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.UNARCHIVE, activeAccountId, threadId)
         threadDao.unarchiveThread(threadId, activeAccountId)
         emailDao.unarchiveThreadEmails(threadId, activeAccountId)
@@ -343,21 +372,21 @@ class EmailRepository(
         emailDao.emptySpam(activeAccountId)
     }
     suspend fun deleteThread(threadId: String) {
-        val activeAccountId = getActiveAccountId()
-        insertPendingAction(PendingActionType.DELETE, activeAccountId, threadId)
-        threadDao.moveToTrash(threadId, activeAccountId)
-        emailDao.moveThreadEmailsToTrash(threadId, activeAccountId)
+        val accountId = resolveAccountId(threadId)
+        insertPendingAction(PendingActionType.DELETE, accountId, threadId)
+        threadDao.moveToTrash(threadId, accountId)
+        emailDao.moveThreadEmailsToTrash(threadId, accountId)
     }
     suspend fun restoreThread(threadId: String) {
-        val activeAccountId = getActiveAccountId()
-        insertPendingAction(PendingActionType.RESTORE, activeAccountId, threadId)
-        threadDao.restoreFromTrash(threadId, activeAccountId)
-        emailDao.restoreThreadEmailsFromTrash(threadId, activeAccountId)
+        val accountId = resolveAccountId(threadId)
+        insertPendingAction(PendingActionType.RESTORE, accountId, threadId)
+        threadDao.restoreFromTrash(threadId, accountId)
+        emailDao.restoreThreadEmailsFromTrash(threadId, accountId)
     }
     suspend fun reportNotSpam(threadId: String) {
-        val activeAccountId = getActiveAccountId()
-        threadDao.reportNotSpam(threadId, activeAccountId)
-        emailDao.reportThreadEmailsNotSpam(threadId, activeAccountId)
+        val accountId = resolveAccountId(threadId)
+        threadDao.reportNotSpam(threadId, accountId)
+        emailDao.reportThreadEmailsNotSpam(threadId, accountId)
     }
     suspend fun clearLocalData() {
         withContext(Dispatchers.IO) { database.clearAllTables() }
@@ -542,13 +571,13 @@ class EmailRepository(
     fun getPendingScheduledCountFlow(accountId: String) = scheduledMessageDao.getPendingCount(accountId)
     suspend fun getScheduledMessageById(id: String) = scheduledMessageDao.getScheduledMessageById(id)
     suspend fun snoozeThread(threadId: String, untilTimestamp: Long, explicitAccountId: String? = null) {
-        val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        val activeAccountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.SNOOZE, activeAccountId, threadId, payload = untilTimestamp.toString())
         threadDao.snoozeThread(threadId, activeAccountId, untilTimestamp)
         emailDao.snoozeThreadEmails(threadId, activeAccountId, untilTimestamp)
     }
     suspend fun unsnoozeThread(threadId: String, explicitAccountId: String? = null) {
-        val activeAccountId = explicitAccountId ?: getActiveAccountId()
+        val activeAccountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.UNSNOOZE, activeAccountId, threadId)
         threadDao.unsnoozeThread(threadId, activeAccountId)
         emailDao.unsnoozeThreadEmails(threadId, activeAccountId)

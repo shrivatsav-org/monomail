@@ -3,6 +3,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import android.util.Log
+import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
 import com.shrivatsav.monomail.data.pgp.PgpManager
@@ -29,8 +30,10 @@ class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
     private val settingsDataStore: SettingsDataStore,
     private val pgpManager: PgpManager,
+    private val authManager: AuthManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+    val currentUserEmail: String = authManager.currentUser?.email ?: ""
     private val threadId: String = savedStateHandle.get<String>("threadId") ?: ""
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)

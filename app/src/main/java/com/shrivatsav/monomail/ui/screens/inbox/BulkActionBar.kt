@@ -13,16 +13,64 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 
+internal data class BulkActionDef(
+    val icon: ImageVector,
+    val label: String,
+    val onClick: () -> Unit
+)
+
 @Composable
 internal fun BulkActionBar(
     selectedCount: Int,
+    currentTab: InboxTab,
     onArchive: () -> Unit,
     onDelete: () -> Unit,
     onMarkRead: () -> Unit,
     onMarkUnread: () -> Unit,
     onToggleStar: () -> Unit,
+    onUnarchive: () -> Unit = {},
+    onRestore: () -> Unit = {},
+    onReportNotSpam: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val actions = when (currentTab) {
+        InboxTab.ARCHIVED -> listOf(
+            BulkActionDef(Icons.Rounded.Unarchive, "Unarchive", onUnarchive),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+        )
+        InboxTab.TRASH -> listOf(
+            BulkActionDef(Icons.Rounded.Restore, "Restore", onRestore),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+        )
+        InboxTab.STARRED -> listOf(
+            BulkActionDef(Icons.Rounded.Archive, "Archive", onArchive),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
+            BulkActionDef(Icons.Rounded.StarOutline, "Unstar", onToggleStar),
+        )
+        InboxTab.SPAM -> listOf(
+            BulkActionDef(Icons.Rounded.Report, "Not spam", onReportNotSpam),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+        )
+        else -> listOf(
+            BulkActionDef(Icons.Rounded.Archive, "Archive", onArchive),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+        )
+    }
+
     Surface(
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceContainer,
@@ -35,31 +83,13 @@ internal fun BulkActionBar(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            BulkAction(
-                icon = Icons.Rounded.Archive,
-                label = "Archive",
-                onClick = onArchive
-            )
-            BulkAction(
-                icon = Icons.Rounded.Delete,
-                label = "Delete",
-                onClick = onDelete
-            )
-            BulkAction(
-                icon = Icons.Rounded.CheckCircle,
-                label = "Read",
-                onClick = onMarkRead
-            )
-            BulkAction(
-                icon = Icons.Rounded.MarkEmailUnread,
-                label = "Unread",
-                onClick = onMarkUnread
-            )
-            BulkAction(
-                icon = Icons.Rounded.Star,
-                label = "Star",
-                onClick = onToggleStar
-            )
+            actions.forEach { action ->
+                BulkAction(
+                    icon = action.icon,
+                    label = action.label,
+                    onClick = action.onClick
+                )
+            }
         }
     }
 }

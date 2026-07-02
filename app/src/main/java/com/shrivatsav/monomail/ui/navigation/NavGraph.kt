@@ -7,9 +7,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -122,11 +125,52 @@ fun NavGraph(
     } else {
         Screen.SignIn.route
     }
+    val reauthInfo by authManager.reauthNeeded.collectAsState()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
+        val reauth = reauthInfo
+        if (reauth != null) {
+            AlertDialog(
+                onDismissRequest = { authManager.dismissReauth() },
+                title = { Text("Session Expired") },
+                text = {
+                    Text(
+                        "Your ${reauth.provider.replaceFirstChar { it.uppercase() }} account " +
+                        "(${reauth.email}) needs to be re-authenticated.\n\n" +
+                        "You can sign out this account and continue with your other accounts."
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = {
+                        scope.launch {
+                            authManager.dismissReauth()
+                            val accounts = authManager.getAccounts()
+                            val targetId = accounts.find { it.email == reauth.email }?.id ?: return@launch
+                            authManager.removeAccount(targetId)
+                            val remaining = authManager.getAccounts()
+                            if (remaining.isEmpty()) {
+                                authManager.signOutAll()
+                                navController.navigate(Screen.SignIn.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                            }
+                        }
+                    }) {
+                        Text("Sign out this account")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { authManager.dismissReauth() }) {
+                        Text("Later")
+                    }
+                }
+            )
+        }
+
         NavHost(
             navController = navController,
             startDestination = startDestination,

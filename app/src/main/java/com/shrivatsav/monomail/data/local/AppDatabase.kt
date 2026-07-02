@@ -8,7 +8,7 @@ import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
     entities = [ThreadEntity::class, EmailEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class],
-    version = 12,
+    version = 13,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -31,7 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
@@ -97,5 +97,44 @@ val MIGRATION_11_12 = object : androidx.room.migration.Migration(11, 12) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("CREATE INDEX IF NOT EXISTS index_threads_snooze ON threads(isSnoozed, snoozedUntil)")
         db.execSQL("CREATE INDEX IF NOT EXISTS index_emails_snooze ON emails(isSnoozed, snoozedUntil)")
+    }
+}
+val MIGRATION_12_13 = object : androidx.room.migration.Migration(12, 13) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `threads_new` (
+                `threadId` TEXT NOT NULL,
+                `accountId` TEXT NOT NULL,
+                `subject` TEXT NOT NULL,
+                `fromName` TEXT NOT NULL,
+                `fromEmail` TEXT NOT NULL,
+                `snippet` TEXT NOT NULL,
+                `date` INTEGER NOT NULL,
+                `messageCount` INTEGER NOT NULL,
+                `isRead` INTEGER NOT NULL,
+                `isStarred` INTEGER NOT NULL,
+                `latestMessageId` TEXT NOT NULL,
+                `participants` TEXT NOT NULL,
+                `inInbox` INTEGER NOT NULL,
+                `inSent` INTEGER NOT NULL,
+                `inArchived` INTEGER NOT NULL,
+                `inTrash` INTEGER NOT NULL,
+                `isSnoozed` INTEGER NOT NULL DEFAULT 0,
+                `snoozedUntil` INTEGER NOT NULL DEFAULT 0,
+                `inSpam` INTEGER NOT NULL DEFAULT 0,
+                PRIMARY KEY(`accountId`, `threadId`)
+            )
+        """)
+        db.execSQL("INSERT INTO `threads_new` SELECT * FROM `threads`")
+        db.execSQL("DROP TABLE `threads`")
+        db.execSQL("ALTER TABLE `threads_new` RENAME TO `threads`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_accountId_inInbox_date` ON `threads`(`accountId`, `inInbox`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_accountId_inSent_date` ON `threads`(`accountId`, `inSent`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_accountId_inArchived_date` ON `threads`(`accountId`, `inArchived`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_accountId_isStarred_date` ON `threads`(`accountId`, `isStarred`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_accountId_inTrash_date` ON `threads`(`accountId`, `inTrash`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_accountId_inSpam_date` ON `threads`(`accountId`, `inSpam`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_accountId_isSnoozed_snoozedUntil` ON `threads`(`accountId`, `isSnoozed`, `snoozedUntil`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_threads_isSnoozed_snoozedUntil` ON `threads`(`isSnoozed`, `snoozedUntil`)")
     }
 }

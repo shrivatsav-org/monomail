@@ -97,12 +97,17 @@ object AppModule {
                                     }
                                     if (newToken != null) {
                                         runBlocking { authManager.updateAccessToken(currentProfile.copy(accessToken = newToken)) }
+                                    } else {
+                                        android.util.Log.w("AppModule", "Outlook silent token refresh returned null for ${currentProfile.id}")
                                     }
                                     newToken
                                 }
                                 else -> null
                             }
-                        } catch (_: Exception) { null }
+                        } catch (e: Exception) {
+                            android.util.Log.e("AppModule", "Token refresh failed for ${currentProfile.id}", e)
+                            null
+                        }
                     },
                     onRefreshFailed = {
                         authManager.notifyReauthRequired(profile.email, profile.provider)

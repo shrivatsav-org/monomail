@@ -69,7 +69,18 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
             }
         )
     }
-    suspend fun getAccessTokenSilently(accountId: String): String? = suspendCancellableCoroutine { continuation ->
+    suspend fun getAccessTokenSilently(accountId: String): String? {
+        // Ensure MSAL is initialized before attempting silent token acquisition.
+        // This handles cases where the process was killed/recreated or the app
+        // cold-started without an explicit initialize() call.
+        if (msalApp == null) {
+            val initError = initialize()
+            if (initError != null) {
+                android.util.Log.w("MicrosoftAuth", "Auto-init failed during silent token: $initError")
+                return null
+            }
+        }
+        return suspendCancellableCoroutine { continuation ->
         val app = msalApp
         if (app == null) {
             continuation.resume(null)
@@ -91,6 +102,7 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
                                     continuation.resume(authenticationResult.accessToken)
                                 }
                                 override fun onError(exception: MsalException) {
+                                    android.util.Log.w("MicrosoftAuth", "Silent token acquisition failed for $accountId", exception)
                                     continuation.resume(null)
                                 }
                                 override fun onCancel() {
@@ -99,14 +111,17 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
                             }
                         )
                     } else {
+                        android.util.Log.w("MicrosoftAuth", "MSAL account not found for $accountId (stripped: $msalAccountId)")
                         continuation.resume(null)
                     }
                 }
                 override fun onError(exception: MsalException) {
+                    android.util.Log.w("MicrosoftAuth", "getAccount failed for $accountId", exception)
                     continuation.resume(null)
                 }
             }
         )
+        }
     }
     suspend fun signOut(accountId: String) = suspendCancellableCoroutine { continuation ->
         val app = msalApp

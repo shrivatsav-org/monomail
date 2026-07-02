@@ -37,6 +37,8 @@ internal fun ProfileCard(
     onCycleAccount: (String) -> Unit,
     onSettings: () -> Unit,
     onAddAccount: () -> Unit,
+    unifiedInboxEnabled: Boolean = false,
+    onToggleUnified: (Boolean) -> Unit = {},
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(0.88f),
@@ -65,8 +67,8 @@ internal fun ProfileCard(
                     ) {
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier.pointerInput(accounts) {
-                                if (accounts.size > 1) {
+                            modifier = Modifier.pointerInput(accounts, unifiedInboxEnabled) {
+                                if (accounts.size > 1 && !unifiedInboxEnabled) {
                                     var totalDrag = 0f
                                     detectHorizontalDragGestures(
                                         onDragStart = { totalDrag = 0f },
@@ -142,7 +144,7 @@ internal fun ProfileCard(
                     }
                 }
 
-                if (accounts.size > 1) {
+                if (accounts.size > 1 && !unifiedInboxEnabled) {
                     Spacer(Modifier.height(12.dp))
                     Surface(
                         shape = CircleShape,
@@ -175,6 +177,51 @@ internal fun ProfileCard(
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
                 thickness = 0.5.dp
             )
+
+            // Unified inbox toggle
+            if (accounts.size > 1) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Rounded.Inbox,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                        modifier = Modifier
+                            .padding(horizontal = 14.dp)
+                            .size(21.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Unified Inbox",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        if (unifiedInboxEnabled) {
+                            Text(
+                                "All accounts combined",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = unifiedInboxEnabled,
+                        onCheckedChange = onToggleUnified,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = MaterialTheme.colorScheme.onBackground,
+                            checkedTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
+                            uncheckedThumbColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                            uncheckedTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)
+                        ),
+                        modifier = Modifier.padding(end = 8.dp)
+                    )
+                }
+            }
 
             Column(
                 modifier = Modifier

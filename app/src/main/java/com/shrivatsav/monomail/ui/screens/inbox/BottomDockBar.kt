@@ -33,7 +33,7 @@ internal fun BottomDockBar(
     onTabClick: (InboxTab) -> Unit,
 ) {
     var showRemainingTabs by remember { mutableStateOf(false) }
-    val allTabs = DockTabId.values().filter { it != DockTabId.UNIFIED || unifiedInboxEnabled }
+    val allTabs = DockTabId.values().filter { if (unifiedInboxEnabled) it != DockTabId.UNIFIED else true }
     val primaryIds = dockConfig.primaryTabs
     val remainingIds = allTabs.filter { it !in primaryIds }
 
@@ -172,7 +172,7 @@ private fun DockTabId.toInboxTab(): InboxTab = when (this) {
 
 internal fun DockTabId.icon(unifiedInboxEnabled: Boolean): ImageVector = when (this) {
     DockTabId.UNIFIED -> Icons.Rounded.Inbox
-    DockTabId.INBOX -> if (unifiedInboxEnabled) Icons.Rounded.AccountCircle else Icons.Rounded.Inbox
+    DockTabId.INBOX -> if (unifiedInboxEnabled) Icons.Rounded.Home else Icons.Rounded.Inbox
     DockTabId.SENT -> Icons.AutoMirrored.Rounded.Send
     DockTabId.ARCHIVED -> Icons.Rounded.Archive
     DockTabId.SNOOZED -> Icons.Rounded.Schedule
@@ -183,7 +183,7 @@ internal fun DockTabId.icon(unifiedInboxEnabled: Boolean): ImageVector = when (t
 
 internal fun DockTabId.label(unifiedInboxEnabled: Boolean): String = when (this) {
     DockTabId.UNIFIED -> "Unified"
-    DockTabId.INBOX -> if (unifiedInboxEnabled) "Primary" else "Inbox"
+    DockTabId.INBOX -> if (unifiedInboxEnabled) "All Mail" else "Inbox"
     DockTabId.SENT -> "Sent"
     DockTabId.ARCHIVED -> "Archived"
     DockTabId.SNOOZED -> "Snoozed"

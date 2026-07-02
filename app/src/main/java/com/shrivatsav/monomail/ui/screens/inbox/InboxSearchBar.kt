@@ -3,6 +3,7 @@ package com.shrivatsav.monomail.ui.screens.inbox
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -20,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.foundation.layout.offset
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.settings.SwipeAction
 
@@ -50,6 +52,7 @@ internal fun InboxSearchBar(
     onSelectAll: () -> Unit = {},
     onDeselectAll: () -> Unit = {},
     onDone: () -> Unit = {},
+    unifiedInboxEnabled: Boolean = false,
 ) {
     val containerColor by animateColorAsState(
         targetValue = when {
@@ -147,6 +150,8 @@ internal fun InboxSearchBar(
                                     InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Rounded.Delete
                                     InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Rounded.Send
                                     InboxViewModel.ActionType.SNOOZE -> Icons.Rounded.Schedule
+                                    InboxViewModel.ActionType.UNARCHIVE -> Icons.Rounded.Unarchive
+                                    InboxViewModel.ActionType.RESTORE -> Icons.Rounded.Restore
                                 }
                                 Row(
                                     modifier = Modifier.fillMaxSize(),
@@ -188,7 +193,9 @@ internal fun InboxSearchBar(
                                     onExpandedChange = {},
                                     placeholder = {
                                         Text(
-                                            if (isRefreshing) "Syncing..." else "Search in mail",
+                                            if (isRefreshing) "Syncing..."
+                                            else if (unifiedInboxEnabled) "Search all accounts..."
+                                            else "Search in mail",
                                             style = MaterialTheme.typography.bodyLarge,
                                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
                                         )
@@ -253,10 +260,17 @@ internal fun InboxSearchBar(
                                                 )
                                             }
                                             Spacer(Modifier.width(4.dp))
-                                            AvatarButton(
-                                                userProfile = userProfile,
-                                                onClick = onOpenProfile
-                                            )
+                                            if (unifiedInboxEnabled && accounts.size > 1) {
+                                                StackedAccountAvatars(
+                                                    accounts = accounts,
+                                                    onClick = onOpenProfile
+                                                )
+                                            } else {
+                                                AvatarButton(
+                                                    userProfile = userProfile,
+                                                    onClick = onOpenProfile
+                                                )
+                                            }
                                         }
                                     }
                                 )
@@ -272,6 +286,76 @@ internal fun InboxSearchBar(
             shape = MaterialTheme.shapes.extraLarge,
             windowInsets = WindowInsets(0.dp)
         ) {}
+    }
+}
+
+@Composable
+private fun StackedAccountAvatars(
+    accounts: List<UserProfile>,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val maxVisible = 3
+    val visible = accounts.take(maxVisible)
+    val overflow = accounts.size - maxVisible
+
+    Box(
+        modifier = modifier
+            .size(30.dp)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        visible.forEachIndexed { index, account ->
+            val offsetX = index * 10
+            val size = 22
+            Box(
+                modifier = Modifier
+                    .offset(x = offsetX.dp)
+                    .size(size.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.5.dp, MaterialTheme.colorScheme.surface, CircleShape)
+            ) {
+                if (!account.photoUrl.isNullOrEmpty()) {
+                    AsyncImage(
+                        model = account.photoUrl,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                } else {
+                    val initial = account.displayName.firstOrNull()?.uppercase() ?: "?"
+                    Box(
+                        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.onSurface),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            initial,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.background,
+                            fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.7f
+                        )
+                    }
+                }
+            }
+        }
+        if (overflow > 0) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = (-2).dp, y = 2.dp)
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.onSurface),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "+$overflow",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = MaterialTheme.typography.labelSmall.fontSize * 0.6f,
+                    color = MaterialTheme.colorScheme.background
+                )
+            }
+        }
     }
 }
 

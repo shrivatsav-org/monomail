@@ -8,6 +8,7 @@ import com.shrivatsav.monomail.data.model.EmailThread
 import com.google.gson.Gson
 @Entity(
     tableName = "threads",
+    primaryKeys = ["accountId", "threadId"],
     indices = [
         Index(value = ["accountId", "inInbox", "date"]),
         Index(value = ["accountId", "inSent", "date"]),
@@ -20,7 +21,7 @@ import com.google.gson.Gson
     ]
 )
 data class ThreadEntity(
-    @PrimaryKey val threadId: String,
+    val threadId: String,
     val accountId: String,
     val subject: String,
     val fromName: String,

@@ -86,7 +86,6 @@ fun SettingsScreen(
             )
             SettingsSection.NAVIGATION -> NavigationSettingsScreen(
                 viewModel = viewModel,
-                accountCount = accountCount,
                 onBack = { currentSection = null }
             )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsScreen(
