@@ -35,7 +35,7 @@ object EmailMapper {
             to        = toRaw,
             cc        = ccRaw,
             bcc       = bccRaw,
-            snippet   = snippet?.decodeHtmlEntities() ?: "",
+            snippet   = snippet?.let { Html.fromHtml(it, Html.FROM_HTML_MODE_LEGACY).toString() } ?: "",
             body      = bodyInfo.text,
             bodyIsHtml = bodyInfo.isHtml,
             date      = internalDate?.toLongOrNull() ?: 0L,
@@ -72,7 +72,7 @@ object EmailMapper {
             subject         = subject.cleanSubject(),
             from            = fromName,
             fromEmail       = fromEmail,
-            snippet         = latest?.snippet?.decodeHtmlEntities() ?: "",
+            snippet         = latest?.snippet?.let { Html.fromHtml(it, Html.FROM_HTML_MODE_LEGACY).toString() } ?: "",
             date            = latest?.internalDate?.toLongOrNull() ?: 0L,
             messageCount    = messages.size,
             isRead          = isRead,
@@ -167,8 +167,5 @@ object EmailMapper {
         } catch (e: Exception) {
             ""
         }
-    }
-    private fun String.decodeHtmlEntities(): String {
-        return Html.fromHtml(this, Html.FROM_HTML_MODE_LEGACY).toString()
     }
 }

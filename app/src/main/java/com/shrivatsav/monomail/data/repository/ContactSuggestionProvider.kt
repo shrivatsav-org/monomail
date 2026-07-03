@@ -7,18 +7,6 @@ data class EmailContact(
 
 private val contactCache = mutableSetOf<EmailContact>()
 
-fun indexContactsFromThreads(threads: List<com.shrivatsav.monomail.data.model.EmailThread>) {
-    threads.forEach { thread ->
-        contactCache.add(EmailContact(thread.from, thread.fromEmail))
-    }
-}
-
-fun indexContactsFromEmails(emails: List<com.shrivatsav.monomail.data.model.Email>) {
-    emails.forEach { email ->
-        contactCache.add(EmailContact(email.from, email.fromEmail))
-    }
-}
-
 fun suggestContacts(query: String): List<EmailContact> {
     if (query.isBlank()) return emptyList()
     val q = query.trim().lowercase()
