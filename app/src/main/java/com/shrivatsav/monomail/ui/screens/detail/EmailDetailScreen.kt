@@ -91,6 +91,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.model.Email
+import com.shrivatsav.monomail.data.settings.EmailTheme
 import com.shrivatsav.monomail.ui.screens.inbox.AvatarCircle
 import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
 import com.shrivatsav.monomail.util.HtmlSanitizer
@@ -112,6 +113,7 @@ fun EmailDetailScreen(
     val fontScaleMultiplier by viewModel.fontScaleMultiplier.collectAsState()
     val loadRemoteImages by viewModel.loadRemoteImages.collectAsState()
     val renderMarkdown by viewModel.renderMarkdown.collectAsState()
+    val emailTheme by viewModel.emailTheme.collectAsState()
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
     val decryptedBodies by viewModel.decryptedBodies.collectAsState()
@@ -275,6 +277,7 @@ fun EmailDetailScreen(
                             fontScaleMultiplier = fontScaleMultiplier,
                             loadRemoteImages = loadRemoteImages,
                             renderMarkdown = renderMarkdown,
+                            emailTheme = emailTheme,
                             onReply = { onReply(replyTarget, latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
                             onForward = { onForward(latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
                             onFetchAttachment = onFetchAttachment
@@ -294,6 +297,7 @@ private fun ThreadConversationContent(
     fontScaleMultiplier: Float = 1f,
     loadRemoteImages: Boolean = true,
     renderMarkdown: Boolean = false,
+    emailTheme: EmailTheme = EmailTheme.AUTO,
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -518,6 +522,7 @@ private fun ThreadConversationContent(
                                 fontScaleMultiplier = fontScaleMultiplier,
                                 loadRemoteImages = loadRemoteImages,
                                 renderMarkdown = renderMarkdown,
+                                emailTheme = emailTheme,
                                 onFetchAttachment = onFetchAttachment,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -534,6 +539,7 @@ private fun ThreadConversationContent(
                     fontScaleMultiplier = fontScaleMultiplier,
                     loadRemoteImages = loadRemoteImages,
                     renderMarkdown = renderMarkdown,
+                    emailTheme = emailTheme,
                     onFetchAttachment = onFetchAttachment,
                     showSender = true,
                     messageCount = emails.size
@@ -602,6 +608,38 @@ private fun ThreadConversationContent(
         }
     }
 }
+
+/**
+ * Heuristic: does this HTML body look like a rich/styled/designed email
+ * that should be rendered in Original mode under AUTO?
+ *
+ * Returns true when the HTML uses layout tables, explicit inline
+ * background colors, column-like structures, or has many images —
+ * all signs of a designed template rather than a plain message.
+ */
+private fun looksStyled(body: String): Boolean {
+    // Trivial — no HTML worth calling "styled"
+    if (body.length < 200) return false
+
+    // Presence of layout tables with width attributes (common in template emails)
+    val bodyLower = body.lowercase()
+    val hasLayoutTable = bodyLower.contains("<table") && (
+        bodyLower.contains("role=\"presentation\"") ||
+        bodyLower.contains("width=\"") ||
+        bodyLower.contains("cellpadding") ||
+        body.contains("bgcolor", ignoreCase = true) ||
+        body.contains("background-color:", ignoreCase = true)
+    )
+    // Multiple images — likely a newsletter/marketing mail
+    val imgCount = bodyLower.split("<img", "<img ").count() - 1
+    val hasMultipleImages = imgCount >= 3
+    // Non-trivial inline style — deliberate styling
+    val hasInlineStyles = bodyLower.contains("style=\"") &&
+            (bodyLower.contains("font-family:") || bodyLower.contains("color:") || bodyLower.contains("padding:"))
+
+    return (hasLayoutTable && hasInlineStyles) || hasMultipleImages
+}
+
 @Composable
 private fun MessageBody(
     email: Email,
@@ -612,6 +650,7 @@ private fun MessageBody(
     fontScaleMultiplier: Float = 1f,
     loadRemoteImages: Boolean = true,
     renderMarkdown: Boolean = false,
+    emailTheme: EmailTheme = EmailTheme.AUTO,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
     showSender: Boolean = false,
     messageCount: Int = 0,
@@ -622,8 +661,6 @@ private fun MessageBody(
              email.body.contains("multipart/encrypted"))
     val bodyText = if (isEncryptedBlob) "" else (decryptedResult?.decryptedBody ?: email.body)
     val bodyIsHtml = !isEncryptedBlob && email.bodyIsHtml
-    // Debug: log first 2000 chars of body to inspect Outlook quoted structure
-    android.util.Log.d("EmailBody", "--- BODY START [${email.id}] ---\n${bodyText.take(8000)}\n--- BODY END ---")
     Column(modifier = modifier) {
         // Encryption badge
         if (decryptedResult != null) {
@@ -831,7 +868,7 @@ private fun MessageBody(
 
         // Images blocked banner (shown when loadRemoteImages is off and showRemoteImages is still false)
 
-        val htmlContent = remember(email.id, bodyText, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown) {
+        val htmlContent = remember(email.id, bodyText, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown, emailTheme) {
             // Determine body: preserve or strip quoted text
             val displayBody = if (showQuotedText) bodyText else stripQuotedText(bodyText)
 
@@ -855,31 +892,51 @@ private fun MessageBody(
             // Wrap Outlook forward/reply block so CSS can hide/show it as a unit
             val enhancedBody = wrapOutlookQuoted(cleanBody)
 
-            // Image blocking CSS — block http/https images unless user explicitly allows them
-            val imgBlockCss = if (!loadRemoteImages && !showRemoteImages) """
-                img[src^="http://"] { display: none !important; }
-                img[src^="https://"] { display: none !important; }
-            """.trimIndent() else ""
+            // Resolve effective render mode from the user's preference
+            val isStyled = (preparedBody.length > 200 && bodyIsHtml) && looksStyled(preparedBody)
+            val effectiveMode = when (emailTheme) {
+                EmailTheme.FORCE_DARK -> "adapt"
+                EmailTheme.ORIGINAL -> "original"
+                EmailTheme.AUTO -> if (isStyled) "original" else "adapt"
+            }
 
-            // Determine if we're in dark theme by checking background color brightness
-            val useDarkTheme = try {
-                val bgHex = bgColor.removePrefix("#")
-                val bgInt = bgHex.toLong(16)
-                val r = (bgInt shr 16) and 0xFF
-                val g = (bgInt shr 8) and 0xFF
-                val b = bgInt and 0xFF
-                val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-                luminance < 128
-            } catch (_: Exception) { false }
+            // Shared quoted-text CSS (same for both modes)
+            val quotedCss = """
+                /* Collapsible quoted text - hidden by default */
+                blockquote, .gmail_quote, .gmail_extra,
+                .yahoo_quoted, .moz-cite-prefix,
+                #appendonsend, #divRplyFwdMsg,
+                [name="quoted-content"],
+                .outlook-quoted {
+                    display: none;
+                }
+                .show-quotes blockquote,
+                .show-quotes .gmail_quote,
+                .show-quotes .gmail_extra,
+                .show-quotes .yahoo_quoted,
+                .show-quotes .moz-cite-prefix,
+                .show-quotes #appendonsend,
+                .show-quotes #divRplyFwdMsg,
+                .show-quotes [name="quoted-content"],
+                .show-quotes .outlook-quoted {
+                    display: block;
+                    padding: 0 !important;
+                    margin: 0 !important;
+                    background: transparent !important;
+                }
+                blockquote {
+                    border-left: 3px solid ${linkColor}44;
+                    padding: 4px 0 4px 12px !important;
+                    margin: 8px 0 !important;
+                    background: transparent !important;
+                    color: ${textColor}aa;
+                }
+            """.trimIndent()
 
-            """
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; font-src 'none'; frame-src 'none';">
-                <style>
-                    * { box-sizing: border-box; }
+            // Build CSS for each mode
+            val modeCss = if (effectiveMode == "adapt") {
+                """
+                    /* === Adapted (dark-friendly) mode === */
                     body {
                         font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
                         font-size: ${fontSize}px;
@@ -922,46 +979,83 @@ private fun MessageBody(
                     pre code { background: none; padding: 0; border-radius: 0; }
                     ul, ol { margin: 8px 0; padding-left: 24px; }
                     li { margin: 4px 0; }
-                    /* Collapsible quoted text \u2014 hidden by default, shown when parent has .show-quotes */
-                    blockquote, .gmail_quote, .gmail_extra,
-                    .yahoo_quoted, .moz-cite-prefix,
-                    #appendonsend, #divRplyFwdMsg,
-                    [name="quoted-content"],
-                    .outlook-quoted {
-                        display: none;
-                    }
-                    .show-quotes blockquote,
-                    .show-quotes .gmail_quote,
-                    .show-quotes .gmail_extra,
-                    .show-quotes .yahoo_quoted,
-                    .show-quotes .moz-cite-prefix,
-                    .show-quotes #appendonsend,
-                    .show-quotes #divRplyFwdMsg,
-                    .show-quotes [name="quoted-content"],
-                    .show-quotes .outlook-quoted {
-                        display: block;
-                        padding: 0 !important;
-                        margin: 0 !important;
-                        background: transparent !important;
-                    }
-                    blockquote {
-                        border-left: 3px solid ${linkColor}44;
-                        padding: 4px 0 4px 12px !important;
-                        margin: 8px 0 !important;
-                        background: transparent !important;
-                        color: ${textColor}aa;
-                    }
-                    /* App-theme-aware overrides: transparent explicit backgrounds in dark theme */
                     body.monomail-dark [style*="background-color:#"] {
                         background-color: transparent !important;
                     }
                     body.monomail-dark [style*="background:#"] {
                         background: transparent !important;
                     }
+                """.trimIndent()
+            } else {
+                """
+                    /* === Original (as-sent) mode === */
+                    body {
+                        font-family: -apple-system, 'Helvetica Neue', Arial, sans-serif;
+                        font-size: ${fontSize}px;
+                        line-height: 1.65;
+                        margin: 0;
+                        padding: 8px 20px 16px 20px !important;
+                        background-color: #ffffff !important;
+                        color: #1a1a1a;
+                        word-break: break-word;
+                        overflow-wrap: break-word;
+                        -webkit-font-smoothing: antialiased;
+                    }
+                    table {
+                        border-collapse: collapse;
+                        margin: 8px 0;
+                        font-size: ${smallFontSize}px;
+                    }
+                    td, th { word-break: break-word; padding: 6px 10px; }
+                    th { font-weight: 600; }
+                    img, video, iframe, embed {
+                        max-width: 100% !important;
+                        height: auto !important;
+                    }
+                    p { margin: 0 0 1em 0; }
+                    p:last-child { margin-bottom: 0; }
+                    h1, h2, h3, h4 { margin: 1.2em 0 0.6em 0; line-height: 1.3; }
+                    h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
+                    pre, code { white-space: pre-wrap; font-size: ${smallFontSize}px; word-break: break-word; }
+                    pre { background-color: #0000000a; border-radius: 8px; padding: 12px; margin: 8px 0; overflow-x: auto; }
+                    code { background-color: #0000000a; border-radius: 4px; padding: 1px 4px; }
+                    pre code { background: none; padding: 0; border-radius: 0; }
+                    ul, ol { margin: 8px 0; padding-left: 24px; }
+                    li { margin: 4px 0; }
+                """.trimIndent()
+            }
+
+            // Image blocking CSS — block http/https images unless user explicitly allows them
+            val imgBlockCss = if (!loadRemoteImages && !showRemoteImages) """
+                img[src^="http://"] { display: none !important; }
+                img[src^="https://"] { display: none !important; }
+            """.trimIndent() else ""
+
+            // Determine if we're in dark theme by checking background color brightness
+            val useDarkTheme = try {
+                val bgHex = bgColor.removePrefix("#")
+                val bgInt = bgHex.toLong(16)
+                val r = (bgInt shr 16) and 0xFF
+                val g = (bgInt shr 8) and 0xFF
+                val b = bgInt and 0xFF
+                val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
+                luminance < 128
+            } catch (_: Exception) { false }
+
+            """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; font-src 'none'; frame-src 'none';">
+                <style>
+                    * { box-sizing: border-box; }
+                    $modeCss
+                    $quotedCss
                     $imgBlockCss
                 </style>
             </head>
-            <body class="${if (showQuotedText) "show-quotes " else ""}${if (useDarkTheme) "monomail-dark" else ""}">$enhancedBody</body>
+            <body class="${if (showQuotedText) "show-quotes " else ""}${if (useDarkTheme && effectiveMode == "adapt") "monomail-dark" else ""}">$enhancedBody</body>
             </html>
             """.trimIndent()
         }
