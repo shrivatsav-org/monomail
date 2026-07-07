@@ -59,6 +59,7 @@ class AccountManager(private val context: Context) {
         return emptyList()
     }
     suspend fun addAccount(profile: UserProfile) {
+        // Cap at 10 accounts to prevent runaway storage
         context.dataStore.edit { prefs ->
             val json = prefs[KEY_ACCOUNTS_JSON]
             val accounts = if (json != null) {
@@ -71,13 +72,23 @@ class AccountManager(private val context: Context) {
             } else {
                 mutableListOf()
             }
+            if (accounts.size >= 10) {
+                Log.w("AccountManager", "Account limit reached (10) — refusing to add more")
+                return@edit
+            }
             val index = accounts.indexOfFirst { it.email == profile.email && it.provider == profile.provider }
             if (index != -1) {
                 accounts[index] = profile
             } else {
                 accounts.add(profile)
             }
-            prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts))
+            // Serialize defensively: catch and log serialization errors instead of crashing
+            try {
+                val serialized = gson.toJson(accounts)
+                prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(serialized)
+            } catch (e: Exception) {
+                Log.e("AccountManager", "Failed to serialize/encrypt accounts on add", e)
+            }
         }
     }
     suspend fun removeAccount(accountId: String) {
@@ -91,7 +102,7 @@ class AccountManager(private val context: Context) {
                 }
                 val accounts = gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
                 accounts.removeAll { it.id == accountId }
-                prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts))
+                try { prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts)) } catch (e: Exception) { Log.e("AccountManager", "Failed to serialize accounts", e) }
             }
             if (prefs[KEY_ACTIVE_ACCOUNT_ID] == accountId) {
                 prefs.remove(KEY_ACTIVE_ACCOUNT_ID)
@@ -135,7 +146,7 @@ class AccountManager(private val context: Context) {
                 val index = accounts.indexOfFirst { it.id == accountId }
                 if (index != -1) {
                     accounts[index] = accounts[index].copy(accessToken = newToken)
-                    prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts))
+                    try { prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts)) } catch (e: Exception) { Log.e("AccountManager", "Failed to serialize accounts", e) }
                 }
             }
         }

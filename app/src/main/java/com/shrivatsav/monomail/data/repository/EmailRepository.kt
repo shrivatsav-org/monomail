@@ -22,6 +22,7 @@ import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.provider.SendAsAlias
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import com.shrivatsav.monomail.util.cleanSubject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,9 +38,6 @@ class EmailRepository(
     private val accountManager: AccountManager,
     private val pendingActionDao: PendingActionDao
 ) {
-    private fun cleanSubject(subject: String): String {
-        return subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "")
-    }
     private val threadDao = database.threadDao()
     private val emailDao = database.emailDao()
     private val scheduledMessageDao = database.scheduledMessageDao()
@@ -197,7 +195,7 @@ class EmailRepository(
                     }
                     val domainThread = EmailThread(
                         threadId = providerThread.threadId,
-                        subject = cleanSubject(latest?.subject ?: "(no subject)"),
+                        subject = (latest?.subject ?: "(no subject)").cleanSubject(),
                         from = latest?.from ?: "",
                         fromEmail = latest?.fromEmail ?: "",
                         snippet = finalSnippet,
@@ -426,7 +424,7 @@ class EmailRepository(
             val now = System.currentTimeMillis()
             val domainThread = EmailThread(
                 threadId = actualThreadId,
-                subject = cleanSubject(subject),
+                subject = subject.cleanSubject(),
                 from = from,
                 fromEmail = from,
                 snippet = body.take(100),

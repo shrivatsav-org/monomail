@@ -149,7 +149,13 @@ class AuthManager(
     }
     suspend fun getAccounts(): List<UserProfile> = accountManager.getAccounts()
     suspend fun addAccount(profile: UserProfile) {
-        accountManager.addAccount(profile)
+        try {
+            accountManager.addAccount(profile)
+        } catch (e: Exception) {
+            android.util.Log.e("AuthManager", "addAccount failed for ${profile.email}", e)
+            // Propagate so the caller can show an error to the user
+            throw e
+        }
         try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
     }
     suspend fun switchAccount(accountId: String) {

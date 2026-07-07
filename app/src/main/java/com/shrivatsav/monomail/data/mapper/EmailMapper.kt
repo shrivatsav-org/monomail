@@ -1,10 +1,12 @@
 package com.shrivatsav.monomail.data.mapper
+import android.text.Html
 import android.util.Base64
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.remote.GmailMessage
 import com.shrivatsav.monomail.data.remote.GmailThread
 import com.shrivatsav.monomail.data.remote.MessagePart
+import com.shrivatsav.monomail.util.cleanSubject
 object EmailMapper {
 
     /** Result of extracting a body from a MIME part tree. */
@@ -12,10 +14,6 @@ object EmailMapper {
         val text: String,
         val isHtml: Boolean
     )
-
-    private fun cleanSubject(subject: String): String {
-        return subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), "")
-    }
     fun GmailMessage.toEmail(): Email {
         val headers = payload?.headers.orEmpty()
         val subject  = headers.firstOrNull { it.name.equals("Subject", true) }?.value ?: "(no subject)"
@@ -37,7 +35,7 @@ object EmailMapper {
             to        = toRaw,
             cc        = ccRaw,
             bcc       = bccRaw,
-            snippet   = snippet?.decodeHtmlEntities() ?: "",
+            snippet   = snippet?.let { Html.fromHtml(it, Html.FROM_HTML_MODE_LEGACY).toString() } ?: "",
             body      = bodyInfo.text,
             bodyIsHtml = bodyInfo.isHtml,
             date      = internalDate?.toLongOrNull() ?: 0L,
@@ -71,10 +69,10 @@ object EmailMapper {
         }.distinct()
         return EmailThread(
             threadId        = id,
-            subject         = cleanSubject(subject),
+            subject         = subject.cleanSubject(),
             from            = fromName,
             fromEmail       = fromEmail,
-            snippet         = latest?.snippet?.decodeHtmlEntities() ?: "",
+            snippet         = latest?.snippet?.let { Html.fromHtml(it, Html.FROM_HTML_MODE_LEGACY).toString() } ?: "",
             date            = latest?.internalDate?.toLongOrNull() ?: 0L,
             messageCount    = messages.size,
             isRead          = isRead,
@@ -169,14 +167,5 @@ object EmailMapper {
         } catch (e: Exception) {
             ""
         }
-    }
-    private fun String.decodeHtmlEntities(): String {
-        return this
-            .replace("&amp;", "&")
-            .replace("&lt;", "<")
-            .replace("&gt;", ">")
-            .replace("&quot;", "\"")
-            .replace("&#39;", "'")
-            .replace("&nbsp;", " ")
     }
 }

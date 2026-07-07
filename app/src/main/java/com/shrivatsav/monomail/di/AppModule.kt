@@ -14,7 +14,6 @@ import com.shrivatsav.monomail.data.provider.OutlookProvider
 import com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig
 import com.shrivatsav.monomail.data.provider.imap.ImapProvider
 import com.shrivatsav.monomail.data.remote.RetrofitClient
-import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.security.SecurityUtil
@@ -47,10 +46,6 @@ object AppModule {
     @Provides @Singleton
     fun provideSettingsDataStore(@ApplicationContext context: Context): SettingsDataStore =
         SettingsDataStore(context)
-
-    @Provides @Singleton
-    fun provideContactSuggestionProvider(): ContactSuggestionProvider =
-        ContactSuggestionProvider()
 
     @Provides @Singleton
     fun provideSentEmailEvents(): MutableSharedFlow<SentEmailEvent> =

@@ -221,6 +221,88 @@ internal fun ThemeSelectorRow(
 }
 
 @Composable
+internal fun EmailColorsRow(
+    currentTheme: EmailTheme,
+    onThemeSelected: (EmailTheme) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = Icons.Rounded.Contrast,
+                contentDescription = "Email colors",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(14.dp))
+            Text(
+                text = "Email Colors",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            EmailTheme.entries.forEach { mode ->
+                val isSelected = currentTheme == mode
+                val bgColor by animateColorAsState(
+                    if (isSelected) MaterialTheme.colorScheme.onSurface
+                    else MaterialTheme.colorScheme.surfaceContainerHigh,
+                    animationSpec = tween(250), label = "emailColorBg"
+                )
+                val textColor by animateColorAsState(
+                    if (isSelected) MaterialTheme.colorScheme.surface
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    animationSpec = tween(250), label = "emailColorText"
+                )
+                val scaleAnim by animateFloatAsState(
+                    targetValue = if (isSelected) 1.04f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "emailColorScale"
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .graphicsLayer(scaleX = scaleAnim, scaleY = scaleAnim)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(bgColor)
+                        .clickable { onThemeSelected(mode) }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = mode.displayName(),
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = textColor
+                    )
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = currentTheme.description(),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 internal fun FontSizeRow(
     currentScale: FontScale,
     onScaleChanged: (FontScale) -> Unit
@@ -613,6 +695,20 @@ internal fun SyncFrequency.displayName() = when (this) {
 }
 
 internal fun UndoSendWindow.displayName() = "${seconds}s"
+
+internal fun EmailTheme.displayName() = when (this) {
+    EmailTheme.AUTO        -> "Auto"
+    EmailTheme.FORCE_DARK  -> "Dark"
+    EmailTheme.FORCE_LIGHT -> "Light"
+    EmailTheme.ORIGINAL    -> "Original"
+}
+
+internal fun EmailTheme.description() = when (this) {
+    EmailTheme.AUTO        -> "Adapt simple emails to the app theme; show styled emails as sent"
+    EmailTheme.FORCE_DARK  -> "Tint email backgrounds to match the app's dark theme"
+    EmailTheme.FORCE_LIGHT -> "Always show emails on a light background with dark text"
+    EmailTheme.ORIGINAL    -> "Always show the sender's original colors on a light background"
+}
 
 // ── Templates Card ───────────────────────────────────────────────────
 

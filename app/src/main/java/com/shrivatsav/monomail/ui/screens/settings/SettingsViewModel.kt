@@ -23,6 +23,7 @@ class SettingsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppSettings())
     fun setThemeMode(mode: ThemeMode) = viewModelScope.launch { settingsDataStore.setThemeMode(mode) }
     fun setFontScale(scale: FontScale) = viewModelScope.launch { settingsDataStore.setFontScale(scale) }
+    fun setUseSystemFont(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUseSystemFont(enabled) }
     fun setShowDividers(show: Boolean) = viewModelScope.launch { settingsDataStore.setShowDividers(show) }
     fun setCompactList(compact: Boolean) = viewModelScope.launch { settingsDataStore.setCompactList(compact) }
     fun setShowSnippet(show: Boolean) = viewModelScope.launch { settingsDataStore.setShowSnippet(show) }
@@ -47,10 +48,12 @@ class SettingsViewModel @Inject constructor(
     fun setOrganizeByThread(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setOrganizeByThread(enabled) }
     fun setLoadRemoteImages(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setLoadRemoteImages(enabled) }
     fun setRenderMarkdown(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setRenderMarkdown(enabled) }
+    fun setEmailTheme(theme: EmailTheme) = viewModelScope.launch { settingsDataStore.setEmailTheme(theme) }
     fun setNavScale(scale: Float) = viewModelScope.launch { settingsDataStore.setNavScale(scale) }
     fun setUndoSendEnabled(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUndoSendEnabled(enabled) }
     fun setUndoSendWindow(window: UndoSendWindow) = viewModelScope.launch { settingsDataStore.setUndoSendWindow(window) }
     fun setDockConfig(config: DockConfig) = viewModelScope.launch { settingsDataStore.setDockConfig(config) }
+    fun setDeveloperMode(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setDeveloperMode(enabled) }
     val templates = settingsDataStore.templatesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun saveTemplates(templates: List<EmailTemplate>) = viewModelScope.launch {

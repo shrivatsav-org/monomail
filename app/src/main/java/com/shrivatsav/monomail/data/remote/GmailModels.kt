@@ -45,12 +45,6 @@ data class GmailSendAsListResponse(
     @SerializedName("sendAs") val sendAs: List<GmailSendAsAlias>?
 )
 
-data class GmailProfile(
-    @SerializedName("emailAddress") val emailAddress: String?,
-    @SerializedName("messagesTotal") val messagesTotal: Int?,
-    @SerializedName("threadsTotal") val threadsTotal: Int?,
-    @SerializedName("historyId") val historyId: String?
-)
 data class BatchModifyMessagesRequest(
     @SerializedName("ids") val ids: List<String>,
     @SerializedName("addLabelIds") val addLabelIds: List<String> = emptyList(),

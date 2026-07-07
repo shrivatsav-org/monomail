@@ -87,32 +87,42 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
             return@suspendCancellableCoroutine
         }
         val msalAccountId = accountId.removePrefix("outlook_")
+        // Attempt by prefixed client ID first, then fall back to iterating all
+        // known accounts. MSAL internal identifiers can shift across app restarts
+        // or account re-adds.
         app.getAccount(
             msalAccountId,
             object : com.microsoft.identity.client.IMultipleAccountPublicClientApplication.GetAccountCallback {
                 override fun onTaskCompleted(account: com.microsoft.identity.client.IAccount?) {
                     if (account != null) {
-                        val authority = account.authority ?: "https://login.microsoftonline.com/common"
-                        app.acquireTokenSilentAsync(
-                            scopes,
-                            account,
-                            authority,
-                            object : AuthenticationCallback {
-                                override fun onSuccess(authenticationResult: IAuthenticationResult) {
-                                    continuation.resume(authenticationResult.accessToken)
+                        acquireTokenForAccount(app, account, accountId, continuation)
+                    } else {
+                        // Fallback: try to find the account by iterating all accounts
+                        android.util.Log.w("MicrosoftAuth", "Direct lookup failed for $accountId, trying fallback by email")
+                        try {
+                            app.getAccounts(object : IPublicClientApplication.LoadAccountsCallback {
+                                override fun onTaskCompleted(accounts: List<com.microsoft.identity.client.IAccount>) {
+                                    val match = accounts.firstOrNull { acct ->
+                                        acct.username?.contains(msalAccountId, ignoreCase = true) == true ||
+                                                msalAccountId.contains(acct.username ?: "", ignoreCase = true)
+                                    }
+                                    if (match != null) {
+                                        android.util.Log.i("MicrosoftAuth", "Found MSAL account by email fallback: ${match.username}")
+                                        acquireTokenForAccount(app, match, accountId, continuation)
+                                    } else {
+                                        android.util.Log.w("MicrosoftAuth", "Fallback also failed — no MSAL account found for $accountId")
+                                        continuation.resume(null)
+                                    }
                                 }
                                 override fun onError(exception: MsalException) {
-                                    android.util.Log.w("MicrosoftAuth", "Silent token acquisition failed for $accountId", exception)
+                                    android.util.Log.w("MicrosoftAuth", "getAccounts fallback failed for $accountId", exception)
                                     continuation.resume(null)
                                 }
-                                override fun onCancel() {
-                                    continuation.resume(null)
-                                }
-                            }
-                        )
-                    } else {
-                        android.util.Log.w("MicrosoftAuth", "MSAL account not found for $accountId (stripped: $msalAccountId)")
-                        continuation.resume(null)
+                            })
+                        } catch (e: Exception) {
+                            android.util.Log.w("MicrosoftAuth", "getAccounts API not available", e)
+                            continuation.resume(null)
+                        }
                     }
                 }
                 override fun onError(exception: MsalException) {
@@ -122,6 +132,31 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
             }
         )
         }
+    }
+
+    private fun acquireTokenForAccount(
+        app: com.microsoft.identity.client.IMultipleAccountPublicClientApplication,
+        account: com.microsoft.identity.client.IAccount,
+        accountId: String,
+        continuation: kotlin.coroutines.Continuation<String?>
+    ) {
+        val authority = account.authority ?: "https://login.microsoftonline.com/common"
+        app.acquireTokenSilentAsync(
+            scopes, account, authority,
+            object : AuthenticationCallback {
+                override fun onSuccess(result: IAuthenticationResult) {
+                    continuation.resume(result.accessToken)
+                }
+                override fun onError(exception: MsalException) {
+                    android.util.Log.w("MicrosoftAuth", "Silent token acquisition failed for $accountId", exception)
+                    continuation.resume(null)
+                }
+                override fun onCancel() {
+                    android.util.Log.w("MicrosoftAuth", "Silent token acquisition cancelled for $accountId")
+                    continuation.resume(null)
+                }
+            }
+        )
     }
     suspend fun signOut(accountId: String) = suspendCancellableCoroutine { continuation ->
         val app = msalApp

@@ -87,6 +87,7 @@ object MonoMailTheme {
 @Composable
 fun MonoMailTheme(
     themeMode: String = "SYSTEM",
+    useSystemFont: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -96,11 +97,12 @@ fun MonoMailTheme(
     }
     val colorScheme = if (darkTheme) DarkColors else LightColors
     val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
+    val typography = if (useSystemFont) SystemTypography else AppTypography
 
     CompositionLocalProvider(LocalMonoMailExtendedColors provides extendedColors) {
         MaterialExpressiveTheme(
             colorScheme  = colorScheme,
-            typography   = AppTypography,
+            typography   = typography,
             shapes       = MonoMailShapes,
             motionScheme = MotionScheme.expressive(),
             content      = content

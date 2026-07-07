@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find /Users/dev/workspace-cb851db6 -type f -name \"*.kt\" | grep -iE \"detail|webview|web\" | head -50)",
+      "Read(//Users/dev/**)",
+      "Bash(pwd && echo \"---\" && ls -la ~ 2>/dev/null | head -30)",
+      "Bash(ls -la .claude 2>/dev/null; echo \"---plans---\"; find . -maxdepth 3 -iname \"*plan*\" -not -path \"*/node_modules/*\" 2>/dev/null | head; echo \"---scratch---\"; ls -la \"/private/tmp/claude-501/-Users-wwzz-Downloads-proxyclawd/88833871-9d1c-410a-8425-a5a54e5377ef/scratchpad\" 2>/dev/null)",
+      "Bash(D=\"/private/tmp/claude-501/-Users-wwzz-Downloads-proxyclawd/88833871-9d1c-410a-8425-a5a54e5377ef/scratchpad\"; mkdir -p \"$D\" && echo \"$D\" && echo ok)",
+      "Bash(xargs grep -l \"EmailDetail\")",
+      "Bash(grep -n \"AndroidView\\\\|@Composable\\\\|SelectionContainer\\\\|Text\\(\\\\s*$\\\\|BasicText\\\\|ClickableText\" \"/c/Users/Shiro/AndroidStudioProjects/Monomail/app/src/main/java/com/shrivatsav/monomail/ui/screens/detail/EmailDetailScreen.kt\")",
+      "Read(//Users/dev/workspace-78c44751/app/src/main/**)"
+    ]
+  }
+}

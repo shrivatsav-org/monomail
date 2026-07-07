@@ -8,6 +8,7 @@ import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
 import com.shrivatsav.monomail.data.pgp.PgpManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.settings.EmailTheme
 import com.shrivatsav.monomail.data.settings.FontScale
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -64,6 +65,14 @@ class EmailDetailViewModel @Inject constructor(
     val renderMarkdown: StateFlow<Boolean> = settingsDataStore.settingsFlow
         .map { it.renderMarkdown }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val emailTheme: StateFlow<EmailTheme> = settingsDataStore.settingsFlow
+        .map { it.emailTheme }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EmailTheme.AUTO)
+
+    val isDeveloperMode: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.isDeveloperMode }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val state: StateFlow<EmailDetailState> = kotlinx.coroutines.flow.combine(
         repository.getThreadEmailsFlow(threadId),
         _isLoading,
@@ -117,16 +126,20 @@ class EmailDetailViewModel @Inject constructor(
                 if (s is EmailDetailState.Success) {
                     val decrypted = mutableMapOf<String, PgpDecryptionResult>()
                     for (email in s.emails) {
-                        val isPgp = pgpManager.isPgpMessage(email.body)
-                        Log.d("EmailDetailVM", "Email ${email.id}: isPgp=$isPgp, bodyStart=${email.body.take(80)}")
-                        if (isPgp) {
-                            val result = withContext(Dispatchers.Default) {
-                                pgpManager.decryptBody(email.body)
+                        try {
+                            val isPgp = withContext(Dispatchers.Default) {
+                                pgpManager.isPgpMessage(email.body)
                             }
-                            Log.d("EmailDetailVM", "Decrypt result: ${result != null}")
-                            if (result != null) {
-                                decrypted[email.id] = result
+                            if (isPgp) {
+                                val result = withContext(Dispatchers.Default) {
+                                    pgpManager.decryptBody(email.body)
+                                }
+                                if (result != null) {
+                                    decrypted[email.id] = result
+                                }
                             }
+                        } catch (e: Exception) {
+                            Log.e("EmailDetailVM", "PGP processing failed for ${email.id}", e)
                         }
                     }
                     _decryptedBodies.value = decrypted

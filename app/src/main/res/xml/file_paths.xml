@@ -1,1 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?><paths><cache-path name="attachments" path="attachments/" /></paths>
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <cache-path name="attachments" path="attachments/" />
+    <cache-path name="shared_email" path="shared_email/" />
+</paths>

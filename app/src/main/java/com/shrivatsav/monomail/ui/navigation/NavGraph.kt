@@ -349,6 +349,9 @@ fun NavGraph(
                                 messageId = messageId
                             )
                         )
+                    },
+                    onFetchAttachment = { messageId, attachmentId ->
+                        vm.fetchAttachmentBytes(messageId, attachmentId)
                     }
                 )
             }

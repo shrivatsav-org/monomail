@@ -28,3 +28,7 @@ app/google-services.json
 
 walkthrough.md
 .env
+.idea/
+.kotlin/
+.claude/
+.agents/

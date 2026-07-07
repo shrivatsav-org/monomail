@@ -16,6 +16,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+/**
+ * Controls how email HTML bodies are colored when rendered in the detail WebView.
+ * - [AUTO]: adapt plain-ish mail to the app theme; render richly-styled mail as-is.
+ * - [FORCE_DARK]: always adapt to the app's dark surface.
+ * - [FORCE_LIGHT]: always render on a light/white background with dark text.
+ * - [ORIGINAL]: never adapt — show the sender's original colors on a light card.
+ */
+enum class EmailTheme { AUTO, FORCE_DARK, FORCE_LIGHT, ORIGINAL }
 enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
 enum class SwipeAction { ARCHIVE, STAR, DELETE, READ_UNREAD }
 enum class DefaultReply { REPLY, REPLY_ALL }
@@ -40,6 +48,7 @@ data class EmailTemplate(
 data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val fontScale: FontScale = FontScale.DEFAULT,
+    val useSystemFont: Boolean = false,
     val showDividers: Boolean = false,
     val compactList: Boolean = false,
     val showSnippet: Boolean = true,
@@ -56,10 +65,12 @@ data class AppSettings(
     val organizeByThread: Boolean = true,
     val loadRemoteImages: Boolean = true,
     val renderMarkdown: Boolean = false,
+    val emailTheme: EmailTheme = EmailTheme.AUTO,
     val navScale: Float = 1f,
     val undoSendEnabled: Boolean = true,
     val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10,
-    val dockConfig: DockConfig = DockConfig.defaults()
+    val dockConfig: DockConfig = DockConfig.defaults(),
+    val isDeveloperMode: Boolean = false
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -69,6 +80,7 @@ class SettingsDataStore(private val context: Context) {
     private object Keys {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val FONT_SCALE = stringPreferencesKey("font_scale")
+        val USE_SYSTEM_FONT = booleanPreferencesKey("use_system_font")
         val SHOW_DIVIDERS = booleanPreferencesKey("show_dividers")
         val COMPACT_LIST = booleanPreferencesKey("compact_list")
         val SHOW_SNIPPET = booleanPreferencesKey("show_snippet")
@@ -85,11 +97,13 @@ class SettingsDataStore(private val context: Context) {
         val ORGANIZE_BY_THREAD = booleanPreferencesKey("organize_by_thread")
         val LOAD_REMOTE_IMAGES = booleanPreferencesKey("load_remote_images")
         val RENDER_MARKDOWN = booleanPreferencesKey("render_markdown")
+        val EMAIL_THEME = stringPreferencesKey("email_theme")
         val NAV_SCALE = floatPreferencesKey("nav_scale")
         val UNDO_SEND_ENABLED = booleanPreferencesKey("undo_send_enabled")
         val UNDO_SEND_WINDOW = stringPreferencesKey("undo_send_window")
         val TEMPLATES = stringPreferencesKey("email_templates")
         val DOCK_CONFIG = stringPreferencesKey("dock_config")
+        val IS_DEVELOPER_MODE = booleanPreferencesKey("is_developer_mode")
     }
 
     private fun mapToSettings(prefs: Preferences): AppSettings {
@@ -97,6 +111,7 @@ class SettingsDataStore(private val context: Context) {
         return AppSettings(
             themeMode = prefs[Keys.THEME_MODE]?.let { ThemeMode.valueOf(it) } ?: ThemeMode.SYSTEM,
             fontScale = prefs[Keys.FONT_SCALE]?.let { FontScale.valueOf(it) } ?: FontScale.DEFAULT,
+            useSystemFont = prefs[Keys.USE_SYSTEM_FONT] ?: false,
             showDividers = prefs[Keys.SHOW_DIVIDERS] ?: false,
             compactList = prefs[Keys.COMPACT_LIST] ?: false,
             showSnippet = prefs[Keys.SHOW_SNIPPET] ?: true,
@@ -113,12 +128,16 @@ class SettingsDataStore(private val context: Context) {
             organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true,
             loadRemoteImages = prefs[Keys.LOAD_REMOTE_IMAGES] ?: true,
             renderMarkdown = prefs[Keys.RENDER_MARKDOWN] ?: false,
+            emailTheme = prefs[Keys.EMAIL_THEME]?.let {
+                try { EmailTheme.valueOf(it) } catch (e: Exception) { EmailTheme.AUTO }
+            } ?: EmailTheme.AUTO,
             navScale = prefs[Keys.NAV_SCALE] ?: 1f,
             undoSendEnabled = prefs[Keys.UNDO_SEND_ENABLED] ?: true,
             undoSendWindow = prefs[Keys.UNDO_SEND_WINDOW]?.let { UndoSendWindow.valueOf(it) } ?: UndoSendWindow.SEC_10,
             dockConfig = dockConfigJson?.let { json ->
                 try { gson.fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
-            } ?: DockConfig.defaults()
+            } ?: DockConfig.defaults(),
+            isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false
         )
     }
 
@@ -135,6 +154,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setFontScale(scale: FontScale) {
         context.dataStore.edit { it[Keys.FONT_SCALE] = scale.name }
+    }
+    suspend fun setUseSystemFont(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.USE_SYSTEM_FONT] = enabled }
     }
     suspend fun setShowDividers(show: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_DIVIDERS] = show }
@@ -184,6 +206,9 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setRenderMarkdown(enabled: Boolean) {
         context.dataStore.edit { it[Keys.RENDER_MARKDOWN] = enabled }
     }
+    suspend fun setEmailTheme(theme: EmailTheme) {
+        context.dataStore.edit { it[Keys.EMAIL_THEME] = theme.name }
+    }
     suspend fun setNavScale(scale: Float) {
         context.dataStore.edit { it[Keys.NAV_SCALE] = scale }
     }
@@ -195,6 +220,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setDockConfig(config: DockConfig) {
         context.dataStore.edit { it[Keys.DOCK_CONFIG] = gson.toJson(config) }
+    }
+    suspend fun setDeveloperMode(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.IS_DEVELOPER_MODE] = enabled }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()

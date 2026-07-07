@@ -61,6 +61,109 @@ object HtmlSanitizer {
         return result.trim()
     }
 
+    /**
+     * Strip all `<style>` blocks from email HTML.
+     *
+     * Email <style> tags contain color/background/font rules that override our
+     * dark-mode CSS (since they appear later in the DOM). Removing them lets
+     * our injected <head> styles take full control in "adapt" mode.
+     *
+     * In "original" mode this should NOT be called so the email renders as-sent.
+     */
+    fun stripStyleTags(html: String): String {
+        if (html.isBlank()) return html
+        return STYLE_TAG_REGEX.replace(html, "")
+    }
+
+    /**
+     * Strip `bgcolor` HTML attributes from all tags.
+     *
+     * `bgcolor` is an old-school HTML attribute (not CSS) so CSS selectors
+     * like `[style*="background"]` don't catch it. Removing the attribute
+     * ensures dark-mode background overrides work correctly.
+     */
+    fun stripBgcolorAttrs(html: String): String {
+        if (html.isBlank()) return html
+        return BGCOLOR_ATTR_REGEX.replace(html, "")
+    }
+
+    /**
+     * Strip fixed-width HTML attributes (`width="600"` etc.) from tables and
+     * images so CSS `max-width: 100%` can make them responsive.
+     */
+    fun stripFixedWidthAttrs(html: String): String {
+        if (html.isBlank()) return html
+        return FIXED_WIDTH_ATTR_REGEX.replace(html, "")
+    }
+
+    /**
+     * Strips quoted text from the email body.
+     */
+    fun stripQuotedText(html: String): String {
+        var result = html
+        result = result.replace(Regex("<blockquote[^>]*>[\\s\\S]*?</blockquote>", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("<div\\s+class=\"gmail_quote\"[^>]*>[\\s\\S]*?</div>", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("<div\\s+class=\"gmail_extra\"[^>]*>[\\s\\S]*?</div>", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("<br>\\s*On .{10,80} wrote:\\s*<br>", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("\\n\\s*On .{10,80} wrote:\\s*\\n", RegexOption.IGNORE_CASE), "")
+        result = result.replace(Regex("(^|<br>)(&gt;|>)\\s?.*", RegexOption.IGNORE_CASE), "")
+        // Outlook web / 365 quoted text markers
+        result = result.replace(Regex("<div\\s+id=\"appendonsend\"[^>]*>\\s*</div>", RegexOption.IGNORE_CASE), "")
+        // divRplyFwdMsg contains nested <div> elements — use depth-counting to strip fully
+        result = stripOutlookPreviousMessage(result)
+
+        // Clean up trailing empty space, <br> tags, and empty paragraphs left behind
+        var previous = ""
+        while (previous != result) {
+            previous = result
+            // Remove empty <p> or <div> at the end
+            result = result.replace(Regex("(?:<(p|div)[^>]*>(?:<br\\s*/?>|\\s|&nbsp;)*</\\1>)+(?=</div>|</body>|$)", RegexOption.IGNORE_CASE), "")
+            // Remove trailing <br> tags or spaces
+            result = result.replace(Regex("(?:<br\\s*/?>|\\s|&nbsp;)+(?=</div>|</body>|$)", RegexOption.IGNORE_CASE), "")
+        }
+
+        return result.trim()
+    }
+
+    /**
+     * Strips the Outlook forward/reply section completely, including:
+     * - the &lt;div id="appendonsend"&gt; marker
+     * - the &lt;hr&gt; separator
+     * - the &lt;div id="divRplyFwdMsg"&gt; headers (From/Sent/To/Subject)
+     * - any content after it up to &lt;/body&gt; (the previous message body)
+     */
+    private fun stripOutlookPreviousMessage(html: String): String {
+        var result = html
+
+        // Find appendonsend marker first (it precedes the forward block)
+        val appendonPattern = Regex("<div\\s+[^>]*id=\"appendonsend\"[^>]*>\\s*</div>", RegexOption.IGNORE_CASE)
+        val appendonMatch = appendonPattern.find(result)
+
+        // Find divRplyFwdMsg
+        val fwdPattern = Regex("<div\\s+[^>]*id=\"divRplyFwdMsg\"[^>]*>", RegexOption.IGNORE_CASE)
+        val fwdMatch = fwdPattern.find(result)
+
+        if (appendonMatch == null && fwdMatch == null) return result
+
+        // Determine strip start: use appendonsend if found, otherwise divRplyFwdMsg
+        val stripStart = when {
+            appendonMatch != null -> appendonMatch.range.first
+            fwdMatch != null -> fwdMatch.range.first
+            else -> return result
+        }
+
+        // Strip everything from stripStart to </body> (or end of string)
+        val bodyEnd = result.indexOf("</body>", ignoreCase = true, startIndex = stripStart)
+        val effectiveEnd = if (bodyEnd >= stripStart) bodyEnd else result.length
+
+        result = result.substring(0, stripStart) + result.substring(effectiveEnd)
+
+        // Clean up any remaining <hr> separators
+        result = result.replace(Regex("\\s*<hr[^>]*>\\s*", RegexOption.IGNORE_CASE), " ")
+
+        return result.trim()
+    }
+
     // region Regex patterns
 
     private val BASE_TAG_REGEX = Regex(
@@ -140,6 +243,27 @@ object HtmlSanitizer {
     /** Strip non-image data: URIs in href */
     private val BAD_DATA_HREF_REGEX = Regex(
         """\bhref\s*=\s*"data:(?!image\/)[^"]*"""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** Matches entire <style>...</style> blocks including content. */
+    private val STYLE_TAG_REGEX = Regex(
+        """<style\b[^>]*>[\s\S]*?</style\s*>""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /** Matches bgcolor="..." or bgcolor='...' HTML attributes. */
+    private val BGCOLOR_ATTR_REGEX = Regex(
+        """\s+bgcolor\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /**
+     * Matches width="NNN" HTML attributes on tags.
+     * Does not match width in CSS style attributes.
+     */
+    private val FIXED_WIDTH_ATTR_REGEX = Regex(
+        """\s+width\s*=\s*(?:"[^"]*"|'[^']*')""",
         RegexOption.IGNORE_CASE
     )
 

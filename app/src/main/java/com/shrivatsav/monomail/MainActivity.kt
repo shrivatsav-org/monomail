@@ -74,7 +74,8 @@ class MainActivity : ComponentActivity() {
                 )
             ) {
                 MonoMailTheme(
-                    themeMode = settings.themeMode.name
+                    themeMode = settings.themeMode.name,
+                    useSystemFont = settings.useSystemFont
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         NavGraph(

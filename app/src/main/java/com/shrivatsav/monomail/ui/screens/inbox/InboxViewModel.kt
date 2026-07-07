@@ -6,7 +6,6 @@ import com.shrivatsav.monomail.SentEmailEvent
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
-import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.data.settings.AppSettings
 import com.shrivatsav.monomail.data.settings.SyncFrequency
@@ -50,7 +49,6 @@ sealed class InboxState {
 @HiltViewModel
 class InboxViewModel @Inject constructor(
     private val repository: EmailRepository,
-    private val contactProvider: ContactSuggestionProvider,
     private val authManager: AuthManager,
     private val settingsDataStore: SettingsDataStore,
     private val sentEmailEvents: MutableSharedFlow<SentEmailEvent>,
@@ -103,6 +101,10 @@ class InboxViewModel @Inject constructor(
     val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()
     private var pollingIntervalMs = 120_000L
     private var _isForegroundPollingEnabled = true
+    /** When foreground and actively reading, poll at 2 min instead of the configured interval. */
+    private companion object {
+        private const val ADAPTIVE_POLL_MS = 2 * 60 * 1000L
+    }
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
     val state: StateFlow<InboxState> = _state.asStateFlow()
 
@@ -231,7 +233,9 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch {
             InboxTab.values().forEach { tab ->
                 if (tab != _currentTab.value && tab != InboxTab.UNIFIED) {
-                    repository.refreshInbox(tab)
+                    try { repository.refreshInbox(tab) } catch (e: Exception) {
+                        android.util.Log.e("InboxVM", "Background refresh failed for tab $tab", e)
+                    }
                 }
             }
         }
@@ -291,13 +295,24 @@ class InboxViewModel @Inject constructor(
 
     private fun startForegroundPolling() {
         viewModelScope.launch {
+            var lastPollMs = 0L
             while (true) {
                 delay(pollingIntervalMs)
                 if (pollingIntervalMs == Long.MAX_VALUE) continue
                 if (!_isForegroundPollingEnabled) continue
-                repository.refreshInbox(InboxTab.INBOX)
-                if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
-                    repository.refreshInbox(_currentTab.value)
+                // Adaptive: if the user is actively using the app, poll at 2 min
+                val effectiveInterval = if (pollingIntervalMs > ADAPTIVE_POLL_MS && lastPollMs > 0) {
+                    val elapsedSinceLastPoll = System.currentTimeMillis() - lastPollMs
+                    if (elapsedSinceLastPoll >= ADAPTIVE_POLL_MS) ADAPTIVE_POLL_MS else pollingIntervalMs
+                } else {
+                    pollingIntervalMs
+                }
+                if (System.currentTimeMillis() - lastPollMs >= effectiveInterval || lastPollMs == 0L) {
+                    lastPollMs = System.currentTimeMillis()
+                    repository.refreshInbox(InboxTab.INBOX)
+                    if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
+                        repository.refreshInbox(_currentTab.value)
+                    }
                 }
             }
         }
@@ -557,18 +572,26 @@ class InboxViewModel @Inject constructor(
         }
     }
     fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch {
-        settingsDataStore.setUnifiedInboxEnabled(enabled)
-        if (enabled) {
-            val allAccounts = authManager.getAccounts()
-            android.util.Log.d("InboxVM", "Unified enabled, refreshing ${allAccounts.size} accounts")
-            allAccounts.forEach { account ->
-                val result = repository.refreshInbox(InboxTab.INBOX, accountId = account.id)
-                result.onSuccess {
-                    android.util.Log.d("InboxVM", "Refresh OK for ${account.id}")
-                }.onFailure { e ->
-                    android.util.Log.e("InboxVM", "Refresh FAILED for ${account.id}: ${e.message}")
+        try {
+            settingsDataStore.setUnifiedInboxEnabled(enabled)
+            if (enabled) {
+                val allAccounts = authManager.getAccounts()
+                android.util.Log.d("InboxVM", "Unified enabled, refreshing ${allAccounts.size} accounts")
+                allAccounts.forEach { account ->
+                    try {
+                        val result = repository.refreshInbox(InboxTab.INBOX, accountId = account.id)
+                        result.onSuccess {
+                            android.util.Log.d("InboxVM", "Refresh OK for ${account.id}")
+                        }.onFailure { e ->
+                            android.util.Log.e("InboxVM", "Refresh FAILED for ${account.id}: ${e.message}")
+                        }
+                    } catch (e: Exception) {
+                        android.util.Log.e("InboxVM", "Exception refreshing ${account.id}", e)
+                    }
                 }
             }
+        } catch (e: Exception) {
+            android.util.Log.e("InboxVM", "setUnifiedInboxEnabled crashed", e)
         }
     }
     fun enterBulkSelectMode(threadId: String) {

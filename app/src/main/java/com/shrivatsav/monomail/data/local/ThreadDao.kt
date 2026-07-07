@@ -53,9 +53,6 @@ interface ThreadDao {
     suspend fun snoozeThread(threadId: String, accountId: String, untilTimestamp: Long)
     @Query("UPDATE threads SET inInbox = 1, isSnoozed = 0, snoozedUntil = 0 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun unsnoozeThread(threadId: String, accountId: String)
-    @Query("SELECT * FROM threads WHERE isSnoozed = 1 AND snoozedUntil > 0 AND snoozedUntil <= :now")
-    suspend fun getDueUnsnoozeThreads(now: Long): List<ThreadEntity>
-
     @Query("SELECT threadId, isSnoozed, snoozedUntil FROM threads WHERE threadId IN (:threadIds) AND accountId = :accountId")
     suspend fun getSnoozeStateForThreads(threadIds: List<String>, accountId: String): List<ThreadSnoozeProjection>
     @Query("DELETE FROM threads WHERE accountId = :accountId AND inTrash = 1")

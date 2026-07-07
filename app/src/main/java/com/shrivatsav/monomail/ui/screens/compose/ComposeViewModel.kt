@@ -10,8 +10,9 @@ import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.pgp.PgpManager
 import com.shrivatsav.monomail.data.pgp.PgpKeyInfo
 import com.shrivatsav.monomail.data.provider.SendAsAlias
-import com.shrivatsav.monomail.data.repository.ContactSuggestionProvider
+import com.shrivatsav.monomail.data.repository.EmailContact
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.repository.suggestContacts
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
@@ -57,7 +58,6 @@ data class ComposeUiState(
 @HiltViewModel
 class ComposeViewModel @Inject constructor(
     private val repository: EmailRepository,
-    private val contactProvider: ContactSuggestionProvider,
     private val authManager: AuthManager,
     private val settingsDataStore: SettingsDataStore,
     private val sentEmailEvents: MutableSharedFlow<SentEmailEvent>,
@@ -153,8 +153,8 @@ class ComposeViewModel @Inject constructor(
         }
     }
 
-    private val _suggestions = MutableStateFlow<List<ContactSuggestionProvider.EmailContact>>(emptyList())
-    val suggestions: StateFlow<List<ContactSuggestionProvider.EmailContact>> = _suggestions.asStateFlow()
+    private val _suggestions = MutableStateFlow<List<EmailContact>>(emptyList())
+    val suggestions: StateFlow<List<EmailContact>> = _suggestions.asStateFlow()
     private val _toQuery = MutableStateFlow("")
 
     init {
@@ -163,7 +163,7 @@ class ComposeViewModel @Inject constructor(
             _toQuery
                 .debounce(200)
                 .distinctUntilChanged()
-                .map { query -> contactProvider.suggest(query) }
+                .map { query -> suggestContacts(query) }
                 .collect { _suggestions.value = it }
         }
     }
@@ -201,7 +201,7 @@ class ComposeViewModel @Inject constructor(
         _state.value = _state.value.copy(bcc = value)
     }
 
-    fun selectSuggestion(contact: ContactSuggestionProvider.EmailContact) {
+    fun selectSuggestion(contact: EmailContact) {
         _state.value = _state.value.copy(to = contact.email)
         _suggestions.value = emptyList()
         _toQuery.value = ""

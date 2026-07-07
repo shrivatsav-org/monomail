@@ -26,8 +26,6 @@ interface GmailApi {
     @GET("users/me/settings/sendAs")
     suspend fun getSendAsAliases(): GmailSendAsListResponse
 
-    @GET("users/me/profile")
-    suspend fun getProfile(): GmailProfile
     @POST("users/me/messages/batchModify")
     suspend fun batchModifyMessages(
         @Body request: BatchModifyMessagesRequest
