@@ -771,9 +771,13 @@ private fun MessageBody(
     messageCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    val isEncryptedBlob = decryptedResult == null &&
-            (email.body.contains("-----BEGIN PGP MESSAGE-----") ||
-             email.body.contains("multipart/encrypted"))
+    // Check for actual PGP content (not just plaintext mentioning MIME types)
+    // ponytail: uses starts-with heuristics — full MIME parser would be more precise
+    val isEncryptedBlob = decryptedResult == null && (
+        email.body.startsWith("-----BEGIN PGP MESSAGE-----") ||
+        email.body.contains("multipart/encrypted;") ||     // MIME header, not prose
+        email.body.contains("multipart/encrypted\r\n")       // MIME header with CRLF
+    )
     val bodyText = if (isEncryptedBlob) "" else (decryptedResult?.decryptedBody ?: email.body)
     val bodyIsHtml = !isEncryptedBlob && email.bodyIsHtml
     Column(modifier = modifier) {

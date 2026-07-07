@@ -20,8 +20,9 @@ class PgpManager @Inject constructor(
     private val storage: PgpKeyStorage
 ) {
     fun isPgpMessage(body: String): Boolean {
-        return body.contains("-----BEGIN PGP MESSAGE-----") ||
-                body.contains("multipart/encrypted") ||
+        return body.startsWith("-----BEGIN PGP MESSAGE-----") ||
+                body.contains("multipart/encrypted;") ||
+                body.contains("multipart/encrypted\r\n") ||
                 body.contains("application/pgp-encrypted")
     }
 
