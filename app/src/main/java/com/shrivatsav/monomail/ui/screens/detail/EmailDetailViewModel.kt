@@ -73,6 +73,10 @@ class EmailDetailViewModel @Inject constructor(
     val isDeveloperMode: StateFlow<Boolean> = settingsDataStore.settingsFlow
         .map { it.isDeveloperMode }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    val showInlineAttachments: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.showInlineAttachments }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val state: StateFlow<EmailDetailState> = kotlinx.coroutines.flow.combine(
         repository.getThreadEmailsFlow(threadId),
         _isLoading,

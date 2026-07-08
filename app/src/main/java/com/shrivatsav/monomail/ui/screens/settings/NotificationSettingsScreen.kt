@@ -19,7 +19,6 @@ internal fun NotificationSettingsScreen(
 
     ScrollableSettingsScaffold(title = "Notifications", onBack = onBack) {
         SettingsCard {
-            SectionHeader(icon = Icons.Rounded.Notifications, title = "Notifications")
             SettingsToggleRow(
                 icon = Icons.Rounded.NotificationsActive,
                 title = "Email Notifications",

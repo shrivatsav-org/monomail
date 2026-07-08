@@ -29,7 +29,7 @@ enum class SettingsSection(val icon: ImageVector, val title: String, val subtitl
     APPEARANCE(Icons.Rounded.Palette, "Appearance", "Theme, font size, display preferences"),
     INBOX(Icons.Rounded.Inbox, "Inbox", "Threading, smart grouping, swipe gestures"),
     COMPOSE(Icons.AutoMirrored.Rounded.Send, "Compose", "Reply defaults, confirm send, undo send"),
-    NAVIGATION(Icons.Rounded.SpaceDashboard, "Navigation", "Dock tabs, unified inbox"),
+    NAVIGATION(Icons.Rounded.SpaceDashboard, "Navigation", "Dock tabs & navigation bar"),
     NOTIFICATIONS(Icons.Rounded.Notifications, "Notifications", "Push alerts, sync frequency"),
     ABOUT(Icons.Rounded.Info, "About", "Version, updates, legal, licenses")
 }

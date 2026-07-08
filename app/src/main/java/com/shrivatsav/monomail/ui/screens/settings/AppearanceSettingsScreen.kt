@@ -26,7 +26,6 @@ internal fun AppearanceSettingsScreen(
         onBack = onBack
     ) {
         SettingsCard {
-            SectionHeader(icon = Icons.Rounded.Palette, title = "Appearance")
             ThemeSelectorRow(
                 currentTheme = settings.themeMode,
                 onThemeSelected = { viewModel.setThemeMode(it) }
@@ -75,6 +74,14 @@ internal fun AppearanceSettingsScreen(
                 subtitle = "Convert markdown formatting in plain text emails",
                 checked = settings.renderMarkdown,
                 onCheckedChange = { viewModel.setRenderMarkdown(it) }
+            )
+            CardDivider()
+            SettingsToggleRow(
+                icon = Icons.Rounded.AttachFile,
+                title = "Inline Attachments",
+                subtitle = "Show attachment cards within the email body, or as a collapsible summary above it",
+                checked = settings.showInlineAttachments,
+                onCheckedChange = { viewModel.setShowInlineAttachments(it) }
             )
             CardDivider()
             SettingsToggleRow(

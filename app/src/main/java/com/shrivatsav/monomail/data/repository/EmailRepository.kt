@@ -215,9 +215,11 @@ class EmailRepository(
                         inSpam = EmailFolder.SPAM in allFolders
                     )
                 }
+                val existingAttachments = emailDao.getAttachmentJsonForAccount(targetAccountId)
+                    .associate { it.id to it.attachmentsJson }
                 val allEmails = listResponse.threads.filter { it.threadId !in pendingThreadIds }.flatMap { providerThread ->
                     providerThread.messages.map { msg ->
-                        Email(
+                        var entity = Email(
                             id = msg.id,
                             threadId = msg.threadId,
                             subject = msg.subject,
@@ -235,6 +237,15 @@ class EmailRepository(
                             labels = msg.folders.map { it.name },
                             attachments = msg.attachments
                         ).toEntity(targetAccountId)
+                        // Preserve existing attachment data when provider returned empty
+                        // (Outlook: listThreads returns emptyList, getThread fetches correctly)
+                        val existingJson = existingAttachments[entity.id]
+                        if ((entity.attachmentsJson == "[]" || entity.attachmentsJson == "") &&
+                            existingJson != null && existingJson != "[]" && existingJson.isNotEmpty()
+                        ) {
+                            entity = entity.copy(attachmentsJson = existingJson)
+                        }
+                        entity
                     }
                 }
                 val existingSnoozed = threadDao.getSnoozeStateForThreads(

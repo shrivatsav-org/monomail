@@ -33,7 +33,6 @@ internal fun AboutSettingsScreen(
 
     ScrollableSettingsScaffold(title = "About", onBack = onBack) {
         SettingsCard {
-            SectionHeader(icon = Icons.Rounded.Info, title = "About")
             InfoRow(
                 icon = Icons.Rounded.Info,
                 title = "Version",

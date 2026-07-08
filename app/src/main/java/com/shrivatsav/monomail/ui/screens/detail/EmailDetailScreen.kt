@@ -120,6 +120,7 @@ fun EmailDetailScreen(
     val loadRemoteImages by viewModel.loadRemoteImages.collectAsState()
     val renderMarkdown by viewModel.renderMarkdown.collectAsState()
     val emailTheme by viewModel.emailTheme.collectAsState()
+    val showInlineAttachments by viewModel.showInlineAttachments.collectAsState()
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
     val decryptedBodies by viewModel.decryptedBodies.collectAsState()
@@ -317,6 +318,7 @@ fun EmailDetailScreen(
                             loadRemoteImages = loadRemoteImages,
                             renderMarkdown = renderMarkdown,
                             emailTheme = emailTheme,
+                            showInlineAttachments = showInlineAttachments,
                             onReply = { onReply(replyTarget, latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
                             onForward = { onForward(latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
                             onFetchAttachment = onFetchAttachment
@@ -414,6 +416,7 @@ fun ThreadConversationContent(
     loadRemoteImages: Boolean = true,
     renderMarkdown: Boolean = false,
     emailTheme: EmailTheme = EmailTheme.AUTO,
+    showInlineAttachments: Boolean = true,
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -454,7 +457,7 @@ fun ThreadConversationContent(
             )
             Spacer(modifier = Modifier.height(16.dp))
         }
-        
+
         emails.forEachIndexed { index, email ->
             val isExpanded = expandedMap[email.id] ?: true
             if (isConversationView) {
@@ -548,6 +551,14 @@ fun ThreadConversationContent(
                         }
                     }
                 }
+                // Per-email attachment summary — between sender info and body
+                if (!showInlineAttachments && email.attachments.isNotEmpty()) {
+                    val perEmailAttachments = email.attachments.map { it to displayName(email.from) }
+                    ThreadAttachmentsSummary(
+                        attachmentsWithSender = perEmailAttachments,
+                        onFetchAttachment = onFetchAttachment
+                    )
+                }
                 AnimatedVisibility(
                     visible = isExpanded,
                     enter = fadeIn(tween(200)) + expandVertically(tween(200)),
@@ -556,7 +567,6 @@ fun ThreadConversationContent(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(IntrinsicSize.Min)
                             .background(
                                 if (index % 2 == 1)
                                     MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.25f)
@@ -569,11 +579,12 @@ fun ThreadConversationContent(
                                 modifier = Modifier
                                     .width(2.dp)
                                     .fillMaxHeight()
+                                    .heightIn(min = 120.dp)
                                     .padding(start = 28.dp)
                                     .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
                             )
                         }
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.weight(1f).heightIn(min = 120.dp)) {
                             // Show CC/BCC when expanded
                             if (email.cc.isNotBlank() || email.bcc.isNotBlank()) {
                                 Box(
@@ -638,6 +649,7 @@ fun ThreadConversationContent(
                                 loadRemoteImages = loadRemoteImages,
                                 renderMarkdown = renderMarkdown,
                                 emailTheme = emailTheme,
+                                showInlineAttachments = showInlineAttachments,
                                 onFetchAttachment = onFetchAttachment,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -655,6 +667,7 @@ fun ThreadConversationContent(
                     loadRemoteImages = loadRemoteImages,
                     renderMarkdown = renderMarkdown,
                     emailTheme = emailTheme,
+                    showInlineAttachments = showInlineAttachments,
                     onFetchAttachment = onFetchAttachment,
                     showSender = true,
                     messageCount = emails.size
@@ -766,6 +779,7 @@ private fun MessageBody(
     loadRemoteImages: Boolean = true,
     renderMarkdown: Boolean = false,
     emailTheme: EmailTheme = EmailTheme.AUTO,
+    showInlineAttachments: Boolean = true,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
     showSender: Boolean = false,
     messageCount: Int = 0,
@@ -985,9 +999,22 @@ private fun MessageBody(
         }
     }
 
+        // Per-email attachment summary — shown between sender info and body when dropdown mode
+        // Only when MessageBody handles sender info (non-conversation view); conversation view
+        // inserts it before the MessageBody call in the email loop.
+        if (showSender && !showInlineAttachments && email.attachments.isNotEmpty()) {
+            val perEmailAttachments = email.attachments.map { it to displayName(email.from) }
+            Spacer(modifier = Modifier.height(8.dp))
+            ThreadAttachmentsSummary(
+                attachmentsWithSender = perEmailAttachments,
+                onFetchAttachment = onFetchAttachment
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
         // Images blocked banner (shown when loadRemoteImages is off and showRemoteImages is still false)
 
-        val htmlContent = remember(email.id, bodyText, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown, emailTheme) {
+        val htmlContent = remember(email.id, bodyText, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown, emailTheme, showInlineAttachments) {
             val displayBody = try {
                 // Determine body: preserve or strip quoted text
                 val body = if (showQuotedText) bodyText else HtmlSanitizer.stripQuotedText(bodyText)
@@ -1038,6 +1065,26 @@ private fun MessageBody(
                 else -> {
                     HtmlSanitizer.stripFixedWidthAttrs(wrappedBody)
                 }
+            }
+
+            // Replace inline CID images (Outlook) with placeholder when they're also attachments
+            val bodyWithCidPlaceholders = if (!showInlineAttachments && email.attachments.isNotEmpty()) {
+                var b = enhancedBody
+                for (att in email.attachments) {
+                    if (att.name.isBlank()) continue
+                    val escapedName = Regex.escape(att.name)
+                    // Match <img> tags with src="cid:NAME" or src='cid:NAME'
+                    val cidPattern = Regex(
+                        """<img[^>]*src\s*=\s*["']cid:${escapedName}["'][^>]*>""",
+                        RegexOption.IGNORE_CASE
+                    )
+                    b = b.replace(cidPattern) {
+                        """<div style="padding:8px;margin:8px 0;background:#f0f0f0;border-radius:6px;text-align:center;font-family:sans-serif;font-size:13px;color:#666;">📎 <em>${att.name}</em> (inline image — see attachments)</div>"""
+                    }
+                }
+                b
+            } else {
+                enhancedBody
             }
 
             // Shared quoted-text CSS (same for both modes)
@@ -1255,7 +1302,7 @@ private fun MessageBody(
                     $imgBlockCss
                 </style>
             </head>
-            <body class="${if (showQuotedText) "show-quotes " else ""}${if (useDarkTheme && effectiveMode == "adapt") "monomail-dark" else ""}">$enhancedBody</body>
+            <body class="${if (showQuotedText) "show-quotes " else ""}${if (useDarkTheme && effectiveMode == "adapt") "monomail-dark" else ""}">$bodyWithCidPlaceholders</body>
             </html>
             """.trimIndent()
         }
@@ -1442,8 +1489,8 @@ private fun MessageBody(
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-            if (email.attachments.isNotEmpty()) {
+            if (showInlineAttachments && email.attachments.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(16.dp))
                 AttachmentsSection(
                     attachments = email.attachments,
                     onFetchAttachment = onFetchAttachment
@@ -1692,6 +1739,108 @@ private fun FileAttachmentCard(
         }
     }
 }
+
+@Composable
+private fun ThreadAttachmentsSummary(
+    attachmentsWithSender: List<Pair<EmailAttachmentInfo, String>>,
+    onFetchAttachment: suspend (String, String) -> ByteArray?
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val imageAttachments = attachmentsWithSender.filter { isImageAttachment(it.first) }
+    val fileAttachments = attachmentsWithSender.filter { !isImageAttachment(it.first) }
+    val totalCount = attachmentsWithSender.size
+    val imageCount = imageAttachments.size
+
+    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .clickable { expanded = !expanded }
+                .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f))
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.AttachFile,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "$totalCount Attachment${if (totalCount != 1) "s" else ""}" +
+                    if (imageCount > 0) " ($imageCount image${if (imageCount != 1) "s" else ""})" else "",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                contentDescription = if (expanded) "Collapse" else "Expand",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
+
+        if (expanded) {
+            Column(
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                imageAttachments.forEach { (attachment, sender) ->
+                    Column {
+                        ImageAttachmentCard(
+                            attachment = attachment,
+                            onFetchAttachment = onFetchAttachment
+                        )
+                        Text(
+                            text = "from $sender",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                        )
+                    }
+                }
+
+                if (fileAttachments.isNotEmpty()) {
+                    BoxWithConstraints {
+                        val columnWidth = 200.dp
+                        val columns = maxOf(1, (maxWidth / columnWidth).toInt())
+                        fileAttachments.chunked(columns).forEach { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowItems.forEach { (attachment, sender) ->
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        FileAttachmentCard(
+                                            attachment = attachment,
+                                            onFetchAttachment = onFetchAttachment,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                        Text(
+                                            text = "from $sender",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                                            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                                        )
+                                    }
+                                }
+                                repeat(columns - rowItems.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        }
+    }
+}
+
 private val detailDateFormat = SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault())
 
 /**

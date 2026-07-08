@@ -107,6 +107,12 @@ class InboxViewModel @Inject constructor(
     }
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
     val state: StateFlow<InboxState> = _state.asStateFlow()
+    private val _scrollPositions = MutableStateFlow<Map<InboxTab, Pair<Int, Int>>>(emptyMap())
+    val scrollPositions: StateFlow<Map<InboxTab, Pair<Int, Int>>> = _scrollPositions.asStateFlow()
+
+    fun saveScrollState(tab: InboxTab, index: Int, offset: Int) {
+        _scrollPositions.value = _scrollPositions.value + (tab to (index to offset))
+    }
 
     init {
         viewModelScope.launch {
