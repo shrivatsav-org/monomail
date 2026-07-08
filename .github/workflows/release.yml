@@ -54,8 +54,8 @@ jobs:
       - name: Bump version
         id: version
         run: |
-          VERSION=$(grep versionName app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
-          VCODE=$(grep versionCode app/build.gradle.kts | sed 's/.*versionCode = \([0-9]*\).*/\1/')
+          VERSION=$(grep 'versionName = "' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
+          VCODE=$(grep 'versionCode = ' app/build.gradle.kts | sed 's/.*versionCode = \([0-9]*\).*/\1/')
 
           IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
           PATCH=$((PATCH + 1))
