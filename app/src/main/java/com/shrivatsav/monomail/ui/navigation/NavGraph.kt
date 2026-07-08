@@ -1,4 +1,5 @@
 package com.shrivatsav.monomail.ui.navigation
+import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -52,8 +53,6 @@ import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
 import com.shrivatsav.monomail.ui.screens.pgp.PgpKeyManagementScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
-import java.net.URLDecoder
-import java.net.URLEncoder
 sealed class Screen(val route: String) {
     object Onboarding   : Screen("onboarding")
     object SignIn       : Screen("sign_in")
@@ -71,7 +70,7 @@ sealed class Screen(val route: String) {
             messageId: String = "",
             scheduledId: String = ""
         ): String {
-            val enc = { s: String -> URLEncoder.encode(s, "UTF-8") }
+            val enc = { s: String -> Uri.encode(s) }
             return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}&scheduledId=${enc(scheduledId)}"
         }
     }
@@ -366,15 +365,6 @@ fun NavGraph(
                     navArgument("scheduledId") { type = NavType.StringType; defaultValue = "" }
                 )
             ) { backStackEntry ->
-                val dec = { s: String -> URLDecoder.decode(s, "UTF-8") }
-                val mode = ComposeMode.valueOf(
-                    backStackEntry.arguments?.getString("mode") ?: "NEW"
-                )
-                val to = dec(backStackEntry.arguments?.getString("to") ?: "")
-                val subject = dec(backStackEntry.arguments?.getString("subject") ?: "")
-                val threadId = dec(backStackEntry.arguments?.getString("threadId") ?: "").takeIf { it.isNotEmpty() }
-                val messageId = dec(backStackEntry.arguments?.getString("messageId") ?: "").takeIf { it.isNotEmpty() }
-                val scheduledId = dec(backStackEntry.arguments?.getString("scheduledId") ?: "").takeIf { it.isNotEmpty() }
                 val vm: ComposeViewModel = hiltViewModel()
                 ComposeScreen(
                     viewModel = vm,

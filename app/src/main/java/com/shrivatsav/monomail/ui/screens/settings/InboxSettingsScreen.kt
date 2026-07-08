@@ -23,7 +23,6 @@ internal fun InboxSettingsScreen(
 
     ScrollableSettingsScaffold(title = "Inbox", onBack = onBack) {
         SettingsCard {
-            SectionHeader(icon = Icons.Rounded.Inbox, title = "Inbox")
             SettingsToggleRow(
                 icon = Icons.Rounded.Forum,
                 title = if (settings.organizeByThread) "Conversation View" else "Message Chain",

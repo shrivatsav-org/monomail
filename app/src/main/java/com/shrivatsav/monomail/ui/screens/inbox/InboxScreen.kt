@@ -90,7 +90,6 @@ fun InboxScreen(
         com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE -> 1.3f
     }
 
-    val listState = rememberLazyListState()
     val pullToRefreshState = rememberPullToRefreshState()
     var searchQuery by remember { mutableStateOf("") }
     val currentThreads = (state as? InboxState.Success)?.threads ?: emptyList()
@@ -117,17 +116,6 @@ fun InboxScreen(
                         it.snippet.contains(searchQuery, ignoreCase = true)
             }
         }
-    }
-
-    val shouldLoadMore by remember {
-        derivedStateOf {
-            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
-            val totalItems = listState.layoutInfo.totalItemsCount
-            totalItems > 0 && lastVisible >= totalItems - 5
-        }
-    }
-    LaunchedEffect(Unit) {
-        snapshotFlow { shouldLoadMore }.collect { if (it) viewModel.loadMore() }
     }
 
     var blurForModal by remember { mutableStateOf(false) }
@@ -272,6 +260,28 @@ fun InboxScreen(
                         is InboxState.Success -> {
                             val currentTab = s.currentTab
                             key(currentTab) {
+                            val savedPos = viewModel.scrollPositions.collectAsState().value[currentTab] ?: (0 to 0)
+                            val listState = rememberLazyListState(
+                                initialFirstVisibleItemIndex = savedPos.first,
+                                initialFirstVisibleItemScrollOffset = savedPos.second
+                            )
+                            val shouldLoadMore by remember {
+                                derivedStateOf {
+                                    val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+                                    val totalItems = listState.layoutInfo.totalItemsCount
+                                    totalItems > 0 && lastVisible >= totalItems - 5
+                                }
+                            }
+                            LaunchedEffect(Unit) {
+                                snapshotFlow { shouldLoadMore }.collect { if (it) viewModel.loadMore() }
+                            }
+                            LaunchedEffect(listState, currentTab) {
+                                snapshotFlow {
+                                    listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset
+                                }.collect { (index, offset) ->
+                                    viewModel.saveScrollState(currentTab, index, offset)
+                                }
+                            }
                             val threadsToDisplay = localFilteredThreads ?: s.threads
                             val isSearchActive = localFilteredThreads != null
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable {
@@ -309,11 +319,6 @@ fun InboxScreen(
                                     }
                                 }
                             }
-                            // Reset scroll to top on tab entry
-                            LaunchedEffect(Unit) {
-                                listState.scrollToItem(0)
-                            }
-
                             PullToRefreshBox(
                                 isRefreshing = s.isRefreshing,
                                 onRefresh = { viewModel.refresh() },

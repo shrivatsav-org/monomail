@@ -70,7 +70,8 @@ data class AppSettings(
     val undoSendEnabled: Boolean = true,
     val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10,
     val dockConfig: DockConfig = DockConfig.defaults(),
-    val isDeveloperMode: Boolean = false
+    val isDeveloperMode: Boolean = false,
+    val showInlineAttachments: Boolean = true
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -104,6 +105,7 @@ class SettingsDataStore(private val context: Context) {
         val TEMPLATES = stringPreferencesKey("email_templates")
         val DOCK_CONFIG = stringPreferencesKey("dock_config")
         val IS_DEVELOPER_MODE = booleanPreferencesKey("is_developer_mode")
+        val SHOW_INLINE_ATTACHMENTS = booleanPreferencesKey("show_inline_attachments")
     }
 
     private fun mapToSettings(prefs: Preferences): AppSettings {
@@ -137,7 +139,8 @@ class SettingsDataStore(private val context: Context) {
             dockConfig = dockConfigJson?.let { json ->
                 try { gson.fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults(),
-            isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false
+            isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false,
+            showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true
         )
     }
 
@@ -223,6 +226,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setDeveloperMode(enabled: Boolean) {
         context.dataStore.edit { it[Keys.IS_DEVELOPER_MODE] = enabled }
+    }
+    suspend fun setShowInlineAttachments(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SHOW_INLINE_ATTACHMENTS] = enabled }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()

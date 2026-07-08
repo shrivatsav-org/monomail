@@ -23,7 +23,6 @@ internal fun ComposeSettingsScreen(
 
     ScrollableSettingsScaffold(title = "Compose", onBack = onBack) {
         SettingsCard {
-            SectionHeader(icon = Icons.AutoMirrored.Rounded.Send, title = "Compose")
             BottomSheetPickerRow(
                 icon = Icons.AutoMirrored.Rounded.Reply,
                 title = "Default Reply",

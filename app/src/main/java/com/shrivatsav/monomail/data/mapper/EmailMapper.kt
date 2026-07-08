@@ -25,7 +25,9 @@ object EmailMapper {
         val labels   = labelIds.orEmpty()
         val isRead   = "UNREAD" !in labels
         val isStarred = "STARRED" in labels
-        val bodyInfo = extractAndInjectImages(payload)
+        val attachments = extractAttachments(payload, id)
+        val attachmentCids = extractFilenamedImageCids(payload)
+        val bodyInfo = extractAndInjectImages(payload, attachmentCids)
         return Email(
             id        = id,
             threadId  = threadId,
@@ -42,7 +44,7 @@ object EmailMapper {
             isRead    = isRead,
             isStarred = isStarred,
             labels    = labels,
-            attachments = extractAttachments(payload, id)
+            attachments = attachments
         )
     }
     fun GmailThread.toEmailThread(): EmailThread {
@@ -124,24 +126,50 @@ object EmailMapper {
         }
         return BodyResult("", isHtml = true)
     }
-    private fun extractAndInjectImages(payload: MessagePart?): BodyResult {
+    private fun extractFilenamedImageCids(part: MessagePart?): Set<String> {
+        if (part == null) return emptySet()
+        val cids = mutableSetOf<String>()
+        val contentId = part.headers?.firstOrNull { it.name.equals("Content-ID", true) }?.value?.removeSurrounding("<", ">")
+        if (contentId != null && !part.filename.isNullOrEmpty()) {
+            cids.add(contentId)
+        }
+        part.parts?.forEach { cids.addAll(extractFilenamedImageCids(it)) }
+        return cids
+    }
+    private fun extractAndInjectImages(payload: MessagePart?, attachmentCids: Set<String> = emptySet()): BodyResult {
         val bodyInfo = extractBody(payload)
         val cidMap = mutableMapOf<String, String>()
-        extractInlineImages(payload, cidMap)
+        val attachmentCidList = mutableListOf<Pair<String, String>>()
+        extractInlineImages(payload, cidMap, attachmentCidList, attachmentCids)
         var htmlBody = bodyInfo.text
         cidMap.forEach { (cid, dataUri) ->
             htmlBody = htmlBody.replace("cid:$cid", dataUri)
         }
+        attachmentCidList.forEach { (cid, filename) ->
+            htmlBody = htmlBody.replace(
+                "cid:$cid",
+                """<div style="padding:8px;margin:8px 0;background:#f0f0f0;border-radius:6px;text-align:center;font-family:sans-serif;font-size:13px;color:#666;">📎 <em>$filename</em> (inline image — see attachments)</div>"""
+            )
+        }
         return BodyResult(htmlBody, bodyInfo.isHtml)
     }
-    private fun extractInlineImages(part: MessagePart?, map: MutableMap<String, String>) {
+    private fun extractInlineImages(
+        part: MessagePart?,
+        map: MutableMap<String, String>,
+        attachmentCids: MutableList<Pair<String, String>> = mutableListOf(),
+        skipCids: Set<String> = emptySet()
+    ) {
         if (part == null) return
         val contentId = part.headers?.firstOrNull { it.name.equals("Content-ID", true) }?.value?.removeSurrounding("<", ">")
         if (contentId != null && part.mimeType?.startsWith("image/") == true && !part.body?.data.isNullOrEmpty()) {
-            val base64 = part.body!!.data!!.replace("-", "+").replace("_", "/")
-            map[contentId] = "data:${part.mimeType};base64,$base64"
+            if (contentId in skipCids) {
+                attachmentCids.add(contentId to (part.filename ?: "inline image"))
+            } else {
+                val base64 = part.body!!.data!!.replace("-", "+").replace("_", "/")
+                map[contentId] = "data:${part.mimeType};base64,$base64"
+            }
         }
-        part.parts?.forEach { extractInlineImages(it, map) }
+        part.parts?.forEach { extractInlineImages(it, map, attachmentCids, skipCids) }
     }
     private fun extractAttachments(part: MessagePart?, messageId: String): List<com.shrivatsav.monomail.data.model.EmailAttachmentInfo> {
         if (part == null) return emptyList()
