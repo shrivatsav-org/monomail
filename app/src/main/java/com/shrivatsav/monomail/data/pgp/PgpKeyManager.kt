@@ -1,6 +1,7 @@
 package com.shrivatsav.monomail.data.pgp
 
 import android.util.Log
+import org.bouncycastle.openpgp.api.OpenPGPCertificate
 import org.pgpainless.PGPainless
 import org.pgpainless.algorithm.KeyFlag
 import org.pgpainless.algorithm.PublicKeyAlgorithm
@@ -8,6 +9,8 @@ import org.pgpainless.key.OpenPgpFingerprint
 import org.pgpainless.key.generation.KeySpec
 import org.pgpainless.key.generation.type.ecc.Ed25519
 import org.pgpainless.key.generation.type.ecc.X25519
+import org.pgpainless.key.info.KeyRingInfo
+import org.pgpainless.key.parsing.KeyRingReader
 import org.pgpainless.key.protection.SecretKeyRingProtector
 import org.pgpainless.util.Passphrase
 import java.util.Date
@@ -24,7 +27,7 @@ class PgpKeyManager @Inject constructor(
         val subkeySpec = KeySpec.getBuilder(X25519(), KeyFlag.ENCRYPT_COMMS, KeyFlag.ENCRYPT_STORAGE)
             .build()
 
-        val builder = PGPainless.buildKeyRing()
+        val builder = PGPainless.getInstance().buildKey()
             .setPrimaryKey(keySpec)
             .addSubkey(subkeySpec)
             .addUserId(userId)
@@ -34,18 +37,18 @@ class PgpKeyManager @Inject constructor(
         }
 
         val openPgpKey = builder.build()
-        val secretKeyRing = openPgpKey.pgpSecretKeyRing
-        val publicKeyRing = PGPainless.extractCertificate(secretKeyRing)
+        val secretKeyRing = openPgpKey.getPGPKeyRing() as org.bouncycastle.openpgp.PGPSecretKeyRing
+        val publicKeyRing = openPgpKey.getPGPPublicKeyRing()
 
         val info = keyRingToInfo(
             secretKeyRing, isPrivate = true,
             isPassphraseProtected = passphrase != null
         )
 
-        val armoredSecret = PGPainless.asciiArmor(secretKeyRing)
+        val armoredSecret = openPgpKey.toAsciiArmoredString()
         storage.savePrivateKey(info.fingerprint, armoredSecret)
 
-        val armoredPublic = PGPainless.asciiArmor(publicKeyRing)
+        val armoredPublic = OpenPGPCertificate(publicKeyRing).toAsciiArmoredString()
         storage.savePublicKey(info.fingerprint, armoredPublic)
 
         storage.saveKeyMetadata(info.fingerprint, info)
@@ -59,7 +62,7 @@ class PgpKeyManager @Inject constructor(
         val isPrivate = armoredKey.contains("BEGIN PGP PRIVATE KEY BLOCK")
 
         if (isPrivate) {
-            val secretKeyRing = PGPainless.readKeyRing().secretKeyRing(armoredKey)
+            val secretKeyRing = KeyRingReader().secretKeyRing(armoredKey)
                 ?: throw IllegalArgumentException("Failed to parse private key — invalid or corrupted key data")
             val isProtected = try {
                 secretKeyRing.secretKey.keyEncryptionAlgorithm != 0
@@ -68,8 +71,9 @@ class PgpKeyManager @Inject constructor(
             val info = keyRingToInfo(secretKeyRing, isPrivate = true, isPassphraseProtected = isProtected)
 
             storage.savePrivateKey(info.fingerprint, armoredKey)
-            val publicKeyRing = PGPainless.extractCertificate(secretKeyRing)
-            val armoredPublic = PGPainless.asciiArmor(publicKeyRing)
+            val publicKey = PGPainless.getInstance().toKey(secretKeyRing)
+            val publicKeyRing = publicKey.getPGPPublicKeyRing()
+            val armoredPublic = OpenPGPCertificate(publicKeyRing).toAsciiArmoredString()
             storage.savePublicKey(info.fingerprint, armoredPublic)
             storage.saveKeyMetadata(info.fingerprint, info)
             if (passphrase != null) {
@@ -77,7 +81,7 @@ class PgpKeyManager @Inject constructor(
             }
             return info
         } else {
-            val publicKeyRing = PGPainless.readKeyRing().publicKeyRing(armoredKey)
+            val publicKeyRing = KeyRingReader().publicKeyRing(armoredKey)
                 ?: throw IllegalArgumentException("Failed to parse public key — invalid or corrupted key data")
             val info = keyRingToInfo(publicKeyRing, isPrivate = false)
 
@@ -121,7 +125,7 @@ class PgpKeyManager @Inject constructor(
         for (info in allKeys) {
             val armored = storage.loadPublicKey(info.fingerprint) ?: continue
             try {
-                val publicKeyRing = PGPainless.readKeyRing().publicKeyRing(armored)
+                val publicKeyRing = KeyRingReader().publicKeyRing(armored)
                 return publicKeyRing!!.encoded
             } catch (e: Exception) {
                 Log.w("PgpKeyManager", "Failed to parse public key ring for recipient", e)
@@ -139,7 +143,7 @@ class PgpKeyManager @Inject constructor(
         for (info in allKeys) {
             val armored = storage.loadPublicKey(info.fingerprint) ?: continue
             try {
-                PGPainless.readKeyRing().publicKeyRing(armored)
+                KeyRingReader().publicKeyRing(armored)
                 return info.fingerprint
             } catch (e: Exception) {
                 Log.w("PgpKeyManager", "Failed to parse public key ring for fingerprint lookup", e)
@@ -152,7 +156,7 @@ class PgpKeyManager @Inject constructor(
     fun loadSecretKeyRing(fingerprint: String): org.bouncycastle.openpgp.PGPSecretKeyRing? {
         val armored = storage.loadPrivateKey(fingerprint) ?: return null
         return try {
-            PGPainless.readKeyRing().secretKeyRing(armored)
+            KeyRingReader().secretKeyRing(armored)
         } catch (e: Exception) {
             Log.w("PgpKeyManager", "Failed to load secret key ring for $fingerprint", e)
             null
@@ -162,7 +166,7 @@ class PgpKeyManager @Inject constructor(
     fun loadPublicKeyRing(fingerprint: String): org.bouncycastle.openpgp.PGPPublicKeyRing? {
         val armored = storage.loadPublicKey(fingerprint) ?: return null
         return try {
-            PGPainless.readKeyRing().publicKeyRing(armored)
+            KeyRingReader().publicKeyRing(armored)
         } catch (e: Exception) {
             Log.w("PgpKeyManager", "Failed to load public key ring for $fingerprint", e)
             null
@@ -174,7 +178,7 @@ class PgpKeyManager @Inject constructor(
         isPrivate: Boolean,
         isPassphraseProtected: Boolean = false
     ): PgpKeyInfo {
-        val info = PGPainless.inspectKeyRing(ring)
+        val info = KeyRingInfo(ring)
         return PgpKeyInfo(
             fingerprint = info.fingerprint.toString(),
             userId = info.primaryUserId ?: "Unknown",
@@ -190,7 +194,7 @@ class PgpKeyManager @Inject constructor(
         ring: org.bouncycastle.openpgp.PGPPublicKeyRing,
         isPrivate: Boolean
     ): PgpKeyInfo {
-        val info = PGPainless.inspectKeyRing(ring)
+        val info = KeyRingInfo(ring)
         return PgpKeyInfo(
             fingerprint = info.fingerprint.toString(),
             userId = info.primaryUserId ?: "Unknown",

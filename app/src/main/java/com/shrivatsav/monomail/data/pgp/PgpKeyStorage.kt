@@ -21,6 +21,7 @@ class PgpKeyStorage @Inject constructor(
     // Encrypted metadata storage (fingerprint → PgpKeyInfo)
     private val gson = Gson()
 
+    @Suppress("DEPRECATION")
     private val prefs: SharedPreferences by lazy {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)

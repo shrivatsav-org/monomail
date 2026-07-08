@@ -225,12 +225,12 @@ object EmailImageGenerator {
                                 
                                 isResumed = true
                                 android.util.Log.d("EmailImageGenerator", "Bitmap captured successfully!")
-                                continuation.resume(bitmap) {}
+                                continuation.resume(bitmap)
                             } catch (e: Exception) {
                                 android.util.Log.e("EmailImageGenerator", "Exception in capture", e)
                                 if (!isResumed) {
                                     isResumed = true
-                                    continuation.resume(null) {}
+                                    continuation.resume(null)
                                 }
                             }
                         }, 500)

@@ -12,7 +12,6 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
-@Suppress("DEPRECATION")
 object SecurityUtil {
     private const val KEY_ALIAS = "monomail_data_keystore_alias"
     private const val PREFS_NAME = "monomail_secure_prefs"
@@ -20,6 +19,7 @@ object SecurityUtil {
     private const val TRANSFORMATION = "AES/GCM/NoPadding"
     private const val ANDROID_KEYSTORE = "AndroidKeyStore"
     private const val IV_LENGTH = 12
+    @Suppress("DEPRECATION")
     private fun getSecurePrefs(context: Context): SharedPreferences {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)

@@ -2,11 +2,13 @@ package com.shrivatsav.monomail.data.pgp
 
 import android.util.Log
 import org.bouncycastle.openpgp.PGPException
+import org.bouncycastle.openpgp.api.OpenPGPCertificate
 import org.pgpainless.PGPainless
 import org.pgpainless.decryption_verification.ConsumerOptions
 import org.pgpainless.encryption_signing.EncryptionOptions
 import org.pgpainless.encryption_signing.ProducerOptions
 import org.pgpainless.encryption_signing.SigningOptions
+import org.pgpainless.key.parsing.KeyRingReader
 import org.pgpainless.key.protection.SecretKeyRingProtector
 import org.pgpainless.util.Passphrase
 import java.io.ByteArrayInputStream
@@ -59,7 +61,7 @@ class PgpManager @Inject constructor(
                     continue
                 }
                 val secretKeyRing = try {
-                    PGPainless.readKeyRing().secretKeyRing(armoredSecret)
+                    KeyRingReader().secretKeyRing(armoredSecret)
                         ?: throw NullPointerException("readKeyRing returned null")
                 } catch (e: Exception) {
                     Log.e("PgpManager", "Failed to parse private key ring for $fp", e)
@@ -69,9 +71,9 @@ class PgpManager @Inject constructor(
                 val protector = getProtector(secretKeyRing, fp)
 
                 val consumerOptions = ConsumerOptions.get()
-                    .addDecryptionKey(secretKeyRing, protector)
+                    .addDecryptionKey(PGPainless.getInstance().toKey(secretKeyRing), protector)
 
-                val decryptionStream = PGPainless.decryptAndOrVerify()
+                val decryptionStream = PGPainless.getInstance().processMessage()
                     .onInputStream(ByteArrayInputStream(emailBody.toByteArray()))
                     .withOptions(consumerOptions)
 
@@ -123,7 +125,7 @@ class PgpManager @Inject constructor(
             val fp = keyManager.getPublicKeyForRecipientAsFingerprint(address) ?: return@mapNotNull null
             val armored = storage.loadPublicKey(fp) ?: return@mapNotNull null
             try {
-                PGPainless.readKeyRing().publicKeyRing(armored)
+                KeyRingReader().publicKeyRing(armored)
             } catch (e: Exception) {
                 Log.w("PgpManager", "Failed to parse public key ring for recipient $address", e)
                 null
@@ -135,13 +137,13 @@ class PgpManager @Inject constructor(
         try {
             val encryptionOptions = EncryptionOptions.get()
             for (ring in recipientRings) {
-                encryptionOptions.addRecipient(ring)
+                encryptionOptions.addRecipient(OpenPGPCertificate(ring))
             }
 
             val producerOptions = ProducerOptions.encrypt(encryptionOptions)
             val outputStream = ByteArrayOutputStream()
 
-            val encryptionStream = PGPainless.encryptAndOrSign()
+            val encryptionStream = PGPainless.getInstance().generateMessage()
                 .onOutputStream(outputStream)
                 .withOptions(producerOptions)
 
@@ -159,7 +161,7 @@ class PgpManager @Inject constructor(
     fun signBody(body: String, fingerprint: String): String? {
         val armoredSecret = storage.loadPrivateKey(fingerprint) ?: return null
         val secretKeyRing = try {
-            PGPainless.readKeyRing().secretKeyRing(armoredSecret)!!
+            KeyRingReader().secretKeyRing(armoredSecret)!!
         } catch (e: Exception) {
             Log.w("PgpManager", "Failed to parse secret key ring for signing $fingerprint", e)
             return null
@@ -169,12 +171,12 @@ class PgpManager @Inject constructor(
             val protector = getProtector(secretKeyRing, fingerprint)
 
             val signingOptions = SigningOptions.get()
-                .addInlineSignature(protector, secretKeyRing)
+                .addInlineSignature(protector, PGPainless.getInstance().toKey(secretKeyRing))
 
             val producerOptions = ProducerOptions.sign(signingOptions)
             val outputStream = ByteArrayOutputStream()
 
-            val signingStream = PGPainless.encryptAndOrSign()
+            val signingStream = PGPainless.getInstance().generateMessage()
                 .onOutputStream(outputStream)
                 .withOptions(producerOptions)
 
@@ -197,7 +199,7 @@ class PgpManager @Inject constructor(
             val fp = keyManager.getPublicKeyForRecipientAsFingerprint(address) ?: return@mapNotNull null
             val armored = storage.loadPublicKey(fp) ?: return@mapNotNull null
             try {
-                PGPainless.readKeyRing().publicKeyRing(armored)
+                KeyRingReader().publicKeyRing(armored)
             } catch (e: Exception) {
                 Log.w("PgpManager", "Failed to parse public key ring for $address (encryptAndSign)", e)
                 null
@@ -209,13 +211,13 @@ class PgpManager @Inject constructor(
         try {
             val encryptionOptions = EncryptionOptions.get()
             for (ring in recipientRings) {
-                encryptionOptions.addRecipient(ring)
+                encryptionOptions.addRecipient(OpenPGPCertificate(ring))
             }
 
             val producerOptions: ProducerOptions = if (signingFingerprint != null) {
                 val armoredSecret = storage.loadPrivateKey(signingFingerprint) ?: return null
                 val secretKeyRing = try {
-                    PGPainless.readKeyRing().secretKeyRing(armoredSecret)!!
+                    KeyRingReader().secretKeyRing(armoredSecret)!!
                 } catch (e: Exception) {
                     Log.w("PgpManager", "Failed to parse secret key ring for signing $signingFingerprint (encryptAndSign)", e)
                     return null
@@ -223,7 +225,7 @@ class PgpManager @Inject constructor(
 
                 val protector = getProtector(secretKeyRing, signingFingerprint)
                 val signingOptions = SigningOptions.get()
-                    .addInlineSignature(protector, secretKeyRing)
+                    .addInlineSignature(protector, PGPainless.getInstance().toKey(secretKeyRing))
 
                 ProducerOptions.signAndEncrypt(encryptionOptions, signingOptions)
             } else {
@@ -231,7 +233,7 @@ class PgpManager @Inject constructor(
             }
 
             val outputStream = ByteArrayOutputStream()
-            val encryptionStream = PGPainless.encryptAndOrSign()
+            val encryptionStream = PGPainless.getInstance().generateMessage()
                 .onOutputStream(outputStream)
                 .withOptions(producerOptions)
 
