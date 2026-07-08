@@ -169,10 +169,9 @@ jobs:
           Commits:
           $(cat commit_log.txt)"
 
-          opencode run \
+          opencode "$PROMPT" \
             --model opencode/mimo-v2.5-free \
-            -q "$PROMPT" \
-            > release_notes.md
+            > release_notes.md 2>/dev/null
 
           cat release_notes.md
 
