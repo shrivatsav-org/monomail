@@ -130,65 +130,81 @@ jobs:
           curl -fsSL https://opencode.ai/install | bash
           echo "$HOME/.opencode/bin" >> $GITHUB_PATH
 
-      # --------------------------------------------------------------------------
-      # Generate Release Notes
-      # --------------------------------------------------------------------------
+            # --------------------------------------------------------------------------
+            # Generate Release Notes
+            # --------------------------------------------------------------------------
 
-      - name: Gather changelog source
-        run: |
-          if [ -n "${{ steps.committag.outputs.PREV_TAG }}" ]; then
-            RANGE="${{ steps.committag.outputs.PREV_TAG }}..HEAD"
-          else
-            RANGE="HEAD"
-          fi
+            - name: Gather changelog source
+              run: |
+                if [ -n "${{ steps.committag.outputs.PREV_TAG }}" ]; then
+                  RANGE="${{ steps.committag.outputs.PREV_TAG }}..HEAD"
+                else
+                  RANGE="HEAD"
+                fi
 
-          git log "$RANGE" \
-            --pretty=format:'- %s (%h)' \
-            --no-merges > commit_log.txt
+                echo "Using range: $RANGE"
 
-          cat commit_log.txt
+                git log "$RANGE" \
+                  --pretty=format:'%s' \
+                  --no-merges > commit_log.txt
 
-      - name: Generate release notes with OpenCode
-        continue-on-error: true
-        env:
-          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-        run: |
-          PROMPT="Write concise, user-facing GitHub release notes.
+                echo "===== Commits ====="
+                cat commit_log.txt
 
-          Group changes under:
-          - Features
-          - Bug Fixes
-          - Maintenance
+            - name: Generate release notes with OpenCode
+              continue-on-error: true
+              env:
+                OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+              run: |
+                PROMPT=$(cat <<'EOF'
+                Write concise, user-facing GitHub release notes.
 
-          Omit any empty section.
+                Group changes under:
+                - Features
+                - Bug Fixes
+                - Maintenance
 
-          Use ONLY the commits below.
-          Don't invent features.
-          Output Markdown only.
+                Omit any empty section.
 
-          Commits:
-          $(cat commit_log.txt)"
+                Use ONLY the commits below.
+                Don't invent features.
+                Keep the wording concise and suitable for GitHub Releases.
+                Output Markdown only.
 
-          opencode "$PROMPT" \
-            --model opencode/mimo-v2.5-free \
-            > release_notes.md 2>/dev/null
+                Commits:
+                EOF
+                )
 
-          cat release_notes.md
+                PROMPT="$PROMPT
 
-      # --------------------------------------------------------------------------
-      # Fallback — if OpenCode failed, use raw commit log
-      # --------------------------------------------------------------------------
+                $(cat commit_log.txt)"
 
-      - name: Fallback release notes
-        run: |
-          if [ ! -s release_notes.md ]; then
-            echo "OpenCode failed — using raw commit log as release notes."
-            cat > release_notes.md << EOF
-          ## What's Changed
+                echo "===== Prompt ====="
+                echo "$PROMPT"
 
-          $(cat commit_log.txt)
-          EOF
-          fi
+                opencode run "$PROMPT" \
+                  --model opencode/mimo-v2.5-free \
+                  --print-logs \
+                  | tee release_notes.md
+
+                echo "===== Generated Release Notes ====="
+                cat release_notes.md
+
+            # --------------------------------------------------------------------------
+            # Fallback — if OpenCode failed
+            # --------------------------------------------------------------------------
+
+            - name: Fallback release notes
+              run: |
+                if [ ! -s release_notes.md ]; then
+                  echo "OpenCode failed. Falling back to commit list."
+
+                  cat > release_notes.md <<EOF
+                ## What's Changed
+
+                $(sed 's/^/- /' commit_log.txt)
+                EOF
+                fi
 
       # --------------------------------------------------------------------------
       # Draft GitHub Release
