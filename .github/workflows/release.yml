@@ -90,23 +90,13 @@ jobs:
           echo "VCODE=$NEW_VCODE" >> $GITHUB_OUTPUT
 
       # --------------------------------------------------------------------------
-      # Build
-      # --------------------------------------------------------------------------
-
-      - name: Build GitHub APK
-        run: ./gradlew assembleGithubRelease
-
-      - name: Build Play Store AAB
-        run: ./gradlew bundlePlaystoreRelease
-
-      # --------------------------------------------------------------------------
       # Commit & Tag
       # --------------------------------------------------------------------------
 
       - name: Commit, tag, and push
         id: committag
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
           echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
 
           git config user.name "github-actions[bot]"
@@ -125,86 +115,102 @@ jobs:
       # --------------------------------------------------------------------------
 
       - name: Install OpenCode
-        continue-on-error: true
+        run: npm install -g opencode-ai
+
+      - name: Verify OpenCode
         run: |
-          curl -fsSL https://opencode.ai/install | bash
-          echo "$HOME/.opencode/bin" >> $GITHUB_PATH
+          opencode --version
+          opencode run --help
 
-            # --------------------------------------------------------------------------
-            # Generate Release Notes
-            # --------------------------------------------------------------------------
+      # --------------------------------------------------------------------------
+      # Gather commits since previous tag
+      # --------------------------------------------------------------------------
 
-            - name: Gather changelog source
-              run: |
-                if [ -n "${{ steps.committag.outputs.PREV_TAG }}" ]; then
-                  RANGE="${{ steps.committag.outputs.PREV_TAG }}..HEAD"
-                else
-                  RANGE="HEAD"
-                fi
+      - name: Gather commits since previous tag
+        run: |
+          PREV_TAG="${{ steps.committag.outputs.PREV_TAG }}"
 
-                echo "Using range: $RANGE"
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="$PREV_TAG..HEAD"
+          else
+            RANGE="HEAD"
+          fi
 
-                git log "$RANGE" \
-                  --pretty=format:'%s' \
-                  --no-merges > commit_log.txt
+          echo "Using range: $RANGE"
 
-                echo "===== Commits ====="
-                cat commit_log.txt
+          git log "$RANGE" \
+            --pretty=format:'%s' \
+            --no-merges \
+            --invert-grep \
+            --grep='^chore: bump version' \
+            > commit_log.txt
 
-            - name: Generate release notes with OpenCode
-              continue-on-error: true
-              env:
-                OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
-              run: |
-                PROMPT=$(cat <<'EOF'
-                Write concise, user-facing GitHub release notes.
+          if [ ! -s commit_log.txt ]; then
+            echo "No user-facing changes." > commit_log.txt
+          fi
 
-                Group changes under:
-                - Features
-                - Bug Fixes
-                - Maintenance
+          echo "===== COMMITS ====="
+          cat commit_log.txt
 
-                Omit any empty section.
+      # --------------------------------------------------------------------------
+      # Generate Release Notes
+      # --------------------------------------------------------------------------
 
-                Use ONLY the commits below.
-                Don't invent features.
-                Keep the wording concise and suitable for GitHub Releases.
-                Output Markdown only.
+      - name: Generate release notes
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          PROMPT=$(cat <<'EOF'
+          Write concise, user-facing GitHub release notes.
 
-                Commits:
-                EOF
-                )
+          Group changes under:
+          - Features
+          - Bug Fixes
+          - Maintenance
 
-                PROMPT="$PROMPT
+          Omit any empty section.
 
-                $(cat commit_log.txt)"
+          Use ONLY the commits below.
+          Don't invent features.
+          Output Markdown only.
 
-                echo "===== Prompt ====="
-                echo "$PROMPT"
+          Commits:
+          EOF
+          )
 
-                opencode run "$PROMPT" \
-                  --model opencode/mimo-v2.5-free \
-                  --print-logs \
-                  | tee release_notes.md
+          PROMPT="$PROMPT
 
-                echo "===== Generated Release Notes ====="
-                cat release_notes.md
+          $(cat commit_log.txt)"
 
-            # --------------------------------------------------------------------------
-            # Fallback — if OpenCode failed
-            # --------------------------------------------------------------------------
+          opencode run "$PROMPT" \
+            --model opencode/mimo-v2.5-free \
+            --print-logs \
+            | tee release_notes.md
 
-            - name: Fallback release notes
-              run: |
-                if [ ! -s release_notes.md ]; then
-                  echo "OpenCode failed. Falling back to commit list."
+      - name: Fallback release notes
+        run: |
+          if [ ! -s release_notes.md ]; then
+            cat > release_notes.md <<EOF
+          ## What's Changed
 
-                  cat > release_notes.md <<EOF
-                ## What's Changed
+          $(sed 's/^/- /' commit_log.txt)
+          EOF
+          fi
 
-                $(sed 's/^/- /' commit_log.txt)
-                EOF
-                fi
+      - name: Print release notes
+        run: |
+          echo "===== RELEASE NOTES ====="
+          cat release_notes.md
+
+      # --------------------------------------------------------------------------
+      # Build
+      # --------------------------------------------------------------------------
+
+      - name: Build GitHub APK
+        run: ./gradlew assembleGithubRelease
+
+      - name: Build Play Store AAB
+        run: ./gradlew bundlePlaystoreRelease
 
       # --------------------------------------------------------------------------
       # Draft GitHub Release
