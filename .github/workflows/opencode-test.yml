@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -24,7 +25,6 @@ jobs:
           opencode run --help
 
       - name: Gather commits since previous tag
-        id: commits
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
 
@@ -43,6 +43,10 @@ jobs:
             --grep='^chore: bump version' \
             > commit_log.txt
 
+          if [ ! -s commit_log.txt ]; then
+            echo "No user-facing changes." > commit_log.txt
+          fi
+
           echo "===== COMMITS ====="
           cat commit_log.txt
 
@@ -51,30 +55,26 @@ jobs:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           PROMPT=$(cat <<'EOF'
-Write concise, user-facing GitHub release notes.
+          Write concise, user-facing GitHub release notes.
 
-Group changes under:
-- Features
-- Bug Fixes
-- Maintenance
+          Group changes under:
+          - Features
+          - Bug Fixes
+          - Maintenance
 
-Omit any empty section.
+          Omit any empty section.
 
-Use ONLY the commits below.
-Don't invent features.
-Keep the wording concise and suitable for GitHub Releases.
-Output Markdown only.
+          Use ONLY the commits below.
+          Don't invent features.
+          Output Markdown only.
 
-Commits:
-EOF
-)
+          Commits:
+          EOF
+          )
 
           PROMPT="$PROMPT
 
-$(cat commit_log.txt)"
-
-          echo "===== PROMPT ====="
-          echo "$PROMPT"
+          $(cat commit_log.txt)"
 
           opencode run "$PROMPT" \
             --model opencode/mimo-v2.5-free \
@@ -82,17 +82,11 @@ $(cat commit_log.txt)"
             | tee release_notes.md
 
       - name: Print release notes
-        if: always()
         run: |
-          echo ""
-          echo "========================================"
-          echo "Generated Release Notes"
-          echo "========================================"
-          cat release_notes.md || true
-          echo "========================================"
+          echo "===== RELEASE NOTES ====="
+          cat release_notes.md
 
-      - name: Upload release notes
-        if: always()
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-notes
