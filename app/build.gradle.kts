@@ -199,6 +199,9 @@ tasks.matching { it.name.contains("Github", ignoreCase = true) && it.name.contai
 // Retain ProGuard/R8 mapping files for crash deobfuscation across releases.
 // After each release build, the mapping file is copied to a versioned archive
 // so crash reports from any published version can be deobfuscated.
+// Capture version at config time (avoids serializing the android extension for cache).
+val archiveVersionName = android.defaultConfig.versionName.orNull ?: "unknown"
+val archiveVersionCode = android.defaultConfig.versionCode.orNull ?: 0
 val archiveMapping by tasks.registering {
     group = "Reporting"
     description = "Archive all release ProGuard mapping files with version info"
@@ -210,7 +213,7 @@ val archiveMapping by tasks.registering {
                 val archiveDir = layout.buildDirectory.dir("outputs/mapping/archive").get().asFile
                 archiveDir.mkdirs()
                 mappingFile.copyTo(
-                    File(archiveDir, "mapping-${android.defaultConfig.versionName}-${android.defaultConfig.versionCode}-$variant.txt"),
+                    File(archiveDir, "mapping-$archiveVersionName-$archiveVersionCode-$variant.txt"),
                     overwrite = true
                 )
             }
