@@ -3,6 +3,7 @@ import android.accounts.Account
 import android.content.Context
 import com.google.android.gms.auth.GoogleAuthUtil
 import kotlinx.coroutines.runBlocking
+import okhttp3.CertificatePinner
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
@@ -67,6 +68,12 @@ class RetrofitClient(
         .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .addInterceptor(createAuthInterceptor())
         .addInterceptor(loggingInterceptor)
+        .certificatePinner(
+            CertificatePinner.Builder()
+                .add("gmail.googleapis.com", "sha256/nXwcnGolHhfg3P1ClcpHPcGcIPsiRwLjJ+x8YgMwg7o=")
+                .add("graph.microsoft.com", "sha256//50xvqsFjMGBJlU8IKG5gTjtHCv6clr/vgJf2CJanqI=")
+                .build()
+        )
         .build()
     private val gsonConverter = GsonConverterFactory.create()
     private val gmailRetrofit = Retrofit.Builder()

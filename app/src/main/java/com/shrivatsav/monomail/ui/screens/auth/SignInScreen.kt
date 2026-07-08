@@ -259,6 +259,19 @@ fun SignInScreen(
                     modifier = Modifier.clickable { onNavigateToLegal("tos") },
                 )
             }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "monomail.millosaurs.me",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable {
+                    try {
+                        context.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://monomail.millosaurs.me"))
+                        )
+                    } catch (_: Exception) {}
+                },
+            )
         }
 
         SnackbarHost(
