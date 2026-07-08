@@ -98,12 +98,16 @@ jobs:
           git push
           git push --tags
 
-          # Rename and release
+          # Rename APK
           cp app/build/outputs/apk/github/release/app-github-release.apk \
              "Github-release-v${{ steps.version.outputs.VERSION }}.apk"
 
+          # Draft release — only you can see it.
+          # Download the AAB from here for Play Console, then publish to make the APK public.
           gh release create "v${{ steps.version.outputs.VERSION }}" \
             "Github-release-v${{ steps.version.outputs.VERSION }}.apk" \
+            "app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab" \
+            --draft \
             --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
