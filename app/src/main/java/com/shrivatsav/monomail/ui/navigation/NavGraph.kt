@@ -226,6 +226,7 @@ fun NavGraph(
             }
             composable(Screen.SignIn.route) {
                 val vm: SignInViewModel = hiltViewModel()
+                val ctx = LocalContext.current
                 SignInScreen(
                     viewModel      = vm,
                     onSignInSuccess = {
@@ -234,7 +235,9 @@ fun NavGraph(
                         }
                     },
                     onNavigateToLegal = { type ->
-                        navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
+                        val url = if (type == "privacy") "https://monomail.millosaurs.me/pp" else "https://monomail.millosaurs.me/tos"
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+                        try { ctx.startActivity(intent) } catch (_: Exception) {}
                     },
                     onNavigateToImapSetup = {
                         navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
@@ -292,11 +295,14 @@ fun NavGraph(
             composable(Screen.Settings.route) {
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
                 val accounts by authManager.accountsFlow.collectAsState(initial = emptyList())
+                val ctx = LocalContext.current
                 SettingsScreen(
                     viewModel = settingsViewModel,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToLegal = { type ->
-                        navController.navigate(Screen.Legal.createRoute(type)) { launchSingleTop = true }
+                        val url = if (type == "privacy") "https://monomail.millosaurs.me/pp" else "https://monomail.millosaurs.me/tos"
+                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+                        try { ctx.startActivity(intent) } catch (_: Exception) {}
                     },
                     onNavigateToPgpKeys = {
                         navController.navigate(Screen.PgpKeys.route) { launchSingleTop = true }

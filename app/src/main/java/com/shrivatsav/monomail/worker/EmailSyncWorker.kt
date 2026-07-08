@@ -213,7 +213,7 @@ class EmailSyncWorker @AssistedInject constructor(
             .addAction(snoozeAction)
             .setAutoCancel(true)
 
-        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+        NotificationManagerCompat.from(context).notify(accountId, notificationId, builder.build())
         Log.i("EmailSyncWorker", "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")
     }
 

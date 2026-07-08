@@ -6,11 +6,17 @@ import com.shrivatsav.monomail.data.remote.BatchModifyMessagesRequest
 import com.shrivatsav.monomail.data.remote.GmailApi
 import com.shrivatsav.monomail.data.remote.ModifyThreadRequest
 import com.shrivatsav.monomail.data.remote.SendMessageRequest
+import jakarta.mail.Message
+import jakarta.mail.Multipart
+import jakarta.mail.Session
+import jakarta.mail.internet.InternetAddress
+import jakarta.mail.internet.MimeBodyPart
+import jakarta.mail.internet.MimeMessage
+import jakarta.mail.internet.MimeMultipart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.util.Properties
 class GmailProvider(
     private val api: GmailApi,
     private val context: Context
@@ -53,51 +59,32 @@ class GmailProvider(
             query = finalQuery
         )
         val threadRefs = response.threads.orEmpty()
-        val limitedParallelism = Dispatchers.IO.limitedParallelism(5)
-        val rawThreads = coroutineScope {
-            threadRefs.map { ref ->
-                async(limitedParallelism) {
-                    try {
-                        api.getThread(ref.id)
-                    } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
-                        throw e
-                    } catch (e: Exception) {
-                        e.printStackTrace()
-                        null
-                    }
-                }
-            }.awaitAll().filterNotNull()
-        }
-        val providerThreads = rawThreads.map { rawThread ->
-            val messages = rawThread.messages.orEmpty().map { msg ->
-                val email = msg.toEmail()
-                val labels = email.labels
-                val folders = mutableSetOf<EmailFolder>()
-                if ("INBOX" in labels) folders.add(EmailFolder.INBOX)
-                if ("SENT" in labels) folders.add(EmailFolder.SENT)
-                if ("STARRED" in labels) folders.add(EmailFolder.STARRED)
-                if ("TRASH" in labels) folders.add(EmailFolder.TRASH)
-                if ("SPAM" in labels) folders.add(EmailFolder.SPAM)
-                if ("INBOX" !in labels && "TRASH" !in labels && "SENT" !in labels && "SPAM" !in labels) folders.add(EmailFolder.ARCHIVE)
-                ProviderMessage(
-                    id = email.id,
-                    threadId = email.threadId,
-                    subject = email.subject,
-                    from = email.from,
-                    fromEmail = email.fromEmail,
-                    to = email.to,
-                    cc = email.cc,
-                    bcc = email.bcc,
-                    snippet = email.snippet,
-                    body = email.body,
-                    date = email.date,
-                    isRead = email.isRead,
-                    isStarred = email.isStarred,
-                    folders = folders,
-                    attachments = email.attachments
+
+        // Single API call — use ThreadRef.snippet for list view, no N+1 getThread calls
+        val providerThreads = threadRefs.map { ref ->
+            ProviderThread(
+                threadId = ref.id,
+                messages = listOf(
+                    ProviderMessage(
+                        id = ref.id,
+                        threadId = ref.id,
+                        subject = "",
+                        from = "",
+                        fromEmail = "",
+                        to = "",
+                        cc = "",
+                        bcc = "",
+                        snippet = ref.snippet ?: "",
+                        body = "",
+                        bodyIsHtml = false,
+                        date = 0L,
+                        isRead = false,
+                        isStarred = false,
+                        folders = setOf(folder),
+                        attachments = emptyList()
+                    )
                 )
-            }
-            ProviderThread(rawThread.id, messages)
+            )
         }
         return ProviderThreadListResult(providerThreads, response.nextPageToken)
     }
@@ -119,7 +106,7 @@ class GmailProvider(
                 subject = email.subject,
                 from = email.from,
                 fromEmail = email.fromEmail,
-                to = email.to,
+                to = email.`to`,
                 cc = email.cc,
                 bcc = email.bcc,
                 snippet = email.snippet,
@@ -127,7 +114,7 @@ class GmailProvider(
                 date = email.date,
                 isRead = email.isRead,
                 isStarred = email.isStarred,
-                folders = folders,
+                folders = folders.toSet(),
                 attachments = email.attachments
             )
         }
@@ -144,7 +131,7 @@ class GmailProvider(
             } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
                 throw e
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("GmailProvider", "getAttachmentBytes error", e)
                 null
             }
         }
@@ -185,10 +172,11 @@ class GmailProvider(
             } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
                 throw e
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("GmailProvider", "batchMarkRead error", e)
             }
         }
     }
+
     override suspend fun sendEmail(
         from: String,
         to: String,
@@ -199,54 +187,41 @@ class GmailProvider(
         threadId: String?,
         attachments: List<EmailAttachment>
     ): String? {
-        val headers = buildString {
-            append("From: $from\r\n")
-            append("To: $to\r\n")
-            if (cc.isNotBlank()) append("Cc: $cc\r\n")
-            if (bcc.isNotBlank()) append("Bcc: $bcc\r\n")
-            append("Subject: $subject\r\n")
-            append("MIME-Version: 1.0\r\n")
+        val session = Session.getInstance(Properties())
+        val message = MimeMessage(session).apply {
+            setFrom(InternetAddress(from))
+            setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+            if (cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(cc))
+            if (bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(bcc))
+            setSubject(subject, "utf-8")
             if (attachments.isEmpty()) {
-                append("Content-Type: text/html; charset=UTF-8\r\n")
-                append("\r\n")
-                append(body)
+                setContent(body, "text/html; charset=utf-8")
             } else {
-                val boundary = "==Multipart_Boundary_x${System.currentTimeMillis()}x"
-                append("Content-Type: multipart/mixed; boundary=\"$boundary\"\r\n")
-                append("\r\n")
-                append("--$boundary\r\n")
-                append("Content-Type: text/html; charset=UTF-8\r\n")
-                append("\r\n")
-                append(body)
-                append("\r\n")
-                for (attachment in attachments) {
-                    append("--$boundary\r\n")
-                    append("Content-Type: ${attachment.mimeType}; name=\"${attachment.name}\"\r\n")
-                    append("Content-Disposition: attachment; filename=\"${attachment.name}\"\r\n")
-                    append("Content-Transfer-Encoding: base64\r\n")
-                    append("\r\n")
-                    val bytes = context.contentResolver.openInputStream(attachment.uri)?.use { it.readBytes() }
+                val multipart = MimeMultipart()
+                val textPart = MimeBodyPart()
+                textPart.setContent(body, "text/html; charset=utf-8")
+                multipart.addBodyPart(textPart)
+                for (att in attachments) {
+                    val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() }
                     if (bytes != null) {
-                        val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.DEFAULT).replace("\n", "\r\n")
-                        append(base64)
-                        if (!base64.endsWith("\n") && !base64.endsWith("\r\n")) {
-                            append("\r\n")
-                        }
+                        val attPart = MimeBodyPart()
+                        val source = jakarta.mail.util.ByteArrayDataSource(bytes, att.mimeType)
+                        attPart.dataHandler = jakarta.activation.DataHandler(source)
+                        attPart.fileName = att.name
+                        multipart.addBodyPart(attPart)
                     }
                 }
-                append("--$boundary--\r\n")
+                setContent(multipart)
             }
+            saveChanges()
         }
+
+        val rawBytes = ByteArrayOutputStream().also { message.writeTo(it) }.toByteArray()
         val raw = android.util.Base64.encodeToString(
-            headers.toByteArray(),
+            rawBytes,
             android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
         )
-        val response = api.sendMessage(
-            SendMessageRequest(
-                raw = raw,
-                threadId = threadId
-            )
-        )
+        val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = threadId))
         return response.threadId
     }
 

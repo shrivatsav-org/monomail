@@ -145,7 +145,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val repository = deps.emailRepository()
 
         createReplyStatusChannel(context)
-        showReplyNotification(context, replyNotificationId, "Sending reply...", isProgress = true)
+        showReplyNotification(context, accountId, replyNotificationId, "Sending reply...", isProgress = true)
 
         val result = repository.sendEmail(
             from = account.email,
@@ -159,10 +159,10 @@ class NotificationActionReceiver : BroadcastReceiver() {
         )
 
         if (result.isSuccess) {
-            showReplyNotification(context, replyNotificationId, "Reply sent", isProgress = false)
+            showReplyNotification(context, accountId, replyNotificationId, "Reply sent", isProgress = false)
         } else {
             showReplyNotification(
-                context, replyNotificationId,
+                context, accountId, replyNotificationId,
                 "Failed to send reply", isProgress = false
             )
         }
@@ -198,7 +198,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .setTimeoutAfter(60000)
 
         NotificationManagerCompat.from(context).notify(
-            UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
+            ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
         )
     }
 
@@ -211,7 +211,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         deps.emailRepository().unarchiveThread(threadId, explicitAccountId = accountId)
 
         val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
-        NotificationManagerCompat.from(context).cancel(notificationId)
+        NotificationManagerCompat.from(context).cancel(ARCHIVE_CONFIRM_CHANNEL, notificationId)
     }
 
     private suspend fun handleSnooze(context: Context, intent: Intent) {
@@ -245,7 +245,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .setTimeoutAfter(60000)
 
         NotificationManagerCompat.from(context).notify(
-            UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
+            ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
         )
     }
 
@@ -258,11 +258,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
         deps.emailRepository().unsnoozeThread(threadId, explicitAccountId = accountId)
 
         val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
-        NotificationManagerCompat.from(context).cancel(notificationId)
+        NotificationManagerCompat.from(context).cancel(ARCHIVE_CONFIRM_CHANNEL, notificationId)
     }
 
     private fun showReplyNotification(
-        context: Context, notificationId: Int, text: String, isProgress: Boolean
+        context: Context, accountId: String, notificationId: Int, text: String, isProgress: Boolean
     ) {
         val builder = NotificationCompat.Builder(context, REPLY_STATUS_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
@@ -274,7 +274,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             builder.setProgress(0, 0, true).setOngoing(true)
         }
 
-        NotificationManagerCompat.from(context).notify(notificationId, builder.build())
+        NotificationManagerCompat.from(context).notify(REPLY_STATUS_CHANNEL, notificationId, builder.build())
     }
 
     private fun createReplyStatusChannel(context: Context) {

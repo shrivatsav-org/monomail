@@ -39,8 +39,13 @@ class ImapProvider(
     override val providerName: String = "imap"
 
     private val folderNamesCache = ConcurrentHashMap<EmailFolder, String>()
+    @Volatile private var cachedStore: Store? = null
 
     private suspend fun getStore(): Store {
+        cachedStore?.let { s ->
+            if (s.isConnected) return s
+            // Connection dropped — fall through to reconnect
+        }
         val props = Properties()
         val protocol = if (config.imapSsl) "imaps" else "imap"
         props["mail.store.protocol"] = protocol
@@ -60,21 +65,23 @@ class ImapProvider(
         val newStore = session.getStore(protocol)
         newStore.connect(config.username, password)
 
-        // Populate folder cache
-        folderNamesCache.clear()
-        val defaultFolder = newStore.defaultFolder
-        val folders = defaultFolder.list("*")
-        for (f in folders) {
-            val name = f.fullName
-            val lower = name.lowercase()
-            if (lower.endsWith("inbox") || lower == "inbox") folderNamesCache[EmailFolder.INBOX] = name
-            else if (lower.contains("sent") || lower == "sent items" || lower == "sent messages") folderNamesCache[EmailFolder.SENT] = name
-            else if (lower.contains("archive") || lower == "all mail") folderNamesCache[EmailFolder.ARCHIVE] = name
-            else if (lower.contains("trash") || lower == "deleted messages" || lower == "deleted items" || lower == "bin") folderNamesCache[EmailFolder.TRASH] = name
-            else if (lower.contains("spam") || lower == "junk") folderNamesCache[EmailFolder.SPAM] = name
+        // Populate folder cache only on first connection (avoid the clear+repopulate race)
+        if (folderNamesCache.isEmpty()) {
+            val defaultFolder = newStore.defaultFolder
+            val folders = defaultFolder.list("*")
+            for (f in folders) {
+                val name = f.fullName
+                val lower = name.lowercase()
+                if (lower.endsWith("inbox") || lower == "inbox") folderNamesCache[EmailFolder.INBOX] = name
+                else if (lower.contains("sent") || lower == "sent items" || lower == "sent messages") folderNamesCache[EmailFolder.SENT] = name
+                else if (lower.contains("archive") || lower == "all mail") folderNamesCache[EmailFolder.ARCHIVE] = name
+                else if (lower.contains("trash") || lower == "deleted messages" || lower == "deleted items" || lower == "bin") folderNamesCache[EmailFolder.TRASH] = name
+                else if (lower.contains("spam") || lower == "junk") folderNamesCache[EmailFolder.SPAM] = name
+            }
+            if (!folderNamesCache.containsKey(EmailFolder.INBOX)) folderNamesCache[EmailFolder.INBOX] = "INBOX"
         }
-        if (!folderNamesCache.containsKey(EmailFolder.INBOX)) folderNamesCache[EmailFolder.INBOX] = "INBOX"
 
+        cachedStore = newStore
         return newStore
     }
 
@@ -163,32 +170,17 @@ class ImapProvider(
                 val isRead = msg.isSet(Flags.Flag.SEEN)
                 val isStarred = msg.isSet(Flags.Flag.FLAGGED)
 
-                // Parse body and attachments inline for instant display
+                // Envelope-only: extract snippet and attachment metadata, skip full body parsing
                 val attachments = mutableListOf<EmailAttachmentInfo>()
-                var htmlBody = ""
-                var plainBody = ""
-                var bodyIsHtml = false
-                val cidMap = mutableMapOf<String, String>()
+                val snippet = try { extractSnippet(msg) } catch (_: Exception) { "" }
 
                 try {
-                    fun processPart(part: Part) {
+                    fun collectAttachments(part: Part) {
                         try {
                             val disposition = part.disposition
                             val contentType = part.contentType.lowercase()
-
-                            // Collect inline images (CID references)
                             val contentId = part.getHeader("Content-ID")?.firstOrNull()
                                 ?.removeSurrounding("<", ">")
-                            if (contentId != null && contentType.startsWith("image/")) {
-                                try {
-                                    val stream = part.inputStream
-                                    val bytes = stream.readBytes()
-                                    val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                                    cidMap[contentId] = "data:$contentType;base64,$base64"
-                                } catch (e: Exception) {
-                                    android.util.Log.w("ImapProvider", "Failed to read inline image: ${e.message}")
-                                }
-                            }
 
                             if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
                                 (disposition == null && contentType.contains("application/") && contentId == null)) {
@@ -202,11 +194,6 @@ class ImapProvider(
                                         size = part.size
                                     )
                                 )
-                            } else if (part.isMimeType("text/plain") && plainBody.isEmpty()) {
-                                plainBody = part.getBodyText() ?: ""
-                            } else if (part.isMimeType("text/html") && htmlBody.isEmpty()) {
-                                htmlBody = part.getBodyText() ?: ""
-                                bodyIsHtml = true
                             } else if (part.isMimeType("multipart/*")) {
                                 val content = part.content
                                 val mp = when (content) {
@@ -218,43 +205,18 @@ class ImapProvider(
                                 }
                                 if (mp != null) {
                                     for (i in 0 until mp.count) {
-                                        processPart(mp.getBodyPart(i))
+                                        collectAttachments(mp.getBodyPart(i))
                                     }
                                 }
                             }
                         } catch (e: Exception) {
-                            android.util.Log.w("ImapProvider", "listThreads processPart error: ${e.message}")
+                            android.util.Log.w("ImapProvider", "listThreads collectAttachments error: ${e.message}")
                         }
                     }
-                    processPart(msg)
+                    collectAttachments(msg)
                 } catch (e: Exception) {
-                    android.util.Log.w("ImapProvider", "listThreads body parse error: ${e.message}")
+                    android.util.Log.w("ImapProvider", "listThreads attachment parse error: ${e.message}")
                 }
-
-                var body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
-                // Replace CID references with inline data URIs
-                cidMap.forEach { (cid, dataUri) ->
-                    body = body.replace("cid:$cid", dataUri)
-                }
-                val cleanPlain = plainBody
-                    .replace(Regex("https?://\\S+"), "")
-                    .replace(Regex("={3,}"), "")
-                    .replace(Regex("_{3,}"), "")
-                    .replace(Regex("\\[image:[^\\]]+\\]", RegexOption.IGNORE_CASE), "")
-                    .replace(Regex("\\s+"), " ")
-                    .trim()
-
-                val cleanHtml = htmlBody
-                    .replace(Regex("<style[^>]*>.*?</style>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), " ")
-                    .replace(Regex("<script[^>]*>.*?</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), " ")
-                    .replace(Regex("<[^>]+>"), " ")
-                    .replace(Regex("&[a-zA-Z0-9#]+;"), " ")
-                    .replace(Regex("https?://\\S+"), "")
-                    .replace(Regex("\\s+"), " ")
-                    .trim()
-
-                val snippetSource = if (cleanPlain.length > 15) cleanPlain else cleanHtml.ifEmpty { cleanPlain }
-                val snippet = snippetSource.take(150).trim()
 
                 val providerMsg = ProviderMessage(
                     id = messageId,
@@ -266,8 +228,8 @@ class ImapProvider(
                     cc = cc,
                     bcc = "",
                     snippet = snippet,
-                    body = body,
-                    bodyIsHtml = bodyIsHtml,
+                    body = "",
+                    bodyIsHtml = false,
                     date = date,
                     isRead = isRead,
                     isStarred = isStarred,
@@ -366,18 +328,7 @@ class ImapProvider(
                                 var bodyIsHtml = false
                                 val cidMap = mutableMapOf<String, String>()
 
-                                val rawStream = java.io.ByteArrayOutputStream()
-                                msg.writeTo(rawStream)
-
-                                val tempProps = java.util.Properties().apply {
-                                    put("mail.mime.multipart.ignoreexistingboundaryparameter", "true")
-                                    put("mail.mime.multipart.ignoremissingboundaryparameter", "true")
-                                    put("mail.mime.base64.ignoreerrors", "true")
-                                    put("mail.mime.decodetext.strict", "false")
-                                }
-                                val tempSession = jakarta.mail.Session.getInstance(tempProps)
-                                val snapshot = jakarta.mail.internet.MimeMessage(tempSession, java.io.ByteArrayInputStream(rawStream.toByteArray()))
-
+                                // parse full body in-place (no wasteful writeTo + re-parse)
                                 fun processPart(part: Part) {
                                     val disposition = part.disposition
                                     val contentType = part.contentType.lowercase()
@@ -434,10 +385,9 @@ class ImapProvider(
                                     }
                                 }
 
-                                processPart(snapshot)
+                                processPart(msg)
 
                                 var body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
-                                // Replace CID references with inline data URIs
                                 cidMap.forEach { (cid, dataUri) ->
                                     body = body.replace("cid:$cid", dataUri)
                                 }
@@ -547,20 +497,22 @@ class ImapProvider(
             val destFolder = store.getFolder(targetName)
             if (!destFolder.exists()) destFolder.create(Folder.HOLDS_MESSAGES)
 
-            val srcName = getFolderName(EmailFolder.INBOX) ?: return@withContext
-            val srcFolder = store.getFolder(srcName)
-            if (!srcFolder.exists()) return@withContext
+            // Search all cached folders for this thread, not just INBOX
+            for (srcName in folderNamesCache.values) {
+                val srcFolder = store.getFolder(srcName)
+                if (!srcFolder.exists()) continue
 
-            srcFolder.open(Folder.READ_WRITE)
-            try {
-                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
-                if (messages.isNotEmpty()) {
-                    srcFolder.copyMessages(messages, destFolder)
-                    srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
-                    srcFolder.expunge()
+                srcFolder.open(Folder.READ_WRITE)
+                try {
+                    val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                    if (messages.isNotEmpty()) {
+                        srcFolder.copyMessages(messages, destFolder)
+                        srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
+                        srcFolder.expunge()
+                    }
+                } finally {
+                    srcFolder.close(true)
                 }
-            } finally {
-                srcFolder.close(true)
             }
         } finally {
             if (store.isConnected) store.close()
@@ -789,26 +741,23 @@ class ImapProvider(
 
         Transport.send(message)
 
-        // Save to SENT folder best-effort
-        val sentStore = try {
-            getStore()
-        } catch (_: Exception) { null }
-        if (sentStore != null) {
+        // Save to SENT folder best-effort, reusing the cached IMAP Store (no second connection)
+        val sentName = getFolderName(EmailFolder.SENT)
+        if (sentName != null) {
             try {
-                val sentName = getFolderName(EmailFolder.SENT)
-                if (sentName != null) {
-                    val sentFolder = sentStore.getFolder(sentName)
-                    if (sentFolder.exists()) {
-                        sentFolder.open(Folder.READ_WRITE)
+                val imapStore = getStore()
+                val sentFolder = imapStore.getFolder(sentName)
+                if (sentFolder.exists()) {
+                    sentFolder.open(Folder.READ_WRITE)
+                    try {
                         message.setFlag(Flags.Flag.SEEN, true)
                         sentFolder.appendMessages(arrayOf(message))
+                    } finally {
                         sentFolder.close(false)
                     }
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
-            } finally {
-                if (sentStore.isConnected) sentStore.close()
+                android.util.Log.w("ImapProvider", "Failed to save to Sent folder", e)
             }
         }
 

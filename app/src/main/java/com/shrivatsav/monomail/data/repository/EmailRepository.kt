@@ -135,8 +135,8 @@ class EmailRepository(
         emailDao.getAllTrashEmails().map { list -> list.map { it.toDomainModel() } }
     fun getAllSpamEmailsFlow(): Flow<List<Email>> =
         emailDao.getAllSpamEmails().map { list -> list.map { it.toDomainModel() } }
-    suspend fun getEmailById(id: String): Email? {
-        val activeAccountId = getActiveAccountId()
+    suspend fun getEmailById(id: String, accountId: String? = null): Email? {
+        val activeAccountId = accountId ?: getActiveAccountId()
         return emailDao.getEmailById(id, activeAccountId)?.toDomainModel()
     }
     fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> = flow {
