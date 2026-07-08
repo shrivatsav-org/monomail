@@ -11,8 +11,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install OpenCode
+        run: npm install -g opencode-ai
+
+      - name: Verify OpenCode
         run: |
-          npm install -g opencode-ai
+          opencode --version
+          opencode run --help
 
       - name: Create sample commits
         run: |
@@ -26,7 +30,8 @@ jobs:
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
-          PROMPT="Write concise, user-facing GitHub release notes.
+          PROMPT=$(cat <<'EOF'
+          Write concise, user-facing GitHub release notes.
 
           Group changes under:
           - Features
@@ -40,17 +45,29 @@ jobs:
           Output Markdown only.
 
           Commits:
+          EOF
+          )
+
+          PROMPT="$PROMPT
           $(cat commit_log.txt)"
 
           echo "===== PROMPT ====="
           echo "$PROMPT"
 
-          opencode "$PROMPT" \
+          opencode run "$PROMPT" \
             --model opencode/mimo-v2.5-free \
-            --print-logs
+            --print-logs \
+            | tee release_notes.md
 
       - name: Show output
         if: always()
         run: |
-          ls -la
-          test -f release_notes.md && cat release_notes.md || true
+          echo "===== release_notes.md ====="
+          cat release_notes.md || true
+
+      - name: Upload release notes
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-notes
+          path: release_notes.md
