@@ -1,0 +1,92 @@
+name: Bug Report
+description: File a bug report to help us improve Monomail
+title: "[Bug]: "
+labels: ["bug"]
+assignees: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to fill out this bug report!
+
+  - type: input
+    id: version
+    attributes:
+      label: App Version
+      description: What version of Monomail are you running? (See Settings → About)
+      placeholder: "e.g. 1.7.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: flavor
+    attributes:
+      label: Build Flavor
+      description: Which build are you using?
+      options:
+        - GitHub
+        - Play Store
+        - Self-built (debug)
+        - Self-built (release)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Email Provider
+      options:
+        - Gmail
+        - Outlook
+        - IMAP
+        - N/A
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear and concise description of the bug.
+      placeholder: "What happened? What did you expect to happen?"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this issue?
+      placeholder: |
+        1. Go to '...'
+        2. Tap on '...'
+        3. Scroll to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output
+      description: Please copy and paste any relevant log output (logcat). This will be automatically formatted.
+      render: shell
+
+  - type: textarea
+    id: device
+    attributes:
+      label: Device & OS
+      description: What device and Android version are you using?
+      placeholder: "e.g. Pixel 8, Android 15"
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Confirmations
+      options:
+        - label: I have searched existing issues — this is not a duplicate
+          required: true
+        - label: I am running the latest version of Monomail
+          required: false
