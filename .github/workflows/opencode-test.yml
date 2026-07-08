@@ -3,12 +3,17 @@ name: Test OpenCode
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install OpenCode
         run: npm install -g opencode-ai
@@ -18,38 +23,55 @@ jobs:
           opencode --version
           opencode run --help
 
-      - name: Create sample commits
+      - name: Gather commits since previous tag
+        id: commits
         run: |
-          cat <<EOF > commit_log.txt
-          feat: add dark mode
-          fix: resolve login issue
-          chore: update dependencies
-          EOF
+          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
 
-      - name: Run OpenCode
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="$PREV_TAG..HEAD"
+          else
+            RANGE="HEAD"
+          fi
+
+          echo "Using range: $RANGE"
+
+          git log "$RANGE" \
+            --pretty=format:'%s' \
+            --no-merges \
+            --invert-grep \
+            --grep='^chore: bump version' \
+            > commit_log.txt
+
+          echo "===== COMMITS ====="
+          cat commit_log.txt
+
+      - name: Generate release notes
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
         run: |
           PROMPT=$(cat <<'EOF'
-          Write concise, user-facing GitHub release notes.
+Write concise, user-facing GitHub release notes.
 
-          Group changes under:
-          - Features
-          - Bug Fixes
-          - Maintenance
+Group changes under:
+- Features
+- Bug Fixes
+- Maintenance
 
-          Omit any empty section.
+Omit any empty section.
 
-          Use ONLY the commits below.
-          Don't invent features.
-          Output Markdown only.
+Use ONLY the commits below.
+Don't invent features.
+Keep the wording concise and suitable for GitHub Releases.
+Output Markdown only.
 
-          Commits:
-          EOF
-          )
+Commits:
+EOF
+)
 
           PROMPT="$PROMPT
-          $(cat commit_log.txt)"
+
+$(cat commit_log.txt)"
 
           echo "===== PROMPT ====="
           echo "$PROMPT"
@@ -59,11 +81,15 @@ jobs:
             --print-logs \
             | tee release_notes.md
 
-      - name: Show output
+      - name: Print release notes
         if: always()
         run: |
-          echo "===== release_notes.md ====="
+          echo ""
+          echo "========================================"
+          echo "Generated Release Notes"
+          echo "========================================"
           cat release_notes.md || true
+          echo "========================================"
 
       - name: Upload release notes
         if: always()
