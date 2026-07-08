@@ -73,6 +73,13 @@ internal fun AboutSettingsScreen(
             )
             CardDivider()
             InfoRow(
+                icon = Icons.Rounded.Language,
+                title = "Website",
+                value = "",
+                onClick = { uriHandler.openUri("https://monomail.millosaurs.me") }
+            )
+            CardDivider()
+            InfoRow(
                 icon = Icons.Rounded.PrivacyTip,
                 title = "Privacy Policy",
                 value = "",

@@ -203,7 +203,7 @@ class OutlookProvider(
                     android.util.Base64.decode(it, android.util.Base64.DEFAULT)
                 }
             } catch (e: Exception) {
-                e.printStackTrace()
+                android.util.Log.e("OutlookProvider", "getAttachmentBytes error", e)
                 null
             }
         }
