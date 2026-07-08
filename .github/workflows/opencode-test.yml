@@ -1,0 +1,56 @@
+name: Test OpenCode
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install OpenCode
+        run: |
+          npm install -g opencode-ai
+
+      - name: Create sample commits
+        run: |
+          cat <<EOF > commit_log.txt
+          feat: add dark mode
+          fix: resolve login issue
+          chore: update dependencies
+          EOF
+
+      - name: Run OpenCode
+        env:
+          OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+        run: |
+          PROMPT="Write concise, user-facing GitHub release notes.
+
+          Group changes under:
+          - Features
+          - Bug Fixes
+          - Maintenance
+
+          Omit any empty section.
+
+          Use ONLY the commits below.
+          Don't invent features.
+          Output Markdown only.
+
+          Commits:
+          $(cat commit_log.txt)"
+
+          echo "===== PROMPT ====="
+          echo "$PROMPT"
+
+          opencode "$PROMPT" \
+            --model opencode/mimo-v2.5-free \
+            --print-logs
+
+      - name: Show output
+        if: always()
+        run: |
+          ls -la
+          test -f release_notes.md && cat release_notes.md || true
