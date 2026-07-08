@@ -107,10 +107,3 @@ jobs:
             --generate-notes
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # --- AAB for Play Console (manual upload) --------------------------------
-      - name: Upload AAB artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: playstore-aab-v${{ steps.version.outputs.VERSION }}
-          path: app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
