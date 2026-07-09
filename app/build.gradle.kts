@@ -176,6 +176,7 @@ dependencies {
 
     // PGP — PGPainless (OpenPGP encryption)
     implementation(libs.pgpainless.core)
+    implementation(libs.androidx.webkit)
 
     // Hilt
     implementation(libs.hilt.android)
