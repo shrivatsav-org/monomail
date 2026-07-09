@@ -65,9 +65,6 @@ object AppModule {
         return { profile ->
             providerCache.getOrPut(profile.id) {
                 val profileRetrofit = RetrofitClient(
-                    tokenProvider = {
-                        runBlocking { accountManager.getAccounts().find { it.id == profile.id } }?.accessToken
-                    },
                     tokenRefresher = {
                         val currentProfile = runBlocking { accountManager.getAccounts().find { it.id == profile.id } }
                             ?: return@RetrofitClient null
@@ -108,6 +105,8 @@ object AppModule {
                         authManager.notifyReauthRequired(profile.email, profile.provider)
                     }
                 )
+                // Seed the cached token so the first request has credentials.
+                profileRetrofit.cachedToken.set(profile.accessToken.takeIf { it.isNotEmpty() })
                 when (profile.provider) {
                     "gmail" -> GmailProvider(profileRetrofit.gmailApi, context)
                     "outlook" -> OutlookProvider(profileRetrofit.outlookApi, context)
