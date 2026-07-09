@@ -17,6 +17,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import java.util.Locale
 class OutlookProvider(
     private val api: OutlookApi,
@@ -155,10 +156,18 @@ class OutlookProvider(
     }
     override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withContext(Dispatchers.IO) {
         ensureFolderIdCache()
-        val response = api.listMessages(
-            maxResults = 100,
-            filter = sanitizeFilter(threadId)
-        )
+        val response = try {
+            api.listMessages(
+                maxResults = 100,
+                filter = sanitizeFilter(threadId)
+            )
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
+        }
+        if (response.value.isEmpty()) {
+            throw ResourceNotFoundException("Thread $threadId not found — empty result set")
+        }
         val providerMessages = response.value.map { msg ->
             val date = messageDate(msg)
             val attachments = if (msg.hasAttachments == true) {

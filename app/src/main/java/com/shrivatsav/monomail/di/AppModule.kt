@@ -65,40 +65,38 @@ object AppModule {
         return { profile ->
             providerCache.getOrPut(profile.id) {
                 val profileRetrofit = RetrofitClient(
-                    tokenProvider = {
-                        runBlocking { accountManager.getAccounts().find { it.id == profile.id } }?.accessToken
-                    },
                     tokenRefresher = {
                         val currentProfile = runBlocking { accountManager.getAccounts().find { it.id == profile.id } }
                             ?: return@RetrofitClient null
                         try {
-                            when {
+                            val newToken = when {
                                 currentProfile.provider == "gmail" -> {
                                     val oldToken = currentProfile.accessToken
                                     if (oldToken.isNotEmpty()) {
                                         GoogleAuthUtil.clearToken(context, oldToken)
                                     }
-                                    val newToken = GoogleAuthUtil.getToken(
+                                    GoogleAuthUtil.getToken(
                                         context,
                                         Account(currentProfile.email, "com.google"),
                                         AuthManager.GMAIL_SCOPE
                                     )
-                                    runBlocking { authManager.updateAccessToken(currentProfile.copy(accessToken = newToken)) }
-                                    newToken
                                 }
                                 currentProfile.provider == "outlook" -> {
-                                    val newToken = runBlocking {
+                                    runBlocking {
                                         authManager.microsoftAuthManager.getAccessTokenSilently(currentProfile.id)
                                     }
-                                    if (newToken != null) {
-                                        runBlocking { authManager.updateAccessToken(currentProfile.copy(accessToken = newToken)) }
-                                    } else {
-                                        android.util.Log.w("AppModule", "Outlook silent token refresh returned null for ${currentProfile.id}")
-                                    }
-                                    newToken
                                 }
                                 else -> null
                             }
+                            if (newToken != null) {
+                                runBlocking { authManager.updateAccessToken(currentProfile.copy(accessToken = newToken)) }
+                                // Invalidate cache entry so the next provider factory call
+                                // creates a fresh RetrofitClient with the latest token.
+                                providerCache.remove(profile.id)
+                            } else if (currentProfile.provider == "outlook") {
+                                android.util.Log.w("AppModule", "Outlook silent token refresh returned null for ${currentProfile.id}")
+                            }
+                            newToken
                         } catch (e: Exception) {
                             android.util.Log.e("AppModule", "Token refresh failed for ${currentProfile.id}", e)
                             null
@@ -106,18 +104,33 @@ object AppModule {
                     },
                     onRefreshFailed = {
                         authManager.notifyReauthRequired(profile.email, profile.provider)
+                    },
+                    onHttpError = { code ->
+                        // Non-auth HTTP errors (e.g. 404 on a stale thread) are
+                        // propagated here for logging / downstream error handling.
+                        android.util.Log.w("AppModule", "HTTP $code for ${profile.id}")
                     }
                 )
+                // Seed the cached token so the first request has credentials.
+                profileRetrofit.cachedToken.set(profile.accessToken.takeIf { it.isNotEmpty() })
                 when (profile.provider) {
                     "gmail" -> GmailProvider(profileRetrofit.gmailApi, context)
                     "outlook" -> OutlookProvider(profileRetrofit.outlookApi, context)
                     "imap" -> {
-                        val configJson = SecurityUtil.decryptString(profile.accessToken)
-                            ?: throw IllegalStateException("Cannot decrypt IMAP config")
-                        val config = ImapAccountConfig.fromJson(configJson)
-                        val password = SecurityUtil.decryptString(profile.refreshToken)
-                            ?: throw IllegalStateException("Cannot decrypt IMAP password")
-                        ImapProvider(config, password, context)
+                        try {
+                            val configJson = SecurityUtil.decryptString(profile.accessToken)
+                                ?: throw IllegalStateException("Cannot decrypt IMAP config")
+                            val config = ImapAccountConfig.fromJson(configJson)
+                            val password = SecurityUtil.decryptString(profile.refreshToken)
+                                ?: throw IllegalStateException("Cannot decrypt IMAP password")
+                            ImapProvider(config, password, context)
+                        } catch (e: Exception) {
+                            android.util.Log.e("AppModule", "Failed to create IMAP provider for ${profile.id}", e)
+                            authManager.notifyReauthRequired(profile.email, "imap")
+                            // Re-throw so the provider factory crashes this call;
+                            // the re-auth notification lets the user know why.
+                            throw e
+                        }
                     }
                     else -> throw IllegalArgumentException("Unknown provider: ${profile.provider}")
                 }

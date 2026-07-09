@@ -7,6 +7,7 @@ import com.shrivatsav.monomail.data.local.PendingActionEntity
 import com.shrivatsav.monomail.data.local.PendingActionStatus
 import com.shrivatsav.monomail.data.local.PendingActionType
 import com.shrivatsav.monomail.data.provider.EmailProvider
+import com.shrivatsav.monomail.data.provider.ResourceNotFoundException
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -103,6 +104,9 @@ class ActionQueueManager @Inject constructor(
             }
             pendingActionDao.delete(action.id)
             Log.d(tag, "Completed ${action.actionType} for thread ${action.threadId}")
+        } catch (e: ResourceNotFoundException) {
+            Log.w(tag, "Resource gone for ${action.id} — already applied locally, deleting")
+            pendingActionDao.delete(action.id)
         } catch (e: RetrofitClient.AuthFailedException) {
             Log.w(tag, "Auth failure for ${action.id}, marking FAILED")
             pendingActionDao.updateStatus(action.id, PendingActionStatus.FAILED)

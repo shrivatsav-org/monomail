@@ -70,38 +70,67 @@ class AuthManager(
     }
     private suspend fun refreshCurrentToken() {
         val profile = _userProfile ?: return
-        try {
-            if (profile.provider == "gmail") {
-                val newToken = withContext(Dispatchers.IO) {
-                    GoogleAuthUtil.getToken(
-                        context,
-                        Account(profile.email, "com.google"),
-                        GMAIL_SCOPE
-                    )
+        var lastException: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                if (profile.provider == "gmail") {
+                    val newToken = withContext(Dispatchers.IO) {
+                        GoogleAuthUtil.getToken(
+                            context,
+                            Account(profile.email, "com.google"),
+                            GMAIL_SCOPE
+                        )
+                    }
+                    if (newToken != profile.accessToken) {
+                        updateAccessToken(profile.copy(accessToken = newToken))
+                    }
+                    return  // success
+                } else if (profile.provider == "outlook") {
+                    val initError = microsoftAuthManager.initialize()
+                    if (initError != null) {
+                        if (attempt >= 2) {
+                            notifyReauthRequired(profile.email, profile.provider)
+                            return
+                        }
+                        kotlinx.coroutines.delay(1000L * (1 shl attempt))
+                        return@repeat
+                    }
+                    val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
+                    if (newToken != null) {
+                        if (newToken != profile.accessToken) {
+                            updateAccessToken(profile.copy(accessToken = newToken))
+                        }
+                        return  // success
+                    }
+                    // null token from silent refresh — retry before reauth
+                    if (attempt >= 2) {
+                        notifyReauthRequired(profile.email, profile.provider)
+                        return
+                    }
+                    kotlinx.coroutines.delay(1000L * (1 shl attempt))
                 }
-                if (newToken != profile.accessToken) {
-                    val updated = profile.copy(accessToken = newToken)
-                    updateAccessToken(updated)
-                }
-            } else if (profile.provider == "outlook") {
-                val initError = microsoftAuthManager.initialize()
-                if (initError != null) {
-                    notifyReauthRequired(profile.email, profile.provider)
-                    return
-                }
-                val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
-                if (newToken != null && newToken != profile.accessToken) {
-                    val updated = profile.copy(accessToken = newToken)
-                    updateAccessToken(updated)
-                } else if (newToken == null) {
-                    // Silent token refresh failed — notify user to re-authenticate
-                    notifyReauthRequired(profile.email, profile.provider)
+            } catch (e: UserRecoverableAuthException) {
+                // Permanent — user must re-consent, don't retry
+                notifyReauthRequired(profile.email, profile.provider)
+                return
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < 2) {
+                    kotlinx.coroutines.delay(1000L * (1 shl attempt)) // 1s, 2s
                 }
             }
-        } catch (e: UserRecoverableAuthException) {
-            notifyReauthRequired(profile.email, profile.provider)
-        } catch (e: Exception) {
-            android.util.Log.w("AuthManager", "refreshCurrentToken failed", e)
+        }
+        // All retries exhausted — classify the final error
+        when (lastException) {
+            is java.net.SocketTimeoutException,
+            is java.net.UnknownHostException -> {
+                android.util.Log.w("AuthManager", "Transient network error after 3 retries", lastException)
+                // Don't reauth — transient, next sync may succeed
+            }
+            else -> {
+                android.util.Log.w("AuthManager", "Token refresh failed after 3 retries", lastException)
+                notifyReauthRequired(profile.email, profile.provider)
+            }
         }
     }
     suspend fun signIn(activityContext: Context): SignInResult {
@@ -260,14 +289,10 @@ class AuthManager(
                 )
             }
             val responseCode = withContext(Dispatchers.IO) {
-                try {
-                    val url = java.net.URL("https://gmail.googleapis.com/gmail/v1/users/me/profile")
-                    val connection = url.openConnection() as java.net.HttpURLConnection
-                    connection.setRequestProperty("Authorization", "Bearer $accessToken")
-                    connection.responseCode
-                } catch (e: Exception) {
-                    throw e
-                }
+                val url = java.net.URL("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+                val connection = url.openConnection() as java.net.HttpURLConnection
+                connection.setRequestProperty("Authorization", "Bearer $accessToken")
+                connection.responseCode
             }
             if (responseCode == 401 || responseCode == 403) {
                 accessToken = withContext(Dispatchers.IO) {
@@ -278,6 +303,10 @@ class AuthManager(
                         GMAIL_SCOPE
                     )
                 }
+            } else if (responseCode == 404) {
+                return SignInResult.Failure(Exception(
+                    "Account not found. It may have been deleted or disabled."
+                ))
             }
             val profile = UserProfile(
                 id          = "gmail_$email", 

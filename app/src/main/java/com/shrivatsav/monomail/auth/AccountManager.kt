@@ -9,6 +9,9 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import com.shrivatsav.monomail.security.SecurityUtil
@@ -24,6 +27,13 @@ class AccountManager(private val context: Context) {
         private val KEY_ACCESS_TOKEN = stringPreferencesKey("access_token")
     }
     private val gson = Gson()
+
+    // Emits true when SecurityUtil.decryptString fails (e.g. KeyStore corruption),
+    // allowing the UI to show a specific error instead of a silent empty state.
+    private val _decryptionFailed = MutableStateFlow(false)
+    val decryptionFailed: StateFlow<Boolean> = _decryptionFailed.asStateFlow()
+    fun clearDecryptionFailed() { _decryptionFailed.value = false }
+
     suspend fun getAccounts(): List<UserProfile> {
         val prefs = context.dataStore.data.first()
         val json = prefs[KEY_ACCOUNTS_JSON]
@@ -31,6 +41,7 @@ class AccountManager(private val context: Context) {
             val decryptedJson = SecurityUtil.decryptString(json)
             if (decryptedJson == null) {
                 Log.w("AccountManager", "Failed to decrypt accounts data — treating as corrupt")
+                _decryptionFailed.value = true
                 return emptyList()
             }
             val type = object : TypeToken<List<UserProfile>>() {}.type
@@ -66,6 +77,7 @@ class AccountManager(private val context: Context) {
                 val decryptedJson = SecurityUtil.decryptString(json)
                 if (decryptedJson == null) {
                     Log.w("AccountManager", "Failed to decrypt accounts in addAccount — treating as corrupt")
+                    _decryptionFailed.value = true
                     return@edit
                 }
                 gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
@@ -98,6 +110,7 @@ class AccountManager(private val context: Context) {
                 val decryptedJson = SecurityUtil.decryptString(json)
                 if (decryptedJson == null) {
                     Log.w("AccountManager", "Failed to decrypt accounts in removeAccount — treating as corrupt")
+                    _decryptionFailed.value = true
                     return@edit
                 }
                 val accounts = gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
@@ -115,6 +128,7 @@ class AccountManager(private val context: Context) {
         val decryptedJson = SecurityUtil.decryptString(json)
         if (decryptedJson == null) {
             Log.w("AccountManager", "Failed to decrypt accounts data in getActiveAccount")
+            _decryptionFailed.value = true
             return null
         }
         val type = object : TypeToken<List<UserProfile>>() {}.type
@@ -140,6 +154,7 @@ class AccountManager(private val context: Context) {
                 val decryptedJson = SecurityUtil.decryptString(json)
                 if (decryptedJson == null) {
                     Log.w("AccountManager", "Failed to decrypt accounts in updateAccountToken — treating as corrupt")
+                    _decryptionFailed.value = true
                     return@edit
                 }
                 val accounts = gson.fromJson(decryptedJson, Array<UserProfile>::class.java).toMutableList()
@@ -178,6 +193,7 @@ class AccountManager(private val context: Context) {
         val decryptedJson = SecurityUtil.decryptString(json)
         if (decryptedJson == null) {
             Log.w("AccountManager", "Failed to decrypt accounts data in accountsFlow")
+            _decryptionFailed.value = true
             return@map emptyList()
         }
         val type = object : TypeToken<List<UserProfile>>() {}.type
@@ -188,6 +204,7 @@ class AccountManager(private val context: Context) {
         val decryptedJson = SecurityUtil.decryptString(json)
         if (decryptedJson == null) {
             Log.w("AccountManager", "Failed to decrypt accounts data in activeAccountFlow")
+            _decryptionFailed.value = true
             return@map null
         }
         val type = object : TypeToken<List<UserProfile>>() {}.type

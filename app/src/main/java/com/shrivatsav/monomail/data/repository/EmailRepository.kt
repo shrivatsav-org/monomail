@@ -19,6 +19,7 @@ import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
+import com.shrivatsav.monomail.data.provider.ResourceNotFoundException
 import com.shrivatsav.monomail.data.provider.SendAsAlias
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
@@ -269,8 +270,8 @@ class EmailRepository(
         }
     }
     suspend fun refreshThread(threadId: String): Result<Unit> {
+        val accountId = resolveAccountId(threadId)
         return try {
-            val accountId = resolveAccountId(threadId)
             val provider = getProviderForAccount(accountId)
                 ?: return Result.failure(Exception("No active provider"))
 
@@ -297,6 +298,11 @@ class EmailRepository(
                 )
             }
             emailDao.insertEmails(emails.map { it.toEntity(accountId) })
+            Result.success(Unit)
+        } catch (e: ResourceNotFoundException) {
+            Log.w("EmailRepo", "Thread $threadId not found on server — removing stale local data")
+            threadDao.deleteThread(threadId, accountId)
+            emailDao.deleteThreadEmails(threadId, accountId)
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

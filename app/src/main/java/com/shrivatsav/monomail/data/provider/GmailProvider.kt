@@ -5,6 +5,7 @@ import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.remote.BatchModifyMessagesRequest
 import com.shrivatsav.monomail.data.remote.GmailApi
 import com.shrivatsav.monomail.data.remote.ModifyThreadRequest
+import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.data.remote.SendMessageRequest
 import jakarta.mail.Message
 import jakarta.mail.Multipart
@@ -15,6 +16,7 @@ import jakarta.mail.internet.MimeMessage
 import jakarta.mail.internet.MimeMultipart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import retrofit2.HttpException
 import java.io.ByteArrayOutputStream
 import java.util.Properties
 class GmailProvider(
@@ -89,7 +91,12 @@ class GmailProvider(
         return ProviderThreadListResult(providerThreads, response.nextPageToken)
     }
     override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withContext(Dispatchers.IO) {
-        val rawThread = api.getThread(threadId)
+        val rawThread = try {
+            api.getThread(threadId)
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
+        }
         val messages = rawThread.messages.orEmpty().map { msg ->
             val email = msg.toEmail()
             val labels = email.labels
@@ -137,32 +144,67 @@ class GmailProvider(
         }
     }
     override suspend fun archiveThread(threadId: String) {
-        api.modifyThread(threadId, ModifyThreadRequest(removeLabelIds = listOf("INBOX")))
+        try {
+            api.modifyThread(threadId, ModifyThreadRequest(removeLabelIds = listOf("INBOX")))
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
+        }
     }
     override suspend fun unarchiveThread(threadId: String) {
-        api.modifyThread(threadId, ModifyThreadRequest(addLabelIds = listOf("INBOX")))
+        try {
+            api.modifyThread(threadId, ModifyThreadRequest(addLabelIds = listOf("INBOX")))
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
+        }
     }
     override suspend fun trashThread(threadId: String) {
-        api.trashThread(threadId)
+        try {
+            api.trashThread(threadId)
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
+        }
     }
     override suspend fun restoreThread(threadId: String) {
-        api.untrashThread(threadId)
+        try {
+            api.untrashThread(threadId)
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
+        }
     }
     override suspend fun permanentlyDeleteThread(threadId: String) {
-        api.permanentlyDeleteThread(threadId)
+        try {
+            api.permanentlyDeleteThread(threadId)
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
+        }
     }
     override suspend fun toggleStar(threadId: String, starred: Boolean) {
-        if (starred) {
-            api.modifyThread(threadId, ModifyThreadRequest(addLabelIds = listOf("STARRED")))
-        } else {
-            api.modifyThread(threadId, ModifyThreadRequest(removeLabelIds = listOf("STARRED")))
+        try {
+            if (starred) {
+                api.modifyThread(threadId, ModifyThreadRequest(addLabelIds = listOf("STARRED")))
+            } else {
+                api.modifyThread(threadId, ModifyThreadRequest(removeLabelIds = listOf("STARRED")))
+            }
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
         }
     }
     override suspend fun markRead(threadId: String, read: Boolean) {
-        if (read) {
-            api.modifyThread(threadId, ModifyThreadRequest(removeLabelIds = listOf("UNREAD")))
-        } else {
-            api.modifyThread(threadId, ModifyThreadRequest(addLabelIds = listOf("UNREAD")))
+        try {
+            if (read) {
+                api.modifyThread(threadId, ModifyThreadRequest(removeLabelIds = listOf("UNREAD")))
+            } else {
+                api.modifyThread(threadId, ModifyThreadRequest(addLabelIds = listOf("UNREAD")))
+            }
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Thread $threadId not found", e)
+            throw e
         }
     }
     override suspend fun batchMarkRead(messageIds: List<String>) {
