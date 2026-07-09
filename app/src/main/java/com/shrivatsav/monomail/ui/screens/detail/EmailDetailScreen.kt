@@ -3,6 +3,8 @@ import android.net.Uri
 import android.text.TextUtils
 import android.webkit.WebSettings
 import android.webkit.WebView
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -1015,6 +1017,30 @@ private fun MessageBody(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
+        // Determine if we're in dark theme by checking background color brightness
+        val useDarkTheme = remember(bgColor) {
+            try {
+                val bgHex = bgColor.removePrefix("#")
+                val bgInt = bgHex.toLong(16)
+                val r = (bgInt shr 16) and 0xFF
+                val g = (bgInt shr 8) and 0xFF
+                val b = bgInt and 0xFF
+                val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
+                luminance < 128
+            } catch (_: Exception) { false }
+        }
+        val looksS = remember(bodyText, bodyIsHtml, emailTheme) {
+            (bodyText.length > 200 && bodyIsHtml) && looksStyled(bodyText)
+        }
+        val effectiveMode = remember(looksS, emailTheme) {
+            when (emailTheme) {
+                EmailTheme.FORCE_DARK -> "adapt"
+                EmailTheme.FORCE_LIGHT -> "original"
+                EmailTheme.ORIGINAL -> "original"
+                EmailTheme.AUTO -> if (looksS) "original" else "adapt"
+            }
+        }
+
         // Images blocked banner (shown when loadRemoteImages is off and showRemoteImages is still false)
 
         val htmlContent = remember(email.id, bodyText, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown, emailTheme, showInlineAttachments) {
@@ -1045,15 +1071,6 @@ private fun MessageBody(
             // Wrap Outlook forward/reply block so CSS can hide/show it as a unit
             val wrappedBody = wrapOutlookQuoted(cleanBody)
 
-            // Resolve effective render mode from the user's preference
-            val isStyled = (displayBody.length > 200 && bodyIsHtml) && looksStyled(displayBody)
-            val effectiveMode = when (emailTheme) {
-                EmailTheme.FORCE_DARK -> "adapt"
-                EmailTheme.FORCE_LIGHT -> "original"
-                EmailTheme.ORIGINAL -> "original"
-                EmailTheme.AUTO -> if (isStyled) "original" else "adapt"
-            }
-
             // In adapt mode: strip <style> tags (they override our dark CSS),
             // bgcolor attrs (CSS selectors can't target these), and fixed widths.
             // In original mode: only strip fixed-width attrs for responsiveness.
@@ -1061,7 +1078,6 @@ private fun MessageBody(
                 "adapt" -> {
                     var b = wrappedBody
                     b = HtmlSanitizer.stripStyleTags(b)
-                    b = HtmlSanitizer.stripBgcolorAttrs(b)
                     b = HtmlSanitizer.stripFixedWidthAttrs(b)
                     b = b.replace(Regex("<table[^>]*>", RegexOption.IGNORE_CASE)) {
                         "<div class=\"monomail-table-wrap\">" + it.value
@@ -1147,13 +1163,6 @@ private fun MessageBody(
                         -webkit-font-smoothing: antialiased;
                         overflow-x: hidden;
                     }
-                    /* Force text color on ALL elements so inline color:#333 is overridden in dark mode */
-                    body.monomail-dark * {
-                        color: $textColor !important;
-                    }
-                    body.monomail-dark a, body.monomail-dark a * {
-                        color: $linkColor !important;
-                    }
                     p { margin: 0 0 1em 0; }
                     p:last-child { margin-bottom: 0; }
                     img, video, iframe, embed {
@@ -1191,26 +1200,6 @@ private fun MessageBody(
                     pre code { background: none; padding: 0; border-radius: 0; }
                     ul, ol { margin: 8px 0; padding-left: 24px; }
                     li { margin: 4px 0; }
-                    /* Strip ALL background colors in dark mode */
-                    body.monomail-dark [style*="background-color"] {
-                        background-color: transparent !important;
-                    }
-                    body.monomail-dark [style*="background:"] {
-                        background: transparent !important;
-                    }
-                    body.monomail-dark [bgcolor] {
-                        background-color: transparent !important;
-                    }
-                    body.monomail-dark td, body.monomail-dark th {
-                        background-color: transparent !important;
-                        background: transparent !important;
-                    }
-                    body.monomail-dark div, body.monomail-dark span,
-                    body.monomail-dark p, body.monomail-dark table,
-                    body.monomail-dark tr {
-                        background-color: transparent !important;
-                        background: transparent !important;
-                    }
                 """.trimIndent()
             } else {
                 """
@@ -1285,17 +1274,6 @@ private fun MessageBody(
                 img[src^="https://"] { display: none !important; }
             """.trimIndent() else ""
 
-            // Determine if we're in dark theme by checking background color brightness
-            val useDarkTheme = try {
-                val bgHex = bgColor.removePrefix("#")
-                val bgInt = bgHex.toLong(16)
-                val r = (bgInt shr 16) and 0xFF
-                val g = (bgInt shr 8) and 0xFF
-                val b = bgInt and 0xFF
-                val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-                luminance < 128
-            } catch (_: Exception) { false }
-
             """
             <!DOCTYPE html>
             <html>
@@ -1309,7 +1287,7 @@ private fun MessageBody(
                     $imgBlockCss
                 </style>
             </head>
-            <body class="${if (showQuotedText) "show-quotes " else ""}${if (useDarkTheme && effectiveMode == "adapt") "monomail-dark" else ""}">$bodyWithCidPlaceholders</body>
+            <body class="${if (showQuotedText) "show-quotes" else ""}">$bodyWithCidPlaceholders</body>
             </html>
             """.trimIndent()
         }
@@ -1484,6 +1462,12 @@ private fun MessageBody(
                     if (webView.tag != htmlContent) {
                         webView.tag = htmlContent
                         try {
+                            if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                                WebSettingsCompat.setAlgorithmicDarkeningAllowed(
+                                    webView.settings,
+                                    useDarkTheme && effectiveMode == "adapt"
+                                )
+                            }
                             webView.loadDataWithBaseURL("file:///android_asset/", htmlContent, "text/html", "UTF-8", null)
                         } catch (e: Exception) {
                             android.util.Log.e("EmailWebView", "Failed to load email HTML content", e)
