@@ -85,6 +85,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -862,6 +863,8 @@ private fun MessageBody(
     val smallFontSize = (13f * fontScaleMultiplier).coerceIn(9f, 24f)
     var showQuotedText by remember { mutableStateOf(false) }
     var showRemoteImages by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    var contentHeightPx by remember(email.id) { mutableStateOf(0) }
     val hasQuotedText = remember(bodyText) {
         bodyText.contains("<blockquote", ignoreCase = true) ||
         bodyText.contains("gmail_quote", ignoreCase = true) ||
@@ -1060,6 +1063,9 @@ private fun MessageBody(
                     b = HtmlSanitizer.stripStyleTags(b)
                     b = HtmlSanitizer.stripBgcolorAttrs(b)
                     b = HtmlSanitizer.stripFixedWidthAttrs(b)
+                    b = b.replace(Regex("<table[^>]*>", RegexOption.IGNORE_CASE)) {
+                        "<div class=\"monomail-table-wrap\">" + it.value
+                    }
                     b
                 }
                 else -> {
@@ -1139,6 +1145,7 @@ private fun MessageBody(
                         word-break: break-word;
                         overflow-wrap: break-word;
                         -webkit-font-smoothing: antialiased;
+                        overflow-x: hidden;
                     }
                     /* Force text color on ALL elements so inline color:#333 is overridden in dark mode */
                     body.monomail-dark * {
@@ -1375,7 +1382,11 @@ private fun MessageBody(
                     .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(cardBgColor, RoundedCornerShape(16.dp))
-                    .padding(12.dp),
+                    .padding(12.dp)
+                    .then(
+                        if (contentHeightPx > 0) Modifier.height(with(density) { contentHeightPx.toDp() })
+                        else Modifier.height(120.dp)
+                    ),
                 factory = { context ->
                     WebView(context).apply {
                         emailContentWebView = this
@@ -1398,6 +1409,8 @@ private fun MessageBody(
                         setBackgroundColor(android.graphics.Color.TRANSPARENT)
                         isVerticalScrollBarEnabled = false
                         isHorizontalScrollBarEnabled = false
+                        overScrollMode = android.view.View.OVER_SCROLL_NEVER
+                        isNestedScrollingEnabled = false
                         webViewClient = object : android.webkit.WebViewClient() {
                             override fun shouldOverrideUrlLoading(
                                 view: android.webkit.WebView?,
@@ -1452,6 +1465,17 @@ private fun MessageBody(
                                 error: android.webkit.WebResourceError?
                             ) {
                                 android.util.Log.e("EmailWebView", "WebView error: ${error?.description} on ${request?.url}")
+                            }
+                            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                view?.postDelayed({
+                                    val h = (view.contentHeight * view.resources.displayMetrics.density).toInt()
+                                    if (h > 0) contentHeightPx = h
+                                }, 50)
+                                view?.postDelayed({
+                                    val h = (view.contentHeight * view.resources.displayMetrics.density).toInt()
+                                    if (h > 0 && h != contentHeightPx) contentHeightPx = h
+                                }, 400)
                             }
                         }
                     }
