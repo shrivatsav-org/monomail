@@ -86,7 +86,16 @@ interface EmailDao {
 
     @Query("SELECT id, attachmentsJson FROM emails WHERE accountId = :accountId")
     suspend fun getAttachmentJsonForAccount(accountId: String): List<AttachmentJsonProjection>
+
+    @Query("SELECT id, body, bodyIsHtml FROM emails WHERE accountId = :accountId")
+    suspend fun getEmailBodyForAccount(accountId: String): List<EmailBodyProjection>
 }
+
+data class EmailBodyProjection(
+    val id: String,
+    val body: String,
+    val bodyIsHtml: Boolean
+)
 
 data class EmailReadStatusProjection(
     val id: String,
