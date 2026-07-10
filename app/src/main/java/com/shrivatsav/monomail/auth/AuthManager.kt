@@ -28,10 +28,12 @@ class AuthManager(
     private val accountManager: AccountManager,
     private val pushNotificationManager: PushNotificationManager
 ) {
-    val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     companion object {
+        private const val TAG = "AuthManager"
+        private const val PUSH_REGISTRATION_FAILED = "registerForPushNotifications failed"
         const val GMAIL_SCOPE = "oauth2:https://www.googleapis.com/auth/gmail.modify"
     }
+    val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     private val credentialManager = CredentialManager.create(context)
     private val _isSignedIn = MutableStateFlow(false)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
@@ -53,7 +55,7 @@ class AuthManager(
         _userProfile = profile
         _isSignedIn.value = true
         refreshCurrentToken()
-        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
+        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
         return true
     }
 
@@ -185,7 +187,7 @@ class AuthManager(
             // Propagate so the caller can show an error to the user
             throw e
         }
-        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
+        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
     }
     suspend fun switchAccount(accountId: String) {
         accountManager.setActiveAccountId(accountId)
@@ -321,7 +323,7 @@ class AuthManager(
             _isSignedIn.value = true
             accountManager.addAccount(profile)
             accountManager.setActiveAccountId(profile.id)
-            try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
+            try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
             SignInResult.Success(profile)
         } catch (e: UserRecoverableAuthException) {
             val consentIntent = e.intent
