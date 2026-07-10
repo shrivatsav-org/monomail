@@ -12,6 +12,8 @@ import com.shrivatsav.monomail.data.pgp.PgpKeyInfo
 import com.shrivatsav.monomail.data.provider.SendAsAlias
 import com.shrivatsav.monomail.data.repository.EmailContact
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.repository.SendEmailParams
+import com.shrivatsav.monomail.data.repository.ScheduleSendParams
 import com.shrivatsav.monomail.data.repository.suggestContacts
 import com.shrivatsav.monomail.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -278,14 +280,9 @@ class ComposeViewModel @Inject constructor(
             val result = repository.sendEmail(
                 from = current.from,
                 to = current.to,
-                cc = current.cc,
-                bcc = current.bcc,
                 subject = current.subject,
                 body = finalBody,
-                threadId = current.threadId,
-                inReplyToMessageId = current.inReplyToMessageId,
-                references = current.references,
-                attachments = current.attachments
+                params = SendEmailParams(cc = current.cc, bcc = current.bcc, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references, attachments = current.attachments)
             )
             result.onSuccess { sentThreadId ->
                 sentEmailEvents.tryEmit(
@@ -334,10 +331,7 @@ class ComposeViewModel @Inject constructor(
                 subject = current.subject,
                 body = finalBody,
                 scheduledAt = scheduledAt,
-                cc = current.cc,
-                bcc = current.bcc,
-                attachments = cachedAttachments,
-                fromAlias = fromAlias
+                params = ScheduleSendParams(cc = current.cc, bcc = current.bcc, attachments = cachedAttachments, fromAlias = fromAlias)
             )
             scheduledEmailEvents.tryEmit(
                 ScheduledEmailEvent(

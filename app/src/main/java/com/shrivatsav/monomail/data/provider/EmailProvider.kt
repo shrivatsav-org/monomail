@@ -1,5 +1,13 @@
 package com.shrivatsav.monomail.data.provider
 import com.shrivatsav.monomail.data.model.EmailAttachment
+
+data class SendEmailOptions(
+    val cc: String = "",
+    val bcc: String = "",
+    val threadId: String? = null,
+    val attachments: List<EmailAttachment> = emptyList()
+)
+
 interface EmailProvider {
     val providerName: String  
     suspend fun listThreads(
@@ -20,8 +28,7 @@ interface EmailProvider {
     suspend fun batchMarkRead(messageIds: List<String>)
     suspend fun sendEmail(
         from: String, to: String, subject: String, body: String,
-        cc: String = "", bcc: String = "",
-        threadId: String? = null, attachments: List<EmailAttachment> = emptyList()
+        options: SendEmailOptions = SendEmailOptions()
     ): String?
 
     suspend fun getSendAsAliases(): List<SendAsAlias>

@@ -6,6 +6,7 @@ import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.provider.ProviderMessage
+import com.shrivatsav.monomail.data.provider.SendEmailOptions
 import com.shrivatsav.monomail.data.provider.ProviderThread
 import com.shrivatsav.monomail.data.provider.ProviderThreadListResult
 import com.shrivatsav.monomail.data.provider.SendAsAlias
@@ -551,76 +552,44 @@ class ImapProvider(
         to: String,
         subject: String,
         body: String,
-        cc: String,
-        bcc: String,
-        threadId: String?,
-        attachments: List<EmailAttachment>
+        options: SendEmailOptions
     ): String? = withContext(Dispatchers.IO) {
         val props = buildSmtpProps(from)
-
         val session = Session.getInstance(props, object : jakarta.mail.Authenticator() {
             override fun getPasswordAuthentication() = jakarta.mail.PasswordAuthentication(config.username, password)
         })
 
-        val message = MimeMessage(session)
-        message.setFrom(InternetAddress(from))
-        message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-        if (cc.isNotBlank()) message.setRecipients(Message.RecipientType.CC, InternetAddress.parse(cc))
-        if (bcc.isNotBlank()) message.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(bcc))
-        message.subject = subject
-
-        if (threadId != null) {
-            message.setHeader(HEADER_IN_REPLY_TO, threadId)
-            message.setHeader(HEADER_REFERENCES, threadId)
-        }
-
-        if (attachments.isEmpty()) {
-            message.setContent(body, "text/html; charset=utf-8")
-        } else {
-            val multipart = MimeMultipart()
-            val textPart = MimeBodyPart()
-            textPart.setContent(body, "text/html; charset=utf-8")
-            multipart.addBodyPart(textPart)
-
-            for (att in attachments) {
-                val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() }
-                if (bytes != null) {
-                    val attPart = MimeBodyPart()
-                    val source = jakarta.mail.util.ByteArrayDataSource(bytes, att.mimeType)
-                    attPart.dataHandler = jakarta.activation.DataHandler(source)
-                    attPart.fileName = att.name
-                    multipart.addBodyPart(attPart)
-                }
+        val message = MimeMessage(session).apply {
+            setFrom(InternetAddress(from))
+            setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+            if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
+            if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
+            this.subject = subject
+            if (options.threadId != null) {
+                setHeader(HEADER_IN_REPLY_TO, options.threadId)
+                setHeader(HEADER_REFERENCES, options.threadId)
             }
-            message.setContent(multipart)
-        }
-
-        message.saveChanges()
-        val generatedMessageId = message.messageID
-
-        Transport.send(message)
-
-        // Save to SENT folder best-effort, reusing the cached IMAP Store (no second connection)
-        val sentName = getFolderName(EmailFolder.SENT)
-        if (sentName != null) {
-            try {
-                val imapStore = getStore()
-                val sentFolder = imapStore.getFolder(sentName)
-                if (sentFolder.exists()) {
-                    sentFolder.open(Folder.READ_WRITE)
-                    try {
-                        message.setFlag(Flags.Flag.SEEN, true)
-                        sentFolder.appendMessages(arrayOf(message))
-                    } finally {
-                        sentFolder.close(false)
+            if (options.attachments.isEmpty()) {
+                setContent(body, "text/html; charset=utf-8")
+            } else {
+                val multipart = MimeMultipart().apply {
+                    addBodyPart(MimeBodyPart().also { it.setContent(body, "text/html; charset=utf-8") })
+                    for (att in options.attachments) {
+                        val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() } ?: continue
+                        addBodyPart(MimeBodyPart().also {
+                            it.dataHandler = jakarta.activation.DataHandler(jakarta.mail.util.ByteArrayDataSource(bytes, att.mimeType))
+                            it.fileName = att.name
+                        })
                     }
                 }
-            } catch (e: Exception) {
-                android.util.Log.w("ImapProvider", "Failed to save to Sent folder", e)
+                setContent(multipart)
             }
+            saveChanges()
         }
 
-        return@withContext generatedMessageId
+        Transport.send(message)
+        saveToSentFolder(message)
+        message.messageID
     }
 
     override suspend fun getSendAsAliases(): List<SendAsAlias> {
@@ -665,23 +634,31 @@ class ImapProvider(
 
         collectInlineImage(part, contentType, contentId, state)
 
-        if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
-            (disposition == null && contentType.contains("application/") && contentId == null)) {
-            val name = part.fileName ?: "attachment"
-            state.attachments.add(EmailAttachmentInfo(id = name, messageId = state.messageId, mimeType = contentType.substringBefore(";"), name = name, size = part.size))
-        } else if (part.isMimeType(MIME_TEXT_PLAIN) && state.plainBody.isEmpty()) {
-            state.plainBody = part.getBodyText() ?: ""
-        } else if (part.isMimeType(MIME_TEXT_HTML) && state.htmlBody.isEmpty()) {
-            state.htmlBody = part.getBodyText() ?: ""
-            state.bodyIsHtml = true
-        } else if (part.isMimeType(MIME_MULTIPART)) {
-            try {
-                val mp = toMultipart(part) ?: return
-                for (i in 0 until mp.count) {
-                    processPart(mp.getBodyPart(i), state)
+        val isAttachment = Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
+            (disposition == null && contentType.contains("application/") && contentId == null)
+        val mimeType = contentType.substringBefore(";")
+
+        when {
+            isAttachment -> {
+                val name = part.fileName ?: "attachment"
+                state.attachments.add(EmailAttachmentInfo(id = name, messageId = state.messageId, mimeType = mimeType, name = name, size = part.size))
+            }
+            part.isMimeType(MIME_TEXT_PLAIN) && state.plainBody.isEmpty() -> {
+                state.plainBody = part.getBodyText() ?: ""
+            }
+            part.isMimeType(MIME_TEXT_HTML) && state.htmlBody.isEmpty() -> {
+                state.htmlBody = part.getBodyText() ?: ""
+                state.bodyIsHtml = true
+            }
+            part.isMimeType(MIME_MULTIPART) -> {
+                try {
+                    val mp = toMultipart(part) ?: return
+                    for (i in 0 until mp.count) {
+                        processPart(mp.getBodyPart(i), state)
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("ImapProvider", "Error parsing multipart", e)
                 }
-            } catch (e: Exception) {
-                android.util.Log.e("ImapProvider", "Error parsing multipart", e)
             }
         }
     }
@@ -738,6 +715,82 @@ class ImapProvider(
         if (config.smtpSsl || config.smtpStartTls) props["mail.$protocol.checkserveridentity"] = "true"
         if (config.smtpStartTls) props["mail.$protocol.starttls.required"] = "true"
         return props
+    }
+
+    private fun buildEnvelopeMessage(msg: jakarta.mail.Message, threadId: String, folder: EmailFolder): ProviderMessage {
+        val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: ""
+        val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
+        val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
+        val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+        val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+        val attachments = mutableListOf<EmailAttachmentInfo>()
+        val snippet = try { extractSnippet(msg) } catch (_: Exception) { "" }
+        try { collectAttachments(msg, attachments, messageId) } catch (e: Exception) { android.util.Log.w("ImapProvider", "Failed to collect attachments: ${e.message}") }
+
+        return ProviderMessage(
+            id = messageId,
+            threadId = threadId,
+            subject = msg.subject ?: "",
+            from = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: "",
+            fromEmail = fromAddrs.firstOrNull()?.address ?: "",
+            to = toAddrs.joinToString(", ") { it.address },
+            cc = ccAddrs.joinToString(", ") { it.address },
+            bcc = "",
+            snippet = snippet,
+            body = "",
+            bodyIsHtml = false,
+            date = date,
+            isRead = msg.isSet(Flags.Flag.SEEN),
+            isStarred = msg.isSet(Flags.Flag.FLAGGED),
+            folders = setOf(folder),
+            attachments = attachments
+        )
+    }
+
+    private fun buildBodyWithCidReplace(state: BodyParseState): String {
+        var body = state.htmlBody.ifEmpty { state.plainBody.replace("\n", "<br>") }
+        state.cidMap.forEach { (cid, dataUri) -> body = body.replace("cid:$cid", dataUri) }
+        return body
+    }
+
+    private fun buildSnippet(state: BodyParseState): String {
+        return state.plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
+            state.htmlBody.replace(HTML_TAG_REGEX, " ").take(150).replace(Regex("\\s+"), " ").trim()
+        }
+    }
+
+    private fun resolveSearchFolders(hints: List<String>): List<String> {
+        val allFolders = folderNamesCache.values.toList()
+        if (hints.isEmpty()) {
+            return listOfNotNull(
+                folderNamesCache[EmailFolder.INBOX],
+                folderNamesCache[EmailFolder.SENT],
+                folderNamesCache[EmailFolder.ARCHIVE]
+            ).distinct()
+        }
+        val mapped = hints.mapNotNull { hint ->
+            try { folderNamesCache[EmailFolder.valueOf(hint)] } catch (_: Exception) { null }
+        }
+        return mapped.ifEmpty { allFolders }.distinct()
+    }
+
+    private suspend fun saveToSentFolder(message: jakarta.mail.Message) {
+        val sentName = getFolderName(EmailFolder.SENT) ?: return
+        try {
+            val imapStore = getStore()
+            val sentFolder = imapStore.getFolder(sentName)
+            if (sentFolder.exists()) {
+                sentFolder.open(Folder.READ_WRITE)
+                try {
+                    message.setFlag(Flags.Flag.SEEN, true)
+                    sentFolder.appendMessages(arrayOf(message))
+                } finally {
+                    sentFolder.close(false)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ImapProvider", "Failed to save to Sent folder", e)
+        }
     }
 
     private data class BodyParseState(

@@ -41,6 +41,7 @@ class EmailSyncWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
     companion object {
+        private const val TAG = "EmailSyncWorker"
         const val KEY_ACCOUNT_ID = "account_id"
         private const val ADAPTIVE_INTERVAL_MINUTES = 2L
         private const val ADAPTIVE_ACTIVITY_WINDOW_MINUTES = 5L
@@ -59,7 +60,7 @@ class EmailSyncWorker @AssistedInject constructor(
             allAccounts
         }
         if (accounts.isEmpty()) {
-            Log.w("EmailSyncWorker", "No accounts found to sync")
+            Log.w(TAG, "No accounts found to sync")
             return Result.success()
         }
         val results = coroutineScope {
@@ -140,10 +141,11 @@ class EmailSyncWorker @AssistedInject constructor(
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
         ) {
-            Log.e("EmailSyncWorker", "POST_NOTIFICATIONS permission not granted! Aborting notification display.")
-            return
+                Log.e(TAG, "POST_NOTIFICATIONS permission not granted! Aborting notification display.")
+                return
+            }
         }
-        Log.i("EmailSyncWorker", "Creating notification channel and building notification for $accountId...")
+        Log.i(TAG, "Creating notification channel and building notification for $accountId...")
         createNotificationChannel(context, accountId, thread.from)
 
         val openIntent = Intent(context, MainActivity::class.java).apply {
@@ -210,7 +212,7 @@ class EmailSyncWorker @AssistedInject constructor(
             .setAutoCancel(true)
 
         NotificationManagerCompat.from(context).notify(accountId, notificationId, builder.build())
-        Log.i("EmailSyncWorker", "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")
+        Log.i(TAG, "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")
     }
 
     private fun createNotificationChannel(context: Context, accountId: String, accountName: String) {

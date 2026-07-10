@@ -103,6 +103,7 @@ class InboxViewModel @Inject constructor(
     private var _isForegroundPollingEnabled = true
     /** When foreground and actively reading, poll at 2 min instead of the configured interval. */
     private companion object {
+        private const val TAG = "InboxVM"
         private const val ADAPTIVE_POLL_MS = 2 * 60 * 1000L
     }
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
@@ -240,7 +241,7 @@ class InboxViewModel @Inject constructor(
             InboxTab.values().forEach { tab ->
                 if (tab != _currentTab.value && tab != InboxTab.UNIFIED) {
                     try { repository.refreshInbox(tab) } catch (e: Exception) {
-                        android.util.Log.e("InboxVM", "Background refresh failed for tab $tab", e)
+                        android.util.Log.e(TAG, "Background refresh failed for tab $tab", e)
                     }
                 }
             }
@@ -457,7 +458,7 @@ class InboxViewModel @Inject constructor(
                     repository.emptyTrash()
                 }
             } catch (e: Exception) {
-                android.util.Log.w("InboxViewModel", "emptyTrash undo failed", e)
+                android.util.Log.w(TAG, "emptyTrash failed", e)
             } finally {
                 if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
                     _toastState.value = null
@@ -506,7 +507,7 @@ class InboxViewModel @Inject constructor(
                 delay(4000)
                 executeAction(threadId, type)
             } catch (e: Exception) {
-                android.util.Log.w("InboxViewModel", "queueAction failed", e)
+                android.util.Log.w(TAG, "queueAction failed", e)
             } finally {
                 if (_toastState.value?.threadId == threadId) {
                     _toastState.value = null
@@ -587,22 +588,22 @@ class InboxViewModel @Inject constructor(
             settingsDataStore.setUnifiedInboxEnabled(enabled)
             if (enabled) {
                 val allAccounts = authManager.getAccounts()
-                android.util.Log.d("InboxVM", "Unified enabled, refreshing ${allAccounts.size} accounts")
+                android.util.Log.d(TAG, "Unified enabled, refreshing ${allAccounts.size} accounts")
                 allAccounts.forEach { account ->
                     try {
                         val result = repository.refreshInbox(InboxTab.INBOX, accountId = account.id)
                         result.onSuccess {
-                            android.util.Log.d("InboxVM", "Refresh OK for ${account.id}")
+                            android.util.Log.d(TAG, "Refresh OK for ${account.id}")
                         }.onFailure { e ->
-                            android.util.Log.e("InboxVM", "Refresh FAILED for ${account.id}: ${e.message}")
+                            android.util.Log.e(TAG, "Refresh FAILED for ${account.id}: ${e.message}")
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("InboxVM", "Exception refreshing ${account.id}", e)
+                        android.util.Log.e(TAG, "Exception refreshing ${account.id}", e)
                     }
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("InboxVM", "setUnifiedInboxEnabled crashed", e)
+            android.util.Log.e(TAG, "setUnifiedInboxEnabled crashed", e)
         }
     }
     fun enterBulkSelectMode(threadId: String) {

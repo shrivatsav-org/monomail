@@ -123,7 +123,6 @@ fun EmailThread.toEntity(
     inSent: Boolean = false,
     inArchived: Boolean = false,
     inTrash: Boolean = false,
-    isSnoozed: Boolean = false,
     snoozedUntil: Long = 0L,
     inSpam: Boolean = false
 ) = ThreadEntity(
@@ -143,7 +142,7 @@ fun EmailThread.toEntity(
     inSent = inSent,
     inArchived = inArchived,
     inTrash = inTrash,
-    isSnoozed = isSnoozed,
+    isSnoozed = snoozedUntil > 0L,
     snoozedUntil = snoozedUntil,
     inSpam = inSpam
 )

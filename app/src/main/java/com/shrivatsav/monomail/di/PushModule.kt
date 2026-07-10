@@ -10,10 +10,10 @@ import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-abstract class PushModule {
+interface PushModule {
     @Binds
     @Singleton
-    abstract fun bindPushNotificationManager(
+    fun bindPushNotificationManager(
         impl: PushNotificationManagerImpl
     ): PushNotificationManager
 }
