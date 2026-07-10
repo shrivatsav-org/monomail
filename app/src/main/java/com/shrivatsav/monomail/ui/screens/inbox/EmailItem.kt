@@ -14,6 +14,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -31,7 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.derivedStateOf
+
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -50,7 +51,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 private val displayNameRegex = Regex("""^"?([^"<]+?)"?\s*<""")
-private val domainRegex = Regex("@(.+)$")
 
 @Composable
 fun EmailItem(
@@ -59,7 +59,6 @@ fun EmailItem(
     onLongClick: () -> Unit = {},
     showSnippet: Boolean = true,
     compactMode: Boolean = false,
-    fontSizeScale: Float = 1f,
     isSelected: Boolean = false,
     isBulkMode: Boolean = false,
     onSelectToggle: () -> Unit = {},
@@ -68,12 +67,7 @@ fun EmailItem(
     modifier: Modifier = Modifier
 ) {
     val isUnread = !thread.isRead
-    val senderWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Medium
-    val subjectWeight = if (isUnread) FontWeight.Bold else FontWeight.Normal
     val senderInitial = thread.from.firstOrNull()?.uppercase() ?: "?"
-    val domain by remember(thread.fromEmail) {
-        derivedStateOf { domainRegex.find(thread.fromEmail)?.groupValues?.get(1)?.trim() }
-    }
     val backgroundColor = when {
         isUnread -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
         else -> MaterialTheme.colorScheme.background
@@ -116,7 +110,6 @@ fun EmailItem(
     ) {
         Box {
             SenderAvatar(
-                domain = domain,
                 senderInitial = senderInitial,
                 isSelected = isSelected,
                 isBulkMode = isBulkMode,
@@ -129,87 +122,107 @@ fun EmailItem(
                 },
                 modifier = Modifier.padding(top = 2.dp)
             )
-            if (isUnread && !isBulkMode) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                )
-            }
+            UnreadDot(isUnread = isUnread, isBulkMode = isBulkMode)
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f, fill = false)
-                ) {
-                    Text(
-                        text = displayName(thread.from),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = senderWeight,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
-                    )
-                    if (thread.messageCount > 1) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "${thread.messageCount}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                            modifier = Modifier
-                                .background(
-                                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                    shape = RoundedCornerShape(4.dp)
-                                )
-                                .padding(horizontal = 5.dp, vertical = 1.dp)
-                        )
-                    }
-                }
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = formatTimestamp(thread.date),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(
-                        alpha = if (isUnread) 0.75f else 0.45f
-                    )
-                )
-            }
-            Text(
-                text = thread.subject,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = subjectWeight,
-                color = MaterialTheme.colorScheme.onSurface.copy(
-                    alpha = if (isUnread) 1f else 0.8f
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            EmailItemSenderInfo(thread = thread, isUnread = isUnread)
+            EmailItemSubject(thread = thread, isUnread = isUnread)
             if (showSnippet) {
-                Text(
-                    text = thread.snippet,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                    maxLines = if (compactMode) 1 else 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                EmailItemSnippet(thread = thread, compactMode = compactMode)
             }
         }
     }
 }
+
+@Composable
+private fun BoxScope.UnreadDot(isUnread: Boolean, isBulkMode: Boolean) {
+    if (isUnread && !isBulkMode) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .size(12.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary)
+        )
+    }
+}
+
+@Composable
+private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean) {
+    val senderWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Medium
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f, fill = false)
+        ) {
+            Text(
+                text = displayName(thread.from),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = senderWeight,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false)
+            )
+            if (thread.messageCount > 1) {
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = "${thread.messageCount}",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                    modifier = Modifier
+                        .background(
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(horizontal = 5.dp, vertical = 1.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = formatTimestamp(thread.date),
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface.copy(
+                alpha = if (isUnread) 0.75f else 0.45f
+            )
+        )
+    }
+}
+
+@Composable
+private fun EmailItemSubject(thread: EmailThread, isUnread: Boolean) {
+    Text(
+        text = thread.subject,
+        style = MaterialTheme.typography.bodyMedium,
+        fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Normal,
+        color = MaterialTheme.colorScheme.onSurface.copy(
+            alpha = if (isUnread) 1f else 0.8f
+        ),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@Composable
+private fun EmailItemSnippet(thread: EmailThread, compactMode: Boolean) {
+    Text(
+        text = thread.snippet,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        maxLines = if (compactMode) 1 else 2,
+        overflow = TextOverflow.Ellipsis
+    )
+}
 @Composable
 private fun SenderAvatar(
-    domain: String?,
     senderInitial: String,
     isSelected: Boolean = false,
     isBulkMode: Boolean = false,
@@ -295,8 +308,4 @@ private fun formatTimestamp(epochMillis: Long): String {
         else ->
             fullDateFormatter.format(zdt)
     }
-}
-private fun extractDomain(fromEmail: String): String? {
-    val parts = fromEmail.split("@")
-    return if (parts.size == 2) parts[1].trim() else null
 }

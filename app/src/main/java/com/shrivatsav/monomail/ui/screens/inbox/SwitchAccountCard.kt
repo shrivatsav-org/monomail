@@ -66,50 +66,11 @@ internal fun SwitchAccountCard(
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
                 accounts.forEach { account ->
-                    val isCurrent = account.id == userProfile.id
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(
-                                if (isCurrent) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.06f)
-                                else Color.Transparent
-                            )
-                            .clickable { if (!isCurrent) onSwitchAccount(account.id) }
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        AvatarCircle(
-                            photoUrl = account.photoUrl,
-                            displayName = account.displayName,
-                            size = 40.dp,
-                            textStyle = MaterialTheme.typography.titleSmall
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = account.displayName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
-                                color = MaterialTheme.colorScheme.onBackground,
-                                maxLines = 1
-                            )
-                            Text(
-                                text = account.email,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        if (isCurrent) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(MaterialTheme.colorScheme.onBackground, CircleShape)
-                            )
-                        }
-                    }
+                    AccountRow(
+                        account = account,
+                        isCurrent = account.id == userProfile.id,
+                        onClick = { onSwitchAccount(account.id) }
+                    )
                 }
             }
 
@@ -154,6 +115,57 @@ internal fun SwitchAccountCard(
             }
 
             Spacer(Modifier.height(6.dp))
+        }
+    }
+}
+
+@Composable
+private fun AccountRow(
+    account: UserProfile,
+    isCurrent: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(
+                if (isCurrent) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.06f)
+                else Color.Transparent
+            )
+            .clickable { if (!isCurrent) onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        AvatarCircle(
+            photoUrl = account.photoUrl,
+            displayName = account.displayName,
+            size = 40.dp,
+            textStyle = MaterialTheme.typography.titleSmall
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = account.displayName,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1
+            )
+            Text(
+                text = account.email,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (isCurrent) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(MaterialTheme.colorScheme.onBackground, CircleShape)
+            )
         }
     }
 }

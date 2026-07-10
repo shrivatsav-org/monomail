@@ -109,108 +109,24 @@ class ImapProvider(
     ): ProviderThreadListResult = withContext(Dispatchers.IO) {
         val store = getStore()
         try {
-            val imapFolder = if (folder == EmailFolder.STARRED) {
-                store.getFolder(getFolderName(EmailFolder.INBOX) ?: "INBOX")
-            } else {
-                val folderName = getFolderName(folder) ?: return@withContext ProviderThreadListResult(emptyList(), null)
-                store.getFolder(folderName)
-            }
-
-            if (!imapFolder.exists()) {
-                return@withContext ProviderThreadListResult(emptyList(), null)
-            }
+            val imapFolder = openListFolder(store, folder)
+                ?: return@withContext ProviderThreadListResult(emptyList(), null)
 
             imapFolder.open(Folder.READ_ONLY)
             try {
-                val toFetch: Array<jakarta.mail.Message>
-                val fetchStart: Int
-                if (folder == EmailFolder.STARRED) {
-                    val allStarred = imapFolder.search(FlagTerm(Flags(Flags.Flag.FLAGGED), true))
-                    if (allStarred.isEmpty()) return@withContext ProviderThreadListResult(emptyList(), null)
-                    toFetch = allStarred.takeLast(maxResults).toTypedArray()
-                    fetchStart = 1
-                } else {
-                    val total = imapFolder.messageCount
-                    if (total == 0) return@withContext ProviderThreadListResult(emptyList(), null)
+                val fetchResult = fetchMessagesForListing(imapFolder, folder, maxResults, pageToken)
+                    ?: return@withContext ProviderThreadListResult(emptyList(), null)
 
-                    val offset = pageToken?.toIntOrNull() ?: total
-                    val start = maxOf(1, offset - maxResults + 1)
-                    val end = offset
-                    if (start > end) return@withContext ProviderThreadListResult(emptyList(), null)
-
-                    toFetch = imapFolder.getMessages(start, end)
-                    fetchStart = start
+                val rawMessages = fetchResult.messages.mapNotNull { msg ->
+                    envelopeToRawMessage(msg, folder)
                 }
 
-                // Fetch envelope, flags, and content info for body parsing
-                val profile = jakarta.mail.FetchProfile().apply {
-                    add(jakarta.mail.FetchProfile.Item.ENVELOPE)
-                    add(jakarta.mail.FetchProfile.Item.FLAGS)
-                    add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
-                    add(HEADER_MESSAGE_ID)
-                    add(HEADER_REFERENCES)
-                    add(HEADER_IN_REPLY_TO)
-                }
-                imapFolder.fetch(toFetch, profile)
+                val threads = ImapThreader.groupByReferences(rawMessages)
+                    .map { (threadId, msgs) -> ProviderThread(threadId, msgs) }
+                    .sortedByDescending { t -> t.messages.maxOfOrNull { it.date } ?: 0L }
 
-                val rawMessages = toFetch.mapNotNull { msg ->
-                val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: return@mapNotNull null
-                val references = msg.getHeader(HEADER_REFERENCES)?.joinToString(" ") ?: ""
-                val inReplyTo = msg.getHeader(HEADER_IN_REPLY_TO)?.firstOrNull() ?: ""
-                val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
-
-                val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
-                val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-                val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-
-                val fromName = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: ""
-                val fromEmail = fromAddrs.firstOrNull()?.address ?: ""
-                val to = toAddrs.joinToString(", ") { it.address }
-                val cc = ccAddrs.joinToString(", ") { it.address }
-
-                val isRead = msg.isSet(Flags.Flag.SEEN)
-                val isStarred = msg.isSet(Flags.Flag.FLAGGED)
-
-                // Envelope-only: extract snippet and attachment metadata, skip full body parsing
-                val attachments = mutableListOf<EmailAttachmentInfo>()
-                val snippet = try { extractSnippet(msg) } catch (_: Exception) { "" }
-
-                try {
-                    collectAttachments(msg, attachments, messageId)
-                } catch (e: Exception) {
-                    android.util.Log.w("ImapProvider", "listThreads attachment parse error: ${e.message}")
-                }
-
-                val providerMsg = ProviderMessage(
-                    id = messageId,
-                    threadId = messageId,
-                    subject = msg.subject ?: "",
-                    from = fromName,
-                    fromEmail = fromEmail,
-                    to = to,
-                    cc = cc,
-                    bcc = "",
-                    snippet = snippet,
-                    body = "",
-                    bodyIsHtml = false,
-                    date = date,
-                    isRead = isRead,
-                    isStarred = isStarred,
-                    folders = setOf(folder),
-                    attachments = attachments
-                )
-
-                ImapRawMessage(messageId, references, inReplyTo, date, providerMsg)
-            }
-
-            val threadsMap = ImapThreader.groupByReferences(rawMessages)
-            val threads = threadsMap.map { (threadId, msgs) ->
-                ProviderThread(threadId, msgs)
-            }.sortedByDescending { t -> t.messages.maxOfOrNull { it.date } ?: 0L }
-
-            val nextToken = if (fetchStart > 1) (fetchStart - 1).toString() else null
-            ProviderThreadListResult(threads, nextToken)
-
+                val nextToken = if (fetchResult.fetchStart > 1) (fetchResult.fetchStart - 1).toString() else null
+                ProviderThreadListResult(threads, nextToken)
             } finally {
                 if (imapFolder.isOpen) imapFolder.close(false)
             }
@@ -219,127 +135,206 @@ class ImapProvider(
         }
     }
 
+    private fun openListFolder(store: Store, folder: EmailFolder): Folder? {
+        return if (folder == EmailFolder.STARRED) {
+            store.getFolder(getFolderName(EmailFolder.INBOX) ?: "INBOX")
+        } else {
+            val folderName = getFolderName(folder) ?: return null
+            val f = store.getFolder(folderName)
+            if (!f.exists()) null else f
+        }
+    }
+
+    private data class FetchResult(val messages: Array<jakarta.mail.Message>, val fetchStart: Int)
+
+    private fun fetchMessagesForListing(
+        folder: jakarta.mail.Folder,
+        emailFolder: EmailFolder,
+        maxResults: Int,
+        pageToken: String?
+    ): FetchResult? {
+        val messages: Array<jakarta.mail.Message>
+        val start: Int
+
+        if (emailFolder == EmailFolder.STARRED) {
+            val allStarred = folder.search(FlagTerm(Flags(Flags.Flag.FLAGGED), true))
+            if (allStarred.isEmpty()) return null
+            messages = allStarred.takeLast(maxResults).toTypedArray()
+            start = 1
+        } else {
+            val total = folder.messageCount
+            if (total == 0) return null
+
+            val offset = pageToken?.toIntOrNull() ?: total
+            start = maxOf(1, offset - maxResults + 1)
+            val end = offset
+            if (start > end) return null
+            messages = folder.getMessages(start, end)
+        }
+
+        val profile = jakarta.mail.FetchProfile().apply {
+            add(jakarta.mail.FetchProfile.Item.ENVELOPE)
+            add(jakarta.mail.FetchProfile.Item.FLAGS)
+            add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
+            add(HEADER_MESSAGE_ID)
+            add(HEADER_REFERENCES)
+            add(HEADER_IN_REPLY_TO)
+        }
+        folder.fetch(messages, profile)
+
+        return FetchResult(messages, start)
+    }
+
+    private fun envelopeToRawMessage(msg: jakarta.mail.Message, folder: EmailFolder): ImapRawMessage? {
+        val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: return null
+        val references = msg.getHeader(HEADER_REFERENCES)?.joinToString(" ") ?: ""
+        val inReplyTo = msg.getHeader(HEADER_IN_REPLY_TO)?.firstOrNull() ?: ""
+        val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
+
+        val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
+        val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+        val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+
+        val attachments = mutableListOf<EmailAttachmentInfo>()
+        val snippet = try { extractSnippet(msg) } catch (_: Exception) { "" }
+        try { collectAttachments(msg, attachments, messageId) } catch (e: Exception) {
+            android.util.Log.w("ImapProvider", "listThreads attachment parse error: ${e.message}")
+        }
+
+        val providerMsg = ProviderMessage(
+            id = messageId, threadId = messageId,
+            subject = msg.subject ?: "",
+            from = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: "",
+            fromEmail = fromAddrs.firstOrNull()?.address ?: "",
+            to = toAddrs.joinToString(", ") { it.address },
+            cc = ccAddrs.joinToString(", ") { it.address },
+            bcc = "", snippet = snippet, body = "", bodyIsHtml = false,
+            date = date, isRead = msg.isSet(Flags.Flag.SEEN), isStarred = msg.isSet(Flags.Flag.FLAGGED),
+            folders = setOf(folder), attachments = attachments
+        )
+        return ImapRawMessage(messageId, references, inReplyTo, date, providerMsg)
+    }
+
     override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withContext(Dispatchers.IO) {
         val store = getStore()
         try {
-            // Use folder hints if provided to avoid searching all folders.
-            // IMAP folder names are exactly the strings in the folderHints list (since they come from local DB which stores standard EmailFolder names)
-            val validFolderNames = folderNamesCache.values.toList()
-            val searchFolders = if (folderHints.isNotEmpty()) {
-            val mappedHints = folderHints.mapNotNull { hint -> 
+            val searchFolders = resolveSearchFolders(folderHints)
+            val rawMessages = mutableListOf<ImapRawMessage>()
+
+            try {
+                for (folderName in searchFolders) {
+                    collectMessagesFromFolder(store, folderName, threadId, rawMessages)
+                }
+
+                if (rawMessages.isEmpty()) return@withContext ProviderThread(threadId, emptyList())
+
+                val threadsMap = ImapThreader.groupByReferences(rawMessages)
+                return@withContext threadsMap.values.firstOrNull()?.let { msgs ->
+                    ProviderThread(threadId, msgs)
+                } ?: ProviderThread(threadId, emptyList())
+            } catch (e: Exception) {
+                android.util.Log.e("ImapProvider", "getThread error", e)
+                return@withContext ProviderThread(threadId, emptyList())
+            }
+        } finally {
+            if (store.isConnected) store.close()
+        }
+    }
+
+    private fun resolveSearchFolders(folderHints: List<String>): List<String> {
+        if (folderHints.isNotEmpty()) {
+            val mapped = folderHints.mapNotNull { hint ->
                 try {
                     val enumVal = com.shrivatsav.monomail.data.provider.EmailFolder.valueOf(hint)
                     folderNamesCache[enumVal]
-                } catch (e: Exception) {
-                    null
-                }
+                } catch (_: Exception) { null }
             }
-            mappedHints.ifEmpty { validFolderNames }
-        } else {
-            listOfNotNull(
-                folderNamesCache[EmailFolder.INBOX],
-                folderNamesCache[EmailFolder.SENT],
-                folderNamesCache[EmailFolder.ARCHIVE]
-            )
-        }.distinct()
-
-        val rawMessages = mutableListOf<ImapRawMessage>()
-
-        try {
-            for (folderName in searchFolders) {
-                val f = store.getFolder(folderName)
-                if (f.exists()) {
-                    f.open(Folder.READ_ONLY)
-                    try {
-                        val msgIdTerm = jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId)
-                        val refTerm = jakarta.mail.search.HeaderTerm(HEADER_REFERENCES, threadId)
-                        val inReplyTerm = jakarta.mail.search.HeaderTerm(HEADER_IN_REPLY_TO, threadId)
-                        val orTerm = jakarta.mail.search.OrTerm(
-                            msgIdTerm,
-                            jakarta.mail.search.OrTerm(refTerm, inReplyTerm)
-                        )
-                        val matchingMessages = f.search(orTerm)
-                        if (matchingMessages.isNotEmpty()) {
-                            val profile = jakarta.mail.FetchProfile().apply {
-                                add(jakarta.mail.FetchProfile.Item.ENVELOPE)
-                                add(jakarta.mail.FetchProfile.Item.FLAGS)
-                                add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
-                            }
-                            f.fetch(matchingMessages, profile)
-
-                            for (msg in matchingMessages) {
-                                val folderSet = mutableSetOf<EmailFolder>()
-                                val fname = msg.folder.name
-                                folderNamesCache.entries.find { it.value == fname }?.key?.let { folderSet.add(it) }
-
-                                val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: continue
-                                val references = msg.getHeader(HEADER_REFERENCES)?.joinToString(" ") ?: ""
-                                val inReplyTo = msg.getHeader(HEADER_IN_REPLY_TO)?.firstOrNull() ?: ""
-                                val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
-
-                                val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
-                                val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-                                val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-
-                                val isRead = msg.isSet(Flags.Flag.SEEN)
-                                val isStarred = msg.isSet(Flags.Flag.FLAGGED)
-                                if (isStarred) folderSet.add(EmailFolder.STARRED)
-
-                                val state = BodyParseState(messageId = messageId)
-                                processPart(msg, state)
-
-                                var body = state.htmlBody.ifEmpty { state.plainBody.replace("\n", "<br>") }
-                                state.cidMap.forEach { (cid, dataUri) ->
-                                    body = body.replace("cid:$cid", dataUri)
-                                }
-                                val snippet = state.plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
-                                    state.htmlBody.replace(HTML_TAG_REGEX, " ").take(150).replace(Regex("\\s+"), " ").trim()
-                                }
-
-                                val providerMsg = ProviderMessage(
-                                    id = messageId,
-                                    threadId = threadId,
-                                    subject = msg.subject ?: "",
-                                    from = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: "",
-                                    fromEmail = fromAddrs.firstOrNull()?.address ?: "",
-                                    to = toAddrs.joinToString(", ") { it.address },
-                                    cc = ccAddrs.joinToString(", ") { it.address },
-                                    bcc = "",
-                                    snippet = snippet,
-                                    body = body,
-                                    bodyIsHtml = state.bodyIsHtml,
-                                    date = date,
-                                    isRead = isRead,
-                                    isStarred = isStarred,
-                                    folders = folderSet,
-                                    attachments = state.attachments
-                                )
-
-                                rawMessages.add(ImapRawMessage(messageId, references, inReplyTo, date, providerMsg))
-                            }
-                        }
-                    } finally {
-                        if (f.isOpen) f.close(false)
-                    }
-                }
-            }
-
-            if (rawMessages.isEmpty()) {
-                return@withContext ProviderThread(threadId, emptyList())
-            }
-
-            val threadsMap = ImapThreader.groupByReferences(rawMessages)
-            return@withContext threadsMap.values.firstOrNull()?.let { msgs ->
-                ProviderThread(threadId, msgs)
-            } ?: ProviderThread(threadId, emptyList())
-
-        } catch (e: Exception) {
-            android.util.Log.e("ImapProvider", "getThread error", e)
-            return@withContext ProviderThread(threadId, emptyList())
+            return mapped.ifEmpty { folderNamesCache.values.toList() }.distinct()
         }
-    } finally {
-        if (store.isConnected) store.close()
+        return listOfNotNull(
+            folderNamesCache[EmailFolder.INBOX],
+            folderNamesCache[EmailFolder.SENT],
+            folderNamesCache[EmailFolder.ARCHIVE]
+        )
     }
+
+    private fun collectMessagesFromFolder(
+        store: Store,
+        folderName: String,
+        threadId: String,
+        rawMessages: MutableList<ImapRawMessage>
+    ) {
+        val f = store.getFolder(folderName)
+        if (!f.exists()) return
+
+        f.open(Folder.READ_ONLY)
+        try {
+            val orTerm = jakarta.mail.search.OrTerm(
+                jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId),
+                jakarta.mail.search.OrTerm(
+                    jakarta.mail.search.HeaderTerm(HEADER_REFERENCES, threadId),
+                    jakarta.mail.search.HeaderTerm(HEADER_IN_REPLY_TO, threadId)
+                )
+            )
+            val matchingMessages = f.search(orTerm)
+            if (matchingMessages.isEmpty()) return
+
+            val profile = jakarta.mail.FetchProfile().apply {
+                add(jakarta.mail.FetchProfile.Item.ENVELOPE)
+                add(jakarta.mail.FetchProfile.Item.FLAGS)
+                add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
+            }
+            f.fetch(matchingMessages, profile)
+
+            for (msg in matchingMessages) {
+                val raw = threadMessageToRaw(msg, threadId) ?: continue
+                rawMessages.add(raw)
+            }
+        } finally {
+            if (f.isOpen) f.close(false)
+        }
+    }
+
+    private fun threadMessageToRaw(msg: jakarta.mail.Message, threadId: String): ImapRawMessage? {
+        val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: return null
+        val references = msg.getHeader(HEADER_REFERENCES)?.joinToString(" ") ?: ""
+        val inReplyTo = msg.getHeader(HEADER_IN_REPLY_TO)?.firstOrNull() ?: ""
+        val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
+
+        val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
+        val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+        val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
+
+        val folderSet = mutableSetOf<EmailFolder>()
+        val fname = msg.folder.name
+        folderNamesCache.entries.find { it.value == fname }?.key?.let { folderSet.add(it) }
+
+        val isRead = msg.isSet(Flags.Flag.SEEN)
+        val isStarred = msg.isSet(Flags.Flag.FLAGGED)
+        if (isStarred) folderSet.add(EmailFolder.STARRED)
+
+        val state = BodyParseState(messageId = messageId)
+        processPart(msg, state)
+
+        var body = state.htmlBody.ifEmpty { state.plainBody.replace("\n", "<br>") }
+        state.cidMap.forEach { (cid, dataUri) -> body = body.replace("cid:$cid", dataUri) }
+
+        val snippet = state.plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
+            state.htmlBody.replace(HTML_TAG_REGEX, " ").take(150).replace(Regex("\\s+"), " ").trim()
+        }
+
+        val providerMsg = ProviderMessage(
+            id = messageId, threadId = threadId,
+            subject = msg.subject ?: "",
+            from = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: "",
+            fromEmail = fromAddrs.firstOrNull()?.address ?: "",
+            to = toAddrs.joinToString(", ") { it.address },
+            cc = ccAddrs.joinToString(", ") { it.address },
+            bcc = "", snippet = snippet, body = body, bodyIsHtml = state.bodyIsHtml,
+            date = date, isRead = isRead, isStarred = isStarred,
+            folders = folderSet, attachments = state.attachments
+        )
+        return ImapRawMessage(messageId, references, inReplyTo, date, providerMsg)
     }
 
     override suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? = withContext(Dispatchers.IO) {
@@ -352,23 +347,26 @@ class ImapProvider(
             ).distinct()
 
             for (folderName in searchFolders) {
-                val f = store.getFolder(folderName)
-                if (f.exists()) {
-                    f.open(Folder.READ_ONLY)
-                    try {
-                        val messages = f.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, messageId))
-                        if (messages.isNotEmpty()) {
-                            val result = searchPart(messages[0], attachmentId)
-                            if (result != null) return@withContext result
-                        }
-                    } finally {
-                        f.close(false)
-                    }
-                }
+                val result = findAttachmentInFolder(store, folderName, messageId, attachmentId)
+                if (result != null) return@withContext result
             }
             return@withContext null
         } finally {
             if (store.isConnected) store.close()
+        }
+    }
+
+    private fun findAttachmentInFolder(store: Store, folderName: String, messageId: String, attachmentId: String): ByteArray? {
+        val f = store.getFolder(folderName)
+        if (!f.exists()) return null
+
+        f.open(Folder.READ_ONLY)
+        try {
+            val messages = f.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, messageId))
+            if (messages.isEmpty()) return null
+            return searchPart(messages[0], attachmentId)
+        } finally {
+            f.close(false)
         }
     }
 

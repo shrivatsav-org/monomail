@@ -19,55 +19,58 @@ internal data class BulkActionDef(
     val onClick: () -> Unit
 )
 
+internal data class BulkActionBarCallbacks(
+    val onArchive: () -> Unit,
+    val onDelete: () -> Unit,
+    val onMarkRead: () -> Unit,
+    val onMarkUnread: () -> Unit,
+    val onToggleStar: () -> Unit,
+    val onUnarchive: () -> Unit = {},
+    val onRestore: () -> Unit = {},
+    val onReportNotSpam: () -> Unit = {},
+)
+
 @Composable
 internal fun BulkActionBar(
-    selectedCount: Int,
     currentTab: InboxTab,
-    onArchive: () -> Unit,
-    onDelete: () -> Unit,
-    onMarkRead: () -> Unit,
-    onMarkUnread: () -> Unit,
-    onToggleStar: () -> Unit,
-    onUnarchive: () -> Unit = {},
-    onRestore: () -> Unit = {},
-    onReportNotSpam: () -> Unit = {},
+    callbacks: BulkActionBarCallbacks,
     modifier: Modifier = Modifier
 ) {
     val actions = when (currentTab) {
         InboxTab.ARCHIVED -> listOf(
-            BulkActionDef(Icons.Rounded.Unarchive, "Unarchive", onUnarchive),
-            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
-            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
-            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
-            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+            BulkActionDef(Icons.Rounded.Unarchive, "Unarchive", callbacks.onUnarchive),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", callbacks.onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", callbacks.onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", callbacks.onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", callbacks.onToggleStar),
         )
         InboxTab.TRASH -> listOf(
-            BulkActionDef(Icons.Rounded.Restore, "Restore", onRestore),
-            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
-            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
-            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
-            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+            BulkActionDef(Icons.Rounded.Restore, "Restore", callbacks.onRestore),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", callbacks.onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", callbacks.onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", callbacks.onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", callbacks.onToggleStar),
         )
         InboxTab.STARRED -> listOf(
-            BulkActionDef(Icons.Rounded.Archive, "Archive", onArchive),
-            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
-            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
-            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
-            BulkActionDef(Icons.Rounded.StarOutline, "Unstar", onToggleStar),
+            BulkActionDef(Icons.Rounded.Archive, "Archive", callbacks.onArchive),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", callbacks.onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", callbacks.onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", callbacks.onMarkUnread),
+            BulkActionDef(Icons.Rounded.StarOutline, "Unstar", callbacks.onToggleStar),
         )
         InboxTab.SPAM -> listOf(
-            BulkActionDef(Icons.Rounded.Report, "Not spam", onReportNotSpam),
-            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
-            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
-            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
-            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+            BulkActionDef(Icons.Rounded.Report, "Not spam", callbacks.onReportNotSpam),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", callbacks.onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", callbacks.onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", callbacks.onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", callbacks.onToggleStar),
         )
         else -> listOf(
-            BulkActionDef(Icons.Rounded.Archive, "Archive", onArchive),
-            BulkActionDef(Icons.Rounded.Delete, "Delete", onDelete),
-            BulkActionDef(Icons.Rounded.CheckCircle, "Read", onMarkRead),
-            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", onMarkUnread),
-            BulkActionDef(Icons.Rounded.Star, "Star", onToggleStar),
+            BulkActionDef(Icons.Rounded.Archive, "Archive", callbacks.onArchive),
+            BulkActionDef(Icons.Rounded.Delete, "Delete", callbacks.onDelete),
+            BulkActionDef(Icons.Rounded.CheckCircle, "Read", callbacks.onMarkRead),
+            BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", callbacks.onMarkUnread),
+            BulkActionDef(Icons.Rounded.Star, "Star", callbacks.onToggleStar),
         )
     }
 

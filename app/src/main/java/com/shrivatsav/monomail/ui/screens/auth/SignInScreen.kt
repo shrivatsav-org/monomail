@@ -43,12 +43,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Key
-import androidx.compose.material.icons.rounded.OpenInBrowser
 import androidx.compose.material.icons.rounded.Policy
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Web
@@ -60,11 +56,9 @@ import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -89,7 +83,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -155,124 +148,17 @@ fun SignInScreen(
     }
 
     if (showVerificationModal) {
-        AlertDialog(
-            onDismissRequest = { showVerificationModal = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Rounded.Shield,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            title = {
-                Text(
-                    text = "Verification in Progress",
-                    style = MaterialTheme.typography.titleLarge,
-                    textAlign = TextAlign.Center
-                )
-            },
-            text = {
-                Text(
-                    text = "Google's OAuth verification is in progress and will be enabled once that completes.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showVerificationModal = false }) {
-                    Text("OK")
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        VerificationModal(onDismiss = { showVerificationModal = false })
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 24.dp)
-                .scale(scale.value)
-                .alpha(alpha.value),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Image(
-                painter = painterResource(com.shrivatsav.monomail.R.drawable.ic_signin_mark),
-                contentDescription = "Monomail",
-                modifier = Modifier.size(96.dp),
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = "Mono Mail",
-                style = MaterialTheme.typography.displaySmall,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Your inbox, distilled.",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
-                textAlign = TextAlign.Center,
-            )
-            Spacer(modifier = Modifier.height(64.dp))
-            Button(
-                onClick = { showProviderSheet = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-            ) {
-                Text(
-                    text = "Continue with Email",
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = "Privacy Policy",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onNavigateToLegal("privacy") },
-                )
-                Text(
-                    text = " • ",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                )
-                Text(
-                    text = "Terms of Service",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.clickable { onNavigateToLegal("tos") },
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "monomail.millosaurs.me",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable {
-                    try {
-                        context.startActivity(
-                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://monomail.millosaurs.me"))
-                        )
-                    } catch (_: Exception) {}
-                },
-            )
-        }
+        SignInContent(
+            scale = scale.value,
+            alpha = alpha.value,
+            onContinueWithEmail = { showProviderSheet = true },
+            onNavigateToLegal = onNavigateToLegal,
+            context = context,
+        )
 
         SnackbarHost(
             hostState = snackbarHostState,
@@ -282,105 +168,153 @@ fun SignInScreen(
         }
 
         if (showProviderSheet) {
-            ModalBottomSheet(
-                onDismissRequest = {
-                    if (state !is SignInState.Loading) showProviderSheet = false
+            ProviderSheet(
+                state = state,
+                onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
+                onGoogleSignIn = {
+                    if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) {
+                        showProviderSheet = false
+                        showVerificationModal = true
+                    } else {
+                        viewModel.signIn(context)
+                    }
                 },
-                containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.onSurface,
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(
-                        text = "Choose your provider",
-                        style = MaterialTheme.typography.titleMedium,
+                onMicrosoftSignIn = {
+                    context.findActivity()?.let { activity ->
+                        viewModel.signInMicrosoft(activity)
+                    } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
+                },
+                onImapClick = onNavigateToImapSetup,
+            )
+        }
+    }
+}
+
+@Composable
+private fun SignInContent(
+    scale: Float,
+    alpha: Float,
+    onContinueWithEmail: () -> Unit,
+    onNavigateToLegal: (String) -> Unit,
+    context: Context,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .scale(scale)
+            .alpha(alpha),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Image(
+            painter = painterResource(com.shrivatsav.monomail.R.drawable.ic_signin_mark),
+            contentDescription = "Monomail",
+            modifier = Modifier.size(96.dp),
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "Mono Mail",
+            style = MaterialTheme.typography.displaySmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Your inbox, distilled.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+            textAlign = TextAlign.Center,
+        )
+        Spacer(modifier = Modifier.height(64.dp))
+        Button(
+            onClick = onContinueWithEmail,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp),
+            shape = MaterialTheme.shapes.large,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+        ) {
+            Text(
+                text = "Continue with Email",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+        ) {
+            Text(
+                text = "Privacy Policy",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onNavigateToLegal("privacy") },
+            )
+            Text(
+                text = " • ",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+            )
+            Text(
+                text = "Terms of Service",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onNavigateToLegal("tos") },
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "monomail.millosaurs.me",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.clickable {
+                try {
+                    context.startActivity(
+                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://monomail.millosaurs.me"))
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = {
-                            if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) {
-                                showProviderSheet = false
-                                showVerificationModal = true
-                            } else {
-                                viewModel.signIn(context)
-                            }
-                        },
-                        enabled = state !is SignInState.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = MaterialTheme.shapes.large,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            contentColor = MaterialTheme.colorScheme.onPrimary,
-                        ),
-                    ) {
-                        if (state is SignInState.Loading) {
-                            LoadingIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
-                            )
-                        } else {
-                            Text(
-                                text = "Sign in with Google",
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            context.findActivity()?.let { activity ->
-                                viewModel.signInMicrosoft(activity)
-                            } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
-                        },
-                        enabled = state !is SignInState.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = MaterialTheme.shapes.large,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary,
-                        ),
-                    ) {
-                        if (state is SignInState.Loading) {
-                            LoadingIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = MaterialTheme.colorScheme.onSecondary,
-                            )
-                        } else {
-                            Text(
-                                text = "Sign in with Microsoft",
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(
-                        onClick = { onNavigateToImapSetup() },
-                        enabled = state !is SignInState.Loading,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = MaterialTheme.shapes.large,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.tertiary,
-                            contentColor = MaterialTheme.colorScheme.onTertiary,
-                        ),
-                    ) {
-                        Text(
-                            text = "Other (IMAP/SMTP)",
-                            style = MaterialTheme.typography.labelLarge,
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(48.dp))
-                }
-            }
+                } catch (e: Exception) { android.util.Log.w("SignIn", "Failed to open URL", e) }
+            },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun ProviderSheet(
+    state: SignInState,
+    onDismiss: () -> Unit,
+    onGoogleSignIn: () -> Unit,
+    onMicrosoftSignIn: () -> Unit,
+    onImapClick: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurface,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                text = "Choose your provider",
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            ProviderButtons(
+                state = state,
+                onGoogleSignIn = onGoogleSignIn,
+                onMicrosoftSignIn = onMicrosoftSignIn,
+                onImapClick = onImapClick,
+            )
+            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }
@@ -393,7 +327,6 @@ fun SignInScreen(
 @Composable
 fun ProviderSelectionDialog(
     viewModel: SignInViewModel,
-    onDismiss: () -> Unit,
     onSuccess: () -> Unit,
     onNavigateToImapSetup: () -> Unit,
 ) {
@@ -420,38 +353,7 @@ fun ProviderSelectionDialog(
     }
 
     if (showVerificationModal) {
-        AlertDialog(
-            onDismissRequest = { showVerificationModal = false },
-            icon = {
-                Icon(
-                    imageVector = Icons.Rounded.Shield,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            },
-            title = {
-                Text(
-                    text = "Verification in Progress",
-                    style = MaterialTheme.typography.titleLarge,
-                    textAlign = TextAlign.Center
-                )
-            },
-            text = {
-                Text(
-                    text = "Google's OAuth verification is in progress and will be enabled once that completes.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    textAlign = TextAlign.Center
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { showVerificationModal = false }) {
-                    Text("OK")
-                }
-            },
-            containerColor = MaterialTheme.colorScheme.surface,
-            titleContentColor = MaterialTheme.colorScheme.onSurface,
-            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        VerificationModal(onDismiss = { showVerificationModal = false })
     }
 
     Surface(
@@ -479,83 +381,22 @@ fun ProviderSelectionDialog(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
             )
             Spacer(modifier = Modifier.height(32.dp))
-            Button(
-                onClick = {
+            ProviderButtons(
+                state = state,
+                onGoogleSignIn = {
                     if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) {
                         showVerificationModal = true
                     } else {
                         viewModel.signIn(context)
                     }
                 },
-                enabled = state !is SignInState.Loading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                ),
-            ) {
-                if (state is SignInState.Loading) {
-                    LoadingIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onPrimary,
-                    )
-                } else {
-                    Text(
-                        text = "Sign in with Google",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = {
+                onMicrosoftSignIn = {
                     context.findActivity()?.let { activity ->
                         viewModel.signInMicrosoft(activity)
                     } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
                 },
-                enabled = state !is SignInState.Loading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    contentColor = MaterialTheme.colorScheme.onSecondary,
-                ),
-            ) {
-                if (state is SignInState.Loading) {
-                    LoadingIndicator(
-                        modifier = Modifier.size(24.dp),
-                        color = MaterialTheme.colorScheme.onSecondary,
-                    )
-                } else {
-                    Text(
-                        text = "Sign in with Microsoft",
-                        style = MaterialTheme.typography.labelLarge,
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            Button(
-                onClick = { onNavigateToImapSetup() },
-                enabled = state !is SignInState.Loading,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp),
-                shape = MaterialTheme.shapes.large,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.tertiary,
-                    contentColor = MaterialTheme.colorScheme.onTertiary,
-                ),
-            ) {
-                Text(
-                    text = "Other (IMAP/SMTP)",
-                    style = MaterialTheme.typography.labelLarge,
-                )
-            }
+                onImapClick = onNavigateToImapSetup
+            )
             if (state is SignInState.Error) {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
@@ -566,6 +407,120 @@ fun ProviderSelectionDialog(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun VerificationModal(onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Rounded.Shield,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+        },
+        title = {
+            Text(
+                text = "Verification in Progress",
+                style = MaterialTheme.typography.titleLarge,
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            Text(
+                text = "Google's OAuth verification is in progress and will be enabled once that completes.",
+                style = MaterialTheme.typography.bodyMedium,
+                textAlign = TextAlign.Center
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("OK")
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ProviderButtons(
+    state: SignInState,
+    onGoogleSignIn: () -> Unit,
+    onMicrosoftSignIn: () -> Unit,
+    onImapClick: () -> Unit,
+) {
+    val isLoading = state is SignInState.Loading
+    Button(
+        onClick = onGoogleSignIn,
+        enabled = !isLoading,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ),
+    ) {
+        if (isLoading) {
+            LoadingIndicator(
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.onPrimary,
+            )
+        } else {
+            Text(
+                text = "Sign in with Google",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    Button(
+        onClick = onMicrosoftSignIn,
+        enabled = !isLoading,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.secondary,
+            contentColor = MaterialTheme.colorScheme.onSecondary,
+        ),
+    ) {
+        if (isLoading) {
+            LoadingIndicator(
+                modifier = Modifier.size(24.dp),
+                color = MaterialTheme.colorScheme.onSecondary,
+            )
+        } else {
+            Text(
+                text = "Sign in with Microsoft",
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    Button(
+        onClick = onImapClick,
+        enabled = !isLoading,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(56.dp),
+        shape = MaterialTheme.shapes.large,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.tertiary,
+            contentColor = MaterialTheme.colorScheme.onTertiary,
+        ),
+    ) {
+        Text(
+            text = "Other (IMAP/SMTP)",
+            style = MaterialTheme.typography.labelLarge,
+        )
     }
 }
 

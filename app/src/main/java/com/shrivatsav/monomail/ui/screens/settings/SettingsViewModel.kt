@@ -69,7 +69,7 @@ class SettingsViewModel @Inject constructor(
         _updateState.value = UpdateState.CHECKING
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val response = URL("https://api.github.com/repos/shrivatsav-0/monomail/releases/latest").readText()
+                val response = java.net.URI("https://api.github.com/repos/shrivatsav-0/monomail/releases/latest").toURL().readText()
                 val json = JSONObject(response)
                 val tagName = json.getString("tag_name").removePrefix("v")
                 val htmlUrl = json.getString("html_url")

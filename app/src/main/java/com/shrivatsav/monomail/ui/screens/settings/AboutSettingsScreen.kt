@@ -15,7 +15,6 @@ internal fun AboutSettingsScreen(
     onNavigateToLegal: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val settings by viewModel.settings.collectAsState()
     val buildFlavorName = if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
     val buildTypeName = if (com.shrivatsav.monomail.BuildConfig.DEBUG) "Debug" else "Release"
     val isFcmCompiled = remember {
@@ -26,7 +25,6 @@ internal fun AboutSettingsScreen(
             false
         }
     }
-    val fcmStatusText = if (isFcmCompiled) "FCM Enabled" else "FCM Disabled"
     val updateState by viewModel.updateState.collectAsState()
     val latestUrl by viewModel.latestVersionUrl.collectAsState()
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
@@ -48,28 +46,10 @@ internal fun AboutSettingsScreen(
             InfoRow(
                 icon = Icons.Rounded.CloudQueue,
                 title = "Push",
-                value = fcmStatusText
+                value = if (isFcmCompiled) "FCM Enabled" else "FCM Disabled"
             )
             CardDivider()
-            val updateText = when (updateState) {
-                UpdateState.IDLE -> "Check for Updates"
-                UpdateState.CHECKING -> "Checking…"
-                UpdateState.UP_TO_DATE -> "You are up to date!"
-                UpdateState.UPDATE_AVAILABLE -> "Update Available — tap to download"
-                UpdateState.ERROR -> "Error checking for updates"
-            }
-            InfoRow(
-                icon = if (updateState == UpdateState.UPDATE_AVAILABLE) Icons.Rounded.Download else Icons.Rounded.Refresh,
-                title = updateText,
-                value = "",
-                onClick = {
-                    if (updateState == UpdateState.UPDATE_AVAILABLE && latestUrl != null) {
-                        uriHandler.openUri(latestUrl!!)
-                    } else {
-                        viewModel.checkForUpdates(com.shrivatsav.monomail.BuildConfig.VERSION_NAME)
-                    }
-                }
-            )
+            UpdateInfoRow(updateState, latestUrl, viewModel, uriHandler)
             CardDivider()
             InfoRow(
                 icon = Icons.Rounded.Language,
@@ -105,4 +85,32 @@ internal fun AboutSettingsScreen(
             )
         }
     }
+}
+
+@Composable
+private fun UpdateInfoRow(
+    updateState: UpdateState,
+    latestUrl: String?,
+    viewModel: SettingsViewModel,
+    uriHandler: androidx.compose.ui.platform.UriHandler
+) {
+    val updateText = when (updateState) {
+        UpdateState.IDLE -> "Check for Updates"
+        UpdateState.CHECKING -> "Checking…"
+        UpdateState.UP_TO_DATE -> "You are up to date!"
+        UpdateState.UPDATE_AVAILABLE -> "Update Available — tap to download"
+        UpdateState.ERROR -> "Error checking for updates"
+    }
+    InfoRow(
+        icon = if (updateState == UpdateState.UPDATE_AVAILABLE) Icons.Rounded.Download else Icons.Rounded.Refresh,
+        title = updateText,
+        value = "",
+        onClick = {
+            if (updateState == UpdateState.UPDATE_AVAILABLE && latestUrl != null) {
+                uriHandler.openUri(latestUrl)
+            } else {
+                viewModel.checkForUpdates(com.shrivatsav.monomail.BuildConfig.VERSION_NAME)
+            }
+        }
+    )
 }

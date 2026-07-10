@@ -236,7 +236,7 @@ fun NavGraph(
                     onNavigateToLegal = { type ->
                         val url = if (type == "privacy") "https://monomail.millosaurs.me/pp" else "https://monomail.millosaurs.me/tos"
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                        try { ctx.startActivity(intent) } catch (_: Exception) {}
+                        try { ctx.startActivity(intent) } catch (e: Exception) { android.util.Log.w("NavGraph", "Failed to open URL", e) }
                     },
                     onNavigateToImapSetup = {
                         navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
@@ -301,7 +301,7 @@ fun NavGraph(
                     onNavigateToLegal = { type ->
                         val url = if (type == "privacy") "https://monomail.millosaurs.me/pp" else "https://monomail.millosaurs.me/tos"
                         val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                        try { ctx.startActivity(intent) } catch (_: Exception) {}
+                        try { ctx.startActivity(intent) } catch (e: Exception) { android.util.Log.w("NavGraph", "Failed to open URL", e) }
                     },
                     onNavigateToPgpKeys = {
                         navController.navigate(Screen.PgpKeys.route) { launchSingleTop = true }

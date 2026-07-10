@@ -542,7 +542,6 @@ fun ThreadConversationContent(
                             MessageBody(
                                 email = email,
                                 decryptedResult = decryptedBodies[email.id],
-                                bgColor = bgColor,
                                 textColor = textColor,
                                 linkColor = linkColor,
                                 fontScaleMultiplier = fontScaleMultiplier,
@@ -560,7 +559,6 @@ fun ThreadConversationContent(
                 MessageBody(
                     email = email,
                     decryptedResult = decryptedBodies[email.id],
-                    bgColor = bgColor,
                     textColor = textColor,
                     linkColor = linkColor,
                     fontScaleMultiplier = fontScaleMultiplier,
@@ -641,7 +639,6 @@ fun ThreadConversationContent(
 private fun MessageBody(
     email: Email,
     decryptedResult: PgpDecryptionResult? = null,
-    bgColor: String,
     textColor: String,
     linkColor: String,
     fontScaleMultiplier: Float = 1f,
@@ -734,8 +731,6 @@ private fun MessageBody(
             }
             return
         }
-    val fontSize = (15f * fontScaleMultiplier).coerceIn(10f, 28f)
-    val smallFontSize = (13f * fontScaleMultiplier).coerceIn(9f, 24f)
     var showQuotedText by remember { mutableStateOf(false) }
     val hasQuotedText = remember(safeBodyText) {
         safeBodyText.contains("<blockquote", ignoreCase = true) ||
@@ -1126,11 +1121,11 @@ private fun MessageBody(
                         try {
                             WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java)
                                 .invoke(this, true)
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowFileAccess failed", e) }
                         try {
                             WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java)
                                 .invoke(this, false)
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowContentAccess failed", e) }
                         setBackgroundColor(android.graphics.Color.TRANSPARENT)
                         isVerticalScrollBarEnabled = false
                         isHorizontalScrollBarEnabled = true
@@ -1541,47 +1536,117 @@ private fun ThreadAttachmentsSummary(
     val imageCount = imageAttachments.size
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .clickable { expanded = !expanded }
-                .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f))
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.AttachFile,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(20.dp)
+        AttachmentToggleButton(
+            totalCount = totalCount,
+            imageCount = imageCount,
+            expanded = expanded,
+            onClick = { expanded = !expanded }
+        )
+
+        if (expanded) {
+            ExpandedAttachmentList(
+                imageAttachments = imageAttachments,
+                fileAttachments = fileAttachments,
+                onFetchAttachment = onFetchAttachment
             )
-            Spacer(modifier = Modifier.width(12.dp))
-            Text(
-                text = "$totalCount Attachment${if (totalCount != 1) "s" else ""}" +
-                    if (imageCount > 0) " ($imageCount image${if (imageCount != 1) "s" else ""})" else "",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                contentDescription = if (expanded) "Collapse" else "Expand",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+        }
+    }
+}
+
+@Composable
+private fun AttachmentToggleButton(
+    totalCount: Int,
+    imageCount: Int,
+    expanded: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f))
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.AttachFile,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "$totalCount Attachment${if (totalCount != 1) "s" else ""}" +
+                if (imageCount > 0) " ($imageCount image${if (imageCount != 1) "s" else ""})" else "",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+        Icon(
+            imageVector = if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            contentDescription = if (expanded) "Collapse" else "Expand",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+        )
+    }
+}
+
+@Composable
+private fun ExpandedAttachmentList(
+    imageAttachments: List<Pair<EmailAttachmentInfo, String>>,
+    fileAttachments: List<Pair<EmailAttachmentInfo, String>>,
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        imageAttachments.forEach { (attachment, sender) ->
+            Column {
+                ImageAttachmentCard(
+                    attachment = attachment,
+                    onFetchAttachment = onFetchAttachment
+                )
+                Text(
+                    text = "from $sender",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                )
+            }
+        }
+
+        if (fileAttachments.isNotEmpty()) {
+            FileAttachmentsGrid(
+                fileAttachments = fileAttachments,
+                onFetchAttachment = onFetchAttachment
             )
         }
 
-        if (expanded) {
-            Column(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+}
+
+@Composable
+private fun FileAttachmentsGrid(
+    fileAttachments: List<Pair<EmailAttachmentInfo, String>>,
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+) {
+    BoxWithConstraints {
+        val columnWidth = 200.dp
+        val columns = maxOf(1, (maxWidth / columnWidth).toInt())
+        fileAttachments.chunked(columns).forEach { rowItems ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                imageAttachments.forEach { (attachment, sender) ->
-                    Column {
-                        ImageAttachmentCard(
+                rowItems.forEach { (attachment, sender) ->
+                    Column(modifier = Modifier.weight(1f)) {
+                        FileAttachmentCard(
                             attachment = attachment,
-                            onFetchAttachment = onFetchAttachment
+                            onFetchAttachment = onFetchAttachment,
+                            modifier = Modifier.fillMaxWidth()
                         )
                         Text(
                             text = "from $sender",
@@ -1591,40 +1656,9 @@ private fun ThreadAttachmentsSummary(
                         )
                     }
                 }
-
-                if (fileAttachments.isNotEmpty()) {
-                    BoxWithConstraints {
-                        val columnWidth = 200.dp
-                        val columns = maxOf(1, (maxWidth / columnWidth).toInt())
-                        fileAttachments.chunked(columns).forEach { rowItems ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                rowItems.forEach { (attachment, sender) ->
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        FileAttachmentCard(
-                                            attachment = attachment,
-                                            onFetchAttachment = onFetchAttachment,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
-                                        Text(
-                                            text = "from $sender",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                                            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-                                        )
-                                    }
-                                }
-                                repeat(columns - rowItems.size) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
+                repeat(columns - rowItems.size) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }

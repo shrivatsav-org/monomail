@@ -47,7 +47,7 @@ fun computeInboxStructure(
         val sortedSingles = threads.sortedByDescending { it.date }.map { TempItem.Single(it) }
         return InboxStructure(emptyList(), sortedSingles)
     }
-    val MIN_GROUP_SIZE = 3
+    val minGroupSize = 3
     val now = System.currentTimeMillis()
     val oneDayMillis = 24L * 60 * 60 * 1000
     val threeDaysMillis = 3L * oneDayMillis
@@ -67,8 +67,8 @@ fun computeInboxStructure(
     val groups = mutableListOf<TempItem.Group>()
     val singles = mutableListOf<TempItem.Single>()
     singles.addAll(remainingThreads.map { TempItem.Single(it) })
-    for ((groupName, groupThreads) in groupedThreadsMap) {
-        if (groupThreads.size >= MIN_GROUP_SIZE) {
+    for ((groupName, groupThreads: List<EmailThread>) in groupedThreadsMap) {
+        if (groupThreads.size >= minGroupSize) {
             groups.add(TempItem.Group(groupName, groupThreads.sortedByDescending { it.date }))
         } else {
             singles.addAll(groupThreads.map { TempItem.Single(it) })

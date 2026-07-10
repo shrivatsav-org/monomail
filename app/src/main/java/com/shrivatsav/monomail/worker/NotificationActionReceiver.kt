@@ -145,7 +145,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val repository = deps.emailRepository()
 
         createReplyStatusChannel(context)
-        showReplyNotification(context, accountId, replyNotificationId, "Sending reply...", isProgress = true)
+        showReplyNotification(context, replyNotificationId, "Sending reply...", isProgress = true)
 
         val result = repository.sendEmail(
             from = account.email,
@@ -159,10 +159,10 @@ class NotificationActionReceiver : BroadcastReceiver() {
         )
 
         if (result.isSuccess) {
-            showReplyNotification(context, accountId, replyNotificationId, "Reply sent", isProgress = false)
+            showReplyNotification(context, replyNotificationId, "Reply sent", isProgress = false)
         } else {
             showReplyNotification(
-                context, accountId, replyNotificationId,
+                context, replyNotificationId,
                 "Failed to send reply", isProgress = false
             )
         }
@@ -262,7 +262,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
     }
 
     private fun showReplyNotification(
-        context: Context, accountId: String, notificationId: Int, text: String, isProgress: Boolean
+        context: Context, notificationId: Int, text: String, isProgress: Boolean
     ) {
         val builder = NotificationCompat.Builder(context, REPLY_STATUS_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
