@@ -993,13 +993,15 @@ private fun MessageBody(
                         min-width: 0 !important;
                         max-width: 100% !important;
                     }
-                    table {
-                        max-width: 100% !important;
-                    }
-                    td, th, div, p, span {
+                    div, p, span, a, h1, h2, h3, h4, h5, h6 {
                         max-width: 100% !important;
                         min-width: 0 !important;
-                        overflow-wrap: anywhere;
+                        overflow-wrap: break-word;
+                    }
+                    th[scope="col"] {
+                        width: auto !important;
+                        min-width: max-content !important;
+                        white-space: nowrap !important;
                     }
                     [width="600"], [width="640"], [width="700"] {
                         width: 100% !important;
@@ -1010,12 +1012,6 @@ private fun MessageBody(
                     [style*="min-width:640px"], [style*="min-width: 640px"] {
                         width: 100% !important;
                         min-width: 0 !important;
-                    }
-                    [style*="white-space: nowrap"] {
-                        white-space: normal !important;
-                    }
-                    [style*="overflow: hidden"] {
-                        overflow: visible !important;
                     }
                     img {
                         max-width: 100% !important;
