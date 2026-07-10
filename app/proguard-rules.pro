@@ -55,6 +55,7 @@
 -keep class com.shrivatsav.monomail.auth.UserProfile {
     *;
 }
+-keep class com.shrivatsav.monomail.data.settings.** { *; }
 
 # angus-mail / Jakarta Mail
 -keep class org.eclipse.angus.mail.** { *; }
