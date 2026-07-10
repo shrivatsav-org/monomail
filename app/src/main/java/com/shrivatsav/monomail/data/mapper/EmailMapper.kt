@@ -102,29 +102,26 @@ object EmailMapper {
         if (part == null) return BodyResult("", isHtml = true)
         if (part.body?.data != null && part.parts.isNullOrEmpty()) {
             val decoded = decodeBase64Url(part.body.data)
-            if (part.mimeType == "text/html") {
-                return BodyResult(decoded, isHtml = true)
-            }
-            if (part.mimeType == "text/plain") {
-                return BodyResult(decoded, isHtml = false)
-            }
+            if (part.mimeType == "text/html") return BodyResult(decoded, isHtml = true)
+            if (part.mimeType == "text/plain") return BodyResult(decoded, isHtml = false)
         }
         val children = part.parts.orEmpty()
-        for (child in children) {
-            if (child.mimeType == "text/html" && child.body?.data != null) {
-                return BodyResult(decodeBase64Url(child.body.data), isHtml = true)
-            }
-        }
-        for (child in children) {
-            if (child.mimeType == "text/plain" && child.body?.data != null) {
-                return BodyResult(decodeBase64Url(child.body.data), isHtml = false)
-            }
-        }
+        findChildWithData(children, "text/html")?.let { return it }
+        findChildWithData(children, "text/plain")?.let { return it }
         for (child in children) {
             val result = extractBody(child)
             if (result.text.isNotEmpty()) return result
         }
         return BodyResult("", isHtml = true)
+    }
+
+    private fun findChildWithData(children: List<MessagePart>, mimeType: String): BodyResult? {
+        for (child in children) {
+            if (child.mimeType == mimeType && child.body?.data != null) {
+                return BodyResult(decodeBase64Url(child.body.data), isHtml = mimeType == "text/html")
+            }
+        }
+        return null
     }
     private fun extractFilenamedImageCids(part: MessagePart?): Set<String> {
         if (part == null) return emptySet()

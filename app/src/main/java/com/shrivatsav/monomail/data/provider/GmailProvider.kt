@@ -159,34 +159,28 @@ class GmailProvider(
         }
         val messages = rawThread.messages.orEmpty().map { msg ->
             val email = msg.toEmail()
-            val labels = email.labels
-            val folders = mutableSetOf<EmailFolder>()
-            if ("INBOX" in labels) folders.add(EmailFolder.INBOX)
-            if ("SENT" in labels) folders.add(EmailFolder.SENT)
-            if ("STARRED" in labels) folders.add(EmailFolder.STARRED)
-            if ("TRASH" in labels) folders.add(EmailFolder.TRASH)
-            if ("SPAM" in labels) folders.add(EmailFolder.SPAM)
-            if ("INBOX" !in labels && "TRASH" !in labels && "SENT" !in labels && "SPAM" !in labels) folders.add(EmailFolder.ARCHIVE)
             ProviderMessage(
-                id = email.id,
-                threadId = email.threadId,
-                subject = email.subject,
-                from = email.from,
-                fromEmail = email.fromEmail,
-                to = email.`to`,
-                cc = email.cc,
-                bcc = email.bcc,
-                snippet = email.snippet,
-                body = email.body,
-                bodyIsHtml = email.bodyIsHtml,
-                date = email.date,
-                isRead = email.isRead,
-                isStarred = email.isStarred,
-                folders = folders.toSet(),
-                attachments = email.attachments
+                id = email.id, threadId = email.threadId, subject = email.subject,
+                from = email.from, fromEmail = email.fromEmail, to = email.`to`,
+                cc = email.cc, bcc = email.bcc, snippet = email.snippet,
+                body = email.body, bodyIsHtml = email.bodyIsHtml, date = email.date,
+                isRead = email.isRead, isStarred = email.isStarred,
+                folders = labelsToFolders(email.labels), attachments = email.attachments
             )
         }
         ProviderThread(rawThread.id, messages)
+    }
+
+    private fun labelsToFolders(labels: List<String>): Set<EmailFolder> {
+        val folders = mutableSetOf<EmailFolder>()
+        if ("INBOX" in labels) folders.add(EmailFolder.INBOX)
+        if ("SENT" in labels) folders.add(EmailFolder.SENT)
+        if ("STARRED" in labels) folders.add(EmailFolder.STARRED)
+        if ("TRASH" in labels) folders.add(EmailFolder.TRASH)
+        if ("SPAM" in labels) folders.add(EmailFolder.SPAM)
+        val known = setOf("INBOX", "TRASH", "SENT", "SPAM")
+        if (labels.none { it in known }) folders.add(EmailFolder.ARCHIVE)
+        return folders
     }
     override suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
         return withContext(Dispatchers.IO) {
