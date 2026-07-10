@@ -911,7 +911,7 @@ private fun MessageBody(
         }
 
         val useOverviewScaling = remember(safeBodyText, bodyIsHtml) {
-            bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksDataTableEmail(safeBodyText)
+            bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksMobileFriendly(safeBodyText) && !looksDataTableEmail(safeBodyText)
         }
 
         // ponytail: CSS zoom scales 600px template emails to fit the card
@@ -1677,6 +1677,12 @@ private fun looksDataTableEmail(html: String): Boolean {
         lower.contains("<th") ||
         lower.contains("scope=\"col\"") ||
         lower.contains("role=\"columnheader\"")
+}
+
+// ponytail: emails with responsive signals already handle mobile — no zoom needed
+private fun looksMobileFriendly(html: String): Boolean {
+    val lower = html.lowercase(Locale.US)
+    return lower.contains("width=device-width") || lower.contains("@media")
 }
 
 // ponytail: strips inline style="" from <body> tags so wrapper CSS isn't overridden
