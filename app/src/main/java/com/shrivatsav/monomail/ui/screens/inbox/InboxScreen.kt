@@ -12,8 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -75,20 +73,12 @@ fun InboxScreen(
         }
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
     var threadToDelete by remember { mutableStateOf<String?>(null) }
     var showClearTrashWarning by remember { mutableStateOf(false) }
     var showClearSpamWarning by remember { mutableStateOf(false) }
     var isTrashCountdownActive by remember { mutableStateOf(false) }
     var isSpamCountdownActive by remember { mutableStateOf(false) }
     val appSettings by viewModel.appSettingsState.collectAsState()
-    val fontSizeScale = when (appSettings.fontScale) {
-        com.shrivatsav.monomail.data.settings.FontScale.EXTRA_SMALL -> 0.7f
-        com.shrivatsav.monomail.data.settings.FontScale.SMALL -> 0.85f
-        com.shrivatsav.monomail.data.settings.FontScale.DEFAULT -> 1f
-        com.shrivatsav.monomail.data.settings.FontScale.LARGE -> 1.15f
-        com.shrivatsav.monomail.data.settings.FontScale.EXTRA_LARGE -> 1.3f
-    }
 
     val pullToRefreshState = rememberPullToRefreshState()
     var searchQuery by remember { mutableStateOf("") }
@@ -185,23 +175,11 @@ fun InboxScreen(
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
                         onServerSearch = { viewModel.searchServer(it) },
-                        onSignOut = onSignOut,
-                        onSwitchAccount = { viewModel.switchAccount(it) },
-                        onAddAccount = {
-                            if (accounts.size >= 10) {
-                                coroutineScope.launch {
-                                    snackbarHostState.showSnackbar("Maximum limit of 10 accounts reached.")
-                                }
-                            } else activeModal = ModalType.ADD_ACCOUNT
-                        },
                         onMarkAllRead = { viewModel.markAllAsRead() },
-                        onStarredClick = { viewModel.switchTab(InboxTab.STARRED) },
-                        onTrashClick = { viewModel.switchTab(InboxTab.TRASH) },
                         onScheduledClick = onScheduledClick,
                         isRefreshing = isRefreshing,
                         toastState = toastState,
                         onUndo = { viewModel.undoAction() },
-                        onSettings = onSettings,
                         onOpenProfile = { activeModal = ModalType.PROFILE },
                         scheduledCount = scheduledCount,
                         isBulkMode = isBulkMode,
@@ -413,7 +391,6 @@ fun InboxScreen(
                                                             )
                                                             longPressedThread = displayItem.thread
                                                         },
-                                                        fontSizeScale = fontSizeScale,
                                                         isNested = false,
                                                         isBulkMode = isBulkMode,
                                                         isSelected = displayItem.thread.threadId in selectedThreadIds,
@@ -440,7 +417,6 @@ fun InboxScreen(
                                                             )
                                                             longPressedThread = displayItem.thread
                                                         },
-                                                        fontSizeScale = fontSizeScale,
                                                         isNested = true,
                                                         isBulkMode = isBulkMode,
                                                         isSelected = displayItem.thread.threadId in selectedThreadIds,
@@ -618,16 +594,17 @@ fun InboxScreen(
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 BulkActionBar(
-                    selectedCount = selectedCount,
                     currentTab = immediateTab,
-                    onArchive = { viewModel.bulkArchive() },
-                    onDelete = { viewModel.bulkDelete() },
-                    onMarkRead = { viewModel.bulkMarkRead() },
-                    onMarkUnread = { viewModel.bulkMarkUnread() },
-                    onToggleStar = { viewModel.bulkToggleStar() },
-                    onUnarchive = { viewModel.bulkUnarchive() },
-                    onRestore = { viewModel.bulkRestore() },
-                    onReportNotSpam = { viewModel.bulkReportNotSpam() },
+                    callbacks = BulkActionBarCallbacks(
+                        onArchive = { viewModel.bulkArchive() },
+                        onDelete = { viewModel.bulkDelete() },
+                        onMarkRead = { viewModel.bulkMarkRead() },
+                        onMarkUnread = { viewModel.bulkMarkUnread() },
+                        onToggleStar = { viewModel.bulkToggleStar() },
+                        onUnarchive = { viewModel.bulkUnarchive() },
+                        onRestore = { viewModel.bulkRestore() },
+                        onReportNotSpam = { viewModel.bulkReportNotSpam() },
+                    ),
                     modifier = Modifier.padding(bottom = navBarHeight + 8.dp)
                 )
             }
@@ -712,7 +689,7 @@ fun InboxScreen(
                                     )
                                 } else {
                                     LongPressAction(
-                                        icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.Star,
+                                        icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                                         label = if (thread.isStarred) "Unstar" else "Star",
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         onClick = {
@@ -783,25 +760,27 @@ fun InboxScreen(
                 activeModal = activeModal,
                 userProfile = userProfile,
                 accounts = accounts,
-                onDismiss = { activeModal = null },
-                onSignOut = { activeModal = null; onSignOut() },
-                onSwitchAccount = { viewModel.switchAccount(it); activeModal = null },
-                onCycleAccount = { viewModel.switchAccount(it) },
-                onAddAccount = {
-                    if (accounts.size >= 10) {
-                        coroutineScope.launch {
-                            snackbarHostState.showSnackbar("Maximum limit of 10 accounts reached.")
-                        }
-                    } else if (accounts.size >= 3) {
-                        showPerformanceWarningDialog = true
-                    } else activeModal = ModalType.ADD_ACCOUNT
-                },
-                onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
-                onBackToProfile = { activeModal = ModalType.PROFILE },
-                onSettings = { activeModal = null; onSettings() },
-                onNavigateToImapSetup = onNavigateToImapSetup,
-                unifiedInboxEnabled = unifiedInboxEnabled,
-                onToggleUnified = { viewModel.setUnifiedInboxEnabled(it) }
+                callbacks = ModalCallbacks(
+                    onDismiss = { activeModal = null },
+                    onSignOut = { activeModal = null; onSignOut() },
+                    onSwitchAccount = { viewModel.switchAccount(it); activeModal = null },
+                    onCycleAccount = { viewModel.switchAccount(it) },
+                    onAddAccount = {
+                        if (accounts.size >= 10) {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("Maximum limit of 10 accounts reached.")
+                            }
+                        } else if (accounts.size >= 3) {
+                            showPerformanceWarningDialog = true
+                        } else activeModal = ModalType.ADD_ACCOUNT
+                    },
+                    onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
+                    onBackToProfile = { activeModal = ModalType.PROFILE },
+                    onSettings = { activeModal = null; onSettings() },
+                    onNavigateToImapSetup = onNavigateToImapSetup,
+                    onToggleUnified = { viewModel.setUnifiedInboxEnabled(it) }
+                ),
+                unifiedInboxEnabled = unifiedInboxEnabled
             )
         }
     }

@@ -56,7 +56,7 @@ private fun findBodyText(element: JsonElement?): String? {
     if (element.isJsonObject) {
         val obj = element.asJsonObject
         listOf("html", "text", "content", "body").forEach { key ->
-            val value = obj.get(key)
+            val value = obj[key]
             if (value?.isJsonPrimitive == true && value.asJsonPrimitive.isString) {
                 return value.asString
             }

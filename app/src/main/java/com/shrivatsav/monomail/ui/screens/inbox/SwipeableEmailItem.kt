@@ -28,7 +28,6 @@ internal fun SwipeableEmailItem(
     onThreadToDeleteChange: (String?) -> Unit,
     onEmailClick: () -> Unit,
     onLongClick: () -> Unit,
-    fontSizeScale: Float,
     isNested: Boolean = false,
     isSelected: Boolean = false,
     isBulkMode: Boolean = false,
@@ -89,7 +88,6 @@ internal fun SwipeableEmailItem(
                 onLongClick = onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
-                fontSizeScale = fontSizeScale,
                 isSelected = isSelected,
                 isBulkMode = true,
                 onSelectToggle = onSelectToggle,
@@ -155,7 +153,7 @@ internal fun SwipeableEmailItem(
                         com.shrivatsav.monomail.data.settings.SwipeAction.STAR ->
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Icon(
-                                    if (optIsStarred) Icons.Rounded.Star else Icons.Rounded.Star,
+                                    if (optIsStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                                     contentDescription = null,
                                     tint = MaterialTheme.colorScheme.onTertiaryContainer
                                 )
@@ -209,7 +207,6 @@ internal fun SwipeableEmailItem(
                 onLongClick = onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
-                fontSizeScale = fontSizeScale,
                 isSelected = isSelected,
                 isBulkMode = false,
                 onSelectToggle = onSelectToggle,

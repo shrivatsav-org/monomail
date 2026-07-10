@@ -19,8 +19,12 @@ import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
+import com.shrivatsav.monomail.data.provider.ProviderMessage
+import com.shrivatsav.monomail.data.provider.ProviderThread
+import com.shrivatsav.monomail.data.provider.ProviderThreadListResult
 import com.shrivatsav.monomail.data.provider.ResourceNotFoundException
 import com.shrivatsav.monomail.data.provider.SendAsAlias
+import com.shrivatsav.monomail.data.provider.SendEmailOptions
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import com.shrivatsav.monomail.util.cleanSubject
@@ -43,6 +47,10 @@ class EmailRepository(
     private val emailDao = database.emailDao()
     private val scheduledMessageDao = database.scheduledMessageDao()
     private val gson = Gson()
+
+    companion object {
+        private const val NO_ACTIVE_PROVIDER = "No active provider"
+    }
 
     suspend fun getActiveProvider(): EmailProvider? {
         val activeAccount = accountManager.getActiveAccount() ?: return null
@@ -145,128 +153,123 @@ class EmailRepository(
         emitAll(emailDao.getEmailsForThread(threadId, accountId).map { list -> list.map { it.toDomainModel() } })
     }
 
+    private fun resolveFolder(tab: InboxTab): EmailFolder = when (tab) {
+        InboxTab.INBOX -> EmailFolder.INBOX
+        InboxTab.SENT -> EmailFolder.SENT
+        InboxTab.ARCHIVED -> EmailFolder.ARCHIVE
+        InboxTab.STARRED -> EmailFolder.STARRED
+        InboxTab.TRASH -> EmailFolder.TRASH
+        InboxTab.SPAM -> EmailFolder.SPAM
+        InboxTab.UNIFIED -> EmailFolder.INBOX
+        InboxTab.SNOOZED -> EmailFolder.INBOX
+    }
+
+    private fun buildThreadEntity(
+        providerThread: com.shrivatsav.monomail.data.provider.ProviderThread,
+        targetAccountId: String,
+        existingSnippets: Map<String, ThreadSnippetProjection>,
+        existingThreadReadStatuses: Map<String, Boolean>,
+        existingEmailIdSet: Set<String>
+    ): ThreadEntity {
+        val messages = providerThread.messages
+        val latest = messages.maxByOrNull { it.date }
+        val allFolders = messages.flatMap { it.folders }.toSet()
+        val participants = messages.map { it.from }.distinct()
+        val serverIsRead = messages.all { it.isRead }
+        val hasNewMessages = messages.any { it.id !in existingEmailIdSet }
+        val isRead = if (hasNewMessages) serverIsRead else (existingThreadReadStatuses[providerThread.threadId] == true || serverIsRead)
+        val isStarred = messages.any { it.isStarred }
+        val finalSnippet = (latest?.snippet ?: "").ifBlank {
+            existingSnippets[providerThread.threadId]?.snippet ?: ""
+        }
+        val domainThread = EmailThread(
+            threadId = providerThread.threadId,
+            subject = (latest?.subject?.ifBlank { null } ?: "(no subject)").cleanSubject(),
+            from = latest?.from ?: "",
+            fromEmail = latest?.fromEmail ?: "",
+            snippet = finalSnippet,
+            date = latest?.date ?: 0L,
+            messageCount = messages.size,
+            isRead = isRead,
+            isStarred = isStarred,
+            latestMessageId = latest?.id ?: "",
+            participants = participants
+        )
+        return domainThread.toEntity(
+            accountId = targetAccountId,
+            inInbox = EmailFolder.INBOX in allFolders,
+            inSent = EmailFolder.SENT in allFolders,
+            inArchived = EmailFolder.ARCHIVE in allFolders,
+            inTrash = EmailFolder.TRASH in allFolders,
+            inSpam = EmailFolder.SPAM in allFolders
+        )
+    }
+
+    private fun buildEmailEntities(
+        listResponse: com.shrivatsav.monomail.data.provider.ProviderThreadListResult,
+        targetAccountId: String,
+        existingEmailReadStatuses: Map<String, Boolean>,
+        existingAttachments: Map<String, String>,
+        existingBodies: Map<String, EmailBodyProjection>,
+        pendingThreadIds: Set<String>
+    ): List<EmailEntity> {
+        return listResponse.threads.filter { it.threadId !in pendingThreadIds }.flatMap { providerThread ->
+            providerThread.messages.map { msg ->
+                var entity = Email(
+                    id = msg.id, threadId = msg.threadId, subject = msg.subject,
+                    from = msg.from, fromEmail = msg.fromEmail, to = msg.to, cc = msg.cc,
+                    bcc = msg.bcc, snippet = msg.snippet, body = msg.body,
+                    bodyIsHtml = msg.bodyIsHtml, date = msg.date,
+                    isRead = existingEmailReadStatuses[msg.id] == true || msg.isRead,
+                    isStarred = msg.isStarred, labels = msg.folders.map { it.name },
+                    attachments = msg.attachments
+                ).toEntity(targetAccountId)
+                val existingJson = existingAttachments[entity.id]
+                if (entity.attachmentsJson in listOf("[]", "") && existingJson != null && existingJson != "[]" && existingJson.isNotEmpty()) {
+                    entity = entity.copy(attachmentsJson = existingJson)
+                }
+                val existingBody = existingBodies[entity.id]
+                if (entity.body.isEmpty() && existingBody != null && existingBody.body.isNotEmpty()) {
+                    entity = entity.copy(body = existingBody.body, bodyIsHtml = existingBody.bodyIsHtml)
+                }
+                entity
+            }
+        }
+    }
+
     suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> {
         return try {
-            val provider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
-            if (provider == null) return Result.failure(Exception("No active provider"))
-            val targetAccountId = accountId ?: getActiveAccountId()
+            val resolvedProvider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
+            if (resolvedProvider == null) return Result.failure(Exception(NO_ACTIVE_PROVIDER))
+            val provider = resolvedProvider
+            val resolvedAccountId = accountId ?: getActiveAccountId()
             if (tab == InboxTab.SNOOZED) return Result.success(null)
-            val folder = when (tab) {
-                InboxTab.INBOX -> EmailFolder.INBOX
-                InboxTab.SENT -> EmailFolder.SENT
-                InboxTab.ARCHIVED -> EmailFolder.ARCHIVE
-                InboxTab.STARRED -> EmailFolder.STARRED
-                InboxTab.TRASH -> EmailFolder.TRASH
-                InboxTab.UNIFIED -> EmailFolder.INBOX
-                InboxTab.SNOOZED -> EmailFolder.INBOX
-                InboxTab.SPAM -> EmailFolder.SPAM
-            }
-            val listResponse = provider.listThreads(
-                folder = folder,
-                maxResults = 20,
-                pageToken = pageToken,
-                query = query
-            )
+
+            val folder = resolveFolder(tab)
+            val listResponse = provider.listThreads(folder = folder, maxResults = 20, pageToken = pageToken, query = query)
+            if (listResponse.threads.isEmpty()) return Result.success(listResponse.nextPageToken)
             val existingSnippets = if (provider.providerName == "imap") {
-                threadDao.getSnippetsForAccount(targetAccountId)
-                    .associateBy { it.threadId }
+                threadDao.getSnippetsForAccount(resolvedAccountId).associateBy { it.threadId }
             } else emptyMap()
+            val pendingThreadIds = pendingActionDao.getPendingForAccount(resolvedAccountId).map { it.threadId }.toSet()
+            val existingThreadReadStatuses = threadDao.getReadStatuses(resolvedAccountId).associate { it.threadId to it.isRead }
+            val existingEmailReadStatuses = emailDao.getEmailReadStatuses(resolvedAccountId).associate { it.id to it.isRead }
 
-            // ponytail: skip threads with pending actions so local changes aren't overwritten by server
-            val pendingThreadIds = pendingActionDao.getPendingForAccount(targetAccountId)
-                .map { it.threadId }.toSet()
+            val entities = listResponse.threads.filter { it.threadId !in pendingThreadIds }.map { pt ->
+                buildThreadEntity(pt, resolvedAccountId, existingSnippets, existingThreadReadStatuses, existingEmailReadStatuses.keys)
+            }
+            val allEmails = buildEmailEntities(listResponse, resolvedAccountId, existingEmailReadStatuses,
+                emailDao.getAttachmentJsonForAccount(resolvedAccountId).associate { it.id to it.attachmentsJson },
+                emailDao.getEmailBodyForAccount(resolvedAccountId).associate { it.id to it },
+                pendingThreadIds
+            )
+            val existingSnoozed = threadDao.getSnoozeStateForThreads(entities.map { it.threadId }, resolvedAccountId)
+                .filter { it.isSnoozed }.associateBy { it.threadId }
 
-            if (listResponse.threads.isNotEmpty()) {
-                val existingThreadReadStatuses = threadDao.getReadStatuses(targetAccountId)
-                    .associate { it.threadId to it.isRead }
-                val existingEmailReadStatuses = emailDao.getEmailReadStatuses(targetAccountId)
-                    .associate { it.id to it.isRead }
-                val existingEmailIdSet = existingEmailReadStatuses.keys
-                val entities = listResponse.threads.filter { it.threadId !in pendingThreadIds }.map { providerThread ->
-                    val messages = providerThread.messages
-                    val latest = messages.maxByOrNull { it.date }
-                    val allFolders = messages.flatMap { it.folders }.toSet()
-                    val participants = messages.map { it.from }.distinct()
-                    val serverIsRead = messages.all { it.isRead }
-                    val hasNewMessages = messages.any { it.id !in existingEmailIdSet }
-                    val isRead = if (hasNewMessages) serverIsRead else (existingThreadReadStatuses[providerThread.threadId] == true || serverIsRead)
-                    val isStarred = messages.any { it.isStarred }
-                    val finalSnippet = (latest?.snippet ?: "").ifBlank {
-                        existingSnippets[providerThread.threadId]?.snippet ?: ""
-                    }
-                    val domainThread = EmailThread(
-                        threadId = providerThread.threadId,
-                        subject = (latest?.subject?.ifBlank { null } ?: "(no subject)").cleanSubject(),
-                        from = latest?.from ?: "",
-                        fromEmail = latest?.fromEmail ?: "",
-                        snippet = finalSnippet,
-                        date = latest?.date ?: 0L,
-                        messageCount = messages.size,
-                        isRead = isRead,
-                        isStarred = isStarred,
-                        latestMessageId = latest?.id ?: "",
-                        participants = participants
-                    )
-                    domainThread.toEntity(
-                        accountId = targetAccountId,
-                        inInbox = EmailFolder.INBOX in allFolders,
-                        inSent = EmailFolder.SENT in allFolders,
-                        inArchived = EmailFolder.ARCHIVE in allFolders,
-                        inTrash = EmailFolder.TRASH in allFolders,
-                        inSpam = EmailFolder.SPAM in allFolders
-                    )
-                }
-                val existingAttachments = emailDao.getAttachmentJsonForAccount(targetAccountId)
-                    .associate { it.id to it.attachmentsJson }
-                val existingBodies = emailDao.getEmailBodyForAccount(targetAccountId)
-                    .associate { it.id to it }
-                val allEmails = listResponse.threads.filter { it.threadId !in pendingThreadIds }.flatMap { providerThread ->
-                    providerThread.messages.map { msg ->
-                        var entity = Email(
-                            id = msg.id,
-                            threadId = msg.threadId,
-                            subject = msg.subject,
-                            from = msg.from,
-                            fromEmail = msg.fromEmail,
-                            to = msg.to,
-                            cc = msg.cc,
-                            bcc = msg.bcc,
-                            snippet = msg.snippet,
-                            body = msg.body,
-                            bodyIsHtml = msg.bodyIsHtml,
-                            date = msg.date,
-                            isRead = existingEmailReadStatuses[msg.id] == true || msg.isRead,
-                            isStarred = msg.isStarred,
-                            labels = msg.folders.map { it.name },
-                            attachments = msg.attachments
-                        ).toEntity(targetAccountId)
-                        // Preserve existing attachment data when provider returned empty
-                        // (Outlook: listThreads returns emptyList, getThread fetches correctly)
-                        val existingJson = existingAttachments[entity.id]
-                        if ((entity.attachmentsJson == "[]" || entity.attachmentsJson == "") &&
-                            existingJson != null && existingJson != "[]" && existingJson.isNotEmpty()
-                        ) {
-                            entity = entity.copy(attachmentsJson = existingJson)
-                        }
-                        // Preserve existing body when provider returned empty (inbox list
-                        // uses format=metadata which omits message body)
-                        val existingBody = existingBodies[entity.id]
-                        if (entity.body.isEmpty() && existingBody != null && existingBody.body.isNotEmpty()) {
-                            entity = entity.copy(body = existingBody.body, bodyIsHtml = existingBody.bodyIsHtml)
-                        }
-                        entity
-                    }
-                }
-                val existingSnoozed = threadDao.getSnoozeStateForThreads(
-                    entities.map { it.threadId }, targetAccountId
-                ).filter { it.isSnoozed }.associateBy { it.threadId }
-                database.withTransaction {
-                    threadDao.insertThreads(entities)
-                    existingSnoozed.forEach { (threadId, state) ->
-                        threadDao.snoozeThread(threadId, targetAccountId, state.snoozedUntil)
-                    }
-                    emailDao.insertEmails(allEmails)
-                }
+            database.withTransaction {
+                threadDao.insertThreads(entities)
+                existingSnoozed.forEach { (threadId, state) -> threadDao.snoozeThread(threadId, resolvedAccountId, state.snoozedUntil) }
+                emailDao.insertEmails(allEmails)
             }
             Result.success(listResponse.nextPageToken)
         } catch (e: RetrofitClient.AuthFailedException) {
@@ -281,7 +284,7 @@ class EmailRepository(
         val accountId = resolveAccountId(threadId)
         return try {
             val provider = getProviderForAccount(accountId)
-                ?: return Result.failure(Exception("No active provider"))
+                ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
 
             val threadResponse = provider.getThread(threadId)
             val emails = threadResponse.messages.map { msg ->
@@ -342,7 +345,7 @@ class EmailRepository(
             val unreadEmailIds = emailDao.getUnreadEmailIdsForThreads(threadIds, activeAccountId)
             threadDao.markThreadsAsRead(threadIds, activeAccountId)
             emailDao.markThreadEmailsAsRead(threadIds, activeAccountId)
-            val provider = getActiveProvider() ?: return Result.failure(Exception("No active provider"))
+            val provider = getActiveProvider() ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
             withContext(Dispatchers.IO) {
                 if (unreadEmailIds.isNotEmpty()) {
                     provider.batchMarkRead(unreadEmailIds)
@@ -423,28 +426,20 @@ class EmailRepository(
         to: String,
         subject: String,
         body: String,
-        cc: String = "",
-        bcc: String = "",
-        threadId: String? = null,
-        inReplyToMessageId: String? = null,
-        references: String? = null,
-        attachments: List<EmailAttachment> = emptyList(),
+        params: SendEmailParams = SendEmailParams(),
         explicitAccountId: String? = null
     ): Result<String?> {
         return try {
             val targetAccountId = explicitAccountId ?: getActiveAccountId()
-            val provider = (if (explicitAccountId != null) getProviderForAccount(explicitAccountId) else getActiveProvider()) ?: return Result.failure(Exception("No active provider"))
+            val provider = (if (explicitAccountId != null) getProviderForAccount(explicitAccountId) else getActiveProvider()) ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
             val sentThreadId = provider.sendEmail(
                 from = from,
                 to = to,
                 subject = subject,
                 body = body,
-                cc = cc,
-                bcc = bcc,
-                threadId = threadId,
-                attachments = attachments
+                options = SendEmailOptions(cc = params.cc, bcc = params.bcc, threadId = params.threadId, attachments = params.attachments)
             )
-            val actualThreadId = sentThreadId ?: threadId ?: UUID.randomUUID().toString()
+            val actualThreadId = sentThreadId ?: params.threadId ?: UUID.randomUUID().toString()
             val msgId = UUID.randomUUID().toString()
             val now = System.currentTimeMillis()
             val domainThread = EmailThread(
@@ -467,15 +462,15 @@ class EmailRepository(
                 from = from,
                 fromEmail = from,
                 to = to,
-                cc = cc,
-                bcc = bcc,
+                cc = params.cc,
+                bcc = params.bcc,
                 snippet = body.take(100),
                 body = body,
                 date = now,
                 isRead = true,
                 isStarred = false,
                 labels = listOf(EmailFolder.SENT.name),
-                attachments = attachments.map { com.shrivatsav.monomail.data.model.EmailAttachmentInfo(id = it.name, messageId = msgId, name = it.name, mimeType = it.mimeType, size = it.size.toInt()) }
+                attachments = params.attachments.map { com.shrivatsav.monomail.data.model.EmailAttachmentInfo(id = it.name, messageId = msgId, name = it.name, mimeType = it.mimeType, size = it.size.toInt()) }
             )
             database.withTransaction {
                 threadDao.insertThreads(listOf(domainThread.toEntity(targetAccountId, inInbox = false, inSent = true, inArchived = false, inTrash = false, inSpam = false)))
@@ -493,10 +488,7 @@ class EmailRepository(
         subject: String,
         body: String,
         scheduledAt: Long,
-        cc: String = "",
-        bcc: String = "",
-        attachments: List<EmailAttachment> = emptyList(),
-        fromAlias: String? = null
+        params: ScheduleSendParams = ScheduleSendParams()
     ) {
         val id = UUID.randomUUID().toString()
         val entity = ScheduledMessageEntity(
@@ -504,12 +496,12 @@ class EmailRepository(
             accountId = accountId,
             fromEmail = fromEmail,
             to = to,
-            cc = cc,
-            bcc = bcc,
+            cc = params.cc,
+            bcc = params.bcc,
             subject = subject,
             body = body,
             attachmentsJson = gson.toJson(
-                attachments.map { a ->
+                params.attachments.map { a ->
                     mapOf(
                         "localPath" to a.uri.toString(),
                         "name" to a.name,
@@ -519,7 +511,7 @@ class EmailRepository(
                 }
             ),
             scheduledAt = scheduledAt,
-            fromAlias = fromAlias
+            fromAlias = params.fromAlias
         )
         scheduledMessageDao.insertScheduledMessage(entity)
         val delay = scheduledAt - System.currentTimeMillis()
@@ -546,7 +538,7 @@ class EmailRepository(
                 val path = a["localPath"] as? String
                 if (path != null) {
                     val file = File(path)
-                    if (file.exists()) file.delete()
+                    if (file.exists()) file.delete().also { if (!it) Log.w("EmailRepository", "Failed to delete scheduled attachment: ${file.path}") }
                 }
             }
         } catch (e: Exception) {
@@ -606,3 +598,19 @@ class EmailRepository(
         emailDao.unsnoozeThreadEmails(threadId, activeAccountId)
     }
 }
+
+data class SendEmailParams(
+    val cc: String = "",
+    val bcc: String = "",
+    val threadId: String? = null,
+    val inReplyToMessageId: String? = null,
+    val references: String? = null,
+    val attachments: List<EmailAttachment> = emptyList()
+)
+
+data class ScheduleSendParams(
+    val cc: String = "",
+    val bcc: String = "",
+    val attachments: List<EmailAttachment> = emptyList(),
+    val fromAlias: String? = null
+)

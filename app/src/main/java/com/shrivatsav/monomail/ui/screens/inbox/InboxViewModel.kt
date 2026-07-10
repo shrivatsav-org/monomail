@@ -103,6 +103,7 @@ class InboxViewModel @Inject constructor(
     private var _isForegroundPollingEnabled = true
     /** When foreground and actively reading, poll at 2 min instead of the configured interval. */
     private companion object {
+        private const val TAG = "InboxVM"
         private const val ADAPTIVE_POLL_MS = 2 * 60 * 1000L
     }
     private val _state = MutableStateFlow<InboxState>(InboxState.Loading)
@@ -240,7 +241,7 @@ class InboxViewModel @Inject constructor(
             InboxTab.values().forEach { tab ->
                 if (tab != _currentTab.value && tab != InboxTab.UNIFIED) {
                     try { repository.refreshInbox(tab) } catch (e: Exception) {
-                        android.util.Log.e("InboxVM", "Background refresh failed for tab $tab", e)
+                        android.util.Log.e(TAG, "Background refresh failed for tab $tab", e)
                     }
                 }
             }
@@ -264,27 +265,30 @@ class InboxViewModel @Inject constructor(
             }.collect { (event, settings) ->
                 val toastId = event.threadId ?: "send_${System.currentTimeMillis()}"
                 if (!settings.undoSendEnabled) return@collect
-                val totalSec = settings.undoSendWindow.seconds
-                _toastState.value = ToastState(
-                    threadId = toastId,
-                    message = "Message sent \u00b7 Undo for ${totalSec}s",
-                    actionType = ActionType.SEND
-                )
-                pendingActionJobs["send_$toastId"]?.cancel()
-                pendingActionJobs["send_$toastId"] = viewModelScope.launch {
-                    for (i in totalSec downTo 1) {
-                        delay(1000)
-                        if (_toastState.value?.threadId == toastId) {
-                            _toastState.value = _toastState.value?.copy(
-                                message = "Message sent \u00b7 Undo for ${i}s"
-                            )
-                        }
-                    }
-                    delay(1000)
-                    if (_toastState.value?.threadId == toastId) {
-                        _toastState.value = null
-                    }
+                startUndoCountdown(toastId, settings.undoSendWindow.seconds)
+            }
+        }
+    }
+
+    private fun startUndoCountdown(toastId: String, totalSec: Int) {
+        _toastState.value = ToastState(
+            threadId = toastId,
+            message = "Message sent \u00b7 Undo for ${totalSec}s",
+            actionType = ActionType.SEND
+        )
+        pendingActionJobs["send_$toastId"]?.cancel()
+        pendingActionJobs["send_$toastId"] = viewModelScope.launch {
+            for (i in totalSec downTo 1) {
+                delay(1000)
+                if (_toastState.value?.threadId == toastId) {
+                    _toastState.value = _toastState.value?.copy(
+                        message = "Message sent \u00b7 Undo for ${i}s"
+                    )
                 }
+            }
+            delay(1000)
+            if (_toastState.value?.threadId == toastId) {
+                _toastState.value = null
             }
         }
     }
@@ -306,21 +310,25 @@ class InboxViewModel @Inject constructor(
                 delay(pollingIntervalMs)
                 if (pollingIntervalMs == Long.MAX_VALUE) continue
                 if (!_isForegroundPollingEnabled) continue
-                // Adaptive: if the user is actively using the app, poll at 2 min
-                val effectiveInterval = if (pollingIntervalMs > ADAPTIVE_POLL_MS && lastPollMs > 0) {
-                    val elapsedSinceLastPoll = System.currentTimeMillis() - lastPollMs
-                    if (elapsedSinceLastPoll >= ADAPTIVE_POLL_MS) ADAPTIVE_POLL_MS else pollingIntervalMs
-                } else {
-                    pollingIntervalMs
-                }
+                val effectiveInterval = computeEffectiveInterval(lastPollMs)
                 if (System.currentTimeMillis() - lastPollMs >= effectiveInterval || lastPollMs == 0L) {
                     lastPollMs = System.currentTimeMillis()
-                    repository.refreshInbox(InboxTab.INBOX)
-                    if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
-                        repository.refreshInbox(_currentTab.value)
-                    }
+                    executePoll()
                 }
             }
+        }
+    }
+
+    private fun computeEffectiveInterval(lastPollMs: Long): Long {
+        if (pollingIntervalMs <= ADAPTIVE_POLL_MS || lastPollMs == 0L) return pollingIntervalMs
+        val elapsed = System.currentTimeMillis() - lastPollMs
+        return if (elapsed >= ADAPTIVE_POLL_MS) ADAPTIVE_POLL_MS else pollingIntervalMs
+    }
+
+    private suspend fun executePoll() {
+        repository.refreshInbox(InboxTab.INBOX)
+        if (_currentTab.value != InboxTab.INBOX && _currentTab.value != InboxTab.UNIFIED) {
+            repository.refreshInbox(_currentTab.value)
         }
     }
     fun switchTab(tab: InboxTab) {
@@ -333,30 +341,26 @@ class InboxViewModel @Inject constructor(
     fun refresh(showLoader: Boolean = true) {
         viewModelScope.launch {
             if (showLoader) _isRefreshing.value = true
-            val query = currentServerQuery 
+            val query = currentServerQuery
             val result = if (_currentTab.value == InboxTab.UNIFIED) {
                 repository.refreshInbox(InboxTab.INBOX)
             } else {
                 repository.refreshInbox(_currentTab.value, query = query)
             }
-            result.onSuccess { token ->
-                if (pageTokens.size >= 50) {
-                    pageTokens.keys.take(10).forEach { pageTokens.remove(it) }
-                }
-                if (token != null) {
-                    pageTokens[getPageTokenKey()] = token
-                } else {
-                    pageTokens.remove(getPageTokenKey())
-                }
-            }.onFailure { e ->
-                val msg = e.message ?: "Failed to refresh emails"
-                if (msg.contains("sign in", ignoreCase = true) || msg.contains("Session expired", ignoreCase = true)) {
-                    _uiError.emit(msg)
-                } else {
-                    _uiError.emit(msg)
-                }
-            }
+            result.onSuccess { token -> updatePageToken(token) }
+                .onFailure { e -> _uiError.emit(e.message ?: "Failed to refresh emails") }
             if (showLoader) _isRefreshing.value = false
+        }
+    }
+
+    private fun updatePageToken(token: String?) {
+        if (pageTokens.size >= 50) {
+            pageTokens.keys.take(10).forEach { pageTokens.remove(it) }
+        }
+        if (token != null) {
+            pageTokens[getPageTokenKey()] = token
+        } else {
+            pageTokens.remove(getPageTokenKey())
         }
     }
     fun searchServer(query: String) {
@@ -454,6 +458,7 @@ class InboxViewModel @Inject constructor(
                     repository.emptyTrash()
                 }
             } catch (e: Exception) {
+                android.util.Log.w(TAG, "emptyTrash failed", e)
             } finally {
                 if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
                     _toastState.value = null
@@ -502,6 +507,7 @@ class InboxViewModel @Inject constructor(
                 delay(4000)
                 executeAction(threadId, type)
             } catch (e: Exception) {
+                android.util.Log.w(TAG, "queueAction failed", e)
             } finally {
                 if (_toastState.value?.threadId == threadId) {
                     _toastState.value = null
@@ -582,22 +588,22 @@ class InboxViewModel @Inject constructor(
             settingsDataStore.setUnifiedInboxEnabled(enabled)
             if (enabled) {
                 val allAccounts = authManager.getAccounts()
-                android.util.Log.d("InboxVM", "Unified enabled, refreshing ${allAccounts.size} accounts")
+                android.util.Log.d(TAG, "Unified enabled, refreshing ${allAccounts.size} accounts")
                 allAccounts.forEach { account ->
                     try {
                         val result = repository.refreshInbox(InboxTab.INBOX, accountId = account.id)
                         result.onSuccess {
-                            android.util.Log.d("InboxVM", "Refresh OK for ${account.id}")
+                            android.util.Log.d(TAG, "Refresh OK for ${account.id}")
                         }.onFailure { e ->
-                            android.util.Log.e("InboxVM", "Refresh FAILED for ${account.id}: ${e.message}")
+                            android.util.Log.e(TAG, "Refresh FAILED for ${account.id}: ${e.message}")
                         }
                     } catch (e: Exception) {
-                        android.util.Log.e("InboxVM", "Exception refreshing ${account.id}", e)
+                        android.util.Log.e(TAG, "Exception refreshing ${account.id}", e)
                     }
                 }
             }
         } catch (e: Exception) {
-            android.util.Log.e("InboxVM", "setUnifiedInboxEnabled crashed", e)
+            android.util.Log.e(TAG, "setUnifiedInboxEnabled crashed", e)
         }
     }
     fun enterBulkSelectMode(threadId: String) {

@@ -56,7 +56,7 @@ class PgpKeyStorage @Inject constructor(
     }
 
     fun deletePrivateKey(fingerprint: String) {
-        File(keysDir, "$fingerprint.asc").delete()
+        File(keysDir, "$fingerprint.asc").delete().also { if (!it) Log.w(TAG, "Failed to delete private key for $fingerprint") }
     }
 
     fun savePublicKey(fingerprint: String, armoredKey: String) {
@@ -70,7 +70,7 @@ class PgpKeyStorage @Inject constructor(
     }
 
     fun deletePublicKey(fingerprint: String) {
-        File(publicKeysDir, "$fingerprint.asc").delete()
+        File(publicKeysDir, "$fingerprint.asc").delete().also { if (!it) Log.w(TAG, "Failed to delete public key for $fingerprint") }
     }
 
     fun saveKeyMetadata(fingerprint: String, info: PgpKeyInfo) {
@@ -126,7 +126,7 @@ class PgpKeyStorage @Inject constructor(
     }
 
     fun deletePassphrase(fingerprint: String) {
-        File(keysDir, "${fingerprint}_pass.enc").delete()
+        File(keysDir, "${fingerprint}_pass.enc").delete().also { if (!it) Log.w(TAG, "Failed to delete passphrase for $fingerprint") }
     }
 
     fun isPassphraseProtected(fingerprint: String): Boolean {
@@ -135,5 +135,6 @@ class PgpKeyStorage @Inject constructor(
 
     companion object {
         private const val PREF_KEYS = "pgp_keys_metadata"
+        private const val TAG = "PgpKeyStorage"
     }
 }

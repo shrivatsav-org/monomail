@@ -179,42 +179,13 @@ internal fun ThemeSelectorRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             ThemeMode.entries.forEach { mode ->
-                val isSelected = currentTheme == mode
-                val bgColor by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    animationSpec = tween(250), label = "themeBg"
+                SelectorItem(
+                    modifier = Modifier.weight(1f),
+                    label = mode.displayName(),
+                    isSelected = currentTheme == mode,
+                    labelPrefix = "theme",
+                    onClick = { onThemeSelected(mode) }
                 )
-                val textColor by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.surface
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    animationSpec = tween(250), label = "themeText"
-                )
-                val scaleAnim by animateFloatAsState(
-                    targetValue = if (isSelected) 1.04f else 1f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    ),
-                    label = "themeScale"
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .graphicsLayer(scaleX = scaleAnim, scaleY = scaleAnim)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(bgColor)
-                        .clickable { onThemeSelected(mode) }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = mode.displayName(),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = textColor
-                    )
-                }
             }
         }
     }
@@ -255,42 +226,13 @@ internal fun EmailColorsRow(
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             EmailTheme.entries.forEach { mode ->
-                val isSelected = currentTheme == mode
-                val bgColor by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.onSurface
-                    else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    animationSpec = tween(250), label = "emailColorBg"
+                SelectorItem(
+                    modifier = Modifier.weight(1f),
+                    label = mode.displayName(),
+                    isSelected = currentTheme == mode,
+                    labelPrefix = "emailColor",
+                    onClick = { onThemeSelected(mode) }
                 )
-                val textColor by animateColorAsState(
-                    if (isSelected) MaterialTheme.colorScheme.surface
-                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                    animationSpec = tween(250), label = "emailColorText"
-                )
-                val scaleAnim by animateFloatAsState(
-                    targetValue = if (isSelected) 1.04f else 1f,
-                    animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                        stiffness = Spring.StiffnessMedium
-                    ),
-                    label = "emailColorScale"
-                )
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .graphicsLayer(scaleX = scaleAnim, scaleY = scaleAnim)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(bgColor)
-                        .clickable { onThemeSelected(mode) }
-                        .padding(vertical = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = mode.displayName(),
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = textColor
-                    )
-                }
             }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -298,6 +240,50 @@ internal fun EmailColorsRow(
             text = currentTheme.description(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun SelectorItem(
+    modifier: Modifier = Modifier,
+    label: String,
+    isSelected: Boolean,
+    labelPrefix: String,
+    onClick: () -> Unit
+) {
+    val bgColor by animateColorAsState(
+        if (isSelected) MaterialTheme.colorScheme.onSurface
+        else MaterialTheme.colorScheme.surfaceContainerHigh,
+        animationSpec = tween(250), label = "${labelPrefix}Bg"
+    )
+    val textColor by animateColorAsState(
+        if (isSelected) MaterialTheme.colorScheme.surface
+        else MaterialTheme.colorScheme.onSurfaceVariant,
+        animationSpec = tween(250), label = "${labelPrefix}Text"
+    )
+    val scaleAnim by animateFloatAsState(
+        targetValue = if (isSelected) 1.04f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium
+        ),
+        label = "${labelPrefix}Scale"
+    )
+    Box(
+        modifier = modifier
+            .graphicsLayer(scaleX = scaleAnim, scaleY = scaleAnim)
+            .clip(RoundedCornerShape(10.dp))
+            .background(bgColor)
+            .clickable { onClick() }
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+            color = textColor
         )
     }
 }
@@ -556,55 +542,70 @@ internal fun BottomSheetPickerRow(
         )
     }
     if (showSheet) {
-        ModalBottomSheet(
-            onDismissRequest = { showSheet = false },
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        PickerBottomSheet(
+            title = title,
+            options = options,
+            currentValue = currentValue,
+            onSelected = { index -> onSelected(index); showSheet = false },
+            onDismiss = { showSheet = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun PickerBottomSheet(
+    title: String,
+    options: List<String>,
+    currentValue: String,
+    onSelected: (Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 32.dp)
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp)
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                )
-                HorizontalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                options.forEachIndexed { index, option ->
-                    val isSelected = option == currentValue
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                onSelected(index)
-                                showSheet = false
-                            }
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = option,
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                            color = if (isSelected) MaterialTheme.colorScheme.onSurface
-                            else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.weight(1f)
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            options.forEachIndexed { index, option ->
+                val isSelected = option == currentValue
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelected(index) }
+                        .padding(horizontal = 24.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = option,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (isSelected) MaterialTheme.colorScheme.onSurface
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isSelected) {
+                        Icon(
+                            imageVector = Icons.Rounded.Check,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.size(20.dp)
                         )
-                        if (isSelected) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
                     }
                 }
             }
@@ -723,73 +724,21 @@ internal fun TemplatesCard(viewModel: SettingsViewModel) {
     SettingsCard {
         SectionHeader(icon = Icons.Rounded.Description, title = "Templates")
         if (templates.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Description,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                    modifier = Modifier.size(36.dp)
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = "No templates yet",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    text = "Save your go-to replies for quick access",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                )
-            }
+            EmptyTemplatesState()
         } else {
-            templates.forEachIndexed { index, template ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = template.name,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = template.subject,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                        )
-                    }
-                    IconButton(onClick = {
-                        editingIndex = index
-                        nameInput = template.name
-                        subjectInput = template.subject
-                        bodyInput = template.body
-                        showEditor = true
-                    }) {
-                        Icon(Icons.Rounded.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
-                    }
-                    IconButton(onClick = {
-                        val updated = templates.toMutableList().apply { removeAt(index) }
-                        viewModel.saveTemplates(updated)
-                    }) {
-                        Icon(Icons.Rounded.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
-                    }
+            TemplateList(
+                templates = templates,
+                onEdit = { index, template ->
+                    editingIndex = index
+                    nameInput = template.name
+                    subjectInput = template.subject
+                    bodyInput = template.body
+                    showEditor = true
+                },
+                onDelete = { index ->
+                    viewModel.saveTemplates(templates.toMutableList().apply { removeAt(index) })
                 }
-                if (index < templates.lastIndex) CardDivider()
-            }
+            )
         }
         CardDivider()
         TextButton(
@@ -808,54 +757,147 @@ internal fun TemplatesCard(viewModel: SettingsViewModel) {
         }
     }
     if (showEditor) {
-        AlertDialog(
-            onDismissRequest = { showEditor = false },
-            title = { Text(if (editingIndex >= 0) "Edit Template" else "New Template", fontWeight = FontWeight.SemiBold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = nameInput,
-                        onValueChange = { nameInput = it },
-                        label = { Text("Name") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = subjectInput,
-                        onValueChange = { subjectInput = it },
-                        label = { Text("Subject") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = bodyInput,
-                        onValueChange = { bodyInput = it },
-                        label = { Text("Body") },
-                        minLines = 3,
-                        modifier = Modifier.fillMaxWidth()
-                    )
+        TemplateEditorDialog(
+            state = TemplateEditorState(editingIndex, nameInput, subjectInput, bodyInput),
+            onNameChange = { nameInput = it },
+            onSubjectChange = { subjectInput = it },
+            onBodyChange = { bodyInput = it },
+            onSave = {
+                if (nameInput.isNotBlank()) {
+                    val template = EmailTemplate(nameInput, subjectInput, bodyInput)
+                    val updated = templates.toMutableList()
+                    if (editingIndex >= 0) updated[editingIndex] = template
+                    else updated.add(template)
+                    viewModel.saveTemplates(updated)
+                    showEditor = false
                 }
             },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (nameInput.isNotBlank()) {
-                            val template = EmailTemplate(nameInput, subjectInput, bodyInput)
-                            val updated = templates.toMutableList()
-                            if (editingIndex >= 0) updated[editingIndex] = template
-                            else updated.add(template)
-                            viewModel.saveTemplates(updated)
-                            showEditor = false
-                        }
-                    }
-                ) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showEditor = false }) { Text("Cancel") }
-            }
+            onDismiss = { showEditor = false }
         )
     }
 }
+
+@Composable
+private fun EmptyTemplatesState() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Description,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
+            modifier = Modifier.size(36.dp)
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "No templates yet",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Save your go-to replies for quick access",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+    }
+}
+
+@Composable
+private fun TemplateList(
+    templates: List<EmailTemplate>,
+    onEdit: (Int, EmailTemplate) -> Unit,
+    onDelete: (Int) -> Unit,
+) {
+    templates.forEachIndexed { index, template ->
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = template.name,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = template.subject,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = { onEdit(index, template) }) {
+                Icon(Icons.Rounded.Edit, contentDescription = "Edit", modifier = Modifier.size(18.dp))
+            }
+            IconButton(onClick = { onDelete(index) }) {
+                Icon(Icons.Rounded.Delete, contentDescription = "Delete", modifier = Modifier.size(18.dp))
+            }
+        }
+        if (index < templates.lastIndex) CardDivider()
+    }
+}
+
+@Composable
+private fun TemplateEditorDialog(
+    state: TemplateEditorState,
+    onNameChange: (String) -> Unit,
+    onSubjectChange: (String) -> Unit,
+    onBodyChange: (String) -> Unit,
+    onSave: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (state.editingIndex >= 0) "Edit Template" else "New Template", fontWeight = FontWeight.SemiBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = state.nameInput,
+                    onValueChange = onNameChange,
+                    label = { Text("Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = state.subjectInput,
+                    onValueChange = onSubjectChange,
+                    label = { Text("Subject") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                OutlinedTextField(
+                    value = state.bodyInput,
+                    onValueChange = onBodyChange,
+                    label = { Text("Body") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onSave) { Text("Save") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
+}
+
+private data class TemplateEditorState(
+    val editingIndex: Int,
+    val nameInput: String,
+    val subjectInput: String,
+    val bodyInput: String
+)
 
 // ── Dock Bar Editor ─────────────────────────────────────────────────
 
@@ -875,52 +917,77 @@ internal fun DockBarEditor(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        dockConfig.primaryTabs.forEachIndexed { index, tabId ->
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(dockTabIcon(tabId), contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
-                Spacer(Modifier.width(10.dp))
-                Text(dockTabLabel(tabId), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-                IconButton(onClick = {
-                    val list = dockConfig.primaryTabs.toMutableList()
-                    if (index > 0) { list[index] = list[index - 1].also { list[index - 1] = list[index] }; onConfigChanged(DockConfig(primaryTabs = list)) }
-                }, modifier = Modifier.size(32.dp), enabled = index > 0) {
-                    Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move up", modifier = Modifier.size(18.dp))
-                }
-                IconButton(onClick = {
-                    val list = dockConfig.primaryTabs.toMutableList()
-                    if (index < list.lastIndex) { list[index] = list[index + 1].also { list[index + 1] = list[index] }; onConfigChanged(DockConfig(primaryTabs = list)) }
-                }, modifier = Modifier.size(32.dp), enabled = index < dockConfig.primaryTabs.lastIndex) {
-                    Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move down", modifier = Modifier.size(18.dp))
-                }
-                if (dockConfig.primaryTabs.size > 1) {
-                    IconButton(onClick = {
-                        val list = dockConfig.primaryTabs.toMutableList().apply { removeAt(index) }
-                        onConfigChanged(DockConfig(primaryTabs = list))
-                    }, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Rounded.RemoveCircleOutline, contentDescription = "Remove", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
-                    }
-                } else Spacer(Modifier.size(32.dp))
+        PrimaryTabList(
+            primaryTabs = dockConfig.primaryTabs,
+            onReorder = { index, direction ->
+                val list = dockConfig.primaryTabs.toMutableList()
+                val swapIndex = index + direction
+                list[index] = list[swapIndex].also { list[swapIndex] = list[index] }
+                onConfigChanged(DockConfig(primaryTabs = list))
+            },
+            onRemove = { index ->
+                val list = dockConfig.primaryTabs.toMutableList().apply { removeAt(index) }
+                onConfigChanged(DockConfig(primaryTabs = list))
             }
-        }
+        )
         if (availableTabs.isNotEmpty()) {
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
-            Text("Available", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
-            availableTabs.forEach { tabId ->
-                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(dockTabIcon(tabId), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
-                    Spacer(Modifier.width(10.dp))
-                    Text(dockTabLabel(tabId), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                    if (dockConfig.primaryTabs.size < maxSlots) {
-                        IconButton(onClick = {
-                            val list = dockConfig.primaryTabs.toMutableList().apply { add(tabId) }
-                            onConfigChanged(DockConfig(primaryTabs = list))
-                        }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Add", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
-                        }
-                    }
+            AvailableTabList(
+                availableTabs = availableTabs,
+                canAdd = dockConfig.primaryTabs.size < maxSlots,
+                onAdd = { tabId ->
+                    val list = dockConfig.primaryTabs.toMutableList().apply { add(tabId) }
+                    onConfigChanged(DockConfig(primaryTabs = list))
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrimaryTabList(
+    primaryTabs: List<DockTabId>,
+    onReorder: (index: Int, direction: Int) -> Unit,
+    onRemove: (index: Int) -> Unit,
+) {
+    primaryTabs.forEachIndexed { index, tabId ->
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(dockTabIcon(tabId), contentDescription = null, tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(dockTabLabel(tabId), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            IconButton(onClick = { onReorder(index, -1) }, modifier = Modifier.size(32.dp), enabled = index > 0) {
+                Icon(Icons.Rounded.KeyboardArrowUp, contentDescription = "Move up", modifier = Modifier.size(18.dp))
+            }
+            IconButton(onClick = { onReorder(index, 1) }, modifier = Modifier.size(32.dp), enabled = index < primaryTabs.lastIndex) {
+                Icon(Icons.Rounded.KeyboardArrowDown, contentDescription = "Move down", modifier = Modifier.size(18.dp))
+            }
+            if (primaryTabs.size > 1) {
+                IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Rounded.RemoveCircleOutline, contentDescription = "Remove", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                }
+            } else Spacer(Modifier.size(32.dp))
+        }
+    }
+}
+
+@Composable
+private fun AvailableTabList(
+    availableTabs: List<DockTabId>,
+    canAdd: Boolean,
+    onAdd: (DockTabId) -> Unit,
+) {
+    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+    Text("Available", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+    availableTabs.forEach { tabId ->
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(dockTabIcon(tabId), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+            Text(dockTabLabel(tabId), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            if (canAdd) {
+                IconButton(onClick = { onAdd(tabId) }, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Rounded.AddCircleOutline, contentDescription = "Add", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                 }
             }
         }

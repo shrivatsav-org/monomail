@@ -33,7 +33,7 @@ internal fun BottomDockBar(
     onTabClick: (InboxTab) -> Unit,
 ) {
     var showRemainingTabs by remember { mutableStateOf(false) }
-    val allTabs = DockTabId.values().filter { if (unifiedInboxEnabled) it != DockTabId.UNIFIED else true }
+    val allTabs = DockTabId.entries.filter { !unifiedInboxEnabled || it != DockTabId.UNIFIED }
     val primaryIds = dockConfig.primaryTabs
     val remainingIds = allTabs.filter { it !in primaryIds }
 
@@ -41,85 +41,132 @@ internal fun BottomDockBar(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.wrapContentSize()
     ) {
-        AnimatedVisibility(
+        RemainingTabsPopup(
             visible = showRemainingTabs,
-            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(tween(180)),
-            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(tween(120))
+            remainingIds = remainingIds,
+            currentTab = currentTab,
+            unifiedInboxEnabled = unifiedInboxEnabled,
+            navScale = appSettings.navScale,
+            onTabClick = { tab ->
+                onTabClick(tab)
+                showRemainingTabs = false
+            }
+        )
+        PrimaryDockRow(
+            currentTab = currentTab,
+            primaryIds = primaryIds,
+            unifiedInboxEnabled = unifiedInboxEnabled,
+            appSettings = appSettings,
+            onTabClick = onTabClick
+        )
+        if (remainingIds.isNotEmpty() && currentTab != InboxTab.TRASH && currentTab != InboxTab.SPAM) {
+            MoreTabsButton(
+                showRemainingTabs = showRemainingTabs,
+                navScale = appSettings.navScale,
+                onClick = { showRemainingTabs = !showRemainingTabs }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RemainingTabsPopup(
+    visible: Boolean,
+    remainingIds: List<DockTabId>,
+    currentTab: InboxTab,
+    unifiedInboxEnabled: Boolean,
+    navScale: Float,
+    onTabClick: (InboxTab) -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(tween(180)),
+        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(tween(120))
+    ) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surfaceContainer,
+            shadowElevation = 8.dp,
+            modifier = Modifier.padding(bottom = 8.dp)
         ) {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = MaterialTheme.colorScheme.surfaceContainer,
-                shadowElevation = 8.dp,
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                Column(modifier = Modifier.padding(4.dp)) {
-                    remainingIds.forEach { dockTabId ->
-                        val tab = dockTabId.toInboxTab()
-                        RemainingTabItem(
-                            icon = dockTabId.icon(unifiedInboxEnabled),
-                            label = dockTabId.label(unifiedInboxEnabled),
-                            isActive = tab == currentTab,
-                            onClick = {
-                                onTabClick(tab)
-                                showRemainingTabs = false
-                            },
-                            scale = appSettings.navScale
-                        )
-                    }
+            Column(modifier = Modifier.padding(4.dp)) {
+                remainingIds.forEach { dockTabId ->
+                    val tab = dockTabId.toInboxTab()
+                    RemainingTabItem(
+                        icon = dockTabId.icon(unifiedInboxEnabled),
+                        label = dockTabId.label(unifiedInboxEnabled),
+                        isActive = tab == currentTab,
+                        onClick = { onTabClick(tab) },
+                        scale = navScale
+                    )
                 }
             }
         }
+    }
+}
 
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+@Composable
+private fun PrimaryDockRow(
+    currentTab: InboxTab,
+    primaryIds: List<DockTabId>,
+    unifiedInboxEnabled: Boolean,
+    appSettings: AppSettings,
+    onTabClick: (InboxTab) -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shadowElevation = 4.dp
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                shadowElevation = 4.dp
+            Row(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    primaryIds.forEach { dockTabId ->
-                        val tab = dockTabId.toInboxTab()
-                        DockTab(
-                            isActive = tab == currentTab,
-                            icon = dockTabId.icon(unifiedInboxEnabled),
-                            label = dockTabId.label(unifiedInboxEnabled),
-                            contentDescription = dockTabId.label(unifiedInboxEnabled),
-                            onClick = { onTabClick(tab) },
-                            scale = appSettings.navScale
-                        )
-                    }
+                primaryIds.forEach { dockTabId ->
+                    val tab = dockTabId.toInboxTab()
+                    DockTab(
+                        isActive = tab == currentTab,
+                        icon = dockTabId.icon(unifiedInboxEnabled),
+                        label = dockTabId.label(unifiedInboxEnabled),
+                        contentDescription = dockTabId.label(unifiedInboxEnabled),
+                        onClick = { onTabClick(tab) },
+                        scale = appSettings.navScale
+                    )
                 }
             }
+        }
+    }
+}
 
-            if (remainingIds.isNotEmpty() && currentTab != InboxTab.TRASH && currentTab != InboxTab.SPAM) {
-                Surface(
-                    shape = CircleShape,
-                    color = if (showRemainingTabs) MaterialTheme.colorScheme.secondaryContainer
-                            else MaterialTheme.colorScheme.primaryContainer,
-                    shadowElevation = 4.dp,
-                    modifier = Modifier
-                        .size((42 * appSettings.navScale).dp)
-                        .clip(CircleShape)
-                        .clickable { showRemainingTabs = !showRemainingTabs }
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            if (showRemainingTabs) Icons.Rounded.KeyboardArrowUp
-                            else Icons.Rounded.KeyboardArrowDown,
-                            contentDescription = if (showRemainingTabs) "Collapse" else "More tabs",
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size((22 * appSettings.navScale).dp)
-                        )
-                    }
-                }
-            }
+@Composable
+private fun MoreTabsButton(
+    showRemainingTabs: Boolean,
+    navScale: Float,
+    onClick: () -> Unit,
+) {
+    Surface(
+        shape = CircleShape,
+        color = if (showRemainingTabs) MaterialTheme.colorScheme.secondaryContainer
+                else MaterialTheme.colorScheme.primaryContainer,
+        shadowElevation = 4.dp,
+        modifier = Modifier
+            .size((42 * navScale).dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                if (showRemainingTabs) Icons.Rounded.KeyboardArrowUp
+                else Icons.Rounded.KeyboardArrowDown,
+                contentDescription = if (showRemainingTabs) "Collapse" else "More tabs",
+                tint = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.size((22 * navScale).dp)
+            )
         }
     }
 }

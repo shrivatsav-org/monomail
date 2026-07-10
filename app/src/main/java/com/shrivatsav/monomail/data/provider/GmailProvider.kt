@@ -1,7 +1,6 @@
 package com.shrivatsav.monomail.data.provider
 import android.content.Context
 import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmail
-import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.remote.BatchModifyMessagesRequest
 import com.shrivatsav.monomail.data.remote.GmailApi
 import com.shrivatsav.monomail.data.remote.ModifyThreadRequest
@@ -279,26 +278,23 @@ class GmailProvider(
         to: String,
         subject: String,
         body: String,
-        cc: String,
-        bcc: String,
-        threadId: String?,
-        attachments: List<EmailAttachment>
+        options: SendEmailOptions
     ): String? {
         val session = Session.getInstance(Properties())
         val message = MimeMessage(session).apply {
             setFrom(InternetAddress(from))
             setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-            if (cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(cc))
-            if (bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(bcc))
+            if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
+            if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
             setSubject(subject, "utf-8")
-            if (attachments.isEmpty()) {
+            if (options.attachments.isEmpty()) {
                 setContent(body, "text/html; charset=utf-8")
             } else {
                 val multipart = MimeMultipart()
                 val textPart = MimeBodyPart()
                 textPart.setContent(body, "text/html; charset=utf-8")
                 multipart.addBodyPart(textPart)
-                for (att in attachments) {
+                for (att in options.attachments) {
                     val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() }
                     if (bytes != null) {
                         val attPart = MimeBodyPart()
@@ -318,7 +314,7 @@ class GmailProvider(
             rawBytes,
             android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
         )
-        val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = threadId))
+        val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = options.threadId))
         return response.threadId
     }
 

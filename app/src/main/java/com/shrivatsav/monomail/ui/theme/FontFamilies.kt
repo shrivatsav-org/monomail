@@ -11,7 +11,7 @@ private val fontFamilyCache = LruCache<String, FontFamily>(10)
 @OptIn(ExperimentalTextApi::class)
 fun googleSansFlex(rond: Float = 0f): FontFamily {
     val key = "GoogleSansFlex_rond_$rond"
-    fontFamilyCache.get(key)?.let { return it }
+    fontFamilyCache[key]?.let { return it }
     val fonts = mutableListOf<Font>()
     for (weight in 100..900 step 100) {
         fonts.add(

@@ -48,10 +48,8 @@ object ImapThreader {
         }
 
         // 3. Group messages by their finalized root ID
-        val threads = mutableMapOf<String, MutableList<ImapRawMessage>>()
-        for (msg in messages) {
-            val rootId = finalizedRoots[msg.messageId] ?: msg.messageId
-            threads.getOrPut(rootId) { mutableListOf() }.add(msg)
+        val threads = messages.groupBy { msg ->
+            finalizedRoots[msg.messageId] ?: msg.messageId
         }
 
         // 4. Sort each thread chronologically and map back to ProviderMessage
