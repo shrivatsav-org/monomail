@@ -779,22 +779,24 @@ private fun Part.getBodyText(): String? {
     }
 }
 
+private val EXTRACT_SNIPPET_HTML_REGEX = Regex("<[^>]+>")
+
 private fun extractSnippet(part: jakarta.mail.Part): String {
     return try {
         val content = part.content
         val text = when {
-            part.isMimeType(MIME_TEXT_PLAIN) -> (content as? String) ?: ""
-            part.isMimeType(MIME_TEXT_HTML) -> (content as? String)?.replace(HTML_TAG_REGEX, " ") ?: ""
+            part.isMimeType("text/plain") -> (content as? String) ?: ""
+            part.isMimeType("text/html") -> (content as? String)?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
             content is Multipart -> {
                 var result = ""
                 for (i in 0 until content.count) {
                     val bp = content.getBodyPart(i)
                     val partContent = try { bp.content } catch (_: Exception) { null }
                     when {
-                        bp.isMimeType(MIME_TEXT_PLAIN) -> { result = (partContent as? String) ?: ""; break }
-                        bp.isMimeType(MIME_TEXT_HTML) && result.isEmpty() ->
-                            result = (partContent as? String)?.replace(HTML_TAG_REGEX, " ") ?: ""
-                        bp.isMimeType(MIME_MULTIPART) && result.isEmpty() ->
+                        bp.isMimeType("text/plain") -> { result = (partContent as? String) ?: ""; break }
+                        bp.isMimeType("text/html") && result.isEmpty() ->
+                            result = (partContent as? String)?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
+                        bp.isMimeType("multipart/*") && result.isEmpty() ->
                             result = extractSnippet(bp)
                     }
                 }
