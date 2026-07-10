@@ -75,62 +75,68 @@ class AuthManager(
         var lastException: Exception? = null
         repeat(3) { attempt ->
             try {
-                if (profile.provider == "gmail") {
-                    val newToken = withContext(Dispatchers.IO) {
-                        GoogleAuthUtil.getToken(
-                            context,
-                            Account(profile.email, "com.google"),
-                            GMAIL_SCOPE
-                        )
-                    }
-                    if (newToken != profile.accessToken) {
-                        updateAccessToken(profile.copy(accessToken = newToken))
-                    }
-                    return  // success
-                } else if (profile.provider == "outlook") {
-                    val initError = microsoftAuthManager.initialize()
-                    if (initError != null) {
-                        if (attempt >= 2) {
-                            notifyReauthRequired(profile.email, profile.provider)
-                            return
-                        }
-                        kotlinx.coroutines.delay(1000L * (1 shl attempt))
-                        return@repeat
-                    }
-                    val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
-                    if (newToken != null) {
-                        if (newToken != profile.accessToken) {
-                            updateAccessToken(profile.copy(accessToken = newToken))
-                        }
-                        return  // success
-                    }
-                    // null token from silent refresh — retry before reauth
-                    if (attempt >= 2) {
-                        notifyReauthRequired(profile.email, profile.provider)
-                        return
-                    }
-                    kotlinx.coroutines.delay(1000L * (1 shl attempt))
+                val refreshed = when (profile.provider) {
+                    "gmail" -> refreshGmailToken(profile)
+                    "outlook" -> refreshOutlookToken(profile, attempt)
+                    else -> return
                 }
+                if (refreshed) return
             } catch (e: UserRecoverableAuthException) {
-                // Permanent — user must re-consent, don't retry
                 notifyReauthRequired(profile.email, profile.provider)
                 return
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < 2) {
-                    kotlinx.coroutines.delay(1000L * (1 shl attempt)) // 1s, 2s
+                    kotlinx.coroutines.delay(1000L * (1 shl attempt))
                 }
             }
         }
-        // All retries exhausted — classify the final error
+        handleRefreshFailure(profile, lastException)
+    }
+
+    private suspend fun refreshGmailToken(profile: UserProfile): Boolean {
+        val newToken = withContext(Dispatchers.IO) {
+            GoogleAuthUtil.getToken(context, Account(profile.email, "com.google"), GMAIL_SCOPE)
+        }
+        if (newToken != profile.accessToken) {
+            updateAccessToken(profile.copy(accessToken = newToken))
+        }
+        return true
+    }
+
+    private suspend fun refreshOutlookToken(profile: UserProfile, attempt: Int): Boolean {
+        val initError = microsoftAuthManager.initialize()
+        if (initError != null) {
+            if (attempt >= 2) {
+                notifyReauthRequired(profile.email, profile.provider)
+                return true
+            }
+            kotlinx.coroutines.delay(1000L * (1 shl attempt))
+            return false
+        }
+        val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
+        if (newToken != null) {
+            if (newToken != profile.accessToken) {
+                updateAccessToken(profile.copy(accessToken = newToken))
+            }
+            return true
+        }
+        if (attempt >= 2) {
+            notifyReauthRequired(profile.email, profile.provider)
+            return true
+        }
+        kotlinx.coroutines.delay(1000L * (1 shl attempt))
+        return false
+    }
+
+    private fun handleRefreshFailure(profile: UserProfile, lastException: Exception?) {
         when (lastException) {
             is java.net.SocketTimeoutException,
             is java.net.UnknownHostException -> {
-                android.util.Log.w("AuthManager", "Transient network error after 3 retries", lastException)
-                // Don't reauth — transient, next sync may succeed
+                android.util.Log.w(TAG, "Transient network error after 3 retries", lastException)
             }
             else -> {
-                android.util.Log.w("AuthManager", "Token refresh failed after 3 retries", lastException)
+                android.util.Log.w(TAG, "Token refresh failed after 3 retries", lastException)
                 notifyReauthRequired(profile.email, profile.provider)
             }
         }
