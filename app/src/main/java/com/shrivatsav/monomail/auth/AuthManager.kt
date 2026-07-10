@@ -32,6 +32,7 @@ class AuthManager(
         private const val TAG = "AuthManager"
         private const val PUSH_REGISTRATION_FAILED = "registerForPushNotifications failed"
         const val GMAIL_SCOPE = "oauth2:https://www.googleapis.com/auth/gmail.modify"
+        private const val GOOGLE_ACCOUNT_TYPE = "com.google"
     }
     val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     private val credentialManager = CredentialManager.create(context)
@@ -96,7 +97,7 @@ class AuthManager(
 
     private suspend fun refreshGmailToken(profile: UserProfile): Boolean {
         val newToken = withContext(Dispatchers.IO) {
-            GoogleAuthUtil.getToken(context, Account(profile.email, "com.google"), GMAIL_SCOPE)
+            GoogleAuthUtil.getToken(context, Account(profile.email, GOOGLE_ACCOUNT_TYPE), GMAIL_SCOPE)
         }
         if (newToken != profile.accessToken) {
             updateAccessToken(profile.copy(accessToken = newToken))
@@ -164,8 +165,7 @@ class AuthManager(
             val email       = googleIdTokenCredential.id
             val displayName = googleIdTokenCredential.displayName ?: "User"
             val photoUrl    = googleIdTokenCredential.profilePictureUri?.toString()
-            val idToken     = googleIdTokenCredential.idToken
-            requestAccessToken(activityContext, email, displayName, photoUrl, idToken)
+            requestAccessToken(activityContext, email, displayName, photoUrl)
         } catch (e: GetCredentialException) {
             SignInResult.Failure(Exception(
                 "Google sign-in failed: ${e.message ?: e.type}. " +
@@ -181,7 +181,7 @@ class AuthManager(
         _pendingConsentProfile = null
         return requestAccessToken(
             activityContext, profile.email, profile.displayName,
-            profile.photoUrl, ""
+            profile.photoUrl
         )
     }
     suspend fun getAccounts(): List<UserProfile> = accountManager.getAccounts()
@@ -210,10 +210,10 @@ class AuthManager(
         val allAccounts = accountManager.getAccounts()
         val target = allAccounts.find { it.id == accountId } ?: return
         if (target.provider == "outlook") {
-            try { microsoftAuthManager.signOut(target.id) } catch (_: Exception) {}
+            try { microsoftAuthManager.signOut(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "Outlook signOut failed during removeAccount for ${target.id}", e) }
         }
         accountManager.removeAccount(accountId)
-        try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (_: Exception) {}
+        try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "push unregister failed during removeAccount for ${target.id}", e) }
         val remaining = accountManager.getAccounts()
         if (remaining.isNotEmpty()) {
             val newActive = if (_userProfile?.id == accountId) remaining.first() else _userProfile
@@ -285,19 +285,18 @@ class AuthManager(
         activityContext: Context,
         email: String,
         displayName: String,
-        photoUrl: String?,
-        idToken: String
+        photoUrl: String?
     ): SignInResult {
         return try {
             var accessToken = withContext(Dispatchers.IO) {
                 GoogleAuthUtil.getToken(
                     activityContext,
-                    Account(email, "com.google"),
+                    Account(email, GOOGLE_ACCOUNT_TYPE),
                     GMAIL_SCOPE
                 )
             }
             val responseCode = withContext(Dispatchers.IO) {
-                val url = java.net.URL("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+                val url = java.net.URI("https://gmail.googleapis.com/gmail/v1/users/me/profile").toURL()
                 val connection = url.openConnection() as java.net.HttpURLConnection
                 connection.setRequestProperty("Authorization", "Bearer $accessToken")
                 connection.responseCode
@@ -307,7 +306,7 @@ class AuthManager(
                     GoogleAuthUtil.clearToken(activityContext, accessToken)
                     GoogleAuthUtil.getToken(
                         activityContext,
-                        Account(email, "com.google"),
+                        Account(email, GOOGLE_ACCOUNT_TYPE),
                         GMAIL_SCOPE
                     )
                 }
