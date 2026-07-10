@@ -86,6 +86,9 @@ coil-compose = { group = "io.coil-kt", name = "coil-compose", version.ref = "coi
 # DataStore
 androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
 
+# WebKit
+androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
+
 # Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }

@@ -18,11 +18,7 @@ class MonoMailApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
-        
-        // Enable slow whole document draw before any WebView is created
-        // This is required to capture the full height of a WebView into a Bitmap (for the Share Email feature)
-        android.webkit.WebView.enableSlowWholeDocumentDraw()
-        
+
         initializeMailcap()
         actionQueueManager.start()
     }

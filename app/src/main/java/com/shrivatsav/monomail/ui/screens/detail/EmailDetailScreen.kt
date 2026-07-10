@@ -1,10 +1,11 @@
 package com.shrivatsav.monomail.ui.screens.detail
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.net.Uri
 import android.text.TextUtils
 import android.webkit.WebSettings
 import android.webkit.WebView
-import androidx.webkit.WebSettingsCompat
-import androidx.webkit.WebViewFeature
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -18,7 +19,6 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,10 +34,11 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -53,7 +54,6 @@ import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.StarBorder
-import androidx.compose.material.icons.rounded.ImageNotSupported
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.MoreVert
@@ -87,19 +87,22 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalConfiguration
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.settings.EmailTheme
 import com.shrivatsav.monomail.ui.screens.inbox.AvatarCircle
 import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
-import com.shrivatsav.monomail.util.HtmlSanitizer
-import com.shrivatsav.monomail.util.EmailImageGenerator
+import com.shrivatsav.monomail.util.normalizeEmailBody
+import com.shrivatsav.monomail.util.stripUnsafeHtml
+import androidx.webkit.WebSettingsCompat
+import androidx.webkit.WebViewFeature
+
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
@@ -121,17 +124,13 @@ fun EmailDetailScreen(
     val isConversationView by viewModel.isConversationView.collectAsState()
     val fontScaleMultiplier by viewModel.fontScaleMultiplier.collectAsState()
     val loadRemoteImages by viewModel.loadRemoteImages.collectAsState()
-    val renderMarkdown by viewModel.renderMarkdown.collectAsState()
     val emailTheme by viewModel.emailTheme.collectAsState()
     val showInlineAttachments by viewModel.showInlineAttachments.collectAsState()
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
     val decryptedBodies by viewModel.decryptedBodies.collectAsState()
+    val isDeveloperMode by viewModel.isDeveloperMode.collectAsState()
 
-    var isGeneratingImage by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var showShareModal by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    val coroutineScope = androidx.compose.runtime.rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -164,34 +163,6 @@ fun EmailDetailScreen(
                                 imageVector = if (starred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                                 contentDescription = if (starred) "Unstar" else "Star",
                                 tint = if (starred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                    if (isGeneratingImage) {
-                        androidx.compose.material3.CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp).padding(4.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    } else {
-                        IconButton(onClick = { 
-                            if (state is EmailDetailState.Success) {
-                                val emails = (state as EmailDetailState.Success).emails
-                                if (emails.size > 1) {
-                                    showShareModal = true
-                                } else if (emails.isNotEmpty()) {
-                                    isGeneratingImage = true
-                                    coroutineScope.launch {
-                                        EmailImageGenerator.shareEmailsAsImage(context, emails, emails.first().subject, fontScaleMultiplier)
-                                        isGeneratingImage = false
-                                    }
-                                }
-                            }
-                        }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Share,
-                                contentDescription = "Share as Image",
-                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
                     }
@@ -319,9 +290,9 @@ fun EmailDetailScreen(
                             isConversationView = isConversationView,
                             fontScaleMultiplier = fontScaleMultiplier,
                             loadRemoteImages = loadRemoteImages,
-                            renderMarkdown = renderMarkdown,
                             emailTheme = emailTheme,
                             showInlineAttachments = showInlineAttachments,
+                            isDeveloperMode = isDeveloperMode,
                             onReply = { onReply(replyTarget, latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
                             onForward = { onForward(latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
                             onFetchAttachment = onFetchAttachment
@@ -332,83 +303,9 @@ fun EmailDetailScreen(
         }
     }
 
-    if (showShareModal && state is EmailDetailState.Success) {
-        val emails = (state as EmailDetailState.Success).emails
-        ShareEmailSelectionModal(
-            emails = emails,
-            subject = emails.firstOrNull()?.subject ?: "",
-            onDismiss = { showShareModal = false },
-            onConfirm = { selectedEmails ->
-                showShareModal = false
-                isGeneratingImage = true
-                coroutineScope.launch {
-                    EmailImageGenerator.shareEmailsAsImage(context, selectedEmails, selectedEmails.firstOrNull()?.subject ?: "", fontScaleMultiplier)
-                    isGeneratingImage = false
-                }
-            }
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun ShareEmailSelectionModal(
-    emails: List<Email>,
-    subject: String,
-    onDismiss: () -> Unit,
-    onConfirm: (List<Email>) -> Unit
-) {
-    var selectedIds by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(emails.map { it.id }.toSet()) }
-    
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.background
-    ) {
-        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-            Text("Share Emails", style = MaterialTheme.typography.titleLarge)
-            Spacer(modifier = Modifier.height(16.dp))
-            LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
-                items(emails) { email ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                if (selectedIds.contains(email.id)) selectedIds = selectedIds - email.id
-                                else selectedIds = selectedIds + email.id
-                            }
-                            .padding(vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        androidx.compose.material3.Checkbox(
-                            checked = selectedIds.contains(email.id),
-                            onCheckedChange = null
-                        )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(email.from, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
-                            Text(
-                                text = email.snippet,
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
-            androidx.compose.material3.Button(
-                onClick = { onConfirm(emails.filter { it.id in selectedIds }) },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = selectedIds.isNotEmpty()
-            ) {
-                Text("Generate Image")
-            }
-            Spacer(modifier = Modifier.height(32.dp))
-        }
-    }
-}
-
 @Composable
 fun ThreadConversationContent(
     emails: List<Email>,
@@ -417,9 +314,9 @@ fun ThreadConversationContent(
     isConversationView: Boolean = true,
     fontScaleMultiplier: Float = 1f,
     loadRemoteImages: Boolean = true,
-    renderMarkdown: Boolean = false,
     emailTheme: EmailTheme = EmailTheme.AUTO,
     showInlineAttachments: Boolean = true,
+    isDeveloperMode: Boolean = false,
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
@@ -650,10 +547,10 @@ fun ThreadConversationContent(
                                 linkColor = linkColor,
                                 fontScaleMultiplier = fontScaleMultiplier,
                                 loadRemoteImages = loadRemoteImages,
-                                renderMarkdown = renderMarkdown,
                                 emailTheme = emailTheme,
                                 showInlineAttachments = showInlineAttachments,
                                 onFetchAttachment = onFetchAttachment,
+                                isDeveloperMode = isDeveloperMode,
                                 modifier = Modifier.fillMaxWidth()
                             )
                         }
@@ -668,10 +565,10 @@ fun ThreadConversationContent(
                     linkColor = linkColor,
                     fontScaleMultiplier = fontScaleMultiplier,
                     loadRemoteImages = loadRemoteImages,
-                    renderMarkdown = renderMarkdown,
                     emailTheme = emailTheme,
                     showInlineAttachments = showInlineAttachments,
                     onFetchAttachment = onFetchAttachment,
+                    isDeveloperMode = isDeveloperMode,
                     showSender = true,
                     messageCount = emails.size
                 )
@@ -740,37 +637,6 @@ fun ThreadConversationContent(
     }
 }
 
-/**
- * Heuristic: does this HTML body look like a rich/styled/designed email
- * that should be rendered in Original mode under AUTO?
- *
- * Returns true when the HTML uses layout tables, explicit inline
- * background colors, column-like structures, or has many images —
- * all signs of a designed template rather than a plain message.
- */
-private fun looksStyled(body: String): Boolean {
-    // Trivial — no HTML worth calling "styled"
-    if (body.length < 200) return false
-
-    // Presence of layout tables with width attributes (common in template emails)
-    val bodyLower = body.lowercase()
-    val hasLayoutTable = bodyLower.contains("<table") && (
-        bodyLower.contains("role=\"presentation\"") ||
-        bodyLower.contains("width=\"") ||
-        bodyLower.contains("cellpadding") ||
-        body.contains("bgcolor", ignoreCase = true) ||
-        body.contains("background-color:", ignoreCase = true)
-    )
-    // Multiple images — likely a newsletter/marketing mail
-    val imgCount = bodyLower.split("<img", "<img ").count() - 1
-    val hasMultipleImages = imgCount >= 3
-    // Non-trivial inline style — deliberate styling
-    val hasInlineStyles = bodyLower.contains("style=\"") &&
-            (bodyLower.contains("font-family:") || bodyLower.contains("color:") || bodyLower.contains("padding:"))
-
-    return (hasLayoutTable && hasInlineStyles) || hasMultipleImages
-}
-
 @Composable
 private fun MessageBody(
     email: Email,
@@ -780,10 +646,10 @@ private fun MessageBody(
     linkColor: String,
     fontScaleMultiplier: Float = 1f,
     loadRemoteImages: Boolean = true,
-    renderMarkdown: Boolean = false,
     emailTheme: EmailTheme = EmailTheme.AUTO,
     showInlineAttachments: Boolean = true,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
+    isDeveloperMode: Boolean = false,
     showSender: Boolean = false,
     messageCount: Int = 0,
     modifier: Modifier = Modifier
@@ -795,8 +661,15 @@ private fun MessageBody(
         email.body.contains("multipart/encrypted;") ||     // MIME header, not prose
         email.body.contains("multipart/encrypted\r\n")       // MIME header with CRLF
     )
-    val bodyText = if (isEncryptedBlob) "" else (decryptedResult?.decryptedBody ?: email.body)
-    val bodyIsHtml = !isEncryptedBlob && email.bodyIsHtml
+    val normalizedBody = if (isEncryptedBlob) {
+        normalizeEmailBody("", bodyIsHtml = false)
+    } else {
+        normalizeEmailBody(decryptedResult?.decryptedBody ?: email.body, email.bodyIsHtml)
+    }
+    val bodyText = normalizedBody.text
+    val bodyIsHtml = !isEncryptedBlob && normalizedBody.isHtml
+    // ponytail: strip runs on composition thread; move to background when HTML prep is refactored
+    val safeBodyText = if (bodyIsHtml) stripUnsafeHtml(bodyText) else bodyText
     Column(modifier = modifier) {
         // Encryption badge
         if (decryptedResult != null) {
@@ -864,18 +737,15 @@ private fun MessageBody(
     val fontSize = (15f * fontScaleMultiplier).coerceIn(10f, 28f)
     val smallFontSize = (13f * fontScaleMultiplier).coerceIn(9f, 24f)
     var showQuotedText by remember { mutableStateOf(false) }
-    var showRemoteImages by remember { mutableStateOf(false) }
-    val density = LocalDensity.current
-    var contentHeightPx by remember(email.id) { mutableStateOf(0) }
-    val hasQuotedText = remember(bodyText) {
-        bodyText.contains("<blockquote", ignoreCase = true) ||
-        bodyText.contains("gmail_quote", ignoreCase = true) ||
-        bodyText.contains("gmail_extra", ignoreCase = true) ||
-        bodyText.contains("yahoo_quoted", ignoreCase = true) ||
-        bodyText.contains("moz-cite-prefix", ignoreCase = true) ||
-        bodyText.contains("appendonsend", ignoreCase = true) ||
-        bodyText.contains("divRplyFwdMsg", ignoreCase = true) ||
-        bodyText.contains("On ", ignoreCase = true) && bodyText.contains(" wrote:", ignoreCase = true)
+    val hasQuotedText = remember(safeBodyText) {
+        safeBodyText.contains("<blockquote", ignoreCase = true) ||
+        safeBodyText.contains("gmail_quote", ignoreCase = true) ||
+        safeBodyText.contains("gmail_extra", ignoreCase = true) ||
+        safeBodyText.contains("yahoo_quoted", ignoreCase = true) ||
+        safeBodyText.contains("moz-cite-prefix", ignoreCase = true) ||
+        safeBodyText.contains("appendonsend", ignoreCase = true) ||
+        safeBodyText.contains("divRplyFwdMsg", ignoreCase = true) ||
+        safeBodyText.contains("On ", ignoreCase = true) && safeBodyText.contains(" wrote:", ignoreCase = true)
     }
     if (showSender) {
         val isMsgUnread = !email.isRead
@@ -1017,85 +887,52 @@ private fun MessageBody(
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        // Determine if we're in dark theme by checking background color brightness
-        val useDarkTheme = remember(bgColor) {
-            try {
-                val bgHex = bgColor.removePrefix("#")
-                val bgInt = bgHex.toLong(16)
-                val r = (bgInt shr 16) and 0xFF
-                val g = (bgInt shr 8) and 0xFF
-                val b = bgInt and 0xFF
-                val luminance = (0.299 * r + 0.587 * g + 0.114 * b)
-                luminance < 128
-            } catch (_: Exception) { false }
-        }
-        val looksS = remember(bodyText, bodyIsHtml, emailTheme) {
-            (bodyText.length > 200 && bodyIsHtml) && looksStyled(bodyText)
-        }
-        val effectiveMode = remember(looksS, emailTheme) {
-            when (emailTheme) {
-                EmailTheme.FORCE_DARK -> "adapt"
-                EmailTheme.FORCE_LIGHT -> "original"
-                EmailTheme.ORIGINAL -> "original"
-                EmailTheme.AUTO -> if (looksS) "original" else "adapt"
-            }
-        }
+        var showRemoteImages by remember { mutableStateOf(false) }
 
-        // Images blocked banner (shown when loadRemoteImages is off and showRemoteImages is still false)
-
-        val htmlContent = remember(email.id, bodyText, bgColor, textColor, linkColor, fontScaleMultiplier, showQuotedText, loadRemoteImages, showRemoteImages, renderMarkdown, emailTheme, showInlineAttachments) {
-            val displayBody = try {
-                // Determine body: preserve or strip quoted text
-                val body = if (showQuotedText) bodyText else HtmlSanitizer.stripQuotedText(bodyText)
-
-                // Convert markdown to HTML for plain text bodies if enabled
-                if (bodyIsHtml) {
-                    body
-                } else if (renderMarkdown) {
-                    try {
-                        markdownToHtml(body)
-                    } catch (_: Exception) {
-                        TextUtils.htmlEncode(body).replace("\n", "<br>")
-                    }
-                } else {
-                    TextUtils.htmlEncode(body).replace("\n", "<br>")
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("MessageBody", "Failed to process email body", e)
-                // Fallback: show raw text
-                TextUtils.htmlEncode(bodyText).replace("\n", "<br>")
-            }
-
-            // Autolink URLs then sanitize
-            val cleanBody = HtmlSanitizer.sanitize(autolinkHtml(displayBody))
-            // Wrap Outlook forward/reply block so CSS can hide/show it as a unit
-            val wrappedBody = wrapOutlookQuoted(cleanBody)
-
-            // In adapt mode: strip <style> tags (they override our dark CSS),
-            // bgcolor attrs (CSS selectors can't target these), and fixed widths.
-            // In original mode: only strip fixed-width attrs for responsiveness.
-            val enhancedBody = when (effectiveMode) {
-                "adapt" -> {
-                    var b = wrappedBody
-                    b = HtmlSanitizer.stripStyleTags(b)
-                    b = HtmlSanitizer.stripFixedWidthAttrs(b)
-                    b = b.replace(Regex("<table[^>]*>", RegexOption.IGNORE_CASE)) {
-                        "<div class=\"monomail-table-wrap\">" + it.value
-                    }
-                    b
-                }
-                else -> {
-                    HtmlSanitizer.stripFixedWidthAttrs(wrappedBody)
+        if (!loadRemoteImages && !showRemoteImages && bodyIsHtml) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Remote images blocked",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = { showRemoteImages = true }) {
+                    Text("Show images", style = MaterialTheme.typography.labelSmall)
                 }
             }
+        }
 
-            // Replace inline CID images (Outlook) with placeholder when they're also attachments
+        val useOverviewScaling = remember(safeBodyText, bodyIsHtml) {
+            bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksMobileFriendly(safeBodyText) && !looksDataTableEmail(safeBodyText)
+        }
+
+        // ponytail: CSS zoom scales 600px template emails to fit the card
+        val emailZoomFactor = if (useOverviewScaling) {
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp
+            val availableWidthDp = screenWidthDp - 56
+            (availableWidthDp.toFloat() / 600f).coerceIn(0.3f, 1.0f)
+        } else 1.0f
+
+        val htmlContent = remember(email.id, safeBodyText, fontScaleMultiplier, showQuotedText, showInlineAttachments, loadRemoteImages, showRemoteImages, emailTheme, useOverviewScaling, emailZoomFactor) {
+            val displayBody = if (bodyIsHtml) {
+                safeBodyText
+            } else {
+                TextUtils.htmlEncode(safeBodyText).replace("\n", "<br>")
+            }
+
             val bodyWithCidPlaceholders = if (!showInlineAttachments && email.attachments.isNotEmpty()) {
-                var b = enhancedBody
+                var b = displayBody
                 for (att in email.attachments) {
                     if (att.name.isBlank()) continue
                     val escapedName = Regex.escape(att.name)
-                    // Match <img> tags with src="cid:NAME" or src='cid:NAME'
                     val cidPattern = Regex(
                         """<img[^>]*src\s*=\s*["']cid:${escapedName}["'][^>]*>""",
                         RegexOption.IGNORE_CASE
@@ -1106,17 +943,19 @@ private fun MessageBody(
                 }
                 b
             } else {
-                enhancedBody
+                displayBody
             }
 
-            // Shared quoted-text CSS (same for both modes)
+            val imgBlockCss = if (!loadRemoteImages && !showRemoteImages) """
+                img[src^="http://"] { display: none !important; }
+                img[src^="https://"] { display: none !important; }
+            """.trimIndent() else ""
+
             val quotedCss = """
-                /* Collapsible quoted text - hidden by default */
                 blockquote, .gmail_quote, .gmail_extra,
                 .yahoo_quoted, .moz-cite-prefix,
                 #appendonsend, #divRplyFwdMsg,
-                [name="quoted-content"],
-                .outlook-quoted {
+                [name="quoted-content"] {
                     display: none;
                 }
                 .show-quotes blockquote,
@@ -1126,8 +965,7 @@ private fun MessageBody(
                 .show-quotes .moz-cite-prefix,
                 .show-quotes #appendonsend,
                 .show-quotes #divRplyFwdMsg,
-                .show-quotes [name="quoted-content"],
-                .show-quotes .outlook-quoted {
+                .show-quotes [name="quoted-content"] {
                     display: block;
                     padding: 0 !important;
                     margin: 0 !important;
@@ -1142,196 +980,110 @@ private fun MessageBody(
                 }
             """.trimIndent()
 
-            // Build CSS for each mode
-            val modeCss = if (effectiveMode == "adapt") {
-                """
-                    /* === Adapted (dark-friendly) mode === */
-                    @font-face {
-                        font-family: 'GoogleSans';
-                        src: url('file:///android_res/font/google_sans_flex.ttf') format('truetype');
+            val fontSize = (15f * fontScaleMultiplier).coerceIn(10f, 28f)
+            val baseCss = """
+                    body, body * {
+                        box-sizing: border-box !important;
                     }
                     body {
-                        font-family: 'GoogleSans', -apple-system, 'Helvetica Neue', Arial, sans-serif;
                         font-size: ${fontSize}px;
                         line-height: 1.65;
                         margin: 0;
-                        padding: 4px 4px 4px 4px !important;
-                        background-color: $bgColor;
-                        color: $textColor;
+                        padding: 4px;
                         word-break: break-word;
                         overflow-wrap: break-word;
                         -webkit-font-smoothing: antialiased;
-                        overflow-x: hidden;
                     }
-                    p { margin: 0 0 1em 0; }
-                    p:last-child { margin-bottom: 0; }
-                    img, video, iframe, embed {
+                    img {
                         max-width: 100% !important;
                         height: auto !important;
-                        border-radius: 8px;
                     }
-                    img { display: block; margin: 8px 0; }
-                    a, a * { color: $linkColor !important; text-decoration: underline !important; word-break: break-word; }
-                    h1, h2, h3, h4 { margin: 1.2em 0 0.6em 0; line-height: 1.3; color: $textColor; }
-                    h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
-                    hr { border: none; border-top: 1px solid ${textColor}22; margin: 16px 0; }
-                    table {
-                        max-width: 100% !important;
-                        border-collapse: collapse;
-                        overflow-x: auto;
-                        word-break: break-word;
-                        margin: 8px 0;
-                        font-size: ${smallFontSize}px;
+                    $imgBlockCss
+                    $quotedCss
+            """.trimIndent()
+            val responsiveCss = if (useOverviewScaling) {
+                """
+                    html, body {
+                        min-width: 0 !important;
+                        overflow-x: hidden !important;
                     }
-                    /* Wrapper to make wide tables scrollable */
-                    .monomail-table-wrap {
-                        overflow-x: auto;
-                        -webkit-overflow-scrolling: touch;
-                        max-width: 100%;
+                    body {
+                        zoom: $emailZoomFactor;
                     }
-                    td, th {
-                        word-break: break-word;
-                        padding: 6px 10px;
-                    }
-                    th { font-weight: 600; }
-                    pre, code { white-space: pre-wrap; font-size: ${smallFontSize}px; word-break: break-word; }
-                    pre { background-color: ${textColor}0a; border-radius: 8px; padding: 12px; margin: 8px 0; overflow-x: auto; }
-                    code { background-color: ${textColor}0a; border-radius: 4px; padding: 1px 4px; }
-                    pre code { background: none; padding: 0; border-radius: 0; }
-                    ul, ol { margin: 8px 0; padding-left: 24px; }
-                    li { margin: 4px 0; }
+                    $baseCss
                 """.trimIndent()
             } else {
                 """
-                    /* === Original (as-sent) mode === */
-                    @font-face {
-                        font-family: 'GoogleSans';
-                        src: url('file:///android_res/font/google_sans_flex.ttf') format('truetype');
+                    html, body {
+                        width: 100% !important;
+                        min-width: 0 !important;
+                        max-width: 100% !important;
+                        overflow-x: auto !important;
                     }
                     body {
-                        font-family: 'GoogleSans', -apple-system, 'Helvetica Neue', Arial, sans-serif;
                         font-size: ${fontSize}px;
                         line-height: 1.65;
                         margin: 0;
-                        padding: 4px 4px 4px 4px !important;
-                        background-color: #ffffff !important;
-                        color: #1a1a1a;
+                        padding: 4px;
                         word-break: break-word;
                         overflow-wrap: break-word;
                         -webkit-font-smoothing: antialiased;
-                        /* Responsive: constrain body width */
-                        max-width: 100vw;
-                        overflow-x: hidden;
                     }
-                    /* Make all containers responsive */
-                    table {
-                        border-collapse: collapse;
-                        margin: 8px 0;
-                        font-size: ${smallFontSize}px;
+                    body, body * {
+                        box-sizing: border-box !important;
+                    }
+                    center, .gwfw, .m-shell, .td {
+                        width: 100% !important;
+                        min-width: 0 !important;
                         max-width: 100% !important;
+                    }
+                    div, p, span, a, h1, h2, h3, h4, h5, h6 {
+                        max-width: 100% !important;
+                        min-width: 0 !important;
+                        overflow-wrap: break-word;
+                    }
+                    th[scope="col"] {
                         width: auto !important;
+                        min-width: max-content !important;
+                        white-space: nowrap !important;
                     }
-                    /* Override fixed-width tables from email templates */
-                    table[width], td[width], th[width] {
-                        max-width: 100% !important;
+                    [width="600"], [width="640"], [width="700"] {
+                        width: 100% !important;
                     }
-                    td, th {
-                        word-break: break-word;
-                        padding: 6px 10px;
-                        max-width: 100vw;
+                    [style*="width:600px"], [style*="width: 600px"],
+                    [style*="min-width:600px"], [style*="min-width: 600px"],
+                    [style*="width:640px"], [style*="width: 640px"],
+                    [style*="min-width:640px"], [style*="min-width: 640px"] {
+                        width: 100% !important;
+                        min-width: 0 !important;
                     }
-                    th { font-weight: 600; }
-                    img, video, iframe, embed {
+                    img {
                         max-width: 100% !important;
                         height: auto !important;
                     }
-                    /* Override fixed-width images */
-                    img[width] {
-                        width: auto !important;
-                        max-width: 100% !important;
-                    }
-                    p { margin: 0 0 1em 0; }
-                    p:last-child { margin-bottom: 0; }
-                    h1, h2, h3, h4 { margin: 1.2em 0 0.6em 0; line-height: 1.3; }
-                    h1:first-child, h2:first-child, h3:first-child { margin-top: 0; }
-                    pre, code { white-space: pre-wrap; font-size: ${smallFontSize}px; word-break: break-word; }
-                    pre { background-color: #0000000a; border-radius: 8px; padding: 12px; margin: 8px 0; overflow-x: auto; }
-                    code { background-color: #0000000a; border-radius: 4px; padding: 1px 4px; }
-                    pre code { background: none; padding: 0; border-radius: 0; }
-                    ul, ol { margin: 8px 0; padding-left: 24px; }
-                    li { margin: 4px 0; }
-                    /* Constrain any fixed-width div/section */
-                    div[style*="width"], section[style*="width"] {
-                        max-width: 100% !important;
-                        width: auto !important;
-                    }
+                    $imgBlockCss
+                    $quotedCss
                 """.trimIndent()
             }
-
-            // Image blocking CSS — block http/https images unless user explicitly allows them
-            val imgBlockCss = if (!loadRemoteImages && !showRemoteImages) """
-                img[src^="http://"] { display: none !important; }
-                img[src^="https://"] { display: none !important; }
-            """.trimIndent() else ""
+            val viewport = "width=device-width, initial-scale=1.0"
 
             """
             <!DOCTYPE html>
             <html>
             <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-                <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src http: https: data: cid:; font-src 'none'; frame-src 'none';">
+                <meta name="viewport" content="$viewport">
                 <style>
-                    * { box-sizing: border-box; }
-                    $modeCss
-                    $quotedCss
-                    $imgBlockCss
+                    $responsiveCss
                 </style>
             </head>
-            <body class="${if (showQuotedText) "show-quotes" else ""}">$bodyWithCidPlaceholders</body>
+            <body class="${if (showQuotedText) "show-quotes" else ""}">
+                ${stripBodyInlineStyles(bodyWithCidPlaceholders)}
+                <style>
+                    $responsiveCss
+                </style>
+            </body>
             </html>
             """.trimIndent()
-        }
-
-        // "Images blocked" banner — only shown when remote images are disabled by setting
-        if (!loadRemoteImages && !showRemoteImages) {
-            val hasExternalImages = remember(bodyText) {
-                bodyText.contains("""src="http""", ignoreCase = true)
-            }
-            if (hasExternalImages) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .background(
-                            MaterialTheme.colorScheme.surfaceContainerHigh,
-                            RoundedCornerShape(8.dp)
-                        )
-                        .padding(horizontal = 12.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.ImageNotSupported,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Remote images blocked",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
-                    )
-                    TextButton(onClick = { showRemoteImages = true }) {
-                        Text(
-                            text = "Show",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
         }
 
         var emailContentWebView by remember { mutableStateOf<WebView?>(null) }
@@ -1345,12 +1097,13 @@ private fun MessageBody(
             }
         }
 
-        // Card bg must match the email body bg so the padding area blends seamlessly
-        val isStyledEmail = bodyIsHtml && bodyText.length > 200 && looksStyled(bodyText)
-        val cardBgColor = when (emailTheme) {
-            EmailTheme.FORCE_DARK -> MaterialTheme.colorScheme.background
-            EmailTheme.FORCE_LIGHT, EmailTheme.ORIGINAL -> androidx.compose.ui.graphics.Color.White
-            EmailTheme.AUTO -> if (isStyledEmail) androidx.compose.ui.graphics.Color.White else MaterialTheme.colorScheme.background
+        val cardBgColor = if (emailTheme == EmailTheme.ORIGINAL) Color.White
+            else MaterialTheme.colorScheme.surfaceContainerLow
+
+        val useDarkening = when (emailTheme) {
+            EmailTheme.FORCE_DARK -> true
+            EmailTheme.AUTO -> isSystemInDarkTheme()
+            else -> false
         }
 
         Column {
@@ -1360,19 +1113,13 @@ private fun MessageBody(
                     .padding(horizontal = 16.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(cardBgColor, RoundedCornerShape(16.dp))
-                    .padding(12.dp)
-                    .then(
-                        if (contentHeightPx > 0) Modifier.height(with(density) { contentHeightPx.toDp() })
-                        else Modifier.height(120.dp)
-                    ),
+                    .padding(12.dp),
                 factory = { context ->
                     WebView(context).apply {
                         emailContentWebView = this
                         settings.javaScriptEnabled = false
-                        settings.loadWithOverviewMode = true
-                        settings.useWideViewPort = true
                         settings.domStorageEnabled = false
-                        settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.TEXT_AUTOSIZING
+                        settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
                         settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                         settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                         settings.loadsImagesAutomatically = true
@@ -1386,9 +1133,28 @@ private fun MessageBody(
                         } catch (_: Exception) {}
                         setBackgroundColor(android.graphics.Color.TRANSPARENT)
                         isVerticalScrollBarEnabled = false
-                        isHorizontalScrollBarEnabled = false
-                        overScrollMode = android.view.View.OVER_SCROLL_NEVER
-                        isNestedScrollingEnabled = false
+                        isHorizontalScrollBarEnabled = true
+                        var downX = 0f
+                        var downY = 0f
+                        setOnTouchListener { view, event ->
+                            when (event.actionMasked) {
+                                android.view.MotionEvent.ACTION_DOWN -> {
+                                    downX = event.x
+                                    downY = event.y
+                                    view.parent?.requestDisallowInterceptTouchEvent(true)
+                                }
+                                android.view.MotionEvent.ACTION_MOVE -> {
+                                    val dx = kotlin.math.abs(event.x - downX)
+                                    val dy = kotlin.math.abs(event.y - downY)
+                                    view.parent?.requestDisallowInterceptTouchEvent(dx > dy)
+                                }
+                                android.view.MotionEvent.ACTION_UP,
+                                android.view.MotionEvent.ACTION_CANCEL -> {
+                                    view.parent?.requestDisallowInterceptTouchEvent(false)
+                                }
+                            }
+                            false
+                        }
                         webViewClient = object : android.webkit.WebViewClient() {
                             override fun shouldOverrideUrlLoading(
                                 view: android.webkit.WebView?,
@@ -1444,30 +1210,19 @@ private fun MessageBody(
                             ) {
                                 android.util.Log.e("EmailWebView", "WebView error: ${error?.description} on ${request?.url}")
                             }
-                            override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
-                                super.onPageFinished(view, url)
-                                view?.postDelayed({
-                                    val h = (view.contentHeight * view.resources.displayMetrics.density).toInt()
-                                    if (h > 0) contentHeightPx = h
-                                }, 50)
-                                view?.postDelayed({
-                                    val h = (view.contentHeight * view.resources.displayMetrics.density).toInt()
-                                    if (h > 0 && h != contentHeightPx) contentHeightPx = h
-                                }, 400)
-                            }
                         }
                     }
                 },
                 update = { webView ->
+                    webView.settings.loadWithOverviewMode = false
+                    webView.settings.useWideViewPort = false
+                    webView.isHorizontalScrollBarEnabled = !useOverviewScaling
+                    if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                        WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, useDarkening)
+                    }
                     if (webView.tag != htmlContent) {
                         webView.tag = htmlContent
                         try {
-                            if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
-                                WebSettingsCompat.setAlgorithmicDarkeningAllowed(
-                                    webView.settings,
-                                    useDarkTheme && effectiveMode == "adapt"
-                                )
-                            }
                             webView.loadDataWithBaseURL("file:///android_asset/", htmlContent, "text/html", "UTF-8", null)
                         } catch (e: Exception) {
                             android.util.Log.e("EmailWebView", "Failed to load email HTML content", e)
@@ -1490,6 +1245,32 @@ private fun MessageBody(
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = if (showQuotedText) "Hide quoted text" else "Show quoted text",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+                    )
+                }
+            }
+
+            // Developer: copy raw body
+            if (isDeveloperMode) {
+                val context = androidx.compose.ui.platform.LocalContext.current
+                TextButton(
+                    onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("email_body", email.body))
+                        android.widget.Toast.makeText(context, "Raw body copied", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.padding(start = 16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Share,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Copy raw ${if (email.bodyIsHtml) "HTML" else "text"}",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Medium,
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
@@ -1881,346 +1662,57 @@ private fun displayName(from: String): String {
     val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
+
+private fun looksFixedWidthTemplate(html: String): Boolean {
+    if (html.length < 500) return false
+    return FIXED_WIDTH_ATTR.containsMatchIn(html) ||
+        FIXED_WIDTH_STYLE.containsMatchIn(html) ||
+        html.contains("m-shell", ignoreCase = true) ||
+        html.contains("tbl_main", ignoreCase = true)
+}
+
+private fun looksDataTableEmail(html: String): Boolean {
+    val lower = html.lowercase(Locale.US)
+    return lower.contains("<thead") ||
+        lower.contains("<th") ||
+        lower.contains("scope=\"col\"") ||
+        lower.contains("role=\"columnheader\"")
+}
+
+// ponytail: emails with "stack" class + column stacking are genuinely responsive — skip zoom
+private fun looksMobileFriendly(html: String): Boolean {
+    val lower = html.lowercase(Locale.US)
+    return lower.contains("stack") && lower.contains("column")
+}
+
+
+
+// ponytail: strips inline style="" from <body> tags so wrapper CSS isn't overridden
+private val BODY_STYLE_RE = Regex("""<body\b([^>]*?)style\s*=\s*"[^"]*"([^>]*?)>""", RegexOption.IGNORE_CASE)
+private val BODY_STYLE_RE_SINGLE = Regex("""<body\b([^>]*?)style\s*=\s*'[^']*'([^>]*?)>""", RegexOption.IGNORE_CASE)
+
+private fun stripBodyInlineStyles(html: String): String {
+    var result = BODY_STYLE_RE.replace(html) { m ->
+        val pre = m.groupValues[1]
+        val post = m.groupValues[2]
+        "<body$pre$post>"
+    }
+    result = BODY_STYLE_RE_SINGLE.replace(result) { m ->
+        val pre = m.groupValues[1]
+        val post = m.groupValues[2]
+        "<body$pre$post>"
+    }
+    return result
+}
+
+private val FIXED_WIDTH_ATTR = Regex("""\bwidth\s*=\s*["']?(5[4-9]\d|[6-8]\d\d)["']?""", RegexOption.IGNORE_CASE)
+private val FIXED_WIDTH_STYLE = Regex("""(?:width|min-width)\s*:\s*(5[4-9]\d|[6-8]\d\d)px""", RegexOption.IGNORE_CASE)
+
 private fun formatDetailDate(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
     return detailDateFormat.format(Date(epochMillis))
 }
 
 
-/**
- * Wraps the Outlook forward/reply block in a &lt;div class="outlook-quoted"&gt;
- * so that CSS can hide/show the entire block (separator, headers, and the
- * previous message body that follows) as a unit.
- *
- * Operates on sanitized HTML right before it goes into the WebView template.
- */
-private fun wrapOutlookQuoted(html: String): String {
-    // Find the forward block — look for appendonsend or divRplyFwdMsg
-    val appendonIdx = html.indexOf("id=\"appendonsend\"", ignoreCase = true)
-    val fwdIdx = html.indexOf("id=\"divRplyFwdMsg\"", ignoreCase = true)
-    val markerIdx = when {
-        appendonIdx >= 0 -> {
-            val tagStart = html.lastIndexOf('<', appendonIdx)
-            if (tagStart >= 0) tagStart else appendonIdx - 4
-        }
-        fwdIdx >= 0 -> {
-            val tagStart = html.lastIndexOf('<', fwdIdx)
-            if (tagStart >= 0) tagStart else fwdIdx - 4
-        }
-        else -> return html
-    }
 
-    if (markerIdx < 0) return html
 
-    // Insert </div> just before </body> and <div class="outlook-quoted"> before the marker
-    val bodyCloseIdx = html.indexOf("</body>", ignoreCase = true)
-    if (bodyCloseIdx < 0 || bodyCloseIdx <= markerIdx) return html
-
-    val before = html.substring(0, markerIdx)
-    val wrapped = html.substring(markerIdx, bodyCloseIdx)
-    val after = html.substring(bodyCloseIdx)
-
-    return "$before<div class=\"outlook-quoted\">$wrapped</div>$after"
-}
-
-private fun autolinkHtml(html: String): String {
-    if (!html.contains("http://", ignoreCase = true) && !html.contains("https://", ignoreCase = true)) {
-        return html
-    }
-    val urlRegex = Regex("""\b(https?://[-A-Za-z0-9+&@#/%?=~_|!:,.;]*[-A-Za-z0-9+&@#/%=~_|])""")
-    val sb = StringBuilder()
-    var i = 0
-    val len = html.length
-    var inAnchor = false
-
-    while (i < len) {
-        val nextTag = html.indexOf('<', i)
-        if (nextTag == -1) {
-            val text = html.substring(i)
-            if (inAnchor) {
-                sb.append(text)
-            } else {
-                sb.append(urlRegex.replace(text) { match ->
-                    val url = match.groupValues[1]
-                    """<a href="$url">$url</a>"""
-                })
-            }
-            break
-        }
-
-        if (nextTag > i) {
-            val text = html.substring(i, nextTag)
-            if (inAnchor) {
-                sb.append(text)
-            } else {
-                sb.append(urlRegex.replace(text) { match ->
-                    val url = match.groupValues[1]
-                    """<a href="$url">$url</a>"""
-                })
-            }
-        }
-
-        val tagEnd = html.indexOf('>', nextTag)
-        if (tagEnd == -1) {
-            sb.append(html.substring(nextTag))
-            break
-        }
-
-        val tag = html.substring(nextTag, tagEnd + 1)
-        sb.append(tag)
-        if (tag.startsWith("<a ", ignoreCase = true) || tag.startsWith("<a>", ignoreCase = true)) {
-            inAnchor = true
-        } else if (tag.startsWith("</a>", ignoreCase = true)) {
-            inAnchor = false
-        }
-        i = tagEnd + 1
-    }
-    return sb.toString()
-}
-
-/**
- * Converts a subset of Markdown syntax to HTML for WebView rendering.
- * Uses a single-pass line-by-line tokenizer instead of 25 sequential
- * regex replacements, avoiding intermediate String allocations.
- *
- * Handles: headers, bold, italic, inline code, code blocks, links,
- * unordered lists, ordered lists, blockquotes, and horizontal rules.
- */
-private fun markdownToHtml(markdown: String): String {
-    // Single char-by-char pass to escape HTML entities
-    val escaped = StringBuilder(markdown.length)
-    for (c in markdown) {
-        when (c) {
-            '&' -> escaped.append("&amp;")
-            '<' -> escaped.append("&lt;")
-            '>' -> escaped.append("&gt;")
-            else -> escaped.append(c)
-        }
-    }
-
-    // Single-pass line-by-line tokenization
-    val result = StringBuilder(escaped.length + (escaped.length shr 1))
-    val lines = escaped.split('\n')
-    var i = 0
-
-    while (i < lines.size) {
-        val line = lines[i]
-        val trimmed = line.trimStart()
-
-        when {
-            // Fenced code blocks
-            trimmed.startsWith("```") -> {
-                val lang = trimmed.removePrefix("```").trim()
-                result.append("<pre><code>")
-                i++
-                while (i < lines.size && !lines[i].trimStart().startsWith("```")) {
-                    result.append(lines[i]).append('\n')
-                    i++
-                }
-                result.append("</code></pre>\n")
-                i++
-            }
-
-            // Indented code blocks (4 spaces or tab)
-            (line.startsWith("    ") || line.startsWith('\t')) &&
-                i + 1 < lines.size && !lines[i + 1].isBlank() -> {
-                result.append("<code>").append(trimmed).append("</code><br>\n")
-                i++
-            }
-
-            // ATX Headers
-            trimmed.startsWith("###### ") -> { result.append("<h6>").append(processInline(trimmed.removePrefix("###### "))).append("</h6>\n"); i++ }
-            trimmed.startsWith("##### ") -> { result.append("<h5>").append(processInline(trimmed.removePrefix("##### "))).append("</h5>\n"); i++ }
-            trimmed.startsWith("#### ") -> { result.append("<h4>").append(processInline(trimmed.removePrefix("#### "))).append("</h4>\n"); i++ }
-            trimmed.startsWith("### ") -> { result.append("<h3>").append(processInline(trimmed.removePrefix("### "))).append("</h3>\n"); i++ }
-            trimmed.startsWith("## ") -> { result.append("<h2>").append(processInline(trimmed.removePrefix("## "))).append("</h2>\n"); i++ }
-            trimmed.startsWith("# ") -> { result.append("<h1>").append(processInline(trimmed.removePrefix("# "))).append("</h1>\n"); i++ }
-
-            // Blockquotes
-            trimmed.startsWith("&gt; ") -> {
-                result.append("<blockquote>").append(processInline(trimmed.removePrefix("&gt; "))).append("</blockquote>\n")
-                i++
-            }
-
-            // Horizontal rules
-            line.matches(HORIZONTAL_RULE) -> {
-                result.append("<hr>\n")
-                i++
-            }
-
-            // Unordered list items
-            trimmed.matches(UNORDERED_LIST_ITEM) -> {
-                result.append("<ul>")
-                while (i < lines.size) {
-                    val l = lines[i].trimStart()
-                    if (!l.matches(UNORDERED_LIST_ITEM)) break
-                    result.append("<li>").append(processInline(l.drop(2))).append("</li>")
-                    i++
-                }
-                result.append("</ul>\n")
-            }
-
-            // Ordered list items
-            trimmed.matches(ORDERED_LIST_ITEM) -> {
-                result.append("<ol>")
-                while (i < lines.size) {
-                    val l = lines[i].trimStart()
-                    if (!l.matches(ORDERED_LIST_ITEM)) break
-                    result.append("<li>").append(processInline(l.dropWhile { it != '.' }.drop(1).trimStart())).append("</li>")
-                    i++
-                }
-                result.append("</ol>\n")
-            }
-
-            // Blank line
-            line.isBlank() -> { result.append('\n'); i++ }
-
-            // Regular text
-            else -> { result.append(processInline(line)).append('\n'); i++ }
-        }
-    }
-
-    var html = result.toString().trimEnd('\n')
-
-    // Line break handling
-    html = html.replace("\n\n", "</p><p>")
-    html = html.replace(LINE_BREAK, "<br>")
-
-    // Wrap in paragraph if not already wrapped in block-level tags
-    if (!html.startsWith("<h") && !html.startsWith("<p") && !html.startsWith("<pre") &&
-        !html.startsWith("<ul") && !html.startsWith("<ol") && !html.startsWith("<blockquote")) {
-        html = "<p>$html</p>"
-    }
-
-    return html
-}
-
-private val HORIZONTAL_RULE = Regex("^[-*_]{3,}\\s*$")
-private val UNORDERED_LIST_ITEM = Regex("^[*\\-] .+$")
-private val ORDERED_LIST_ITEM = Regex("^\\d+\\. .+$")
-private val LINE_BREAK = Regex("""\n(?!</)""")
-
-/**
- * Single-pass inline formatting scanner. Processes one line for
- * inline code, images, links, bold, italic, and strikethrough
- * in a single forward scan to avoid intermediate allocations.
- */
-private fun processInline(text: String): String {
-    val sb = StringBuilder(text.length)
-    var i = 0
-    while (i < text.length) {
-        val c = text[i]
-        val remaining = text.length - i
-
-        // Inline code `code`
-        if (c == '`' && remaining > 1) {
-            val end = text.indexOf('`', i + 1)
-            if (end != -1) {
-                sb.append("<code>").append(escapeXml(text.substring(i + 1, end))).append("</code>")
-                i = end + 1
-                continue
-            }
-        }
-
-        // Image ![alt](url)
-        if (c == '!' && remaining > 2 && text[i + 1] == '[') {
-            val closeBracket = text.indexOf(']', i + 2)
-            if (closeBracket != -1 && closeBracket + 1 < text.length && text[closeBracket + 1] == '(') {
-                val closeParen = text.indexOf(')', closeBracket + 2)
-                if (closeParen != -1) {
-                    val alt = text.substring(i + 2, closeBracket)
-                    val url = text.substring(closeBracket + 2, closeParen)
-                    sb.append("<img src=\"").append(url).append("\" alt=\"").append(alt).append("\">")
-                    i = closeParen + 1
-                    continue
-                }
-            }
-        }
-
-        // Link [text](url)
-        if (c == '[') {
-            val closeBracket = text.indexOf(']', i + 1)
-            if (closeBracket != -1 && closeBracket + 1 < text.length && text[closeBracket + 1] == '(') {
-                val closeParen = text.indexOf(')', closeBracket + 2)
-                if (closeParen != -1) {
-                    val linkText = text.substring(i + 1, closeBracket)
-                    val url = text.substring(closeBracket + 2, closeParen)
-                    sb.append("<a href=\"").append(url).append("\">").append(linkText).append("</a>")
-                    i = closeParen + 1
-                    continue
-                }
-            }
-        }
-
-        // Bold **text**
-        if (c == '*' && remaining > 1 && text[i + 1] == '*') {
-            val end = text.indexOf("**", i + 2)
-            if (end != -1) {
-                sb.append("<strong>").append(text.substring(i + 2, end)).append("</strong>")
-                i = end + 2
-                continue
-            }
-        }
-
-        // Bold __text__
-        if (c == '_' && remaining > 1 && text[i + 1] == '_') {
-            val end = text.indexOf("__", i + 2)
-            if (end != -1) {
-                sb.append("<strong>").append(text.substring(i + 2, end)).append("</strong>")
-                i = end + 2
-                continue
-            }
-        }
-
-        // Strikethrough ~~text~~
-        if (c == '~' && remaining > 1 && text[i + 1] == '~') {
-            val end = text.indexOf("~~", i + 2)
-            if (end != -1) {
-                sb.append("<del>").append(text.substring(i + 2, end)).append("</del>")
-                i = end + 2
-                continue
-            }
-        }
-
-        // Italic *text*
-        if (c == '*' && (remaining < 2 || text[i + 1] != '*')) {
-            val end = text.indexOf('*', i + 1)
-            if (end != -1 && (end + 1 >= text.length || text[end + 1] != '*')) {
-                sb.append("<em>").append(text.substring(i + 1, end)).append("</em>")
-                i = end + 1
-                continue
-            }
-        }
-
-        // Italic _text_
-        if (c == '_' && (remaining < 2 || text[i + 1] != '_')) {
-            val end = text.indexOf('_', i + 1)
-            if (end != -1 && (end + 1 >= text.length || text[end + 1] != '_')) {
-                sb.append("<em>").append(text.substring(i + 1, end)).append("</em>")
-                i = end + 1
-                continue
-            }
-        }
-
-        // Plain character
-        sb.append(c)
-        i++
-    }
-    return sb.toString()
-}
-
-/**
- * Minimal XML entity escaping for code content.
- */
-private fun escapeXml(s: String): String {
-    val sb = StringBuilder(s.length)
-    for (c in s) {
-        when (c) {
-            '&' -> sb.append("&amp;")
-            '<' -> sb.append("&lt;")
-            '>' -> sb.append("&gt;")
-            else -> sb.append(c)
-        }
-    }
-    return sb.toString()
-}

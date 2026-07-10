@@ -196,7 +196,7 @@ class EmailRepository(
                     }
                     val domainThread = EmailThread(
                         threadId = providerThread.threadId,
-                        subject = (latest?.subject ?: "(no subject)").cleanSubject(),
+                        subject = (latest?.subject?.ifBlank { null } ?: "(no subject)").cleanSubject(),
                         from = latest?.from ?: "",
                         fromEmail = latest?.fromEmail ?: "",
                         snippet = finalSnippet,
@@ -218,6 +218,8 @@ class EmailRepository(
                 }
                 val existingAttachments = emailDao.getAttachmentJsonForAccount(targetAccountId)
                     .associate { it.id to it.attachmentsJson }
+                val existingBodies = emailDao.getEmailBodyForAccount(targetAccountId)
+                    .associate { it.id to it }
                 val allEmails = listResponse.threads.filter { it.threadId !in pendingThreadIds }.flatMap { providerThread ->
                     providerThread.messages.map { msg ->
                         var entity = Email(
@@ -245,6 +247,12 @@ class EmailRepository(
                             existingJson != null && existingJson != "[]" && existingJson.isNotEmpty()
                         ) {
                             entity = entity.copy(attachmentsJson = existingJson)
+                        }
+                        // Preserve existing body when provider returned empty (inbox list
+                        // uses format=metadata which omits message body)
+                        val existingBody = existingBodies[entity.id]
+                        if (entity.body.isEmpty() && existingBody != null && existingBody.body.isNotEmpty()) {
+                            entity = entity.copy(body = existingBody.body, bodyIsHtml = existingBody.bodyIsHtml)
                         }
                         entity
                     }
