@@ -1679,10 +1679,14 @@ private fun looksDataTableEmail(html: String): Boolean {
         lower.contains("role=\"columnheader\"")
 }
 
-// ponytail: emails with responsive signals already handle mobile — no zoom needed
+// ponytail: emails that already have fluid mobile layout don't need zoom
+// checks: viewport=device-width, or @media queries that actually override container width to 100%
+private val MEDIA_WIDTH_OVERRIDE = Regex("""@media[^{]*\{[^}]*width\s*:\s*100\s*%""", RegexOption.IGNORE_CASE)
+
 private fun looksMobileFriendly(html: String): Boolean {
     val lower = html.lowercase(Locale.US)
-    return lower.contains("width=device-width") || lower.contains("@media")
+    if (lower.contains("width=device-width")) return true
+    return MEDIA_WIDTH_OVERRIDE.containsMatchIn(html)
 }
 
 // ponytail: strips inline style="" from <body> tags so wrapper CSS isn't overridden
