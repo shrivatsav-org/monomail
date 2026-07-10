@@ -310,15 +310,12 @@ class OutlookProvider(
         to: String,
         subject: String,
         body: String,
-        cc: String,
-        bcc: String,
-        threadId: String?,
-        attachments: List<EmailAttachment>
+        options: SendEmailOptions
     ): String? {
         val recipients = parseRecipients(to)
-        val ccRecipients = cc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
-        val bccRecipients = bcc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
-        val draftAttachments = attachments.mapNotNull { encodeAttachment(it) }
+        val ccRecipients = options.cc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
+        val bccRecipients = options.bcc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
+        val draftAttachments = options.attachments.mapNotNull { encodeAttachment(it) }
 
         val msg = OutlookDraftMessage(
             subject = subject,
