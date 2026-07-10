@@ -553,10 +553,7 @@ class ImapProvider(
         to: String,
         subject: String,
         body: String,
-        cc: String,
-        bcc: String,
-        threadId: String?,
-        attachments: List<EmailAttachment>
+        options: SendEmailOptions
     ): String? = withContext(Dispatchers.IO) {
         val props = buildSmtpProps(from)
 
@@ -567,16 +564,16 @@ class ImapProvider(
         val message = MimeMessage(session)
         message.setFrom(InternetAddress(from))
         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-        if (cc.isNotBlank()) message.setRecipients(Message.RecipientType.CC, InternetAddress.parse(cc))
-        if (bcc.isNotBlank()) message.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(bcc))
+        if (options.cc.isNotBlank()) message.setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
+        if (options.bcc.isNotBlank()) message.setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
         message.subject = subject
 
-        if (threadId != null) {
-            message.setHeader(HEADER_IN_REPLY_TO, threadId)
-            message.setHeader(HEADER_REFERENCES, threadId)
+        if (options.threadId != null) {
+            message.setHeader(HEADER_IN_REPLY_TO, options.threadId)
+            message.setHeader(HEADER_REFERENCES, options.threadId)
         }
 
-        if (attachments.isEmpty()) {
+        if (options.attachments.isEmpty()) {
             message.setContent(body, "text/html; charset=utf-8")
         } else {
             val multipart = MimeMultipart()
@@ -584,7 +581,7 @@ class ImapProvider(
             textPart.setContent(body, "text/html; charset=utf-8")
             multipart.addBodyPart(textPart)
 
-            for (att in attachments) {
+            for (att in options.attachments) {
                 val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() }
                 if (bytes != null) {
                     val attPart = MimeBodyPart()

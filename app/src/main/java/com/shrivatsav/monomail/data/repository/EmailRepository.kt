@@ -21,6 +21,7 @@ import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.provider.ResourceNotFoundException
 import com.shrivatsav.monomail.data.provider.SendAsAlias
+import com.shrivatsav.monomail.data.provider.SendEmailOptions
 import com.shrivatsav.monomail.data.remote.RetrofitClient
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import com.shrivatsav.monomail.util.cleanSubject
@@ -439,10 +440,7 @@ class EmailRepository(
                 to = to,
                 subject = subject,
                 body = body,
-                cc = cc,
-                bcc = bcc,
-                threadId = threadId,
-                attachments = attachments
+                options = SendEmailOptions(cc = cc, bcc = bcc, threadId = threadId, attachments = attachments)
             )
             val actualThreadId = sentThreadId ?: threadId ?: UUID.randomUUID().toString()
             val msgId = UUID.randomUUID().toString()

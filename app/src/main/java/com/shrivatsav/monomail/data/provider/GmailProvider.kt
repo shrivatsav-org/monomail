@@ -315,7 +315,7 @@ class GmailProvider(
             rawBytes,
             android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
         )
-        val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = threadId))
+        val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = options.threadId))
         return response.threadId
     }
 
