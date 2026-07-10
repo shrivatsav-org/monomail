@@ -39,7 +39,7 @@ class ImapProvider(
         private const val HEADER_REFERENCES = "References"
         private const val MIME_MULTIPART = "multipart/*"
         private const val MIME_TEXT_PLAIN = "text/plain"
-        private const val MIME_TEXT_HTML = "text/html"
+        const val MIME_TEXT_HTML = "text/html"
         private val HTML_TAG_REGEX = Regex("<[^>]+>")
     }
 
@@ -665,14 +665,7 @@ class ImapProvider(
         val contentType = part.contentType.lowercase()
         val contentId = part.getHeader("Content-ID")?.firstOrNull()?.removeSurrounding("<", ">")
 
-        if (contentId != null && contentType.startsWith("image/")) {
-            try {
-                val base64 = android.util.Base64.encodeToString(part.inputStream.readBytes(), android.util.Base64.NO_WRAP)
-                state.cidMap[contentId] = "data:$contentType;base64,$base64"
-            } catch (e: Exception) {
-                android.util.Log.w("ImapProvider", "Failed to read inline image: ${e.message}")
-            }
-        }
+        collectInlineImage(part, contentType, contentId, state)
 
         if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
             (disposition == null && contentType.contains("application/") && contentId == null)) {
@@ -692,6 +685,16 @@ class ImapProvider(
             } catch (e: Exception) {
                 android.util.Log.e("ImapProvider", "Error parsing multipart", e)
             }
+        }
+    }
+
+    private fun collectInlineImage(part: Part, contentType: String, contentId: String?, state: BodyParseState) {
+        if (contentId == null || !contentType.startsWith("image/")) return
+        try {
+            val base64 = android.util.Base64.encodeToString(part.inputStream.readBytes(), android.util.Base64.NO_WRAP)
+            state.cidMap[contentId] = "data:$contentType;base64,$base64"
+        } catch (e: Exception) {
+            android.util.Log.w("ImapProvider", "Failed to read inline image: ${e.message}")
         }
     }
 
@@ -786,16 +789,16 @@ private fun extractSnippet(part: jakarta.mail.Part): String {
         val content = part.content
         val text = when {
             part.isMimeType("text/plain") -> (content as? String) ?: ""
-            part.isMimeType("text/html") -> (content as? String)?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
+            part.isMimeType(ImapProvider.MIME_TEXT_HTML) -> (content as? String)?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
             content is Multipart -> {
                 var result = ""
                 for (i in 0 until content.count) {
                     val bp = content.getBodyPart(i)
-                    val partContent = try { bp.content } catch (_: Exception) { null }
+                    val partContent = try { bp.content as? String } catch (_: Exception) { null }
                     when {
-                        bp.isMimeType("text/plain") -> { result = (partContent as? String) ?: ""; break }
-                        bp.isMimeType("text/html") && result.isEmpty() ->
-                            result = (partContent as? String)?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
+                        bp.isMimeType("text/plain") -> { result = partContent ?: ""; break }
+                        bp.isMimeType(ImapProvider.MIME_TEXT_HTML) && result.isEmpty() ->
+                            result = partContent?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
                         bp.isMimeType("multipart/*") && result.isEmpty() ->
                             result = extractSnippet(bp)
                     }
