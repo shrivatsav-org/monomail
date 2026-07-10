@@ -15,6 +15,11 @@ import jakarta.mail.internet.MimeBodyPart
 import jakarta.mail.internet.MimeMessage
 import jakarta.mail.internet.MimeMultipart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.io.ByteArrayOutputStream
@@ -62,31 +67,86 @@ class GmailProvider(
         )
         val threadRefs = response.threads.orEmpty()
 
-        // Single API call — use ThreadRef.snippet for list view, no N+1 getThread calls
-        val providerThreads = threadRefs.map { ref ->
-            ProviderThread(
-                threadId = ref.id,
-                messages = listOf(
-                    ProviderMessage(
-                        id = ref.id,
-                        threadId = ref.id,
-                        subject = "",
-                        from = "",
-                        fromEmail = "",
-                        to = "",
-                        cc = "",
-                        bcc = "",
-                        snippet = ref.snippet ?: "",
-                        body = "",
-                        bodyIsHtml = false,
-                        date = 0L,
-                        isRead = false,
-                        isStarred = false,
-                        folders = setOf(folder),
-                        attachments = emptyList()
+        // Fetch full thread details in parallel (bounded concurrency)
+        val semaphore = Semaphore(5)
+        val fullThreads = coroutineScope {
+            threadRefs.map { ref ->
+                async(Dispatchers.IO) {
+                    semaphore.withPermit {
+                        try {
+                            api.getThread(ref.id, format = "metadata")
+                        } catch (e: Exception) {
+                            null
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+
+        val providerThreads = threadRefs.mapIndexed { idx, ref ->
+            val full = fullThreads[idx]
+            if (full != null) {
+                val messages = full.messages.orEmpty()
+                val latest = messages.maxByOrNull { it.internalDate?.toLongOrNull() ?: 0L }
+                val latestHeaders = latest?.payload?.headers.orEmpty()
+                val subject = (latestHeaders.firstOrNull { it.name.equals("Subject", true) }?.value
+                    ?: messages.firstOrNull()?.payload?.headers?.firstOrNull { it.name.equals("Subject", true) }?.value)
+                    ?.ifBlank { null }
+                    ?: ref.snippet
+                    ?: "(no subject)"
+                val fromRaw = latestHeaders.firstOrNull { it.name.equals("From", true) }?.value ?: ""
+                val (fromName, fromEmail) = parseFromHeader(fromRaw)
+                val isRead = messages.all { "UNREAD" !in it.labelIds.orEmpty() }
+                val isStarred = messages.any { "STARRED" in it.labelIds.orEmpty() }
+                ProviderThread(
+                    threadId = ref.id,
+                    messages = listOf(
+                        ProviderMessage(
+                            id = latest?.id ?: ref.id,
+                            threadId = ref.id,
+                            subject = subject,
+                            from = fromName,
+                            fromEmail = fromEmail,
+                            to = latestHeaders.firstOrNull { it.name.equals("To", true) }?.value ?: "",
+                            cc = latestHeaders.firstOrNull { it.name.equals("Cc", true) }?.value ?: "",
+                            bcc = "",
+                            snippet = ref.snippet ?: "",
+                            body = "",
+                            bodyIsHtml = false,
+                            date = latest?.internalDate?.toLongOrNull() ?: 0L,
+                            isRead = isRead,
+                            isStarred = isStarred,
+                            folders = setOf(folder),
+                            attachments = emptyList()
+                        )
                     )
                 )
-            )
+            } else {
+                // Fallback: snippet only (no full data available)
+                ProviderThread(
+                    threadId = ref.id,
+                    messages = listOf(
+                        ProviderMessage(
+                            id = ref.id,
+                            threadId = ref.id,
+                            subject = ref.snippet?.ifBlank { null } ?: "(no subject)",
+                            from = "",
+                            fromEmail = "",
+                            to = "",
+                            cc = "",
+                            bcc = "",
+                            snippet = ref.snippet ?: "",
+                            body = "",
+                            bodyIsHtml = false,
+                            date = 0L,
+                            isRead = false,
+                            isStarred = false,
+                            folders = setOf(folder),
+                            attachments = emptyList()
+                        )
+                    )
+                )
+            }
         }
         return ProviderThreadListResult(providerThreads, response.nextPageToken)
     }
@@ -118,6 +178,7 @@ class GmailProvider(
                 bcc = email.bcc,
                 snippet = email.snippet,
                 body = email.body,
+                bodyIsHtml = email.bodyIsHtml,
                 date = email.date,
                 isRead = email.isRead,
                 isStarred = email.isStarred,
@@ -281,6 +342,17 @@ class GmailProvider(
         } catch (e: Exception) {
             android.util.Log.e("GmailProvider", "Failed to fetch send-as aliases", e)
             emptyList()
+        }
+    }
+
+    private fun parseFromHeader(raw: String): Pair<String, String> {
+        val match = Regex("""^(.*?)\s*<(.+?)>$""").find(raw.trim())
+        return if (match != null) {
+            val name = match.groupValues[1].trim().removeSurrounding("\"")
+            val email = match.groupValues[2].trim()
+            Pair(name.ifEmpty { email }, email)
+        } else {
+            Pair(raw.trim(), raw.trim())
         }
     }
 }

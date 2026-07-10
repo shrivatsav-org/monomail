@@ -3,15 +3,9 @@
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">gmail.googleapis.com</domain>
         <domain includeSubdomains="true">accounts.google.com</domain>
-        <pin-set expiration="2027-01-01">
-            <pin digest="SHA-256">nXwcnGolHhfg3P1ClcpHPcGcIPsiRwLjJ+x8YgMwg7o=</pin>
-        </pin-set>
     </domain-config>
     <domain-config cleartextTrafficPermitted="false">
         <domain includeSubdomains="true">graph.microsoft.com</domain>
         <domain includeSubdomains="true">login.microsoftonline.com</domain>
-        <pin-set expiration="2027-01-01">
-            <pin digest="SHA-256">/50xvqsFjMGBJlU8IKG5gTjtHCv6clr/vgJf2CJanqI=</pin>
-        </pin-set>
     </domain-config>
 </network-security-config>

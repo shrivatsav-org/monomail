@@ -196,7 +196,7 @@ class EmailRepository(
                     }
                     val domainThread = EmailThread(
                         threadId = providerThread.threadId,
-                        subject = (latest?.subject ?: "(no subject)").cleanSubject(),
+                        subject = (latest?.subject?.ifBlank { null } ?: "(no subject)").cleanSubject(),
                         from = latest?.from ?: "",
                         fromEmail = latest?.fromEmail ?: "",
                         snippet = finalSnippet,
