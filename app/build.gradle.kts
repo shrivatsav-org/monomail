@@ -157,6 +157,9 @@ dependencies {
     // DataStore
     implementation(libs.androidx.datastore.preferences)
 
+    // WebKit (algorithmic darkening for WebView)
+    implementation(libs.androidx.webkit)
+
     // Markdown
     implementation("io.noties.markwon:core:4.6.2")
 
