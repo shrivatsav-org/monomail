@@ -909,7 +909,11 @@ private fun MessageBody(
             }
         }
 
-        val htmlContent = remember(email.id, safeBodyText, fontScaleMultiplier, showQuotedText, showInlineAttachments, loadRemoteImages, showRemoteImages, emailTheme) {
+        val useOverviewScaling = remember(safeBodyText, bodyIsHtml) {
+            bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksDataTableEmail(safeBodyText)
+        }
+
+        val htmlContent = remember(email.id, safeBodyText, fontScaleMultiplier, showQuotedText, showInlineAttachments, loadRemoteImages, showRemoteImages, emailTheme, useOverviewScaling) {
             val displayBody = if (bodyIsHtml) {
                 safeBodyText
             } else {
@@ -969,7 +973,36 @@ private fun MessageBody(
             """.trimIndent()
 
             val fontSize = (15f * fontScaleMultiplier).coerceIn(10f, 28f)
-            val responsiveCss = """
+            val baseCss = """
+                    body, body * {
+                        box-sizing: border-box !important;
+                    }
+                    body {
+                        font-size: ${fontSize}px;
+                        line-height: 1.65;
+                        margin: 0;
+                        padding: 4px;
+                        word-break: break-word;
+                        overflow-wrap: break-word;
+                        -webkit-font-smoothing: antialiased;
+                    }
+                    img {
+                        max-width: 100% !important;
+                        height: auto !important;
+                    }
+                    $imgBlockCss
+                    $quotedCss
+            """.trimIndent()
+            val responsiveCss = if (useOverviewScaling) {
+                """
+                    html, body {
+                        min-width: 0 !important;
+                        overflow-x: hidden !important;
+                    }
+                    $baseCss
+                """.trimIndent()
+            } else {
+                """
                     html, body {
                         width: 100% !important;
                         min-width: 0 !important;
@@ -1019,19 +1052,25 @@ private fun MessageBody(
                     }
                     $imgBlockCss
                     $quotedCss
-            """.trimIndent()
+                """.trimIndent()
+            }
+            val viewport = if (useOverviewScaling) {
+                "width=600, initial-scale=1.0"
+            } else {
+                "width=device-width, initial-scale=1.0, maximum-scale=1.0"
+            }
 
             """
             <!DOCTYPE html>
             <html>
             <head>
-                <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+                <meta name="viewport" content="$viewport">
                 <style>
                     $responsiveCss
                 </style>
             </head>
             <body class="${if (showQuotedText) "show-quotes" else ""}">
-                $bodyWithCidPlaceholders
+                ${stripBodyInlineStyles(bodyWithCidPlaceholders)}
                 <style>
                     $responsiveCss
                 </style>
@@ -1072,8 +1111,6 @@ private fun MessageBody(
                     WebView(context).apply {
                         emailContentWebView = this
                         settings.javaScriptEnabled = false
-                        settings.loadWithOverviewMode = false
-                        settings.useWideViewPort = false
                         settings.domStorageEnabled = false
                         settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
                         settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
@@ -1170,6 +1207,9 @@ private fun MessageBody(
                     }
                 },
                 update = { webView ->
+                    webView.settings.loadWithOverviewMode = useOverviewScaling
+                    webView.settings.useWideViewPort = true
+                    webView.isHorizontalScrollBarEnabled = !useOverviewScaling
                     if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
                         WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, useDarkening)
                     }
@@ -1615,6 +1655,44 @@ private fun displayName(from: String): String {
     val nameMatch = Regex("""^"?([^"<]+?)"?\s*<""").find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
+
+private fun looksFixedWidthTemplate(html: String): Boolean {
+    if (html.length < 500) return false
+    return FIXED_WIDTH_ATTR.containsMatchIn(html) ||
+        FIXED_WIDTH_STYLE.containsMatchIn(html) ||
+        html.contains("m-shell", ignoreCase = true) ||
+        html.contains("tbl_main", ignoreCase = true)
+}
+
+private fun looksDataTableEmail(html: String): Boolean {
+    val lower = html.lowercase(Locale.US)
+    return lower.contains("<thead") ||
+        lower.contains("<th") ||
+        lower.contains("scope=\"col\"") ||
+        lower.contains("role=\"columnheader\"")
+}
+
+// ponytail: strips inline style="" from <body> tags so wrapper CSS isn't overridden
+private val BODY_STYLE_RE = Regex("""<body\b([^>]*?)style\s*=\s*"[^"]*"([^>]*?)>""", RegexOption.IGNORE_CASE)
+private val BODY_STYLE_RE_SINGLE = Regex("""<body\b([^>]*?)style\s*=\s*'[^']*'([^>]*?)>""", RegexOption.IGNORE_CASE)
+
+private fun stripBodyInlineStyles(html: String): String {
+    var result = BODY_STYLE_RE.replace(html) { m ->
+        val pre = m.groupValues[1]
+        val post = m.groupValues[2]
+        "<body$pre$post>"
+    }
+    result = BODY_STYLE_RE_SINGLE.replace(result) { m ->
+        val pre = m.groupValues[1]
+        val post = m.groupValues[2]
+        "<body$pre$post>"
+    }
+    return result
+}
+
+private val FIXED_WIDTH_ATTR = Regex("""\bwidth\s*=\s*["']?(5[4-9]\d|[6-8]\d\d)["']?""", RegexOption.IGNORE_CASE)
+private val FIXED_WIDTH_STYLE = Regex("""(?:width|min-width)\s*:\s*(5[4-9]\d|[6-8]\d\d)px""", RegexOption.IGNORE_CASE)
+
 private fun formatDetailDate(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
     return detailDateFormat.format(Date(epochMillis))
