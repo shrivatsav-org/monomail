@@ -100,9 +100,6 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
             return@suspendCancellableCoroutine
         }
         val msalAccountId = accountId.removePrefix("outlook_")
-        // Attempt by prefixed client ID first, then fall back to iterating all
-        // known accounts. MSAL internal identifiers can shift across app restarts
-        // or account re-adds.
         app.getAccount(
             msalAccountId,
             object : com.microsoft.identity.client.IMultipleAccountPublicClientApplication.GetAccountCallback {
@@ -110,36 +107,7 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
                     if (account != null) {
                         acquireTokenForAccount(app, account, accountId, continuation)
                     } else {
-                        // Fallback: try to find the account by iterating all accounts,
-                        // matching on the email portion of the stored accountId.
-                        val storedEmail = accountId.removePrefix("outlook_")
-                        android.util.Log.w("MicrosoftAuth", "Direct lookup failed for $accountId, trying fallback by email")
-                        try {
-                            app.getAccounts(object : IPublicClientApplication.LoadAccountsCallback {
-                                override fun onTaskCompleted(accounts: List<com.microsoft.identity.client.IAccount>) {
-                                    val match = accounts.firstOrNull { acct ->
-                                        // Try exact email match first, then substring
-                                        acct.username.equals(storedEmail, ignoreCase = true) ||
-                                                acct.username?.contains(storedEmail, ignoreCase = true) == true ||
-                                                storedEmail.contains(acct.username ?: "", ignoreCase = true)
-                                    }
-                                    if (match != null) {
-                                        android.util.Log.i("MicrosoftAuth", "Found MSAL account by email fallback: ${match.username}")
-                                        acquireTokenForAccount(app, match, accountId, continuation)
-                                    } else {
-                                        android.util.Log.w("MicrosoftAuth", "Fallback also failed — no MSAL account found for $accountId")
-                                        continuation.resume(null)
-                                    }
-                                }
-                                override fun onError(exception: MsalException) {
-                                    android.util.Log.w("MicrosoftAuth", "getAccounts fallback failed for $accountId", exception)
-                                    continuation.resume(null)
-                                }
-                            })
-                        } catch (e: Exception) {
-                            android.util.Log.w("MicrosoftAuth", "getAccounts API not available", e)
-                            continuation.resume(null)
-                        }
+                        fallbackLookupByEmail(app, accountId, continuation)
                     }
                 }
                 override fun onError(exception: MsalException) {
@@ -148,6 +116,40 @@ class MicrosoftAuthManager(private val context: Context, private val accountMana
                 }
             }
         )
+    }
+
+    private fun fallbackLookupByEmail(
+        app: com.microsoft.identity.client.IMultipleAccountPublicClientApplication,
+        accountId: String,
+        continuation: kotlin.coroutines.Continuation<String?>
+    ) {
+        val storedEmail = accountId.removePrefix("outlook_")
+        android.util.Log.w("MicrosoftAuth", "Direct lookup failed for $accountId, trying fallback by email")
+        try {
+            app.getAccounts(object : IPublicClientApplication.LoadAccountsCallback {
+                override fun onTaskCompleted(accounts: List<com.microsoft.identity.client.IAccount>) {
+                    val match = accounts.firstOrNull { acct ->
+                        acct.username.equals(storedEmail, ignoreCase = true) ||
+                                acct.username?.contains(storedEmail, ignoreCase = true) == true ||
+                                storedEmail.contains(acct.username ?: "", ignoreCase = true)
+                    }
+                    if (match != null) {
+                        android.util.Log.i("MicrosoftAuth", "Found MSAL account by email fallback: ${match.username}")
+                        acquireTokenForAccount(app, match, accountId, continuation)
+                    } else {
+                        android.util.Log.w("MicrosoftAuth", "Fallback also failed — no MSAL account found for $accountId")
+                        continuation.resume(null)
+                    }
+                }
+                override fun onError(exception: MsalException) {
+                    android.util.Log.w("MicrosoftAuth", "getAccounts fallback failed for $accountId", exception)
+                    continuation.resume(null)
+                }
+            })
+        } catch (e: Exception) {
+            android.util.Log.w("MicrosoftAuth", "getAccounts API not available", e)
+            continuation.resume(null)
+        }
     }
 
     /**
