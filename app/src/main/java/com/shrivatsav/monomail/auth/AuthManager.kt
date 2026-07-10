@@ -28,10 +28,13 @@ class AuthManager(
     private val accountManager: AccountManager,
     private val pushNotificationManager: PushNotificationManager
 ) {
-    val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     companion object {
+        private const val TAG = "AuthManager"
+        private const val PUSH_REGISTRATION_FAILED = "registerForPushNotifications failed"
         const val GMAIL_SCOPE = "oauth2:https://www.googleapis.com/auth/gmail.modify"
+        private const val GOOGLE_ACCOUNT_TYPE = "com.google"
     }
+    val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
     private val credentialManager = CredentialManager.create(context)
     private val _isSignedIn = MutableStateFlow(false)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
@@ -53,7 +56,7 @@ class AuthManager(
         _userProfile = profile
         _isSignedIn.value = true
         refreshCurrentToken()
-        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
+        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
         return true
     }
 
@@ -73,62 +76,68 @@ class AuthManager(
         var lastException: Exception? = null
         repeat(3) { attempt ->
             try {
-                if (profile.provider == "gmail") {
-                    val newToken = withContext(Dispatchers.IO) {
-                        GoogleAuthUtil.getToken(
-                            context,
-                            Account(profile.email, "com.google"),
-                            GMAIL_SCOPE
-                        )
-                    }
-                    if (newToken != profile.accessToken) {
-                        updateAccessToken(profile.copy(accessToken = newToken))
-                    }
-                    return  // success
-                } else if (profile.provider == "outlook") {
-                    val initError = microsoftAuthManager.initialize()
-                    if (initError != null) {
-                        if (attempt >= 2) {
-                            notifyReauthRequired(profile.email, profile.provider)
-                            return
-                        }
-                        kotlinx.coroutines.delay(1000L * (1 shl attempt))
-                        return@repeat
-                    }
-                    val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
-                    if (newToken != null) {
-                        if (newToken != profile.accessToken) {
-                            updateAccessToken(profile.copy(accessToken = newToken))
-                        }
-                        return  // success
-                    }
-                    // null token from silent refresh — retry before reauth
-                    if (attempt >= 2) {
-                        notifyReauthRequired(profile.email, profile.provider)
-                        return
-                    }
-                    kotlinx.coroutines.delay(1000L * (1 shl attempt))
+                val refreshed = when (profile.provider) {
+                    "gmail" -> refreshGmailToken(profile)
+                    "outlook" -> refreshOutlookToken(profile, attempt)
+                    else -> return
                 }
+                if (refreshed) return
             } catch (e: UserRecoverableAuthException) {
-                // Permanent — user must re-consent, don't retry
                 notifyReauthRequired(profile.email, profile.provider)
                 return
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < 2) {
-                    kotlinx.coroutines.delay(1000L * (1 shl attempt)) // 1s, 2s
+                    kotlinx.coroutines.delay(1000L * (1 shl attempt))
                 }
             }
         }
-        // All retries exhausted — classify the final error
+        handleRefreshFailure(profile, lastException)
+    }
+
+    private suspend fun refreshGmailToken(profile: UserProfile): Boolean {
+        val newToken = withContext(Dispatchers.IO) {
+            GoogleAuthUtil.getToken(context, Account(profile.email, GOOGLE_ACCOUNT_TYPE), GMAIL_SCOPE)
+        }
+        if (newToken != profile.accessToken) {
+            updateAccessToken(profile.copy(accessToken = newToken))
+        }
+        return true
+    }
+
+    private suspend fun refreshOutlookToken(profile: UserProfile, attempt: Int): Boolean {
+        val initError = microsoftAuthManager.initialize()
+        if (initError != null) {
+            if (attempt >= 2) {
+                notifyReauthRequired(profile.email, profile.provider)
+                return true
+            }
+            kotlinx.coroutines.delay(1000L * (1 shl attempt))
+            return false
+        }
+        val newToken = microsoftAuthManager.getAccessTokenSilently(profile.id)
+        if (newToken != null) {
+            if (newToken != profile.accessToken) {
+                updateAccessToken(profile.copy(accessToken = newToken))
+            }
+            return true
+        }
+        if (attempt >= 2) {
+            notifyReauthRequired(profile.email, profile.provider)
+            return true
+        }
+        kotlinx.coroutines.delay(1000L * (1 shl attempt))
+        return false
+    }
+
+    private fun handleRefreshFailure(profile: UserProfile, lastException: Exception?) {
         when (lastException) {
             is java.net.SocketTimeoutException,
             is java.net.UnknownHostException -> {
-                android.util.Log.w("AuthManager", "Transient network error after 3 retries", lastException)
-                // Don't reauth — transient, next sync may succeed
+                android.util.Log.w(TAG, "Transient network error after 3 retries", lastException)
             }
             else -> {
-                android.util.Log.w("AuthManager", "Token refresh failed after 3 retries", lastException)
+                android.util.Log.w(TAG, "Token refresh failed after 3 retries", lastException)
                 notifyReauthRequired(profile.email, profile.provider)
             }
         }
@@ -156,8 +165,7 @@ class AuthManager(
             val email       = googleIdTokenCredential.id
             val displayName = googleIdTokenCredential.displayName ?: "User"
             val photoUrl    = googleIdTokenCredential.profilePictureUri?.toString()
-            val idToken     = googleIdTokenCredential.idToken
-            requestAccessToken(activityContext, email, displayName, photoUrl, idToken)
+            requestAccessToken(activityContext, email, displayName, photoUrl)
         } catch (e: GetCredentialException) {
             SignInResult.Failure(Exception(
                 "Google sign-in failed: ${e.message ?: e.type}. " +
@@ -173,7 +181,7 @@ class AuthManager(
         _pendingConsentProfile = null
         return requestAccessToken(
             activityContext, profile.email, profile.displayName,
-            profile.photoUrl, ""
+            profile.photoUrl
         )
     }
     suspend fun getAccounts(): List<UserProfile> = accountManager.getAccounts()
@@ -185,7 +193,7 @@ class AuthManager(
             // Propagate so the caller can show an error to the user
             throw e
         }
-        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
+        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
     }
     suspend fun switchAccount(accountId: String) {
         accountManager.setActiveAccountId(accountId)
@@ -202,10 +210,10 @@ class AuthManager(
         val allAccounts = accountManager.getAccounts()
         val target = allAccounts.find { it.id == accountId } ?: return
         if (target.provider == "outlook") {
-            try { microsoftAuthManager.signOut(target.id) } catch (_: Exception) {}
+            try { microsoftAuthManager.signOut(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "Outlook signOut failed during removeAccount for ${target.id}", e) }
         }
         accountManager.removeAccount(accountId)
-        try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (_: Exception) {}
+        try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "push unregister failed during removeAccount for ${target.id}", e) }
         val remaining = accountManager.getAccounts()
         if (remaining.isNotEmpty()) {
             val newActive = if (_userProfile?.id == accountId) remaining.first() else _userProfile
@@ -277,19 +285,18 @@ class AuthManager(
         activityContext: Context,
         email: String,
         displayName: String,
-        photoUrl: String?,
-        idToken: String
+        photoUrl: String?
     ): SignInResult {
         return try {
             var accessToken = withContext(Dispatchers.IO) {
                 GoogleAuthUtil.getToken(
                     activityContext,
-                    Account(email, "com.google"),
+                    Account(email, GOOGLE_ACCOUNT_TYPE),
                     GMAIL_SCOPE
                 )
             }
             val responseCode = withContext(Dispatchers.IO) {
-                val url = java.net.URL("https://gmail.googleapis.com/gmail/v1/users/me/profile")
+                val url = java.net.URI("https://gmail.googleapis.com/gmail/v1/users/me/profile").toURL()
                 val connection = url.openConnection() as java.net.HttpURLConnection
                 connection.setRequestProperty("Authorization", "Bearer $accessToken")
                 connection.responseCode
@@ -299,7 +306,7 @@ class AuthManager(
                     GoogleAuthUtil.clearToken(activityContext, accessToken)
                     GoogleAuthUtil.getToken(
                         activityContext,
-                        Account(email, "com.google"),
+                        Account(email, GOOGLE_ACCOUNT_TYPE),
                         GMAIL_SCOPE
                     )
                 }
@@ -321,7 +328,7 @@ class AuthManager(
             _isSignedIn.value = true
             accountManager.addAccount(profile)
             accountManager.setActiveAccountId(profile.id)
-            try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w("AuthManager", "registerForPushNotifications failed", e) }
+            try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
             SignInResult.Success(profile)
         } catch (e: UserRecoverableAuthException) {
             val consentIntent = e.intent

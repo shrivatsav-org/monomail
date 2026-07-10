@@ -23,6 +23,10 @@ class OutlookProvider(
     private val api: OutlookApi,
     private val context: Context
 ) : EmailProvider {
+    companion object {
+        private const val STAR_CATEGORY = "Yellow category"
+        private const val RECEIVED_DATE_ORDER = "receivedDateTime DESC"
+    }
     override val providerName: String = "outlook"
     private val folderIdCache = mutableMapOf<EmailFolder, String>()
     private val outlookFolderNames = mapOf(
@@ -76,7 +80,7 @@ class OutlookProvider(
     ): Set<EmailFolder> {
         val folders = mutableSetOf<EmailFolder>()
         folderFromParentFolderId(message.parentFolderId)?.let { folders.add(it) }
-        if (message.categories?.contains("Yellow category") == true) {
+        if (message.categories?.contains(STAR_CATEGORY) == true) {
             folders.add(EmailFolder.STARRED)
         }
         if (folders.isEmpty() && fallback != null) {
@@ -100,13 +104,13 @@ class OutlookProvider(
                 maxResults = maxResults,
                 skip = skip,
                 search = query,
-                orderby = "receivedDateTime DESC"
+                orderby = RECEIVED_DATE_ORDER
             )
             folder == EmailFolder.STARRED -> api.listMessages(
                 maxResults = maxResults,
                 skip = skip,
                 filter = "categories/any(c:c eq 'Yellow category')",
-                orderby = "receivedDateTime DESC"
+                orderby = RECEIVED_DATE_ORDER
             )
             else -> {
                 val folderName = graphFolderName(folder)
@@ -115,13 +119,13 @@ class OutlookProvider(
                         folderId = folderName,
                         maxResults = maxResults,
                         skip = skip,
-                        orderby = "receivedDateTime DESC"
+                        orderby = RECEIVED_DATE_ORDER
                     )
                 } else {
                     api.listMessages(
                         maxResults = maxResults,
                         skip = skip,
-                        orderby = "receivedDateTime DESC"
+                        orderby = RECEIVED_DATE_ORDER
                     )
                 }
             }
@@ -144,7 +148,7 @@ class OutlookProvider(
                     bodyIsHtml = true,
                     date = date,
                     isRead = msg.isRead,
-                    isStarred = msg.categories?.contains("Yellow category") == true,
+                    isStarred = msg.categories?.contains(STAR_CATEGORY) == true,
                     folders = foldersForMessage(msg, fallback = folder),
                     attachments = emptyList()
                 )
@@ -197,7 +201,7 @@ class OutlookProvider(
                 bodyIsHtml = true,
                 date = date,
                 isRead = msg.isRead,
-                isStarred = msg.categories?.contains("Yellow category") == true,
+                isStarred = msg.categories?.contains(STAR_CATEGORY) == true,
                 folders = foldersForMessage(msg),
                 attachments = attachments
             )
@@ -275,9 +279,9 @@ class OutlookProvider(
         forEachMessageInThread(threadId) { msg ->
             val categories = msg.categories?.toMutableList() ?: mutableListOf()
             if (starred) {
-                if (!categories.contains("Yellow category")) categories.add("Yellow category")
+                if (!categories.contains(STAR_CATEGORY)) categories.add(STAR_CATEGORY)
             } else {
-                categories.remove("Yellow category")
+                categories.remove(STAR_CATEGORY)
             }
             api.updateMessage(msg.id, OutlookUpdateMessageRequest(categories = categories))
         }
@@ -311,43 +315,10 @@ class OutlookProvider(
         threadId: String?,
         attachments: List<EmailAttachment>
     ): String? {
-        val recipients = to.split(",").map {
-            OutlookRecipient(OutlookEmailAddress(null, it.trim()))
-        }
-        val ccRecipients = if (cc.isNotBlank()) {
-            cc.split(",").map { OutlookRecipient(OutlookEmailAddress(null, it.trim())) }
-        } else null
-        val bccRecipients = if (bcc.isNotBlank()) {
-            bcc.split(",").map { OutlookRecipient(OutlookEmailAddress(null, it.trim())) }
-        } else null
-        val draftAttachments = attachments.mapNotNull { att ->
-            context.contentResolver.openInputStream(att.uri)?.use { stream ->
-                var size = stream.available().toLong()
-                try {
-                    context.contentResolver.query(att.uri, null, null, null, null)?.use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                            if (sizeIndex != -1) {
-                                size = cursor.getLong(sizeIndex)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.w("OutlookProvider", "Failed to query attachment size for ${att.name}", e)
-                }
-                if (size > 3 * 1024 * 1024) {
-                    throw IllegalArgumentException("Attachment ${att.name} exceeds the 3MB limit for Outlook.")
-                }
-                val bytes = stream.readBytes()
-                val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                OutlookDraftAttachment(
-                    name = att.name,
-                    contentType = att.mimeType,
-                    contentBytes = base64
-                )
-            }
-        }
-        val senderRecipient = outlookRecipientForEmail(from)
+        val recipients = parseRecipients(to)
+        val ccRecipients = cc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
+        val bccRecipients = bcc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
+        val draftAttachments = attachments.mapNotNull { encodeAttachment(it) }
 
         val msg = OutlookDraftMessage(
             subject = subject,
@@ -356,10 +327,37 @@ class OutlookProvider(
             ccRecipients = ccRecipients,
             bccRecipients = bccRecipients,
             attachments = draftAttachments.takeIf { it.isNotEmpty() },
-            sender = senderRecipient
+            sender = outlookRecipientForEmail(from)
         )
         api.sendMail(OutlookSendMailRequest(msg))
         return null
+    }
+
+    private fun parseRecipients(csv: String): List<OutlookRecipient> {
+        return csv.split(",").map { OutlookRecipient(OutlookEmailAddress(null, it.trim())) }
+    }
+
+    private fun encodeAttachment(att: EmailAttachment): OutlookDraftAttachment? {
+        return context.contentResolver.openInputStream(att.uri)?.use { stream ->
+            var size = stream.available().toLong()
+            try {
+                context.contentResolver.query(att.uri, null, null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) {
+                        val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                        if (sizeIndex != -1) {
+                            size = cursor.getLong(sizeIndex)
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("OutlookProvider", "Failed to query attachment size for ${att.name}", e)
+            }
+            if (size > 3 * 1024 * 1024) {
+                throw IllegalArgumentException("Attachment ${att.name} exceeds the 3MB limit for Outlook.")
+            }
+            val base64 = android.util.Base64.encodeToString(stream.readBytes(), android.util.Base64.NO_WRAP)
+            OutlookDraftAttachment(name = att.name, contentType = att.mimeType, contentBytes = base64)
+        }
     }
 
     override suspend fun getSendAsAliases(): List<SendAsAlias> {

@@ -1,8 +1,6 @@
 package com.shrivatsav.monomail.data.provider.imap
 
 import android.content.Context
-import android.net.Uri
-import android.util.Base64
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.provider.EmailFolder
@@ -26,7 +24,6 @@ import jakarta.mail.internet.MimeMultipart
 import jakarta.mail.search.FlagTerm
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 import java.util.Properties
 import java.util.concurrent.ConcurrentHashMap
 
@@ -35,6 +32,16 @@ class ImapProvider(
     private val password: String,
     private val context: Context
 ) : EmailProvider {
+
+    companion object {
+        private const val HEADER_MESSAGE_ID = "Message-ID"
+        private const val HEADER_IN_REPLY_TO = "In-Reply-To"
+        private const val HEADER_REFERENCES = "References"
+        private const val MIME_MULTIPART = "multipart/*"
+        const val MIME_TEXT_PLAIN = "text/plain"
+        const val MIME_TEXT_HTML = "text/html"
+        private val HTML_TAG_REGEX = Regex("<[^>]+>")
+    }
 
     override val providerName: String = "imap"
 
@@ -70,13 +77,7 @@ class ImapProvider(
             val defaultFolder = newStore.defaultFolder
             val folders = defaultFolder.list("*")
             for (f in folders) {
-                val name = f.fullName
-                val lower = name.lowercase()
-                if (lower.endsWith("inbox") || lower == "inbox") folderNamesCache[EmailFolder.INBOX] = name
-                else if (lower.contains("sent") || lower == "sent items" || lower == "sent messages") folderNamesCache[EmailFolder.SENT] = name
-                else if (lower.contains("archive") || lower == "all mail") folderNamesCache[EmailFolder.ARCHIVE] = name
-                else if (lower.contains("trash") || lower == "deleted messages" || lower == "deleted items" || lower == "bin") folderNamesCache[EmailFolder.TRASH] = name
-                else if (lower.contains("spam") || lower == "junk") folderNamesCache[EmailFolder.SPAM] = name
+                matchFolder(f.fullName.lowercase())?.let { folderNamesCache[it] = f.fullName }
             }
             if (!folderNamesCache.containsKey(EmailFolder.INBOX)) folderNamesCache[EmailFolder.INBOX] = "INBOX"
         }
@@ -146,16 +147,16 @@ class ImapProvider(
                     add(jakarta.mail.FetchProfile.Item.ENVELOPE)
                     add(jakarta.mail.FetchProfile.Item.FLAGS)
                     add(jakarta.mail.FetchProfile.Item.CONTENT_INFO)
-                    add("Message-ID")
-                    add("References")
-                    add("In-Reply-To")
+                    add(HEADER_MESSAGE_ID)
+                    add(HEADER_REFERENCES)
+                    add(HEADER_IN_REPLY_TO)
                 }
                 imapFolder.fetch(toFetch, profile)
 
                 val rawMessages = toFetch.mapNotNull { msg ->
-                val messageId = msg.getHeader("Message-ID")?.firstOrNull() ?: return@mapNotNull null
-                val references = msg.getHeader("References")?.joinToString(" ") ?: ""
-                val inReplyTo = msg.getHeader("In-Reply-To")?.firstOrNull() ?: ""
+                val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: return@mapNotNull null
+                val references = msg.getHeader(HEADER_REFERENCES)?.joinToString(" ") ?: ""
+                val inReplyTo = msg.getHeader(HEADER_IN_REPLY_TO)?.firstOrNull() ?: ""
                 val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
 
                 val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
@@ -175,45 +176,7 @@ class ImapProvider(
                 val snippet = try { extractSnippet(msg) } catch (_: Exception) { "" }
 
                 try {
-                    fun collectAttachments(part: Part) {
-                        try {
-                            val disposition = part.disposition
-                            val contentType = part.contentType.lowercase()
-                            val contentId = part.getHeader("Content-ID")?.firstOrNull()
-                                ?.removeSurrounding("<", ">")
-
-                            if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
-                                (disposition == null && contentType.contains("application/") && contentId == null)) {
-                                val name = part.fileName ?: "attachment"
-                                attachments.add(
-                                    EmailAttachmentInfo(
-                                        id = name,
-                                        messageId = messageId,
-                                        mimeType = contentType.substringBefore(";"),
-                                        name = name,
-                                        size = part.size
-                                    )
-                                )
-                            } else if (part.isMimeType("multipart/*")) {
-                                val content = part.content
-                                val mp = when (content) {
-                                    is Multipart -> content
-                                    is java.io.InputStream -> jakarta.mail.internet.MimeMultipart(
-                                        jakarta.mail.util.ByteArrayDataSource(content, part.contentType)
-                                    )
-                                    else -> null
-                                }
-                                if (mp != null) {
-                                    for (i in 0 until mp.count) {
-                                        collectAttachments(mp.getBodyPart(i))
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            android.util.Log.w("ImapProvider", "listThreads collectAttachments error: ${e.message}")
-                        }
-                    }
-                    collectAttachments(msg)
+                    collectAttachments(msg, attachments, messageId)
                 } catch (e: Exception) {
                     android.util.Log.w("ImapProvider", "listThreads attachment parse error: ${e.message}")
                 }
@@ -288,9 +251,9 @@ class ImapProvider(
                 if (f.exists()) {
                     f.open(Folder.READ_ONLY)
                     try {
-                        val msgIdTerm = jakarta.mail.search.HeaderTerm("Message-ID", threadId)
-                        val refTerm = jakarta.mail.search.HeaderTerm("References", threadId)
-                        val inReplyTerm = jakarta.mail.search.HeaderTerm("In-Reply-To", threadId)
+                        val msgIdTerm = jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId)
+                        val refTerm = jakarta.mail.search.HeaderTerm(HEADER_REFERENCES, threadId)
+                        val inReplyTerm = jakarta.mail.search.HeaderTerm(HEADER_IN_REPLY_TO, threadId)
                         val orTerm = jakarta.mail.search.OrTerm(
                             msgIdTerm,
                             jakarta.mail.search.OrTerm(refTerm, inReplyTerm)
@@ -309,9 +272,9 @@ class ImapProvider(
                                 val fname = msg.folder.name
                                 folderNamesCache.entries.find { it.value == fname }?.key?.let { folderSet.add(it) }
 
-                                val messageId = msg.getHeader("Message-ID")?.firstOrNull() ?: continue
-                                val references = msg.getHeader("References")?.joinToString(" ") ?: ""
-                                val inReplyTo = msg.getHeader("In-Reply-To")?.firstOrNull() ?: ""
+                                val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: continue
+                                val references = msg.getHeader(HEADER_REFERENCES)?.joinToString(" ") ?: ""
+                                val inReplyTo = msg.getHeader(HEADER_IN_REPLY_TO)?.firstOrNull() ?: ""
                                 val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
 
                                 val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
@@ -322,77 +285,15 @@ class ImapProvider(
                                 val isStarred = msg.isSet(Flags.Flag.FLAGGED)
                                 if (isStarred) folderSet.add(EmailFolder.STARRED)
 
-                                val attachments = mutableListOf<EmailAttachmentInfo>()
-                                var htmlBody = ""
-                                var plainBody = ""
-                                var bodyIsHtml = false
-                                val cidMap = mutableMapOf<String, String>()
+                                val state = BodyParseState(messageId = messageId)
+                                processPart(msg, state)
 
-                                // parse full body in-place (no wasteful writeTo + re-parse)
-                                fun processPart(part: Part) {
-                                    val disposition = part.disposition
-                                    val contentType = part.contentType.lowercase()
-
-                                    // Collect inline images (CID references)
-                                    val contentId = part.getHeader("Content-ID")?.firstOrNull()
-                                        ?.removeSurrounding("<", ">")
-                                    if (contentId != null && contentType.startsWith("image/")) {
-                                        try {
-                                            val stream = part.inputStream
-                                            val bytes = stream.readBytes()
-                                            val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                                            cidMap[contentId] = "data:$contentType;base64,$base64"
-                                        } catch (e: Exception) {
-                                            android.util.Log.w("ImapProvider", "Failed to read inline image: ${e.message}")
-                                        }
-                                    }
-
-                                    if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
-                                        (disposition == null && contentType.contains("application/") && contentId == null)) {
-                                        val name = part.fileName ?: "attachment"
-                                        attachments.add(
-                                            EmailAttachmentInfo(
-                                                id = name,
-                                                messageId = messageId,
-                                                mimeType = contentType.substringBefore(";"),
-                                                name = name,
-                                                size = part.size
-                                            )
-                                        )
-                                    } else if (part.isMimeType("text/plain") && plainBody.isEmpty()) {
-                                        plainBody = part.getBodyText() ?: ""
-                                    } else if (part.isMimeType("text/html") && htmlBody.isEmpty()) {
-                                        htmlBody = part.getBodyText() ?: ""
-                                        bodyIsHtml = true
-                                    } else if (part.isMimeType("multipart/*")) {
-                                        try {
-                                            val content = part.content
-                                            val mp = if (content is Multipart) {
-                                                content
-                                            } else if (content is java.io.InputStream) {
-                                                jakarta.mail.internet.MimeMultipart(jakarta.mail.util.ByteArrayDataSource(content, part.contentType))
-                                            } else {
-                                                null
-                                            }
-                                            if (mp != null) {
-                                                for (i in 0 until mp.count) {
-                                                    processPart(mp.getBodyPart(i))
-                                                }
-                                            }
-                                        } catch (e: Exception) {
-                                            android.util.Log.e("ImapProvider", "Error parsing multipart", e)
-                                        }
-                                    }
-                                }
-
-                                processPart(msg)
-
-                                var body = htmlBody.ifEmpty { plainBody.replace("\n", "<br>") }
-                                cidMap.forEach { (cid, dataUri) ->
+                                var body = state.htmlBody.ifEmpty { state.plainBody.replace("\n", "<br>") }
+                                state.cidMap.forEach { (cid, dataUri) ->
                                     body = body.replace("cid:$cid", dataUri)
                                 }
-                                val snippet = plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
-                                    htmlBody.replace(Regex("<[^>]+>"), " ").take(150).replace(Regex("\\s+"), " ").trim()
+                                val snippet = state.plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
+                                    state.htmlBody.replace(HTML_TAG_REGEX, " ").take(150).replace(Regex("\\s+"), " ").trim()
                                 }
 
                                 val providerMsg = ProviderMessage(
@@ -406,12 +307,12 @@ class ImapProvider(
                                     bcc = "",
                                     snippet = snippet,
                                     body = body,
-                                    bodyIsHtml = bodyIsHtml,
+                                    bodyIsHtml = state.bodyIsHtml,
                                     date = date,
                                     isRead = isRead,
                                     isStarred = isStarred,
                                     folders = folderSet,
-                                    attachments = attachments
+                                    attachments = state.attachments
                                 )
 
                                 rawMessages.add(ImapRawMessage(messageId, references, inReplyTo, date, providerMsg))
@@ -445,49 +346,30 @@ class ImapProvider(
         val store = getStore()
         try {
             val searchFolders = listOfNotNull(
-            folderNamesCache[EmailFolder.INBOX],
-            folderNamesCache[EmailFolder.SENT],
-            folderNamesCache[EmailFolder.ARCHIVE]
-        ).distinct()
+                folderNamesCache[EmailFolder.INBOX],
+                folderNamesCache[EmailFolder.SENT],
+                folderNamesCache[EmailFolder.ARCHIVE]
+            ).distinct()
 
-        for (folderName in searchFolders) {
-            val f = store.getFolder(folderName)
-            if (f.exists()) {
-                f.open(Folder.READ_ONLY)
-                try {
-                    val messages = f.search(jakarta.mail.search.HeaderTerm("Message-ID", messageId))
-                    if (messages.isNotEmpty()) {
-                        val msg = messages[0]
-                        var result: ByteArray? = null
-                        
-                        fun searchPart(part: Part) {
-                            if (result != null) return
-                            if (part.fileName == attachmentId) {
-                                val input = part.inputStream
-                                val buffer = ByteArrayOutputStream()
-                                input.copyTo(buffer)
-                                result = buffer.toByteArray()
-                            } else if (part.isMimeType("multipart/*")) {
-                                val mp = part.content as? Multipart
-                                if (mp != null) {
-                                    for (i in 0 until mp.count) {
-                                        searchPart(mp.getBodyPart(i))
-                                    }
-                                }
-                            }
+            for (folderName in searchFolders) {
+                val f = store.getFolder(folderName)
+                if (f.exists()) {
+                    f.open(Folder.READ_ONLY)
+                    try {
+                        val messages = f.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, messageId))
+                        if (messages.isNotEmpty()) {
+                            val result = searchPart(messages[0], attachmentId)
+                            if (result != null) return@withContext result
                         }
-                        searchPart(msg)
-                        if (result != null) return@withContext result
+                    } finally {
+                        f.close(false)
                     }
-                } finally {
-                    f.close(false)
                 }
             }
+            return@withContext null
+        } finally {
+            if (store.isConnected) store.close()
         }
-        return@withContext null
-    } finally {
-        if (store.isConnected) store.close()
-    }
     }
 
     private suspend fun moveThread(threadId: String, targetFolder: EmailFolder) = withContext(Dispatchers.IO) {
@@ -504,7 +386,7 @@ class ImapProvider(
 
                 srcFolder.open(Folder.READ_WRITE)
                 try {
-                    val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                    val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                     if (messages.isNotEmpty()) {
                         srcFolder.copyMessages(messages, destFolder)
                         srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
@@ -535,7 +417,7 @@ class ImapProvider(
 
             srcFolder.open(Folder.READ_WRITE)
             try {
-                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                 if (messages.isNotEmpty()) {
                     srcFolder.copyMessages(messages, destFolder)
                     srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
@@ -564,7 +446,7 @@ class ImapProvider(
 
             srcFolder.open(Folder.READ_WRITE)
             try {
-                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                 if (messages.isNotEmpty()) {
                     srcFolder.copyMessages(messages, destFolder)
                     srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
@@ -587,7 +469,7 @@ class ImapProvider(
 
             srcFolder.open(Folder.READ_WRITE)
             try {
-                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                 if (messages.isNotEmpty()) {
                     srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
                     srcFolder.expunge()
@@ -613,7 +495,7 @@ class ImapProvider(
                 if (f.exists()) {
                     f.open(Folder.READ_WRITE)
                     try {
-                        val messages = f.search(jakarta.mail.search.HeaderTerm("Message-ID", threadId))
+                        val messages = f.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                         if (messages.isNotEmpty()) {
                             f.setFlags(messages, Flags(flag), set)
                         }
@@ -649,7 +531,7 @@ class ImapProvider(
                     f.open(Folder.READ_WRITE)
                     try {
                         messageIds.chunked(100).forEach { chunk ->
-                            val terms = chunk.map { jakarta.mail.search.HeaderTerm("Message-ID", it) }.toTypedArray()
+                            val terms = chunk.map { jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, it) }.toTypedArray()
                             val orTerm = jakarta.mail.search.OrTerm(terms)
                             val messages = f.search(orTerm)
                             if (messages.isNotEmpty()) {
@@ -676,28 +558,7 @@ class ImapProvider(
         threadId: String?,
         attachments: List<EmailAttachment>
     ): String? = withContext(Dispatchers.IO) {
-        val props = Properties()
-        val protocol = if (config.smtpSsl) "smtps" else "smtp"
-        props["mail.transport.protocol"] = protocol
-        props["mail.$protocol.host"] = config.smtpHost
-        props["mail.$protocol.port"] = config.smtpPort.toString()
-        props["mail.$protocol.auth"] = "true"
-        if (config.smtpStartTls) {
-            props["mail.$protocol.starttls.enable"] = "true"
-        }
-        props["mail.$protocol.connectiontimeout"] = "15000"
-        props["mail.$protocol.timeout"] = "15000"
-        props["mail.$protocol.writetimeout"] = "15000"
-        val localhost = from.substringAfterLast("@").ifBlank { config.smtpHost }
-        props["mail.smtp.localhost"] = localhost
-        props["mail.smtp.quitwait"] = "false"
-        props["mail.$protocol.ssl.protocols"] = "TLSv1.2 TLSv1.3"
-        if (config.smtpSsl || config.smtpStartTls) {
-            props["mail.$protocol.checkserveridentity"] = "true"
-        }
-        if (config.smtpStartTls) {
-            props["mail.$protocol.starttls.required"] = "true"
-        }
+        val props = buildSmtpProps(from)
 
         val session = Session.getInstance(props, object : jakarta.mail.Authenticator() {
             override fun getPasswordAuthentication() = jakarta.mail.PasswordAuthentication(config.username, password)
@@ -711,8 +572,8 @@ class ImapProvider(
         message.subject = subject
 
         if (threadId != null) {
-            message.setHeader("In-Reply-To", threadId)
-            message.setHeader("References", threadId)
+            message.setHeader(HEADER_IN_REPLY_TO, threadId)
+            message.setHeader(HEADER_REFERENCES, threadId)
         }
 
         if (attachments.isEmpty()) {
@@ -768,6 +629,127 @@ class ImapProvider(
         // IMAP/SMTP doesn't have a "send-as" alias API
         return emptyList()
     }
+
+    private fun matchFolder(lower: String): EmailFolder? = when {
+        lower.endsWith("inbox") || lower == "inbox" -> EmailFolder.INBOX
+        lower.contains("sent") || lower == "sent items" || lower == "sent messages" -> EmailFolder.SENT
+        lower.contains("archive") || lower == "all mail" -> EmailFolder.ARCHIVE
+        lower.contains("trash") || lower == "deleted messages" || lower == "deleted items" || lower == "bin" -> EmailFolder.TRASH
+        lower.contains("spam") || lower == "junk" -> EmailFolder.SPAM
+        else -> null
+    }
+
+    private fun collectAttachments(part: Part, attachments: MutableList<EmailAttachmentInfo>, messageId: String) {
+        try {
+            val disposition = part.disposition
+            val contentType = part.contentType.lowercase()
+            val contentId = part.getHeader("Content-ID")?.firstOrNull()?.removeSurrounding("<", ">")
+
+            if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
+                (disposition == null && contentType.contains("application/") && contentId == null)) {
+                val name = part.fileName ?: "attachment"
+                attachments.add(EmailAttachmentInfo(id = name, messageId = messageId, mimeType = contentType.substringBefore(";"), name = name, size = part.size))
+            } else if (part.isMimeType(MIME_MULTIPART)) {
+                val mp = toMultipart(part) ?: return
+                for (i in 0 until mp.count) {
+                    collectAttachments(mp.getBodyPart(i), attachments, messageId)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.w("ImapProvider", "collectAttachments error: ${e.message}")
+        }
+    }
+
+    private fun processPart(part: Part, state: BodyParseState) {
+        val disposition = part.disposition
+        val contentType = part.contentType.lowercase()
+        val contentId = part.getHeader("Content-ID")?.firstOrNull()?.removeSurrounding("<", ">")
+
+        collectInlineImage(part, contentType, contentId, state)
+
+        if (Part.ATTACHMENT.equals(disposition, ignoreCase = true) ||
+            (disposition == null && contentType.contains("application/") && contentId == null)) {
+            val name = part.fileName ?: "attachment"
+            state.attachments.add(EmailAttachmentInfo(id = name, messageId = state.messageId, mimeType = contentType.substringBefore(";"), name = name, size = part.size))
+        } else if (part.isMimeType(MIME_TEXT_PLAIN) && state.plainBody.isEmpty()) {
+            state.plainBody = part.getBodyText() ?: ""
+        } else if (part.isMimeType(MIME_TEXT_HTML) && state.htmlBody.isEmpty()) {
+            state.htmlBody = part.getBodyText() ?: ""
+            state.bodyIsHtml = true
+        } else if (part.isMimeType(MIME_MULTIPART)) {
+            try {
+                val mp = toMultipart(part) ?: return
+                for (i in 0 until mp.count) {
+                    processPart(mp.getBodyPart(i), state)
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ImapProvider", "Error parsing multipart", e)
+            }
+        }
+    }
+
+    private fun collectInlineImage(part: Part, contentType: String, contentId: String?, state: BodyParseState) {
+        if (contentId == null || !contentType.startsWith("image/")) return
+        try {
+            val base64 = android.util.Base64.encodeToString(part.inputStream.readBytes(), android.util.Base64.NO_WRAP)
+            state.cidMap[contentId] = "data:$contentType;base64,$base64"
+        } catch (e: Exception) {
+            android.util.Log.w("ImapProvider", "Failed to read inline image: ${e.message}")
+        }
+    }
+
+    private fun toMultipart(part: Part): Multipart? {
+        val content = part.content
+        return when (content) {
+            is Multipart -> content
+            is java.io.InputStream -> try {
+                jakarta.mail.internet.MimeMultipart(jakarta.mail.util.ByteArrayDataSource(content, part.contentType))
+            } catch (e: Exception) { null }
+            else -> null
+        }
+    }
+
+    private fun searchPart(part: Part, attachmentId: String): ByteArray? {
+        if (part.fileName == attachmentId) {
+            return part.inputStream.use { it.readBytes() }
+        }
+        if (part.isMimeType(MIME_MULTIPART)) {
+            val mp = part.content as? Multipart ?: return null
+            for (i in 0 until mp.count) {
+                val result = searchPart(mp.getBodyPart(i), attachmentId)
+                if (result != null) return result
+            }
+        }
+        return null
+    }
+
+    private fun buildSmtpProps(from: String): Properties {
+        val props = Properties()
+        val protocol = if (config.smtpSsl) "smtps" else "smtp"
+        props["mail.transport.protocol"] = protocol
+        props["mail.$protocol.host"] = config.smtpHost
+        props["mail.$protocol.port"] = config.smtpPort.toString()
+        props["mail.$protocol.auth"] = "true"
+        if (config.smtpStartTls) props["mail.$protocol.starttls.enable"] = "true"
+        props["mail.$protocol.connectiontimeout"] = "15000"
+        props["mail.$protocol.timeout"] = "15000"
+        props["mail.$protocol.writetimeout"] = "15000"
+        props["mail.smtp.localhost"] = from.substringAfterLast("@").ifBlank { config.smtpHost }
+        props["mail.smtp.quitwait"] = "false"
+        props["mail.$protocol.ssl.protocols"] = "TLSv1.2 TLSv1.3"
+        if (config.smtpSsl || config.smtpStartTls) props["mail.$protocol.checkserveridentity"] = "true"
+        if (config.smtpStartTls) props["mail.$protocol.starttls.required"] = "true"
+        return props
+    }
+
+    private data class BodyParseState(
+        val messageId: String,
+        var plainBody: String = "",
+        var htmlBody: String = "",
+        var bodyIsHtml: Boolean = false,
+        val attachments: MutableList<EmailAttachmentInfo> = mutableListOf(),
+        val cidMap: MutableMap<String, String> = mutableMapOf()
+    )
 }
 
 private fun Part.getBodyText(): String? {
@@ -800,21 +782,23 @@ private fun Part.getBodyText(): String? {
     }
 }
 
+private val EXTRACT_SNIPPET_HTML_REGEX = Regex("<[^>]+>")
+
 private fun extractSnippet(part: jakarta.mail.Part): String {
     return try {
         val content = part.content
         val text = when {
-            part.isMimeType("text/plain") -> (content as? String) ?: ""
-            part.isMimeType("text/html") -> (content as? String)?.replace(Regex("<[^>]+>"), " ") ?: ""
+            part.isMimeType(ImapProvider.MIME_TEXT_PLAIN) -> (content as? String) ?: ""
+            part.isMimeType(ImapProvider.MIME_TEXT_HTML) -> (content as? String)?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
             content is Multipart -> {
                 var result = ""
                 for (i in 0 until content.count) {
                     val bp = content.getBodyPart(i)
-                    val partContent = try { bp.content } catch (_: Exception) { null }
+                    val partContent = try { bp.content as? String } catch (_: Exception) { null }
                     when {
-                        bp.isMimeType("text/plain") -> { result = (partContent as? String) ?: ""; break }
-                        bp.isMimeType("text/html") && result.isEmpty() ->
-                            result = (partContent as? String)?.replace(Regex("<[^>]+>"), " ") ?: ""
+                        bp.isMimeType(ImapProvider.MIME_TEXT_PLAIN) -> { result = partContent ?: ""; break }
+                        bp.isMimeType(ImapProvider.MIME_TEXT_HTML) && result.isEmpty() ->
+                            result = partContent?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
                         bp.isMimeType("multipart/*") && result.isEmpty() ->
                             result = extractSnippet(bp)
                     }

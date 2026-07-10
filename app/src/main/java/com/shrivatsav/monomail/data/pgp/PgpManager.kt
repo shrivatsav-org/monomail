@@ -54,67 +54,50 @@ class PgpManager @Inject constructor(
         }
 
         for (fp in fingerprints) {
-            try {
-                val armoredSecret = storage.loadPrivateKey(fp)
-                if (armoredSecret == null) {
-                    Log.d("PgpManager", "No private key file for $fp, checking storage...")
-                    continue
-                }
-                val secretKeyRing = try {
-                    KeyRingReader().secretKeyRing(armoredSecret)
-                        ?: throw NullPointerException("readKeyRing returned null")
-                } catch (e: Exception) {
-                    Log.e("PgpManager", "Failed to parse private key ring for $fp", e)
-                    continue
-                }
-
-                val protector = getProtector(secretKeyRing, fp)
-
-                val consumerOptions = ConsumerOptions.get()
-                    .addDecryptionKey(PGPainless.getInstance().toKey(secretKeyRing), protector)
-
-                val decryptionStream = PGPainless.getInstance().processMessage()
-                    .onInputStream(ByteArrayInputStream(emailBody.toByteArray()))
-                    .withOptions(consumerOptions)
-
-                val decryptedBytes = decryptionStream.readBytes()
-                decryptionStream.close()
-
-                val decrypted = decryptedBytes.toString(Charsets.UTF_8)
-
-                val metadata = decryptionStream.metadata
-                val signatures = mutableListOf<PgpSignature>()
-
-                for (sig in metadata.verifiedSignatures) {
-                    signatures.add(
-                        PgpSignature(
-                            isValid = true,
-                            signer = sig.signingKey?.toString() ?: "Unknown"
-                        )
-                    )
-                }
-
-                return PgpDecryptionResult(
-                    decryptedBody = decrypted,
-                    signatures = signatures.ifEmpty { null }
-                )
-            } catch (e: Exception) {
-                Log.e("PgpManager", "Decryption failed for $fp", e)
-                // If the key is passphrase-protected but no passphrase is stored,
-                // signal the caller so the UI can prompt the user
-                val metadata = storage.loadKeyMetadata(fp)
-                if (metadata?.isPassphraseProtected == true && storage.loadPassphrase(fp) == null) {
-                    return PgpDecryptionResult(
-                        decryptedBody = "",
-                        needsPassphrase = true,
-                        fingerprint = fp
-                    )
-                }
-                continue
-            }
+            val result = tryDecryptWithKey(emailBody, fp)
+            if (result != null) return result
         }
 
         return null
+    }
+
+    private fun tryDecryptWithKey(emailBody: String, fp: String): PgpDecryptionResult? {
+        val armoredSecret = storage.loadPrivateKey(fp) ?: run {
+            Log.d("PgpManager", "No private key file for $fp, checking storage...")
+            return null
+        }
+        val secretKeyRing = try {
+            KeyRingReader().secretKeyRing(armoredSecret)
+                ?: throw NullPointerException("readKeyRing returned null")
+        } catch (e: Exception) {
+            Log.e("PgpManager", "Failed to parse private key ring for $fp", e)
+            return null
+        }
+
+        return try {
+            val protector = getProtector(secretKeyRing, fp)
+            val consumerOptions = ConsumerOptions.get()
+                .addDecryptionKey(PGPainless.getInstance().toKey(secretKeyRing), protector)
+            val decryptionStream = PGPainless.getInstance().processMessage()
+                .onInputStream(ByteArrayInputStream(emailBody.toByteArray()))
+                .withOptions(consumerOptions)
+            val decrypted = decryptionStream.readBytes().toString(Charsets.UTF_8)
+            val metadata = decryptionStream.metadata
+            decryptionStream.close()
+
+            val signatures = metadata.verifiedSignatures.map { sig ->
+                PgpSignature(isValid = true, signer = sig.signingKey?.toString() ?: "Unknown")
+            }
+            PgpDecryptionResult(decryptedBody = decrypted, signatures = signatures.ifEmpty { null })
+        } catch (e: Exception) {
+            Log.e("PgpManager", "Decryption failed for $fp", e)
+            val metadata = storage.loadKeyMetadata(fp)
+            if (metadata?.isPassphraseProtected == true && storage.loadPassphrase(fp) == null) {
+                PgpDecryptionResult(decryptedBody = "", needsPassphrase = true, fingerprint = fp)
+            } else {
+                null
+            }
+        }
     }
 
     fun encryptBody(
