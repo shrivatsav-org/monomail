@@ -137,7 +137,15 @@ class SettingsDataStore(private val context: Context) {
             undoSendEnabled = prefs[Keys.UNDO_SEND_ENABLED] ?: true,
             undoSendWindow = prefs[Keys.UNDO_SEND_WINDOW]?.let { UndoSendWindow.valueOf(it) } ?: UndoSendWindow.SEC_10,
             dockConfig = dockConfigJson?.let { json ->
-                try { gson.fromJson(json, DockConfig::class.java) } catch (e: Exception) { DockConfig.defaults() }
+                try {
+                    val raw = gson.fromJson(json, DockConfig::class.java)
+                    // Gson may silently produce broken objects (null/wrong-type primaryTabs)
+                    // when deserializing Kotlin data classes via Unsafe. Validate the result.
+                    val tabs = raw?.primaryTabs
+                    @Suppress("SENSELESS_COMPARISON") // Gson Unsafe may produce wrong-type elements at runtime
+                    if (tabs != null && tabs.isNotEmpty() && tabs.all { it is DockTabId }) raw
+                    else DockConfig.defaults()
+                } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults(),
             isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false,
             showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true
