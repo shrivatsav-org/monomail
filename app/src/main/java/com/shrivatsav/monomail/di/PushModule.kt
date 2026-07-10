@@ -2,19 +2,18 @@ package com.shrivatsav.monomail.di
 
 import com.shrivatsav.monomail.push.PushNotificationManager
 import com.shrivatsav.monomail.push.PushNotificationManagerImpl
-import dagger.Binds
 import dagger.Module
+import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
-@Suppress("S6517")
-interface PushModule {
-    @Binds
+object PushModule {
+    @Provides
     @Singleton
-    fun bindPushNotificationManager(
+    fun providePushNotificationManager(
         impl: PushNotificationManagerImpl
-    ): PushNotificationManager
+    ): PushNotificationManager = impl
 }

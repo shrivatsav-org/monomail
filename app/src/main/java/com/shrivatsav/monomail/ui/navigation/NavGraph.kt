@@ -295,7 +295,6 @@ fun NavGraph(
             }
             composable(Screen.Settings.route) {
                 val settingsViewModel: SettingsViewModel = hiltViewModel()
-                val accounts by authManager.accountsFlow.collectAsState(initial = emptyList())
                 val ctx = LocalContext.current
                 SettingsScreen(
                     viewModel = settingsViewModel,
