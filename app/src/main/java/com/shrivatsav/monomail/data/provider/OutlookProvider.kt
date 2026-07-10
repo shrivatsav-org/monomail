@@ -349,9 +349,7 @@ class OutlookProvider(
             } catch (e: Exception) {
                 android.util.Log.w("OutlookProvider", "Failed to query attachment size for ${att.name}", e)
             }
-            if (size > 3 * 1024 * 1024) {
-                throw IllegalArgumentException("Attachment ${att.name} exceeds the 3MB limit for Outlook.")
-            }
+            require(size <= 3 * 1024 * 1024) { "Attachment ${att.name} exceeds the 3MB limit for Outlook." }
             val base64 = android.util.Base64.encodeToString(stream.readBytes(), android.util.Base64.NO_WRAP)
             OutlookDraftAttachment(name = att.name, contentType = att.mimeType, contentBytes = base64)
         }

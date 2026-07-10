@@ -1,7 +1,6 @@
 package com.shrivatsav.monomail.data.provider
 import android.content.Context
 import com.shrivatsav.monomail.data.mapper.EmailMapper.toEmail
-import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.remote.BatchModifyMessagesRequest
 import com.shrivatsav.monomail.data.remote.GmailApi
 import com.shrivatsav.monomail.data.remote.ModifyThreadRequest

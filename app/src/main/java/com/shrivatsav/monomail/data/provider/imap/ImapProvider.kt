@@ -6,6 +6,7 @@ import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.provider.EmailFolder
 import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.provider.ProviderMessage
+import com.shrivatsav.monomail.data.provider.SendEmailOptions
 import com.shrivatsav.monomail.data.provider.ProviderThread
 import com.shrivatsav.monomail.data.provider.ProviderThreadListResult
 import com.shrivatsav.monomail.data.provider.SendAsAlias
