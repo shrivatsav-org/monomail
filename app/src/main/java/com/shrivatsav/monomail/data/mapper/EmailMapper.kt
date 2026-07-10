@@ -161,11 +161,12 @@ object EmailMapper {
     ) {
         if (part == null) return
         val contentId = part.headers?.firstOrNull { it.name.equals("Content-ID", true) }?.value?.removeSurrounding("<", ">")
-        if (contentId != null && part.mimeType?.startsWith("image/") == true && !part.body?.data.isNullOrEmpty()) {
+        val bodyData = part.body?.data
+        if (contentId != null && part.mimeType?.startsWith("image/") == true && !bodyData.isNullOrEmpty()) {
             if (contentId in skipCids) {
                 attachmentCids.add(contentId to (part.filename ?: "inline image"))
             } else {
-                val base64 = part.body!!.data!!.replace("-", "+").replace("_", "/")
+                val base64 = bodyData.replace("-", "+").replace("_", "/")
                 map[contentId] = "data:${part.mimeType};base64,$base64"
             }
         }

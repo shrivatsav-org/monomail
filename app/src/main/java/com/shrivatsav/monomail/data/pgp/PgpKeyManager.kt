@@ -61,7 +61,7 @@ class PgpKeyManager @Inject constructor(
     fun importKey(armoredKey: String, passphrase: String? = null): PgpKeyInfo {
         val isPrivate = armoredKey.contains("BEGIN PGP PRIVATE KEY BLOCK")
 
-        if (isPrivate) {
+        val info = if (isPrivate) {
             val secretKeyRing = KeyRingReader().secretKeyRing(armoredKey)
                 ?: throw IllegalArgumentException("Failed to parse private key — invalid or corrupted key data")
             val isProtected = try {
@@ -79,7 +79,7 @@ class PgpKeyManager @Inject constructor(
             if (passphrase != null) {
                 storage.savePassphrase(info.fingerprint, passphrase)
             }
-            return info
+            info
         } else {
             val publicKeyRing = KeyRingReader().publicKeyRing(armoredKey)
                 ?: throw IllegalArgumentException("Failed to parse public key — invalid or corrupted key data")
@@ -87,8 +87,9 @@ class PgpKeyManager @Inject constructor(
 
             storage.savePublicKey(info.fingerprint, armoredKey)
             storage.saveKeyMetadata(info.fingerprint, info)
-            return info
+            info
         }
+        return info
     }
 
     fun exportPublicKey(fingerprint: String): String? {

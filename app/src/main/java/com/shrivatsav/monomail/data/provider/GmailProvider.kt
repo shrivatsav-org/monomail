@@ -279,26 +279,23 @@ class GmailProvider(
         to: String,
         subject: String,
         body: String,
-        cc: String,
-        bcc: String,
-        threadId: String?,
-        attachments: List<EmailAttachment>
+        options: SendEmailOptions
     ): String? {
         val session = Session.getInstance(Properties())
         val message = MimeMessage(session).apply {
             setFrom(InternetAddress(from))
             setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-            if (cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(cc))
-            if (bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(bcc))
+            if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
+            if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
             setSubject(subject, "utf-8")
-            if (attachments.isEmpty()) {
+            if (options.attachments.isEmpty()) {
                 setContent(body, "text/html; charset=utf-8")
             } else {
                 val multipart = MimeMultipart()
                 val textPart = MimeBodyPart()
                 textPart.setContent(body, "text/html; charset=utf-8")
                 multipart.addBodyPart(textPart)
-                for (att in attachments) {
+                for (att in options.attachments) {
                     val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() }
                     if (bytes != null) {
                         val attPart = MimeBodyPart()
