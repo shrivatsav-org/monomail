@@ -33,3 +33,6 @@ walkthrough.md
 .claude/
 .agents/
 plans/
+.entire/
+skill-lock.json
+CLAUDE.md
