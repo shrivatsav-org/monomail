@@ -38,7 +38,7 @@ class ImapProvider(
         private const val HEADER_IN_REPLY_TO = "In-Reply-To"
         private const val HEADER_REFERENCES = "References"
         private const val MIME_MULTIPART = "multipart/*"
-        private const val MIME_TEXT_PLAIN = "text/plain"
+        const val MIME_TEXT_PLAIN = "text/plain"
         const val MIME_TEXT_HTML = "text/html"
         private val HTML_TAG_REGEX = Regex("<[^>]+>")
     }
@@ -788,7 +788,7 @@ private fun extractSnippet(part: jakarta.mail.Part): String {
     return try {
         val content = part.content
         val text = when {
-            part.isMimeType("text/plain") -> (content as? String) ?: ""
+            part.isMimeType(ImapProvider.MIME_TEXT_PLAIN) -> (content as? String) ?: ""
             part.isMimeType(ImapProvider.MIME_TEXT_HTML) -> (content as? String)?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
             content is Multipart -> {
                 var result = ""
@@ -796,7 +796,7 @@ private fun extractSnippet(part: jakarta.mail.Part): String {
                     val bp = content.getBodyPart(i)
                     val partContent = try { bp.content as? String } catch (_: Exception) { null }
                     when {
-                        bp.isMimeType("text/plain") -> { result = partContent ?: ""; break }
+                        bp.isMimeType(ImapProvider.MIME_TEXT_PLAIN) -> { result = partContent ?: ""; break }
                         bp.isMimeType(ImapProvider.MIME_TEXT_HTML) && result.isEmpty() ->
                             result = partContent?.replace(EXTRACT_SNIPPET_HTML_REGEX, " ") ?: ""
                         bp.isMimeType("multipart/*") && result.isEmpty() ->

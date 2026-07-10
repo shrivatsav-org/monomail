@@ -9,6 +9,9 @@ import com.shrivatsav.monomail.data.remote.MessagePart
 import com.shrivatsav.monomail.util.cleanSubject
 object EmailMapper {
 
+    private const val MIME_TEXT_HTML = "text/html"
+    private const val MIME_TEXT_PLAIN = "text/plain"
+
     /** Result of extracting a body from a MIME part tree. */
     private data class BodyResult(
         val text: String,
@@ -102,12 +105,12 @@ object EmailMapper {
         if (part == null) return BodyResult("", isHtml = true)
         if (part.body?.data != null && part.parts.isNullOrEmpty()) {
             val decoded = decodeBase64Url(part.body.data)
-            if (part.mimeType == "text/html") return BodyResult(decoded, isHtml = true)
-            if (part.mimeType == "text/plain") return BodyResult(decoded, isHtml = false)
+            if (part.mimeType == MIME_TEXT_HTML) return BodyResult(decoded, isHtml = true)
+            if (part.mimeType == MIME_TEXT_PLAIN) return BodyResult(decoded, isHtml = false)
         }
         val children = part.parts.orEmpty()
-        findChildWithData(children, "text/html")?.let { return it }
-        findChildWithData(children, "text/plain")?.let { return it }
+        findChildWithData(children, MIME_TEXT_HTML)?.let { return it }
+        findChildWithData(children, MIME_TEXT_PLAIN)?.let { return it }
         for (child in children) {
             val result = extractBody(child)
             if (result.text.isNotEmpty()) return result
@@ -118,7 +121,7 @@ object EmailMapper {
     private fun findChildWithData(children: List<MessagePart>, mimeType: String): BodyResult? {
         for (child in children) {
             if (child.mimeType == mimeType && child.body?.data != null) {
-                return BodyResult(decodeBase64Url(child.body.data), isHtml = mimeType == "text/html")
+                return BodyResult(decodeBase64Url(child.body.data), isHtml = mimeType == MIME_TEXT_HTML)
             }
         }
         return null
