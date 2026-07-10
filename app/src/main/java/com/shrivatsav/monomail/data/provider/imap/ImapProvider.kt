@@ -629,7 +629,7 @@ class ImapProvider(
         val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
         val attachments = mutableListOf<EmailAttachmentInfo>()
         val snippet = try { extractSnippet(msg) } catch (_: Exception) { "" }
-        try { collectAttachments(msg, attachments, messageId) } catch (_: Exception) {}
+        try { collectAttachments(msg, attachments, messageId) } catch (e: Exception) { android.util.Log.w("ImapProvider", "Failed to collect attachments: ${e.message}") }
 
         return ProviderMessage(
             id = messageId,
