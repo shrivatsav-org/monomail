@@ -92,6 +92,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.platform.LocalConfiguration
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.settings.EmailTheme
@@ -913,7 +914,14 @@ private fun MessageBody(
             bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksDataTableEmail(safeBodyText)
         }
 
-        val htmlContent = remember(email.id, safeBodyText, fontScaleMultiplier, showQuotedText, showInlineAttachments, loadRemoteImages, showRemoteImages, emailTheme, useOverviewScaling) {
+        // ponytail: CSS zoom scales 600px template emails to fit the card
+        val emailZoomFactor = if (useOverviewScaling) {
+            val screenWidthDp = LocalConfiguration.current.screenWidthDp
+            val availableWidthDp = screenWidthDp - 56
+            (availableWidthDp.toFloat() / 600f).coerceIn(0.3f, 1.0f)
+        } else 1.0f
+
+        val htmlContent = remember(email.id, safeBodyText, fontScaleMultiplier, showQuotedText, showInlineAttachments, loadRemoteImages, showRemoteImages, emailTheme, useOverviewScaling, emailZoomFactor) {
             val displayBody = if (bodyIsHtml) {
                 safeBodyText
             } else {
@@ -999,6 +1007,9 @@ private fun MessageBody(
                         min-width: 0 !important;
                         overflow-x: hidden !important;
                     }
+                    body {
+                        zoom: $emailZoomFactor;
+                    }
                     $baseCss
                 """.trimIndent()
             } else {
@@ -1054,11 +1065,7 @@ private fun MessageBody(
                     $quotedCss
                 """.trimIndent()
             }
-            val viewport = if (useOverviewScaling) {
-                "width=600, initial-scale=1.0"
-            } else {
-                "width=device-width, initial-scale=1.0, maximum-scale=1.0"
-            }
+            val viewport = "width=device-width, initial-scale=1.0"
 
             """
             <!DOCTYPE html>
@@ -1207,8 +1214,8 @@ private fun MessageBody(
                     }
                 },
                 update = { webView ->
-                    webView.settings.loadWithOverviewMode = useOverviewScaling
-                    webView.settings.useWideViewPort = true
+                    webView.settings.loadWithOverviewMode = false
+                    webView.settings.useWideViewPort = false
                     webView.isHorizontalScrollBarEnabled = !useOverviewScaling
                     if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
                         WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, useDarkening)
