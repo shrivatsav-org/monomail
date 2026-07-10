@@ -146,7 +146,7 @@ class ImapProvider(
         }
     }
 
-    private data class FetchResult(val messages: Array<jakarta.mail.Message>, val fetchStart: Int)
+    private data class FetchResult(val messages: List<jakarta.mail.Message>, val fetchStart: Int)
 
     private fun fetchMessagesForListing(
         folder: jakarta.mail.Folder,
@@ -154,13 +154,13 @@ class ImapProvider(
         maxResults: Int,
         pageToken: String?
     ): FetchResult? {
-        val messages: Array<jakarta.mail.Message>
+        val messages: List<jakarta.mail.Message>
         val start: Int
 
         if (emailFolder == EmailFolder.STARRED) {
             val allStarred = folder.search(FlagTerm(Flags(Flags.Flag.FLAGGED), true))
             if (allStarred.isEmpty()) return null
-            messages = allStarred.takeLast(maxResults).toTypedArray()
+            messages = allStarred.takeLast(maxResults).toList()
             start = 1
         } else {
             val total = folder.messageCount
@@ -170,7 +170,7 @@ class ImapProvider(
             start = maxOf(1, offset - maxResults + 1)
             val end = offset
             if (start > end) return null
-            messages = folder.getMessages(start, end)
+            messages = folder.getMessages(start, end).toList()
         }
 
         val profile = jakarta.mail.FetchProfile().apply {
@@ -181,7 +181,7 @@ class ImapProvider(
             add(HEADER_REFERENCES)
             add(HEADER_IN_REPLY_TO)
         }
-        folder.fetch(messages, profile)
+        folder.fetch(messages.toTypedArray(), profile)
 
         return FetchResult(messages, start)
     }
@@ -240,23 +240,6 @@ class ImapProvider(
         } finally {
             if (store.isConnected) store.close()
         }
-    }
-
-    private fun resolveSearchFolders(folderHints: List<String>): List<String> {
-        if (folderHints.isNotEmpty()) {
-            val mapped = folderHints.mapNotNull { hint ->
-                try {
-                    val enumVal = com.shrivatsav.monomail.data.provider.EmailFolder.valueOf(hint)
-                    folderNamesCache[enumVal]
-                } catch (_: Exception) { null }
-            }
-            return mapped.ifEmpty { folderNamesCache.values.toList() }.distinct()
-        }
-        return listOfNotNull(
-            folderNamesCache[EmailFolder.INBOX],
-            folderNamesCache[EmailFolder.SENT],
-            folderNamesCache[EmailFolder.ARCHIVE]
-        )
     }
 
     private fun collectMessagesFromFolder(
@@ -715,48 +698,6 @@ class ImapProvider(
         if (config.smtpSsl || config.smtpStartTls) props["mail.$protocol.checkserveridentity"] = "true"
         if (config.smtpStartTls) props["mail.$protocol.starttls.required"] = "true"
         return props
-    }
-
-    private fun buildEnvelopeMessage(msg: jakarta.mail.Message, threadId: String, folder: EmailFolder): ProviderMessage {
-        val messageId = msg.getHeader(HEADER_MESSAGE_ID)?.firstOrNull() ?: ""
-        val date = msg.sentDate?.time ?: msg.receivedDate?.time ?: 0L
-        val fromAddrs = msg.from?.mapNotNull { it as? InternetAddress } ?: emptyList()
-        val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-        val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
-        val attachments = mutableListOf<EmailAttachmentInfo>()
-        val snippet = try { extractSnippet(msg) } catch (_: Exception) { "" }
-        try { collectAttachments(msg, attachments, messageId) } catch (e: Exception) { android.util.Log.w("ImapProvider", "Failed to collect attachments: ${e.message}") }
-
-        return ProviderMessage(
-            id = messageId,
-            threadId = threadId,
-            subject = msg.subject ?: "",
-            from = fromAddrs.firstOrNull()?.personal ?: fromAddrs.firstOrNull()?.address ?: "",
-            fromEmail = fromAddrs.firstOrNull()?.address ?: "",
-            to = toAddrs.joinToString(", ") { it.address },
-            cc = ccAddrs.joinToString(", ") { it.address },
-            bcc = "",
-            snippet = snippet,
-            body = "",
-            bodyIsHtml = false,
-            date = date,
-            isRead = msg.isSet(Flags.Flag.SEEN),
-            isStarred = msg.isSet(Flags.Flag.FLAGGED),
-            folders = setOf(folder),
-            attachments = attachments
-        )
-    }
-
-    private fun buildBodyWithCidReplace(state: BodyParseState): String {
-        var body = state.htmlBody.ifEmpty { state.plainBody.replace("\n", "<br>") }
-        state.cidMap.forEach { (cid, dataUri) -> body = body.replace("cid:$cid", dataUri) }
-        return body
-    }
-
-    private fun buildSnippet(state: BodyParseState): String {
-        return state.plainBody.take(150).replace(Regex("\\s+"), " ").trim().ifEmpty {
-            state.htmlBody.replace(HTML_TAG_REGEX, " ").take(150).replace(Regex("\\s+"), " ").trim()
-        }
     }
 
     private fun resolveSearchFolders(hints: List<String>): List<String> {

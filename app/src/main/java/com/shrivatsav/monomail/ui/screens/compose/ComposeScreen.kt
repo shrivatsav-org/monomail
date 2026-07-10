@@ -778,18 +778,26 @@ private fun FormattingToolbar(
     val activeTint = MaterialTheme.colorScheme.primary
     val inactiveTint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
     val btnModifier = Modifier.size(36.dp)
+    fun tintedConfig(command: String, description: String, isActive: Boolean, value: String = "null") =
+        FormatButtonConfig(command, description, isActive, activeTint, inactiveTint, value)
+    val configs = listOf(
+        tintedConfig("bold", "Bold", formattingState.isBold),
+        tintedConfig("italic", "Italic", formattingState.isItalic),
+        tintedConfig("underline", "Underline", formattingState.isUnderline),
+    )
+    val icons: List<@Composable () -> androidx.compose.ui.graphics.vector.ImageVector> = listOf(
+        { Icons.Rounded.FormatBold }, { Icons.Rounded.FormatItalic }, { Icons.Rounded.FormatUnderlined }
+    )
     Row(
         modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FormatButton(webView, btnModifier, "bold", "Bold", formattingState.isBold, activeTint, inactiveTint) { Icons.Rounded.FormatBold }
-        FormatButton(webView, btnModifier, "italic", "Italic", formattingState.isItalic, activeTint, inactiveTint) { Icons.Rounded.FormatItalic }
-        FormatButton(webView, btnModifier, "underline", "Underline", formattingState.isUnderline, activeTint, inactiveTint) { Icons.Rounded.FormatUnderlined }
+        configs.zip(icons).forEach { (cfg, icon) -> FormatButton(webView, btnModifier, cfg, icon) }
         Spacer(modifier = Modifier.width(8.dp))
-        FormatButton(webView, btnModifier, "insertUnorderedList", "Bullet list", formattingState.isBullet, activeTint, inactiveTint) { Icons.AutoMirrored.Rounded.FormatListBulleted }
-        FormatButton(webView, btnModifier, "insertOrderedList", "Numbered list", formattingState.isNumber, activeTint, inactiveTint) { Icons.Rounded.FormatListNumbered }
-        FormatButton(webView, btnModifier, "formatBlock", "Quote", formattingState.isQuote, activeTint, inactiveTint, "'<blockquote>'") { Icons.AutoMirrored.Rounded.ShortText }
+        FormatButton(webView, btnModifier, tintedConfig("insertUnorderedList", "Bullet list", formattingState.isBullet)) { Icons.AutoMirrored.Rounded.FormatListBulleted }
+        FormatButton(webView, btnModifier, tintedConfig("insertOrderedList", "Numbered list", formattingState.isNumber)) { Icons.Rounded.FormatListNumbered }
+        FormatButton(webView, btnModifier, tintedConfig("formatBlock", "Quote", formattingState.isQuote, "'<blockquote>'")) { Icons.AutoMirrored.Rounded.ShortText }
         Spacer(modifier = Modifier.weight(1f))
     }
 }
@@ -803,24 +811,28 @@ private data class FormattingState(
     val isQuote: Boolean = false
 )
 
+private data class FormatButtonConfig(
+    val command: String,
+    val description: String,
+    val isActive: Boolean,
+    val activeTint: androidx.compose.ui.graphics.Color,
+    val inactiveTint: androidx.compose.ui.graphics.Color,
+    val value: String = "null"
+)
+
 @Composable
 private fun FormatButton(
     webView: WebView?,
     modifier: Modifier,
-    command: String,
-    description: String,
-    isActive: Boolean,
-    activeTint: androidx.compose.ui.graphics.Color,
-    inactiveTint: androidx.compose.ui.graphics.Color,
-    value: String = "null",
+    config: FormatButtonConfig,
     icon: @Composable () -> androidx.compose.ui.graphics.vector.ImageVector
 ) {
-    val jsValue = if (command == "formatBlock") value else "null"
+    val jsValue = if (config.command == "formatBlock") config.value else "null"
     IconButton(
-        onClick = { webView?.evaluateJavascript("document.execCommand('$command',false,$jsValue);reportFmt();", null) },
+        onClick = { webView?.evaluateJavascript("document.execCommand('${config.command}',false,$jsValue);reportFmt();", null) },
         modifier = modifier
     ) {
-        Icon(icon(), description, tint = if (isActive) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
+        Icon(icon(), config.description, tint = if (config.isActive) config.activeTint else config.inactiveTint, modifier = Modifier.size(20.dp))
     }
 }
 @OptIn(ExperimentalMaterial3Api::class)

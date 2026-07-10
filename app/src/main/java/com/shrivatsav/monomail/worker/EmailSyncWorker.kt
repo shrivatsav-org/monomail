@@ -141,9 +141,8 @@ class EmailSyncWorker @AssistedInject constructor(
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED
         ) {
-                Log.e(TAG, "POST_NOTIFICATIONS permission not granted! Aborting notification display.")
-                return
-            }
+            Log.e(TAG, "POST_NOTIFICATIONS permission not granted! Aborting notification display.")
+            return
         }
         Log.i(TAG, "Creating notification channel and building notification for $accountId...")
         createNotificationChannel(context, accountId, thread.from)

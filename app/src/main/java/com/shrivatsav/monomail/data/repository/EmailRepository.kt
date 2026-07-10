@@ -597,10 +597,6 @@ class EmailRepository(
         threadDao.unsnoozeThread(threadId, activeAccountId)
         emailDao.unsnoozeThreadEmails(threadId, activeAccountId)
     }
-
-    companion object {
-        private const val NO_ACTIVE_PROVIDER = "No active provider"
-    }
 }
 
 data class SendEmailParams(

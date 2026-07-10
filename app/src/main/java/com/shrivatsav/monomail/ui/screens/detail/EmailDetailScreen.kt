@@ -316,7 +316,6 @@ fun ThreadConversationContent(
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
 ) {
-    val bgColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.background.toArgb())
     val textColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.onBackground.toArgb())
     val linkColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.primary.toArgb())
     val expandedMap = remember(emails) {

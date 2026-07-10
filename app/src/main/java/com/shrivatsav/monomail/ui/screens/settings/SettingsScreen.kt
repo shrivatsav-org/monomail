@@ -62,10 +62,8 @@ fun SettingsScreen(
     ) { section ->
         when (section) {
             null -> SettingsHubScreen(
-                accountCount = accountCount,
                 onSectionClick = { currentSection = it },
                 onNavigateToPgpKeys = onNavigateToPgpKeys,
-                onNavigateToLegal = onNavigateToLegal,
                 onBack = onNavigateBack
             )
             SettingsSection.APPEARANCE -> AppearanceSettingsScreen(
@@ -102,10 +100,8 @@ fun SettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsHubScreen(
-    accountCount: Int,
     onSectionClick: (SettingsSection) -> Unit,
     onNavigateToPgpKeys: () -> Unit,
-    onNavigateToLegal: (String) -> Unit,
     onBack: () -> Unit
 ) {
     Scaffold(

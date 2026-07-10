@@ -758,10 +758,7 @@ internal fun TemplatesCard(viewModel: SettingsViewModel) {
     }
     if (showEditor) {
         TemplateEditorDialog(
-            editingIndex = editingIndex,
-            nameInput = nameInput,
-            subjectInput = subjectInput,
-            bodyInput = bodyInput,
+            state = TemplateEditorState(editingIndex, nameInput, subjectInput, bodyInput),
             onNameChange = { nameInput = it },
             onSubjectChange = { subjectInput = it },
             onBodyChange = { bodyInput = it },
@@ -851,10 +848,7 @@ private fun TemplateList(
 
 @Composable
 private fun TemplateEditorDialog(
-    editingIndex: Int,
-    nameInput: String,
-    subjectInput: String,
-    bodyInput: String,
+    state: TemplateEditorState,
     onNameChange: (String) -> Unit,
     onSubjectChange: (String) -> Unit,
     onBodyChange: (String) -> Unit,
@@ -863,25 +857,25 @@ private fun TemplateEditorDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (editingIndex >= 0) "Edit Template" else "New Template", fontWeight = FontWeight.SemiBold) },
+        title = { Text(if (state.editingIndex >= 0) "Edit Template" else "New Template", fontWeight = FontWeight.SemiBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
-                    value = nameInput,
+                    value = state.nameInput,
                     onValueChange = onNameChange,
                     label = { Text("Name") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = subjectInput,
+                    value = state.subjectInput,
                     onValueChange = onSubjectChange,
                     label = { Text("Subject") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = bodyInput,
+                    value = state.bodyInput,
                     onValueChange = onBodyChange,
                     label = { Text("Body") },
                     minLines = 3,
@@ -897,6 +891,13 @@ private fun TemplateEditorDialog(
         }
     )
 }
+
+private data class TemplateEditorState(
+    val editingIndex: Int,
+    val nameInput: String,
+    val subjectInput: String,
+    val bodyInput: String
+)
 
 // ── Dock Bar Editor ─────────────────────────────────────────────────
 
