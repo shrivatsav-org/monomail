@@ -40,8 +40,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
-    onNavigateToPgpKeys: () -> Unit = {},
-    accountCount: Int = 0
+    onNavigateToPgpKeys: () -> Unit = {}
 ) {
     var currentSection by remember { mutableStateOf<SettingsSection?>(null) }
     BackHandler(currentSection != null) { currentSection = null }

@@ -8,9 +8,9 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
-@Suppress("S6517")
 @Module
 @InstallIn(SingletonComponent::class)
+@Suppress("S6517")
 interface PushModule {
     @Binds
     @Singleton

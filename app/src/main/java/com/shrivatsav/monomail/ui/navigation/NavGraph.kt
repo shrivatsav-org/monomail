@@ -303,8 +303,7 @@ fun NavGraph(
                     onNavigateToLegal = { type -> openLegalUrl(ctx, type) },
                     onNavigateToPgpKeys = {
                         navController.navigate(Screen.PgpKeys.route) { launchSingleTop = true }
-                    },
-                    accountCount = accounts.size
+                    }
                 )
             }
             composable(Screen.PgpKeys.route) {
