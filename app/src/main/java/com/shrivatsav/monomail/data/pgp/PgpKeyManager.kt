@@ -61,34 +61,35 @@ class PgpKeyManager @Inject constructor(
     fun importKey(armoredKey: String, passphrase: String? = null): PgpKeyInfo {
         val isPrivate = armoredKey.contains("BEGIN PGP PRIVATE KEY BLOCK")
 
-        if (isPrivate) {
+        val info = if (isPrivate) {
             val secretKeyRing = KeyRingReader().secretKeyRing(armoredKey)
                 ?: throw IllegalArgumentException("Failed to parse private key — invalid or corrupted key data")
             val isProtected = try {
                 secretKeyRing.secretKey.keyEncryptionAlgorithm != 0
             } catch (_: Exception) { false }
 
-            val info = keyRingToInfo(secretKeyRing, isPrivate = true, isPassphraseProtected = isProtected)
+            val keyInfo = keyRingToInfo(secretKeyRing, isPrivate = true, isPassphraseProtected = isProtected)
 
-            storage.savePrivateKey(info.fingerprint, armoredKey)
+            storage.savePrivateKey(keyInfo.fingerprint, armoredKey)
             val publicKey = PGPainless.getInstance().toKey(secretKeyRing)
             val publicKeyRing = publicKey.getPGPPublicKeyRing()
             val armoredPublic = OpenPGPCertificate(publicKeyRing).toAsciiArmoredString()
-            storage.savePublicKey(info.fingerprint, armoredPublic)
-            storage.saveKeyMetadata(info.fingerprint, info)
+            storage.savePublicKey(keyInfo.fingerprint, armoredPublic)
+            storage.saveKeyMetadata(keyInfo.fingerprint, keyInfo)
             if (passphrase != null) {
-                storage.savePassphrase(info.fingerprint, passphrase)
+                storage.savePassphrase(keyInfo.fingerprint, passphrase)
             }
-            return info
+            keyInfo
         } else {
             val publicKeyRing = KeyRingReader().publicKeyRing(armoredKey)
                 ?: throw IllegalArgumentException("Failed to parse public key — invalid or corrupted key data")
-            val info = keyRingToInfo(publicKeyRing, isPrivate = false)
+            val keyInfo = keyRingToInfo(publicKeyRing, isPrivate = false)
 
-            storage.savePublicKey(info.fingerprint, armoredKey)
-            storage.saveKeyMetadata(info.fingerprint, info)
-            return info
+            storage.savePublicKey(keyInfo.fingerprint, armoredKey)
+            storage.saveKeyMetadata(keyInfo.fingerprint, keyInfo)
+            keyInfo
         }
+        return info
     }
 
     fun exportPublicKey(fingerprint: String): String? {

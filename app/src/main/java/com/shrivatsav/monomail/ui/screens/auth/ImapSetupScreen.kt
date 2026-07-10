@@ -62,6 +62,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+private const val CUSTOM_CONFIG = "Custom Configuration"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImapSetupScreen(
@@ -84,15 +86,12 @@ fun ImapSetupScreen(
     val displayName by viewModel.displayName.collectAsState()
 
     val testState by viewModel.testState.collectAsState()
-    val suggestedConfig by viewModel.suggestedConfig.collectAsState()
 
     val context = LocalContext.current
 
     val isFormValid = imapHost.isNotBlank() && imapPort.isNotBlank() &&
                       smtpHost.isNotBlank() && smtpPort.isNotBlank() &&
                       username.isNotBlank() && password.isNotBlank()
-
-    val isSaveEnabled = testState is ImapTestState.Success
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
@@ -124,7 +123,7 @@ fun ImapSetupScreen(
                 }
 
                 var expandedProvider by remember { mutableStateOf(false) }
-                var selectedProvider by remember { mutableStateOf("Custom Configuration") }
+                var selectedProvider by remember { mutableStateOf(CUSTOM_CONFIG) }
 
                 androidx.compose.material3.ExposedDropdownMenuBox(
                     expanded = expandedProvider,
@@ -143,14 +142,14 @@ fun ImapSetupScreen(
                         expanded = expandedProvider,
                         onDismissRequest = { expandedProvider = false }
                     ) {
-                        val providers = listOf("Gmail", "Outlook", "Yahoo", "Zoho", "Custom Configuration")
+                        val providers = listOf("Gmail", "Outlook", "Yahoo", "Zoho", CUSTOM_CONFIG)
                         providers.forEach { provider ->
                             DropdownMenuItem(
                                 text = { Text(provider) },
                                 onClick = {
                                     selectedProvider = provider
                                     expandedProvider = false
-                                    if (provider != "Custom Configuration") {
+                                    if (provider != CUSTOM_CONFIG) {
                                         viewModel.applySuggestion(ImapAccountConfig.presetForHost(provider)!!)
                                     }
                                 }

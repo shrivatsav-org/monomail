@@ -489,7 +489,7 @@ fun ComposeScreen(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
                     Text(
-                        text = if (showCcBcc) "Cc/Bcc" else "Cc/Bcc",
+                        text = "Cc/Bcc",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -586,8 +586,7 @@ fun ComposeScreen(
             var isQuote by remember { mutableStateOf(false) }
             FormattingToolbar(
                 webView = bodyWebView,
-                isBold = isBold, isItalic = isItalic, isUnderline = isUnderline,
-                isBullet = isBullet, isNumber = isNumber, isQuote = isQuote,
+                formattingState = FormattingState(isBold, isItalic, isUnderline, isBullet, isNumber, isQuote),
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
             Box(
@@ -610,7 +609,7 @@ fun ComposeScreen(
                                     isBullet = o.optBoolean("bullet")
                                     isNumber = o.optBoolean("number")
                                     isQuote = o.optBoolean("quote")
-                                } catch (_: Exception) {}
+                                } catch (e: Exception) { android.util.Log.w("ComposeScreen", "Failed to parse format state", e) }
                             }
                         }
                         WebView(ctx).apply {
@@ -773,8 +772,7 @@ private fun ComposeTextField(
 @Composable
 private fun FormattingToolbar(
     webView: WebView?,
-    isBold: Boolean, isItalic: Boolean, isUnderline: Boolean,
-    isBullet: Boolean, isNumber: Boolean, isQuote: Boolean,
+    formattingState: FormattingState,
     modifier: Modifier = Modifier
 ) {
     val activeTint = MaterialTheme.colorScheme.primary
@@ -785,26 +783,44 @@ private fun FormattingToolbar(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('bold',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Rounded.FormatBold, "Bold", tint = if (isBold) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
-        }
-        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('italic',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Rounded.FormatItalic, "Italic", tint = if (isItalic) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
-        }
-        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('underline',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Rounded.FormatUnderlined, "Underline", tint = if (isUnderline) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
-        }
+        FormatButton(webView, btnModifier, "bold", "Bold", formattingState.isBold, activeTint, inactiveTint) { Icons.Rounded.FormatBold }
+        FormatButton(webView, btnModifier, "italic", "Italic", formattingState.isItalic, activeTint, inactiveTint) { Icons.Rounded.FormatItalic }
+        FormatButton(webView, btnModifier, "underline", "Underline", formattingState.isUnderline, activeTint, inactiveTint) { Icons.Rounded.FormatUnderlined }
         Spacer(modifier = Modifier.width(8.dp))
-        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('insertUnorderedList',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.AutoMirrored.Rounded.FormatListBulleted, "Bullet list", tint = if (isBullet) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
-        }
-        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('insertOrderedList',false,null);reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.Rounded.FormatListNumbered, "Numbered list", tint = if (isNumber) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
-        }
-        IconButton(onClick = { webView?.evaluateJavascript("document.execCommand('formatBlock',false,'<blockquote>');reportFmt();", null) }, modifier = btnModifier) {
-            Icon(Icons.AutoMirrored.Rounded.ShortText, "Quote", tint = if (isQuote) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
-        }
+        FormatButton(webView, btnModifier, "insertUnorderedList", "Bullet list", formattingState.isBullet, activeTint, inactiveTint) { Icons.AutoMirrored.Rounded.FormatListBulleted }
+        FormatButton(webView, btnModifier, "insertOrderedList", "Numbered list", formattingState.isNumber, activeTint, inactiveTint) { Icons.Rounded.FormatListNumbered }
+        FormatButton(webView, btnModifier, "formatBlock", "Quote", formattingState.isQuote, activeTint, inactiveTint, "'<blockquote>'") { Icons.AutoMirrored.Rounded.ShortText }
         Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+private data class FormattingState(
+    val isBold: Boolean = false,
+    val isItalic: Boolean = false,
+    val isUnderline: Boolean = false,
+    val isBullet: Boolean = false,
+    val isNumber: Boolean = false,
+    val isQuote: Boolean = false
+)
+
+@Composable
+private fun FormatButton(
+    webView: WebView?,
+    modifier: Modifier,
+    command: String,
+    description: String,
+    isActive: Boolean,
+    activeTint: androidx.compose.ui.graphics.Color,
+    inactiveTint: androidx.compose.ui.graphics.Color,
+    value: String = "null",
+    icon: @Composable () -> androidx.compose.ui.graphics.vector.ImageVector
+) {
+    val jsValue = if (command == "formatBlock") value else "null"
+    IconButton(
+        onClick = { webView?.evaluateJavascript("document.execCommand('$command',false,$jsValue);reportFmt();", null) },
+        modifier = modifier
+    ) {
+        Icon(icon(), description, tint = if (isActive) activeTint else inactiveTint, modifier = Modifier.size(20.dp))
     }
 }
 @OptIn(ExperimentalMaterial3Api::class)

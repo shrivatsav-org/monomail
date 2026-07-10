@@ -144,7 +144,6 @@ class ComposeViewModel @Inject constructor(
             repository.refreshSendAsAliases()
             repository.sendAsAliasesFlow.collect { aliases ->
                 val currentFrom = _state.value.from
-                val fromAlias = aliases.firstOrNull { it.email == currentFrom }
                 _state.value = _state.value.copy(
                     fromAliases = aliases,
                     from = currentFrom.ifEmpty { fromEmail }

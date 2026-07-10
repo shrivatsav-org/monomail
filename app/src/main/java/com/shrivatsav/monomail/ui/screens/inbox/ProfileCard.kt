@@ -28,17 +28,21 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.auth.UserProfile
 
+internal data class ProfileCardCallbacks(
+    val onSignOut: () -> Unit,
+    val onShowSwitchAccount: () -> Unit,
+    val onCycleAccount: (String) -> Unit,
+    val onSettings: () -> Unit,
+    val onAddAccount: () -> Unit,
+    val onToggleUnified: (Boolean) -> Unit = {},
+)
+
 @Composable
 internal fun ProfileCard(
     userProfile: UserProfile,
     accounts: List<UserProfile>,
-    onSignOut: () -> Unit,
-    onShowSwitchAccount: () -> Unit,
-    onCycleAccount: (String) -> Unit,
-    onSettings: () -> Unit,
-    onAddAccount: () -> Unit,
+    callbacks: ProfileCardCallbacks,
     unifiedInboxEnabled: Boolean = false,
-    onToggleUnified: (Boolean) -> Unit = {},
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(0.88f),
@@ -82,7 +86,7 @@ internal fun ProfileCard(
                                                         (currentIdx + 1) % accounts.size
                                                     else
                                                         if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
-                                                    onCycleAccount(accounts[nextIdx].id)
+                                                    callbacks.onCycleAccount(accounts[nextIdx].id)
                                                 }
                                                 totalDrag = 0f
                                             }
@@ -149,7 +153,7 @@ internal fun ProfileCard(
                     Surface(
                         shape = CircleShape,
                         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
-                        modifier = Modifier.clickable { onShowSwitchAccount() }
+                        modifier = Modifier.clickable { callbacks.onShowSwitchAccount() }
                     ) {
                         Row(
                             modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
@@ -211,7 +215,7 @@ internal fun ProfileCard(
                     }
                     Switch(
                         checked = unifiedInboxEnabled,
-                        onCheckedChange = onToggleUnified,
+                        onCheckedChange = callbacks.onToggleUnified,
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = MaterialTheme.colorScheme.onBackground,
                             checkedTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
@@ -228,7 +232,7 @@ internal fun ProfileCard(
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
-                ProfileMenuItem(Icons.Rounded.Settings, "Settings", onSettings)
+                ProfileMenuItem(Icons.Rounded.Settings, "Settings", callbacks.onSettings)
             }
 
             HorizontalDivider(
@@ -243,7 +247,7 @@ internal fun ProfileCard(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
-                    onClick = onSignOut,
+                    onClick = callbacks.onSignOut,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
@@ -262,7 +266,7 @@ internal fun ProfileCard(
                     )
                 }
                 Button(
-                    onClick = onAddAccount,
+                    onClick = callbacks.onAddAccount,
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(

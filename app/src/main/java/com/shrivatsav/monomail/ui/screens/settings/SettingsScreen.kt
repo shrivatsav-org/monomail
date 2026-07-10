@@ -44,9 +44,6 @@ fun SettingsScreen(
     accountCount: Int = 0
 ) {
     var currentSection by remember { mutableStateOf<SettingsSection?>(null) }
-    val settings by viewModel.settings.collectAsState()
-    val scrollState = rememberScrollState()
-
     BackHandler(currentSection != null) { currentSection = null }
 
     AnimatedContent(
@@ -65,7 +62,6 @@ fun SettingsScreen(
     ) { section ->
         when (section) {
             null -> SettingsHubScreen(
-                viewModel = viewModel,
                 accountCount = accountCount,
                 onSectionClick = { currentSection = it },
                 onNavigateToPgpKeys = onNavigateToPgpKeys,
@@ -106,7 +102,6 @@ fun SettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsHubScreen(
-    viewModel: SettingsViewModel,
     accountCount: Int,
     onSectionClick: (SettingsSection) -> Unit,
     onNavigateToPgpKeys: () -> Unit,

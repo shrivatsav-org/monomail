@@ -29,7 +29,6 @@ class PgpManager @Inject constructor(
     }
 
     private fun getProtector(
-        secretKeyRing: org.bouncycastle.openpgp.PGPSecretKeyRing,
         fingerprint: String
     ): SecretKeyRingProtector {
         val passphrase = storage.loadPassphrase(fingerprint)
@@ -75,7 +74,7 @@ class PgpManager @Inject constructor(
         }
 
         return try {
-            val protector = getProtector(secretKeyRing, fp)
+            val protector = getProtector(fp)
             val consumerOptions = ConsumerOptions.get()
                 .addDecryptionKey(PGPainless.getInstance().toKey(secretKeyRing), protector)
             val decryptionStream = PGPainless.getInstance().processMessage()
@@ -151,7 +150,7 @@ class PgpManager @Inject constructor(
         }
 
         try {
-            val protector = getProtector(secretKeyRing, fingerprint)
+            val protector = getProtector(fingerprint)
 
             val signingOptions = SigningOptions.get()
                 .addInlineSignature(protector, PGPainless.getInstance().toKey(secretKeyRing))
@@ -206,7 +205,7 @@ class PgpManager @Inject constructor(
                     return null
                 }
 
-                val protector = getProtector(secretKeyRing, signingFingerprint)
+                val protector = getProtector(signingFingerprint)
                 val signingOptions = SigningOptions.get()
                     .addInlineSignature(protector, PGPainless.getInstance().toKey(secretKeyRing))
 

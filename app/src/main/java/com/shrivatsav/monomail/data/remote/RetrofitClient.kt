@@ -19,57 +19,44 @@ class RetrofitClient(
 
     class AuthFailedException(message: String) : IOException(message)
 
+    // ponytail: extracted helpers cut cognitive complexity from 38 → under 15 per function
+    private fun addAuthHeader(request: okhttp3.Request, token: String?): okhttp3.Request =
+        if (token != null) request.newBuilder().header("Authorization", "Bearer $token").build()
+        else request
+
+    private fun tryRefreshToken(currentToken: String?, originalToken: String?): String? =
+        if (currentToken != null && currentToken != originalToken) currentToken
+        else tokenRefresher()?.also { cachedToken.set(it) }
+
+    private fun retryWithAuth(
+        chain: Interceptor.Chain, request: okhttp3.Request, originalToken: String?
+    ): okhttp3.Response? {
+        for (attempt in 1..2) {
+            val newToken = synchronized(this) { tryRefreshToken(cachedToken.get(), originalToken) }
+            if (newToken != null) {
+                val retryResponse = chain.proceed(addAuthHeader(request, newToken))
+                if (retryResponse.code != 401 && retryResponse.code != 403) return retryResponse
+                retryResponse.close()
+            }
+            if (attempt < 2) Thread.sleep(500L * attempt)
+        }
+        return null
+    }
+
     private fun createAuthInterceptor() = Interceptor { chain ->
         val request = chain.request()
         val token = cachedToken.get()
-        val newRequest = if (token != null) {
-            request.newBuilder()
-                .header("Authorization", "Bearer $token")
-                .build()
-        } else {
-            request
-        }
-        val response = chain.proceed(newRequest)
+        val response = chain.proceed(addAuthHeader(request, token))
 
         if (response.code == 401 || response.code == 403) {
             response.close()
-            // Retry with backoff: up to 2 refreshes, delays 500ms then 1000ms
-            for (attempt in 1..2) {
-                val newToken = synchronized(this) {
-                    val currentToken = cachedToken.get()
-                    if (currentToken != null && currentToken != token) {
-                        currentToken
-                    } else {
-                        val refreshed = tokenRefresher()
-                        if (refreshed != null) {
-                            cachedToken.set(refreshed)
-                        }
-                        refreshed
-                    }
-                }
-                if (newToken != null) {
-                    val retryRequest = request.newBuilder()
-                        .header("Authorization", "Bearer $newToken")
-                        .build()
-                    val retryResponse = chain.proceed(retryRequest)
-                    // If the retry succeeded (not 401/403), return it
-                    if (retryResponse.code != 401 && retryResponse.code != 403) {
-                        return@Interceptor retryResponse
-                    }
-                    retryResponse.close()
-                }
-                if (attempt < 2) {
-                    Thread.sleep(500L * attempt)
-                }
-            }
+            val retryResponse = retryWithAuth(chain, request, token)
+            if (retryResponse != null) return@Interceptor retryResponse
             onRefreshFailed()
             throw AuthFailedException("Authentication failed. Please sign in again.")
         }
 
-        // Propagate non-auth HTTP errors so the caller can react (logging, stale-cleanup, etc.)
-        if (response.code in 400..599) {
-            onHttpError?.invoke(response.code)
-        }
+        if (response.code in 400..599) onHttpError?.invoke(response.code)
         response
     }
 
