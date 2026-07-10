@@ -489,7 +489,7 @@ fun ComposeScreen(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                 ) {
                     Text(
-                        text = if (showCcBcc) "Cc/Bcc" else "Cc/Bcc",
+                        text = "Cc/Bcc",
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -610,7 +610,7 @@ fun ComposeScreen(
                                     isBullet = o.optBoolean("bullet")
                                     isNumber = o.optBoolean("number")
                                     isQuote = o.optBoolean("quote")
-                                } catch (_: Exception) {}
+                                } catch (e: Exception) { android.util.Log.w("ComposeScreen", "Failed to parse format JSON", e) }
                             }
                         }
                         WebView(ctx).apply {

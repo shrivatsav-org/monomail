@@ -9,6 +9,7 @@ import com.google.gson.reflect.TypeToken
 import com.shrivatsav.monomail.data.local.AppDatabase
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.repository.SendEmailParams
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.io.File
@@ -35,11 +36,9 @@ class ScheduledSendWorker @AssistedInject constructor(
             emailRepository.sendEmail(
                 from = message.fromEmail,
                 to = message.to,
-                cc = message.cc,
-                bcc = message.bcc,
                 subject = message.subject,
                 body = message.body,
-                attachments = attachments,
+                params = SendEmailParams(cc = message.cc, bcc = message.bcc, attachments = attachments),
                 explicitAccountId = message.accountId
             )
             dao.markAsSent(messageId)

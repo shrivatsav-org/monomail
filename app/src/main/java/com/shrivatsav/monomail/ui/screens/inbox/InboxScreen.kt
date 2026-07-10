@@ -12,8 +12,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -712,7 +710,7 @@ fun InboxScreen(
                                     )
                                 } else {
                                     LongPressAction(
-                                        icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.Star,
+                                        icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                                         label = if (thread.isStarred) "Unstar" else "Star",
                                         tint = MaterialTheme.colorScheme.onSurface,
                                         onClick = {

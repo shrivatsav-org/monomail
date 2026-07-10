@@ -29,7 +29,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.dialog
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.rememberNavController
@@ -53,6 +53,7 @@ import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
 import com.shrivatsav.monomail.ui.screens.pgp.PgpKeyManagementScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
 import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
+
 sealed class Screen(val route: String) {
     object Onboarding   : Screen("onboarding")
     object SignIn       : Screen("sign_in")
@@ -81,6 +82,62 @@ sealed class Screen(val route: String) {
     }
     object PgpKeys : Screen("pgp_keys")
 }
+
+private fun openLegalUrl(context: android.content.Context, type: String) {
+    val url = if (type == "privacy") "https://monomail.millosaurs.me/pp" else "https://monomail.millosaurs.me/tos"
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))
+        .apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
+    try { context.startActivity(intent) } catch (e: Exception) { android.util.Log.w("NavGraph", "Failed to open legal URL", e) }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ReauthDialog(
+    authManager: AuthManager,
+    navController: androidx.navigation.NavHostController,
+    scope: CoroutineScope
+) {
+    val reauthInfo by authManager.reauthNeeded.collectAsState()
+    val reauth = reauthInfo
+    if (reauth == null) return
+
+    AlertDialog(
+        onDismissRequest = { authManager.dismissReauth() },
+        title = { Text("Session Expired") },
+        text = {
+            Text(
+                "Your ${reauth.provider.replaceFirstChar { it.uppercase() }} account " +
+                "(${reauth.email}) needs to be re-authenticated.\n\n" +
+                "You can sign out this account and continue with your other accounts."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                scope.launch {
+                    authManager.dismissReauth()
+                    val accounts = authManager.getAccounts()
+                    val targetId = accounts.find { it.email == reauth.email }?.id ?: return@launch
+                    authManager.removeAccount(targetId)
+                    val remaining = authManager.getAccounts()
+                    if (remaining.isEmpty()) {
+                        authManager.signOutAll()
+                        navController.navigate(Screen.SignIn.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                    }
+                }
+            }) {
+                Text("Sign out this account")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { authManager.dismissReauth() }) {
+                Text("Later")
+            }
+        }
+    )
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NavGraph(
@@ -95,17 +152,12 @@ fun NavGraph(
     var isAuthenticated by remember { mutableStateOf(false) }
     var hasSeenWelcomePrompt by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        // Phase A — fast: read cached auth state so the first frame renders immediately
         isAuthenticated = authManager.restoreSessionQuick()
-        // One-time read: avoid subscribing to the full settings flow for just hasSeenWelcomePrompt
         hasSeenWelcomePrompt = settingsDataStore.settingsFlow.first().hasSeenWelcomePrompt
         isLoading = false
         onContentReady()
-        // Phase B — background: refresh tokens and register push without blocking the UI
         if (isAuthenticated) {
-            scope.launch {
-                authManager.restoreSession()
-            }
+            scope.launch { authManager.restoreSession() }
         }
     }
     if (isLoading) {
@@ -117,81 +169,37 @@ fun NavGraph(
         }
         return
     }
-    val startDestination = if (isAuthenticated) {
-        Screen.Inbox.route
-    } else if (!hasSeenWelcomePrompt) {
-        Screen.Onboarding.route
-    } else {
-        Screen.SignIn.route
+    val startDestination = when {
+        isAuthenticated -> Screen.Inbox.route
+        !hasSeenWelcomePrompt -> Screen.Onboarding.route
+        else -> Screen.SignIn.route
     }
-    val reauthInfo by authManager.reauthNeeded.collectAsState()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        val reauth = reauthInfo
-        if (reauth != null) {
-            AlertDialog(
-                onDismissRequest = { authManager.dismissReauth() },
-                title = { Text("Session Expired") },
-                text = {
-                    Text(
-                        "Your ${reauth.provider.replaceFirstChar { it.uppercase() }} account " +
-                        "(${reauth.email}) needs to be re-authenticated.\n\n" +
-                        "You can sign out this account and continue with your other accounts."
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = {
-                        scope.launch {
-                            authManager.dismissReauth()
-                            val accounts = authManager.getAccounts()
-                            val targetId = accounts.find { it.email == reauth.email }?.id ?: return@launch
-                            authManager.removeAccount(targetId)
-                            val remaining = authManager.getAccounts()
-                            if (remaining.isEmpty()) {
-                                authManager.signOutAll()
-                                navController.navigate(Screen.SignIn.route) {
-                                    popUpTo(0) { inclusive = true }
-                                }
-                            }
-                        }
-                    }) {
-                        Text("Sign out this account")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { authManager.dismissReauth() }) {
-                        Text("Later")
-                    }
-                }
-            )
-        }
+        ReauthDialog(authManager, navController, scope)
 
         NavHost(
             navController = navController,
             startDestination = startDestination,
             enterTransition = {
                 when {
-                    targetState.destination.route?.startsWith("compose") == true -> {
+                    targetState.destination.route?.startsWith("compose") == true ->
                         slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
-                    }
-                    targetState.destination.route?.startsWith("thread") == true || targetState.destination.route?.startsWith("settings") == true -> {
+                    targetState.destination.route?.startsWith("thread") == true || targetState.destination.route?.startsWith("settings") == true ->
                         slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
-                    }
                     else -> fadeIn(animationSpec = tween(300))
                 }
             },
             exitTransition = {
                 when {
-                    initialState.destination.route?.startsWith("compose") == true -> {
+                    initialState.destination.route?.startsWith("compose") == true ->
                         slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    }
-                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true -> {
+                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true ->
                         slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    }
                     else -> fadeOut(animationSpec = tween(300))
                 }
             },
@@ -200,21 +208,19 @@ fun NavGraph(
             },
             popExitTransition = {
                 when {
-                    initialState.destination.route?.startsWith("compose") == true -> {
+                    initialState.destination.route?.startsWith("compose") == true ->
                         slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    }
-                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true -> {
+                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true ->
                         slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    }
                     else -> fadeOut(animationSpec = tween(300))
                 }
             }
         ) {
             composable(Screen.Onboarding.route) {
-                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                val onboardingScope = androidx.compose.runtime.rememberCoroutineScope()
                 com.shrivatsav.monomail.ui.screens.auth.OnboardingScreen(
                     onFinishOnboarding = {
-                        scope.launch {
+                        onboardingScope.launch {
                             settingsDataStore.setHasSeenWelcomePrompt(true)
                             navController.navigate(Screen.SignIn.route) {
                                 popUpTo(Screen.Onboarding.route) { inclusive = true }
@@ -233,11 +239,7 @@ fun NavGraph(
                             popUpTo(Screen.SignIn.route) { inclusive = true }
                         }
                     },
-                    onNavigateToLegal = { type ->
-                        val url = if (type == "privacy") "https://monomail.millosaurs.me/pp" else "https://monomail.millosaurs.me/tos"
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                        try { ctx.startActivity(intent) } catch (_: Exception) {}
-                    },
+                    onNavigateToLegal = { type -> openLegalUrl(ctx, type) },
                     onNavigateToImapSetup = {
                         navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
                     }
@@ -257,7 +259,7 @@ fun NavGraph(
             }
             composable(Screen.Inbox.route) {
                 val vm: InboxViewModel = hiltViewModel()
-                val scope = androidx.compose.runtime.rememberCoroutineScope()
+                val inboxScope = androidx.compose.runtime.rememberCoroutineScope()
                 val activeAccount by authManager.activeAccountFlow.collectAsState(initial = authManager.currentUser)
                 InboxScreen(
                     viewModel    = vm,
@@ -266,15 +268,15 @@ fun NavGraph(
                         navController.navigate(Screen.ThreadDetail.createRoute(threadId)) { launchSingleTop = true }
                     },
                     onSignOut = {
-                        scope.launch {
+                        inboxScope.launch {
                             authManager.signOutActiveAccount()
                             val accounts = authManager.getAccounts()
-                        if (accounts.isEmpty()) {
-                            navController.navigate(Screen.SignIn.route) {
-                                popUpTo(0) { inclusive = true }
+                            if (accounts.isEmpty()) {
+                                navController.navigate(Screen.SignIn.route) {
+                                    popUpTo(0) { inclusive = true }
+                                }
+                                emailRepository.clearLocalData()
                             }
-                            emailRepository.clearLocalData()
-                        }
                         }
                     },
                     onCompose = {
@@ -298,11 +300,7 @@ fun NavGraph(
                 SettingsScreen(
                     viewModel = settingsViewModel,
                     onNavigateBack = { navController.popBackStack() },
-                    onNavigateToLegal = { type ->
-                        val url = if (type == "privacy") "https://monomail.millosaurs.me/pp" else "https://monomail.millosaurs.me/tos"
-                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }
-                        try { ctx.startActivity(intent) } catch (_: Exception) {}
-                    },
+                    onNavigateToLegal = { type -> openLegalUrl(ctx, type) },
                     onNavigateToPgpKeys = {
                         navController.navigate(Screen.PgpKeys.route) { launchSingleTop = true }
                     },
@@ -327,13 +325,12 @@ fun NavGraph(
             composable(
                 route = Screen.ThreadDetail.route,
                 arguments = listOf(navArgument("threadId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val threadId = backStackEntry.arguments?.getString("threadId") ?: return@composable
+            ) { _ ->
                 val vm: EmailDetailViewModel = hiltViewModel()
                 EmailDetailScreen(
                     viewModel = vm,
                     onBack    = { navController.popBackStack() },
-                    onReply   = { to, subject, body, tid, messageId ->
+                    onReply   = { to, subject, _, tid, messageId ->
                         navController.navigate(
                             Screen.Compose.createRoute(
                                 mode = ComposeMode.REPLY,
@@ -344,7 +341,7 @@ fun NavGraph(
                             )
                         )
                     },
-                    onForward = { subject, body, tid, messageId ->
+                    onForward = { subject, _, tid, messageId ->
                         navController.navigate(
                             Screen.Compose.createRoute(
                                 mode = ComposeMode.FORWARD,
@@ -370,7 +367,7 @@ fun NavGraph(
                     navArgument("messageId") { type = NavType.StringType; defaultValue = "" },
                     navArgument("scheduledId") { type = NavType.StringType; defaultValue = "" }
                 )
-            ) { backStackEntry ->
+            ) { _ ->
                 val vm: ComposeViewModel = hiltViewModel()
                 ComposeScreen(
                     viewModel = vm,

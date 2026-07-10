@@ -269,7 +269,7 @@ fun SignInScreen(
                         context.startActivity(
                             android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://monomail.millosaurs.me"))
                         )
-                    } catch (_: Exception) {}
+                    } catch (e: Exception) { android.util.Log.w("SignInScreen", "Failed to open URL", e) }
                 },
             )
         }

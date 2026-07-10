@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -61,7 +60,6 @@ import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Warning
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
-import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -104,9 +102,6 @@ import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
 
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -1126,11 +1121,11 @@ private fun MessageBody(
                         try {
                             WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java)
                                 .invoke(this, true)
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowFileAccess reflection failed", e) }
                         try {
                             WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java)
                                 .invoke(this, false)
-                        } catch (_: Exception) {}
+                        } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowContentAccess reflection failed", e) }
                         setBackgroundColor(android.graphics.Color.TRANSPARENT)
                         isVerticalScrollBarEnabled = false
                         isHorizontalScrollBarEnabled = true
@@ -1168,7 +1163,7 @@ private fun MessageBody(
                                         context.startActivity(intent)
                                         return true
                                     } catch (e: Exception) {
-                                        e.printStackTrace()
+                                        android.util.Log.e("EmailDetail", "Failed to open URL in browser", e)
                                     }
                                 }
                                 return super.shouldOverrideUrlLoading(view, request)
@@ -1184,7 +1179,7 @@ private fun MessageBody(
                                         context.startActivity(intent)
                                         return true
                                     } catch (e: Exception) {
-                                        e.printStackTrace()
+                                        android.util.Log.e("EmailDetail", "Failed to open URL in browser", e)
                                     }
                                 }
                                 return super.shouldOverrideUrlLoading(view, url)
@@ -1304,7 +1299,7 @@ private fun openAttachment(context: android.content.Context, attachment: EmailAt
         }
         context.startActivity(android.content.Intent.createChooser(intent, "Open with..."))
     } catch (e: Exception) {
-        e.printStackTrace()
+        android.util.Log.e("EmailDetail", "Failed to open attachment", e)
     }
 }
 private fun isImageAttachment(attachment: EmailAttachmentInfo): Boolean {

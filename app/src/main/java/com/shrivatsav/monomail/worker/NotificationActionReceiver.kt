@@ -12,6 +12,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
+import com.shrivatsav.monomail.data.repository.SendEmailParams
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -152,9 +153,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             to = fromEmail,
             subject = if (subject.startsWith("Re:", true)) subject else "Re: $subject",
             body = replyText,
-            threadId = threadId,
-            inReplyToMessageId = messageId,
-            references = messageId,
+            params = SendEmailParams(threadId = threadId, inReplyToMessageId = messageId, references = messageId),
             explicitAccountId = accountId
         )
 

@@ -12,7 +12,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.net.URL
+import java.net.URI
 import javax.inject.Inject
 enum class UpdateState { IDLE, CHECKING, UP_TO_DATE, UPDATE_AVAILABLE, ERROR }
 @HiltViewModel
@@ -69,7 +69,7 @@ class SettingsViewModel @Inject constructor(
         _updateState.value = UpdateState.CHECKING
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val response = URL("https://api.github.com/repos/shrivatsav-0/monomail/releases/latest").readText()
+                val response = URI("https://api.github.com/repos/shrivatsav-0/monomail/releases/latest").toURL().readText()
                 val json = JSONObject(response)
                 val tagName = json.getString("tag_name").removePrefix("v")
                 val htmlUrl = json.getString("html_url")
