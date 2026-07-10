@@ -38,7 +38,9 @@ The architecture is offline-first: all reads and writes go through a local Room 
 - Message count badge next to sender name for threads with multiple messages.
 - Relative timestamps: time (today), day name (this week), date (this year), full date (older).
 - Font scaling (5 levels) and compact list mode.
+- **Scroll position retention:** each tab's scroll position (index + offset) is saved and restored on tab switch and back navigation.
 - Lifecycle-aware foreground polling: syncs every ~2 minutes when app is visible, backs off to configured interval when backgrounded.
+- **Performance warning:** dialog shown when adding a 4th+ account advising potential performance impact.
 
 ### Conversation and Chain Views
 - Toggle in Settings between Conversation View (default) and Message Chain view.
@@ -55,7 +57,7 @@ The architecture is offline-first: all reads and writes go through a local Room 
 
 ### Multi-Account and Unified Inbox
 - Support for up to 10 Gmail, Microsoft Outlook, and IMAP accounts simultaneously.
-- Unified Inbox toggle in Settings → Navigation to see all accounts in a single combined tab.
+- Unified Inbox toggle in the profile card to see all accounts in a single combined tab.
 - Quick account switching: horizontal swipe gesture on the profile avatar, or via the account switch modal.
 - Profile card with avatar, display name, email, linked accounts count, and quick links to Settings and sign out.
 
@@ -93,6 +95,10 @@ Accessible from the profile card. Settings uses a **hub-and-spoke** architecture
 - Show Snippet Preview: display preview text below sender in the inbox.
 - Load Remote Images: block external images in email bodies (with per-email override).
 - Render Markdown: render plain-text emails as formatted Markdown.
+- Inline Attachments: show attachment cards within the email body, or as a collapsible summary above it.
+- System Font: use device system font instead of Google Sans.
+- Email Colors: AUTO (adapt to theme), FORCE_DARK, FORCE_LIGHT, or ORIGINAL (sender's colors on light card) — controls how email HTML bodies are rendered in the detail WebView.
+- **Developer sub-section:** Developer Mode toggle to enable share options for raw HTML/MD/plain text email body.
 
 **Inbox sub-screen:**
 - Conversation View / Message Chain: toggle between collapsible threads and expanded chain view in email detail.
@@ -107,7 +113,6 @@ Accessible from the profile card. Settings uses a **hub-and-spoke** architecture
 - Templates: add, edit, and delete email templates with empty state illustration.
 
 **Navigation sub-screen:**
-- Unified Inbox: combine all accounts into one tab (disabled when account count < 2).
 - Navigation Size: slider from 0.6x to 1.4x to scale the dock bar and action button.
 - Dock Bar Editor: reorder primary tabs (up/down), add tabs from the available list (max 4), remove tabs (min 1). UNIFIED tab auto-hides when Unified Inbox is disabled.
 
@@ -117,14 +122,14 @@ Accessible from the profile card. Settings uses a **hub-and-spoke** architecture
 - Per-account notification channels with configurable sound/vibration.
 
 **About sub-screen:**
-- Version (1.5.6), Build Info (Product Flavor + Build Type), Push Status (FCM detected via reflection).
+- Version (1.7.8), Build Info (Product Flavor + Build Type), Push Status (FCM detected via reflection).
 - Check for Updates: queries the GitHub releases API and shows status (Up-to-Date / Update Available / Error). Tapping opens the download page.
 - Privacy Policy, Terms of Service, Open Source Licenses, License (GPL v3.0).
 - PGP Keys: navigate to manage OpenPGP keys.
 
 ### Account Management
 - Google Sign-In via Android Credential Manager and Google Identity Services.
-- Microsoft Sign-In via MSAL (Microsoft Authentication Library).
+- Microsoft Sign-In via MSAL (Microsoft Authentication Library) with silent token refresh retry on failure.
 - IMAP/SMTP setup with provider presets (Gmail, Outlook, Yahoo, Zoho, Custom) and connection testing.
 - Account credentials stored encrypted with AES-GCM via Android KeyStore and EncryptedSharedPreferences.
 - Session restoration on app launch (two-phase: quick cached read, then background token refresh).
@@ -140,11 +145,15 @@ Accessible from the profile card. Settings uses a **hub-and-spoke** architecture
 - **Archive + undo** from the notification shade: archive action posts a follow-up undo notification.
 - Timestamp-based detection to notify on replies within existing threads.
 - Parallelised sync worker: syncing for multiple accounts runs concurrently (fixed in SHR-130).
+- **Stale resource handling:** HTTP 404/410 responses on thread/message fetch trigger local cleanup of stale data, with token refresh retry and exponential backoff.
 
 ### Email Detail
 - HTML body rendering via WebView with JavaScript disabled.
 - Collapsible quoted text: hidden by default with a "Show quoted text" toggle and animated reveal — keeps the view clean while preserving full context on demand.
 - Custom CSS injection for consistent typography — uses `color-scheme: light dark` for browser-native dark mode adaptation with media query overrides for inline backgrounds. Luminance-based dark mode detection for accurate theme matching.
+- **Algorithmic dark mode:** uses `WebSettingsCompat.setAlgorithmicDarkeningAllowed` (AndroidX WebKit) for native WebView darkening, replacing CSS-based monomail-dark injection. Per-email Email Colors setting (AUTO/FORCE_DARK/FORCE_LIGHT/ORIGINAL) controls rendering.
+- **Responsive email detection:** emails with responsive signals (viewport meta width or `@media` width overrides) skip zoom and render at native scale for correct layout.
+- **Email body normalization:** `normalizeEmailBody` extracts provider-wrapped body text (handles JSON arrays, nested `body`/`content` keys), detects HTML-like content, and normalizes encoding.
 - Snippet previews strip quoted text ("On ... wrote:" patterns, `>` lines, and blockquote HTML) for cleaner inbox previews.
 - CC and BCC recipients displayed in a styled container in the expanded message section, hidden by default until the user expands the message.
 - Conversation view headers show sender avatar, name, From/To email addresses, and relative timestamps.
@@ -154,7 +163,7 @@ Accessible from the profile card. Settings uses a **hub-and-spoke** architecture
 - **Markdown rendering:** plain-text emails rendered as formatted Markdown when enabled in Settings (headers, bold, italic, code blocks, links, lists).
 - **Remote image blocking:** external images blocked by default via Content Security Policy, with a "Show" banner for per-email override.
 - **Content Security Policy:** `default-src 'none'` with whitelisted `img-src http: https: data:` and `style-src 'unsafe-inline'` for defence-in-depth.
-- **HTML sanitization:** lightweight regex-based sanitizer strips `<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, event handler attributes, `javascript:` URIs — no Jsoup dependency.
+- **HTML sanitization:** lightweight regex-based `EmailHtmlSafety` utility strips `<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, meta refreshes, event handler attributes, `javascript:` URIs — no Jsoup dependency. Replaces the older `HtmlSanitizer`.
 - **Font scaling:** multiplier (0.8x–1.3x) applied to WebView CSS font sizes, clamped to [10px, 28px] / [9px, 24px].
 - Top bar actions: back, star/unstar, overflow menu (mark unread, archive, move to trash) — each navigates back after action.
 - Reply and Forward buttons at the bottom.
@@ -165,7 +174,7 @@ Accessible from the profile card. Settings uses a **hub-and-spoke** architecture
 - **End-to-end encryption:** compose and receive PGP-encrypted emails using OpenPGP via PGPainless.
 - **Key management:** generate Ed25519/X25519 key pairs (optionally passphrase-protected), import ASCII-armored keys (with or without passphrase), export public keys, delete keys — all from the PGP Key Management screen in Settings.
 - **Encrypt & sign:** toggle encryption and signing on outgoing emails from the compose toolbar. Encryption is per-recipient using stored public keys.
-- **Auto-decryption:** incoming PGP/MIME and inline PGP messages are detected and decrypted automatically with signature verification. Passphrase-protected keys use stored passphrases transparently. Decrypted messages show a green lock badge + signature status; undecrypted blobs show a "PGP Encrypted" placeholder.
+- **Auto-decryption:** incoming PGP/MIME and inline PGP messages are detected and decrypted automatically with signature verification. Passphrase-protected keys use stored passphrases transparently. Decrypted messages show a green lock badge + signature status; undecrypted blobs show a "PGP Encrypted" placeholder. Handles false-positive on non-PGP HTML content (e.g. invite emails).
 - **Key storage:** private keys stored as armored files (encrypted via Android KeyStore AES-GCM), public keys as plain armored files, metadata in EncryptedSharedPreferences. Passphrases stored as encrypted blobs alongside private keys.
 
 ### Micro-interactions
@@ -191,7 +200,7 @@ The UI uses spring physics throughout for tactile, responsive feedback:
 | Language | Kotlin 2.2 |
 | Authentication | Google Credential Manager, MSAL 5.4.0, Google Play Services Auth |
 | Networking | Retrofit 2, OkHttp 4 |
-| Local Database | Room with SQLCipher encryption (v12) |
+| Local Database | Room with SQLCipher encryption (v13) |
 | Background Sync | WorkManager + ActionQueueManager (persistent action queue) |
 | Image Loading | Coil Compose |
 | IMAP/SMTP | Eclipse Angus Mail (Jakarta Mail 2.x) |
@@ -199,6 +208,7 @@ The UI uses spring physics throughout for tactile, responsive feedback:
 | Async | Kotlin Coroutines, Flow |
 | Secure Storage | AndroidX Security Crypto (EncryptedSharedPreferences), Android KeyStore |
 | Markdown Rendering | Markwon 4.6.2 |
+| WebView | AndroidX WebKit 1.12.1 (algorithmic dark mode) |
 | DI | Hilt 2.59.2 |
 
 ## Getting Started
@@ -246,11 +256,13 @@ Minimum supported version: Android 8.0 (API 26).
 
 ## Contributing
 
-Pull requests are welcome. For significant changes, open an issue first to discuss the proposal.
+Pull requests are welcome. For significant changes, open an issue first to discuss the proposal. See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for guidelines.
 
 ```
 Fork -> Branch -> Commit -> Pull Request
 ```
+
+Automated builds and releases run via GitHub Actions on PR merge.
 
 ## Support
 
