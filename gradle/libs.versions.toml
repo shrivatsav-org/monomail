@@ -108,7 +108,6 @@ hilt-work-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.
 
 # PGP
 pgpainless-core = { group = "org.pgpainless", name = "pgpainless-core", version.ref = "pgpainless" }
-androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
