@@ -102,6 +102,7 @@ fun SettingsScreen(
                 onBack = { currentSection = null }
             )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsScreen(
+                authManager = authManager,
                 viewModel = viewModel,
                 onBack = { currentSection = null }
             )

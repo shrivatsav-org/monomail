@@ -223,11 +223,16 @@ class InboxViewModel @Inject constructor(
                 _appSettings.value = settings
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
-                pollingIntervalMs = when (settings.syncFrequency) {
-                    SyncFrequency.MIN_15 -> 15 * 60 * 1000L
-                    SyncFrequency.MIN_30 -> 30 * 60 * 1000L
-                    SyncFrequency.HOUR_1 -> 60 * 60 * 1000L
-                    SyncFrequency.MANUAL -> Long.MAX_VALUE
+                val isPlayStoreBuild = !com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD
+                pollingIntervalMs = if (isPlayStoreBuild) {
+                    Long.MAX_VALUE
+                } else {
+                    when (settings.syncFrequency) {
+                        SyncFrequency.MIN_15 -> 15 * 60 * 1000L
+                        SyncFrequency.MIN_30 -> 30 * 60 * 1000L
+                        SyncFrequency.HOUR_1 -> 60 * 60 * 1000L
+                        SyncFrequency.MANUAL -> Long.MAX_VALUE
+                    }
                 }
                 if (!settings.hasSeenWelcomePrompt && authManager.currentUser != null) {
                     _showWelcomePrompt.value = true
