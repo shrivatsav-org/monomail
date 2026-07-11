@@ -711,12 +711,11 @@ fun InboxScreen(
                                     },
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     onClick = {
-                                        if (tabForMenu == InboxTab.ARCHIVED) viewModel.unarchiveThread(
-                                            thread.threadId
-                                        )
-                                        else if (tabForMenu == InboxTab.SPAM) {
-                                            viewModel.reportNotSpam(thread.threadId)
-                                        } else viewModel.archiveThread(thread.threadId)
+                                        when (tabForMenu) {
+                                            InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
+                                            InboxTab.SPAM -> viewModel.reportNotSpam(thread.threadId)
+                                            else -> viewModel.archiveThread(thread.threadId)
+                                        }
                                         longPressedThread = null
                                     }
                                 )
@@ -770,13 +769,13 @@ fun InboxScreen(
                     onSwitchAccount = { viewModel.switchAccount(it); activeModal = null },
                     onCycleAccount = { viewModel.switchAccount(it) },
                     onAddAccount = {
-                        if (accounts.size >= 10) {
-                            coroutineScope.launch {
+                        when {
+                            accounts.size >= 10 -> coroutineScope.launch {
                                 snackbarHostState.showSnackbar("Maximum limit of 10 accounts reached.")
                             }
-                        } else if (accounts.size >= 3) {
-                            showPerformanceWarningDialog = true
-                        } else activeModal = ModalType.ADD_ACCOUNT
+                            accounts.size >= 3 -> showPerformanceWarningDialog = true
+                            else -> activeModal = ModalType.ADD_ACCOUNT
+                        }
                     },
                     onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
                     onBackToProfile = { activeModal = ModalType.PROFILE },

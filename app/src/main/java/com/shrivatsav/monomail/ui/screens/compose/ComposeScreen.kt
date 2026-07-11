@@ -893,15 +893,15 @@ private fun ComposeBottomBar(
                     )
                 }
                 Spacer(Modifier.weight(1f))
-                if (isSending) {
-                    CircularProgressIndicator(
+                when {
+                    isSending -> CircularProgressIndicator(
                         modifier = Modifier
                             .size(24.dp)
                             .padding(end = 8.dp),
                         strokeWidth = 2.dp,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                } else if (!isSent) {
+                    !isSent -> {
                     IconButton(
                         onClick = onSchedule,
                         enabled = canSend
