@@ -438,40 +438,18 @@ class InboxViewModel @Inject constructor(
         val trashIds = currentState.threads.map { it.threadId }.toSet()
         if (trashIds.isEmpty()) return
 
-        val sentinelId = "empty_trash"
-        val currentGen = ++trashOperationGeneration
-        pendingHiddenTrashIds.clear()
-        pendingHiddenTrashIds.addAll(trashIds)
-        trashIds.forEach { pendingHideIdsSnapshot[it] = true }
-        _toastState.value = ToastState(sentinelId, "Trash emptied", ActionType.EMPTY_TRASH)
-
-        if (pendingActionJobs.size >= 30) {
-            pendingActionJobs.entries.take(10).forEach { (key, job) ->
-                job.cancel()
-                pendingActionJobs.remove(key)
-            }
-        }
-        pendingActionJobs[sentinelId]?.cancel()
-        pendingActionJobs[sentinelId] = viewModelScope.launch {
+        val isUnified = _currentTab.value == InboxTab.UNIFIED
+        viewModelScope.launch {
             try {
-                delay(4000)
-                if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
-                    repository.emptyTrash()
-                }
+                repository.emptyTrash(isUnified)
             } catch (e: Exception) {
                 android.util.Log.w(TAG, "emptyTrash failed", e)
-            } finally {
-                if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
-                    _toastState.value = null
-                    pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
-                    pendingHiddenTrashIds.clear()
-                    pendingActionJobs.remove(sentinelId)
-                }
             }
         }
     }
     fun emptySpam() {
-        viewModelScope.launch { repository.emptySpam() }
+        val isUnified = _currentTab.value == InboxTab.UNIFIED
+        viewModelScope.launch { repository.emptySpam(isUnified) }
     }
 
     fun restoreThread(threadId: String) {

@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 
 class EmailRepository(
     private val providerFactory: (UserProfile) -> EmailProvider,
@@ -380,22 +381,54 @@ class EmailRepository(
         threadDao.unarchiveThread(threadId, activeAccountId)
         emailDao.unarchiveThreadEmails(threadId, activeAccountId)
     }
-    suspend fun emptyTrash() {
+    suspend fun emptyTrash(isUnified: Boolean = false) {
         val activeAccountId = getActiveAccountId()
-        val provider = getActiveProvider()
-        if (provider != null) {
-            val trashIds = threadDao.getTrashThreadIds(activeAccountId)
-            trashIds.forEach { threadId ->
-                try { provider.permanentlyDeleteThread(threadId) } catch (e: Exception) { Log.e("EmailRepo", "permanent delete failed for $threadId", e) }
+        val accountsToProcess = if (isUnified) {
+            accountManager.getAccounts().map { it.id }
+        } else {
+            listOf(activeAccountId)
+        }
+
+        accountsToProcess.forEach { accId ->
+            val provider = getProviderForAccount(accId)
+            val trashIds = threadDao.getTrashThreadIds(accId)
+            
+            threadDao.emptyTrash(accId)
+            emailDao.emptyTrash(accId)
+
+            if (provider != null) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    trashIds.forEach { threadId ->
+                        try { provider.permanentlyDeleteThread(threadId) } catch (e: Exception) { android.util.Log.e("EmailRepo", "permanent delete failed for $threadId", e) }
+                    }
+                }
             }
         }
-        threadDao.emptyTrash(activeAccountId)
-        emailDao.emptyTrash(activeAccountId)
     }
-    suspend fun emptySpam() {
+
+    suspend fun emptySpam(isUnified: Boolean = false) {
         val activeAccountId = getActiveAccountId()
-        threadDao.emptySpam(activeAccountId)
-        emailDao.emptySpam(activeAccountId)
+        val accountsToProcess = if (isUnified) {
+            accountManager.getAccounts().map { it.id }
+        } else {
+            listOf(activeAccountId)
+        }
+
+        accountsToProcess.forEach { accId ->
+            val provider = getProviderForAccount(accId)
+            val spamIds = threadDao.getSpamThreadIds(accId)
+            
+            threadDao.emptySpam(accId)
+            emailDao.emptySpam(accId)
+
+            if (provider != null) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    spamIds.forEach { threadId ->
+                        try { provider.permanentlyDeleteThread(threadId) } catch (e: Exception) { android.util.Log.e("EmailRepo", "permanent delete failed for $threadId", e) }
+                    }
+                }
+            }
+        }
     }
     suspend fun deleteThread(threadId: String) {
         val accountId = resolveAccountId(threadId)
