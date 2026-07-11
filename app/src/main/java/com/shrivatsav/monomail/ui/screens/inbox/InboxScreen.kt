@@ -504,8 +504,7 @@ fun InboxScreen(
                     navActions = navActions,
                     viewModel = viewModel,
                     navBarHeight = navBarHeight,
-                    showClearTrashWarning = { showClearTrashWarning = true },
-                    showClearSpamWarning = { showClearSpamWarning = true }
+                    onEmptyBin = { isTrash -> if (isTrash) showClearTrashWarning = true else showClearSpamWarning = true }
                 )
             }
 
@@ -548,20 +547,22 @@ fun InboxScreen(
                     thread = thread,
                     state = state,
                     onDismiss = { longPressedThread = null },
-                    onEmailClick = { navActions.onEmailClick(thread.threadId) },
-                    onStar = { viewModel.toggleStar(thread.threadId) },
-                    onArchive = { tab -> when (tab) {
-                        InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
-                        InboxTab.SPAM -> viewModel.reportNotSpam(thread.threadId)
-                        else -> viewModel.archiveThread(thread.threadId)
-                    } },
-                    onToggleRead = {
-                        if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId)
-                        else viewModel.markThreadAsRead(thread.threadId)
-                    },
-                    onDelete = { threadToDelete = thread.threadId },
-                    onSnooze = { onSnoozeSelected(thread.threadId) },
-                    onUnsnooze = { viewModel.unsnoozeThread(thread.threadId) }
+                    actions = LongPressMenuActions(
+                        onEmailClick = { navActions.onEmailClick(thread.threadId) },
+                        onStar = { viewModel.toggleStar(thread.threadId) },
+                        onArchive = { tab -> when (tab) {
+                            InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
+                            InboxTab.SPAM -> viewModel.reportNotSpam(thread.threadId)
+                            else -> viewModel.archiveThread(thread.threadId)
+                        } },
+                        onToggleRead = {
+                            if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId)
+                            else viewModel.markThreadAsRead(thread.threadId)
+                        },
+                        onDelete = { threadToDelete = thread.threadId },
+                        onSnooze = { onSnoozeSelected(thread.threadId) },
+                        onUnsnooze = { viewModel.unsnoozeThread(thread.threadId) }
+                    )
                 )
             }
 
@@ -923,8 +924,7 @@ private fun BottomFabArea(
     navActions: InboxNavActions,
     viewModel: InboxViewModel,
     navBarHeight: Dp,
-    showClearTrashWarning: () -> Unit,
-    showClearSpamWarning: () -> Unit
+    onEmptyBin: (isTrash: Boolean) -> Unit
 ) {
     val tabForDock by remember { derivedStateOf { immediateTab } }
     Row(
@@ -952,8 +952,8 @@ private fun BottomFabArea(
             }
         ) { state ->
             when (state) {
-                "trash" -> EmptyTrashFab(appSettings, showClearTrashWarning)
-                "spam" -> EmptySpamFab(appSettings, showClearSpamWarning)
+                "trash" -> EmptyTrashFab(appSettings) { onEmptyBin(true) }
+                "spam" -> EmptySpamFab(appSettings) { onEmptyBin(false) }
                 "default" -> ComposeFab(appSettings, navActions.onCompose)
             }
         }
@@ -1016,19 +1016,23 @@ private fun ComposeFab(appSettings: com.shrivatsav.monomail.data.settings.AppSet
     }
 }
 
+private data class LongPressMenuActions(
+    val onEmailClick: () -> Unit,
+    val onStar: () -> Unit,
+    val onArchive: (InboxTab) -> Unit,
+    val onToggleRead: () -> Unit,
+    val onDelete: () -> Unit,
+    val onSnooze: () -> Unit,
+    val onUnsnooze: () -> Unit
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LongPressMenu(
     thread: EmailThread,
     state: InboxState,
     onDismiss: () -> Unit,
-    onEmailClick: () -> Unit,
-    onStar: () -> Unit,
-    onArchive: (InboxTab) -> Unit,
-    onToggleRead: () -> Unit,
-    onDelete: () -> Unit,
-    onSnooze: () -> Unit,
-    onUnsnooze: () -> Unit
+    actions: LongPressMenuActions
 ) {
     val tabForMenu = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
     BackHandler { onDismiss() }
@@ -1040,40 +1044,45 @@ private fun LongPressMenu(
     )
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(
-            modifier = Modifier
-                .fillMaxWidth(0.85f),
+            modifier = Modifier.fillMaxWidth(0.85f),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
-                EmailItem(thread = thread, onClick = { onDismiss(); onEmailClick() }, onLongClick = {}, modifier = Modifier)
+                EmailItem(thread = thread, onClick = { onDismiss(); actions.onEmailClick() }, onLongClick = {}, modifier = Modifier)
             }
             Spacer(Modifier.height(8.dp))
             Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
-                Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-                    if (tabForMenu == InboxTab.SNOOZED) {
-                        LongPressAction(icon = Icons.Rounded.Restore, label = "Unsnooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { onUnsnooze(); onDismiss() })
-                    } else {
-                        LongPressAction(icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder, label = if (thread.isStarred) "Unstar" else "Star", tint = MaterialTheme.colorScheme.onSurface, onClick = { onStar(); onDismiss() })
-                    }
-                    LongPressAction(
-                        icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
-                        label = when (tabForMenu) { InboxTab.ARCHIVED -> "Unarchive"; InboxTab.SPAM -> "Not spam"; else -> "Archive" },
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        onClick = { onArchive(tabForMenu); onDismiss() }
-                    )
-                    LongPressAction(icon = if (thread.isRead) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle, label = if (thread.isRead) "Unread" else "Read", tint = MaterialTheme.colorScheme.onSurface, onClick = { onToggleRead(); onDismiss() })
-                    if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED && tabForMenu != InboxTab.SPAM) {
-                        LongPressAction(icon = Icons.Rounded.Schedule, label = "Snooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { onDismiss(); onSnooze() })
-                    }
-                    LongPressAction(
-                        icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
-                        label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
-                        tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
-                        onClick = { if (tabForMenu == InboxTab.TRASH) { onArchive(tabForMenu) } else { onDelete() }; onDismiss() }
-                    )
-                }
+                LongPressActionRow(thread, tabForMenu, actions) { onDismiss() }
             }
         }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LongPressActionRow(thread: EmailThread, tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+        if (tabForMenu == InboxTab.SNOOZED) {
+            LongPressAction(icon = Icons.Rounded.Restore, label = "Unsnooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onUnsnooze(); onDismiss() })
+        } else {
+            LongPressAction(icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder, label = if (thread.isStarred) "Unstar" else "Star", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onStar(); onDismiss() })
+        }
+        LongPressAction(
+            icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
+            label = when (tabForMenu) { InboxTab.ARCHIVED -> "Unarchive"; InboxTab.SPAM -> "Not spam"; else -> "Archive" },
+            tint = MaterialTheme.colorScheme.onSurface,
+            onClick = { actions.onArchive(tabForMenu); onDismiss() }
+        )
+        LongPressAction(icon = if (thread.isRead) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle, label = if (thread.isRead) "Unread" else "Read", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onToggleRead(); onDismiss() })
+        if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED && tabForMenu != InboxTab.SPAM) {
+            LongPressAction(icon = Icons.Rounded.Schedule, label = "Snooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { onDismiss(); actions.onSnooze() })
+        }
+        LongPressAction(
+            icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
+            label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
+            tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+            onClick = { if (tabForMenu == InboxTab.TRASH) { actions.onArchive(tabForMenu) } else { actions.onDelete() }; onDismiss() }
+        )
     }
 }
 

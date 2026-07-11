@@ -656,7 +656,7 @@ private fun MessageBody(
             }
             return
         }
-        MessageBodyContent(email, safeBodyText, bodyIsHtml, config, decryptedResult, showSender, messageCount, onFetchAttachment)
+        MessageBodyContent(email, safeBodyText, bodyIsHtml, config, showSender, messageCount, onFetchAttachment)
     }
 }
 
@@ -671,7 +671,6 @@ private fun MessageBodyContent(
     safeBodyText: String,
     bodyIsHtml: Boolean,
     config: EmailDisplayConfig,
-    decryptedResult: PgpDecryptionResult?,
     showSender: Boolean,
     messageCount: Int,
     onFetchAttachment: suspend (String, String) -> ByteArray?

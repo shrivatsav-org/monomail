@@ -109,64 +109,7 @@ private fun ProfileAvatarSection(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.pointerInput(accounts, unifiedInboxEnabled) {
-                    if (accounts.size > 1 && !unifiedInboxEnabled) {
-                        var totalDrag = 0f
-                        detectHorizontalDragGestures(
-                            onDragStart = { totalDrag = 0f },
-                            onHorizontalDrag = { change, dragAmount ->
-                                change.consume()
-                                totalDrag += dragAmount
-                                if (kotlin.math.abs(totalDrag) > 60f) {
-                                    val currentIdx = accounts.indexOfFirst { it.id == userProfile.id }
-                                    if (currentIdx != -1) {
-                                        val nextIdx = if (totalDrag > 0)
-                                            (currentIdx + 1) % accounts.size
-                                        else
-                                            if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
-                                        callbacks.onCycleAccount(accounts[nextIdx].id)
-                                    }
-                                    totalDrag = 0f
-                                }
-                            }
-                        )
-                    }
-                }
-            ) {
-                if (accounts.size > 1) {
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy((-16).dp),
-                        modifier = Modifier.offset(x = 28.dp)
-                    ) {
-                        accounts.filter { it.id != userProfile.id }.take(2).forEach { acc ->
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
-                                    .clip(CircleShape)
-                                    .alpha(0.45f)
-                            ) {
-                                AvatarCircle(
-                                    acc.photoUrl,
-                                    acc.displayName,
-                                    44.dp,
-                                    MaterialTheme.typography.titleSmall
-                                )
-                            }
-                        }
-                    }
-                }
-                Box(modifier = Modifier.border(3.dp, MaterialTheme.colorScheme.background, CircleShape)) {
-                    AvatarCircle(
-                        photoUrl = userProfile.photoUrl,
-                        displayName = userProfile.displayName,
-                        size = 72.dp,
-                        textStyle = MaterialTheme.typography.headlineSmall
-                    )
-                }
-            }
+            DraggableAvatarBox(userProfile, accounts, callbacks, unifiedInboxEnabled)
 
             Spacer(Modifier.height(14.dp))
             Text(
@@ -185,6 +128,73 @@ private fun ProfileAvatarSection(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
+        }
+    }
+}
+
+@Composable
+private fun DraggableAvatarBox(
+    userProfile: UserProfile,
+    accounts: List<UserProfile>,
+    callbacks: ProfileCardCallbacks,
+    unifiedInboxEnabled: Boolean
+) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier.pointerInput(accounts, unifiedInboxEnabled) {
+            if (accounts.size > 1 && !unifiedInboxEnabled) {
+                var totalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDrag = 0f },
+                    onHorizontalDrag = { change, dragAmount ->
+                        change.consume()
+                        totalDrag += dragAmount
+                        if (kotlin.math.abs(totalDrag) > 60f) {
+                            val currentIdx = accounts.indexOfFirst { it.id == userProfile.id }
+                            if (currentIdx != -1) {
+                                val nextIdx = if (totalDrag > 0)
+                                    (currentIdx + 1) % accounts.size
+                                else
+                                    if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
+                                callbacks.onCycleAccount(accounts[nextIdx].id)
+                            }
+                            totalDrag = 0f
+                        }
+                    }
+                )
+            }
+        }
+    ) {
+        if (accounts.size > 1) {
+            StackedAvatars(userProfile, accounts)
+        }
+        Box(modifier = Modifier.border(3.dp, MaterialTheme.colorScheme.background, CircleShape)) {
+            AvatarCircle(
+                photoUrl = userProfile.photoUrl,
+                displayName = userProfile.displayName,
+                size = 72.dp,
+                textStyle = MaterialTheme.typography.headlineSmall
+            )
+        }
+    }
+}
+
+@Composable
+private fun StackedAvatars(userProfile: UserProfile, accounts: List<UserProfile>) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy((-16).dp),
+        modifier = Modifier.offset(x = 28.dp)
+    ) {
+        accounts.filter { it.id != userProfile.id }.take(2).forEach { acc ->
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+                    .clip(CircleShape)
+                    .alpha(0.45f)
+            ) {
+                AvatarCircle(acc.photoUrl, acc.displayName, 44.dp, MaterialTheme.typography.titleSmall)
+            }
         }
     }
 }

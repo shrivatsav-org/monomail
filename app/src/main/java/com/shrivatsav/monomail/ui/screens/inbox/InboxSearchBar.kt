@@ -43,6 +43,13 @@ data class BulkSelectionState(
     val onDone: () -> Unit = {}
 )
 
+data class SearchDisplayState(
+    val isRefreshing: Boolean = false,
+    val unifiedInboxEnabled: Boolean = false,
+    val accounts: List<UserProfile> = emptyList(),
+    val userProfile: UserProfile? = null
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun InboxSearchBar(
@@ -90,7 +97,7 @@ internal fun InboxSearchBar(
                             if (toast != null) {
                                 ToastContent(toast, actions)
                             } else {
-                                SearchInputContent(query, onQueryChange, onServerSearch, isRefreshing, unifiedInboxEnabled, accounts, actions, userProfile)
+                                SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile))
                             }
                         }
                     }
@@ -189,11 +196,8 @@ private fun SearchInputContent(
     query: String,
     onQueryChange: (String) -> Unit,
     onServerSearch: (String) -> Unit,
-    isRefreshing: Boolean,
-    unifiedInboxEnabled: Boolean,
-    accounts: List<UserProfile>,
     actions: SearchBarActions,
-    userProfile: UserProfile?
+    display: SearchDisplayState
 ) {
     SearchBarDefaults.InputField(
         query = query,
@@ -203,43 +207,46 @@ private fun SearchInputContent(
         onExpandedChange = {},
         placeholder = {
             Text(
-                if (isRefreshing) "Syncing..." else if (unifiedInboxEnabled) "Search all accounts..." else "Search in mail",
+                if (display.isRefreshing) "Syncing..." else if (display.unifiedInboxEnabled) "Search all accounts..." else "Search in mail",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             )
         },
         leadingIcon = {
-            if (isRefreshing) {
+            if (display.isRefreshing) {
                 LoadingIndicator(modifier = Modifier.padding(start = 8.dp).size(40.dp), color = MaterialTheme.colorScheme.onSurface)
             } else {
                 Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 8.dp))
             }
         },
-        trailingIcon = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                BadgedBox(badge = {
-                    if (actions.scheduledCount > 0) {
-                        Badge(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) {
-                            Text(if (actions.scheduledCount > 99) "99+" else actions.scheduledCount.toString(), style = MaterialTheme.typography.labelSmall)
-                        }
-                    }
-                }) {
-                    IconButton(onClick = actions.onScheduledClick, modifier = Modifier.size(40.dp)) {
-                        Icon(Icons.Rounded.CalendarMonth, contentDescription = "Scheduled", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
-                    }
-                }
-                IconButton(onClick = actions.onMarkAllRead, modifier = Modifier.size(40.dp)) {
-                    Icon(Icons.Rounded.CheckCircle, contentDescription = "Mark all as read", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
-                }
-                Spacer(Modifier.width(4.dp))
-                if (unifiedInboxEnabled && accounts.size > 1) {
-                    StackedAccountAvatars(accounts = accounts, onClick = actions.onOpenProfile)
-                } else {
-                    AvatarButton(userProfile = userProfile, onClick = actions.onOpenProfile)
+        trailingIcon = { SearchTrailingIcon(actions, display) }
+    )
+}
+
+@Composable
+private fun SearchTrailingIcon(actions: SearchBarActions, display: SearchDisplayState) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        BadgedBox(badge = {
+            if (actions.scheduledCount > 0) {
+                Badge(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) {
+                    Text(if (actions.scheduledCount > 99) "99+" else actions.scheduledCount.toString(), style = MaterialTheme.typography.labelSmall)
                 }
             }
+        }) {
+            IconButton(onClick = actions.onScheduledClick, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Rounded.CalendarMonth, contentDescription = "Scheduled", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+            }
         }
-    )
+        IconButton(onClick = actions.onMarkAllRead, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Rounded.CheckCircle, contentDescription = "Mark all as read", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+        }
+        Spacer(Modifier.width(4.dp))
+        if (display.unifiedInboxEnabled && display.accounts.size > 1) {
+            StackedAccountAvatars(accounts = display.accounts, onClick = actions.onOpenProfile)
+        } else {
+            AvatarButton(userProfile = display.userProfile, onClick = actions.onOpenProfile)
+        }
+    }
 }
 
 @Composable
