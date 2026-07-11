@@ -212,10 +212,10 @@ fun NavGraph(
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            enterTransition = ::slideInForRoute,
-            exitTransition = ::slideOutForRoute,
+            enterTransition = { slideInForRoute() },
+            exitTransition = { slideOutForRoute() },
             popEnterTransition = { fadeIn(animationSpec = tween(300)) },
-            popExitTransition = ::popExitForRoute
+            popExitTransition = { popExitForRoute() }
         ) {
             composable(Screen.Onboarding.route) {
                 val onboardingScope = androidx.compose.runtime.rememberCoroutineScope()

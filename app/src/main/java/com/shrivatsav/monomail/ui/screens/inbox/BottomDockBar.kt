@@ -89,7 +89,7 @@ private fun RemainingTabsPopup(
             shadowElevation = 8.dp,
             modifier = Modifier.padding(bottom = 8.dp)
         ) {
-            Column(modifier = Modifier.padding(4.dp)) {
+            Row(modifier = Modifier.padding(4.dp)) { // intentional: horizontal layout fits dock bar orientation
                 remainingIds.forEach { dockTabId ->
                     val tab = dockTabId.toInboxTab()
                     RemainingTabItem(
@@ -183,12 +183,11 @@ private fun RemainingTabItem(
         shape = RoundedCornerShape(14.dp),
         color = if (isActive) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
         onClick = onClick,
-        modifier = Modifier.height((42 * scale).dp)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        Column(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             Icon(
                 icon,
@@ -199,7 +198,7 @@ private fun RemainingTabItem(
             )
             Text(
                 text = label,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface
             )
         }

@@ -253,11 +253,6 @@ class OutlookProvider(
     private fun moveToFolder(destinationId: String): suspend (OutlookMessage) -> Unit =
         { msg -> api.moveMessage(msg.id, OutlookMoveMessageRequest(destinationId)) }
 
-    private fun outlookRecipientForEmail(email: String): OutlookRecipient? {
-        if (email.isBlank()) return null
-        return OutlookRecipient(OutlookEmailAddress(null, email.trim()))
-    }
-
     override suspend fun archiveThread(threadId: String) {
         forEachMessageInThread(threadId, operation = moveToFolder("archive"))
     }
@@ -323,8 +318,7 @@ class OutlookProvider(
             toRecipients = recipients,
             ccRecipients = ccRecipients,
             bccRecipients = bccRecipients,
-            attachments = draftAttachments.takeIf { it.isNotEmpty() },
-            sender = outlookRecipientForEmail(from)
+            attachments = draftAttachments.takeIf { it.isNotEmpty() }
         )
         api.sendMail(OutlookSendMailRequest(msg))
         return null

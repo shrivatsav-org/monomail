@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 
 private const val CUSTOM_CONFIG = "Custom Configuration"
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AccountSettingsSection(
     displayName: String,
@@ -351,7 +352,7 @@ private fun ErrorText(message: String) {
         text = message,
         color = MaterialTheme.colorScheme.error,
         style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.align(Alignment.CenterHorizontally)
+        modifier = Modifier
     )
 }
 
