@@ -37,54 +37,6 @@ internal fun AppearanceSettingsScreen(
             )
             CardDivider()
             SettingsToggleRow(
-                icon = Icons.Rounded.HorizontalRule,
-                title = "Show Dividers",
-                subtitle = "Show lines between emails",
-                checked = settings.showDividers,
-                onCheckedChange = { viewModel.setShowDividers(it) }
-            )
-            CardDivider()
-            SettingsToggleRow(
-                icon = Icons.Rounded.DensitySmall,
-                title = "Compact List",
-                subtitle = "Reduce spacing in email list",
-                checked = settings.compactList,
-                onCheckedChange = { viewModel.setCompactList(it) }
-            )
-            CardDivider()
-            SettingsToggleRow(
-                icon = Icons.AutoMirrored.Rounded.ShortText,
-                title = "Show Snippet Preview",
-                subtitle = "Display preview text below sender",
-                checked = settings.showSnippet,
-                onCheckedChange = { viewModel.setShowSnippet(it) }
-            )
-            CardDivider()
-            SettingsToggleRow(
-                icon = Icons.Rounded.ImageNotSupported,
-                title = "Load Remote Images",
-                subtitle = "When off, external images in emails are blocked until you tap to load them",
-                checked = settings.loadRemoteImages,
-                onCheckedChange = { viewModel.setLoadRemoteImages(it) }
-            )
-            CardDivider()
-            SettingsToggleRow(
-                icon = Icons.Rounded.Code,
-                title = "Render Markdown",
-                subtitle = "Convert markdown formatting in plain text emails",
-                checked = settings.renderMarkdown,
-                onCheckedChange = { viewModel.setRenderMarkdown(it) }
-            )
-            CardDivider()
-            SettingsToggleRow(
-                icon = Icons.Rounded.AttachFile,
-                title = "Inline Attachments",
-                subtitle = "Show attachment cards within the email body, or as a collapsible summary above it",
-                checked = settings.showInlineAttachments,
-                onCheckedChange = { viewModel.setShowInlineAttachments(it) }
-            )
-            CardDivider()
-            SettingsToggleRow(
                 icon = Icons.Rounded.TextFields,
                 title = "System Font",
                 subtitle = "Use system font instead of Google Sans",

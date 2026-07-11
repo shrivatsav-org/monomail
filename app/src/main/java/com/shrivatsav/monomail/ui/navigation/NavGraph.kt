@@ -331,6 +331,7 @@ fun NavGraph(
                 val ctx = LocalContext.current
                 SettingsScreen(
                     viewModel = settingsViewModel,
+                    authManager = authManager,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToLegal = { type -> openLegalUrl(ctx, type) },
                     onNavigateToPgpKeys = {

@@ -991,8 +991,6 @@ private fun BottomFabArea(
         AnimatedContent(
             targetState = when {
                 showScrollToTop -> "scrollUp"
-                tabForDock == InboxTab.TRASH -> "trash"
-                tabForDock == InboxTab.SPAM -> "spam"
                 else -> "default"
             },
             label = "FabIconMorph",
