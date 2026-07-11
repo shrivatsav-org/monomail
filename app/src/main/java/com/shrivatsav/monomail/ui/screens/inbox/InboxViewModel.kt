@@ -521,8 +521,8 @@ class InboxViewModel @Inject constructor(
             ActionType.ARCHIVE -> repository.archiveThread(threadId)
             ActionType.DELETE -> repository.deleteThread(threadId)
             ActionType.EMPTY_TRASH -> repository.emptyTrash()
-            ActionType.SEND -> {}
-            ActionType.SNOOZE -> {}
+            ActionType.SEND -> { /* handled elsewhere */ }
+            ActionType.SNOOZE -> { /* handled elsewhere */ }
             ActionType.UNARCHIVE -> repository.unarchiveThread(threadId)
             ActionType.RESTORE -> repository.restoreThread(threadId)
         }

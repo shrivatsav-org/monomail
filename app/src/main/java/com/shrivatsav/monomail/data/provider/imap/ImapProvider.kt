@@ -542,37 +542,46 @@ class ImapProvider(
             override fun getPasswordAuthentication() = jakarta.mail.PasswordAuthentication(config.username, password)
         })
 
-        val message = MimeMessage(session).apply {
-            setFrom(InternetAddress(from))
-            setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-            if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
-            if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
-            this.subject = subject
-            if (options.threadId != null) {
-                setHeader(HEADER_IN_REPLY_TO, options.threadId)
-                setHeader(HEADER_REFERENCES, options.threadId)
-            }
-            if (options.attachments.isEmpty()) {
-                setContent(body, "text/html; charset=utf-8")
-            } else {
-                val multipart = MimeMultipart().apply {
-                    addBodyPart(MimeBodyPart().also { it.setContent(body, "text/html; charset=utf-8") })
-                    for (att in options.attachments) {
-                        val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() } ?: continue
-                        addBodyPart(MimeBodyPart().also {
-                            it.dataHandler = jakarta.activation.DataHandler(jakarta.mail.util.ByteArrayDataSource(bytes, att.mimeType))
-                            it.fileName = att.name
-                        })
-                    }
-                }
-                setContent(multipart)
-            }
-            saveChanges()
-        }
+        val message = buildMimeMessage(session, from, to, subject, body, options)
 
         Transport.send(message)
         saveToSentFolder(message)
         message.messageID
+    }
+
+    private fun buildMimeMessage(
+        session: Session,
+        from: String,
+        to: String,
+        subject: String,
+        body: String,
+        options: SendEmailOptions
+    ): MimeMessage = MimeMessage(session).apply {
+        setFrom(InternetAddress(from))
+        setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+        if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
+        if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
+        this.subject = subject
+        if (options.threadId != null) {
+            setHeader(HEADER_IN_REPLY_TO, options.threadId)
+            setHeader(HEADER_REFERENCES, options.threadId)
+        }
+        if (options.attachments.isEmpty()) {
+            setContent(body, "text/html; charset=utf-8")
+        } else {
+            val multipart = MimeMultipart().apply {
+                addBodyPart(MimeBodyPart().also { it.setContent(body, "text/html; charset=utf-8") })
+                for (att in options.attachments) {
+                    val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() } ?: continue
+                    addBodyPart(MimeBodyPart().also {
+                        it.dataHandler = jakarta.activation.DataHandler(jakarta.mail.util.ByteArrayDataSource(bytes, att.mimeType))
+                        it.fileName = att.name
+                    })
+                }
+            }
+            setContent(multipart)
+        }
+        saveChanges()
     }
 
     override suspend fun getSendAsAliases(): List<SendAsAlias> {

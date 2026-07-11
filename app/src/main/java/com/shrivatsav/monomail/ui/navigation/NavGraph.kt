@@ -138,6 +138,33 @@ private fun ReauthDialog(
     )
 }
 
+private fun routeType(route: String?): String = when {
+    route?.startsWith("compose") == true -> "compose"
+    route?.startsWith("thread") == true || route?.startsWith("settings") == true -> "thread"
+    else -> ""
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.slideInForRoute() = when (routeType(targetState.destination.route)) {
+    "compose" -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
+    "thread" -> slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
+    else -> fadeIn(animationSpec = tween(300))
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.slideOutForRoute() = when (routeType(initialState.destination.route)) {
+    "compose" -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
+    "thread" -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
+    else -> fadeOut(animationSpec = tween(300))
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+private fun AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.popExitForRoute() = when (routeType(initialState.destination.route)) {
+    "compose" -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
+    "thread" -> slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
+    else -> fadeOut(animationSpec = tween(300))
+}
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun NavGraph(
@@ -185,36 +212,10 @@ fun NavGraph(
         NavHost(
             navController = navController,
             startDestination = startDestination,
-            enterTransition = {
-                when {
-                    targetState.destination.route?.startsWith("compose") == true ->
-                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Up, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
-                    targetState.destination.route?.startsWith("thread") == true || targetState.destination.route?.startsWith("settings") == true ->
-                        slideIntoContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeIn(animationSpec = tween(300))
-                    else -> fadeIn(animationSpec = tween(300))
-                }
-            },
-            exitTransition = {
-                when {
-                    initialState.destination.route?.startsWith("compose") == true ->
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true ->
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Left, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    else -> fadeOut(animationSpec = tween(300))
-                }
-            },
-            popEnterTransition = {
-                fadeIn(animationSpec = tween(300))
-            },
-            popExitTransition = {
-                when {
-                    initialState.destination.route?.startsWith("compose") == true ->
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Down, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    initialState.destination.route?.startsWith("thread") == true || initialState.destination.route?.startsWith("settings") == true ->
-                        slideOutOfContainer(AnimatedContentTransitionScope.SlideDirection.Right, animationSpec = tween(300)) + fadeOut(animationSpec = tween(300))
-                    else -> fadeOut(animationSpec = tween(300))
-                }
-            }
+            enterTransition = ::slideInForRoute,
+            exitTransition = ::slideOutForRoute,
+            popEnterTransition = { fadeIn(animationSpec = tween(300)) },
+            popExitTransition = ::popExitForRoute
         ) {
             composable(Screen.Onboarding.route) {
                 val onboardingScope = androidx.compose.runtime.rememberCoroutineScope()

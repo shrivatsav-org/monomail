@@ -78,15 +78,14 @@ class EmailDetailViewModel @Inject constructor(
         _isLoading,
         _error
     ) { emails, isLoading, error ->
-        if (emails.isNotEmpty()) {
-            val needsBodyFetch = emails.any { it.body.isEmpty() }
-            EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
-        } else if (error != null) {
-            EmailDetailState.Error(error)
-        } else if (!isLoading) {
-            EmailDetailState.Error("Email thread not found.")
-        } else {
-            EmailDetailState.Success(emptyList(), isRefreshing = true)
+        when {
+            emails.isNotEmpty() -> {
+                val needsBodyFetch = emails.any { it.body.isEmpty() }
+                EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
+            }
+            error != null -> EmailDetailState.Error(error)
+            !isLoading -> EmailDetailState.Error("Email thread not found.")
+            else -> EmailDetailState.Success(emptyList(), isRefreshing = true)
         }
     }.stateIn(
         scope = viewModelScope,

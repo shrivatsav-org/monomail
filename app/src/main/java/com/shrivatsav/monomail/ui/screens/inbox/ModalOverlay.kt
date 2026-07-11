@@ -150,7 +150,7 @@ private fun ModalContentBody(
                     )
                 }
             }
-            null -> {}
+            null -> { /* no modal */ }
         }
     }
 }

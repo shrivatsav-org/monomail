@@ -143,7 +143,6 @@ fun SignInScreen(
                 showProviderSheet = false
                 snackbarHostState.showSnackbar((state as SignInState.Error).message)
             }
-            else -> {}
         }
     }
 
