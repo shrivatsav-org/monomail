@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.data.settings.DockConfig
 import com.shrivatsav.monomail.data.settings.DockTabId
 import com.shrivatsav.monomail.data.settings.AppSettings
+import com.shrivatsav.monomail.ui.theme.MonoTween
 
 @Composable
 internal fun BottomDockBar(
@@ -33,7 +34,7 @@ internal fun BottomDockBar(
     onTabClick: (InboxTab) -> Unit,
 ) {
     var showRemainingTabs by remember { mutableStateOf(false) }
-    val allTabs = DockTabId.entries.filter { !unifiedInboxEnabled || it != DockTabId.UNIFIED }
+    val allTabs = DockTabId.entries.filter { it != DockTabId.UNIFIED }
     val primaryIds = dockConfig.primaryTabs
     val remainingIds = allTabs.filter { it !in primaryIds }
 
@@ -85,8 +86,8 @@ private fun RemainingTabsPopup(
 ) {
     AnimatedVisibility(
         visible = visible,
-        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(tween(180)),
-        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(tween(120))
+        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(MonoTween.fadeIn),
+        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(MonoTween.fadeOut)
     ) {
         Surface(
             shape = RoundedCornerShape(20.dp),
@@ -102,7 +103,8 @@ private fun RemainingTabsPopup(
                         label = dockTabId.label(unifiedInboxEnabled),
                         isActive = tab == currentTab,
                         onClick = { onTabClick(tab) },
-                        scale = navScale
+                        scale = navScale,
+                        modifier = Modifier.width((76 * navScale).dp)
                     )
                 }
             }
@@ -183,11 +185,13 @@ private fun RemainingTabItem(
     isActive: Boolean,
     onClick: () -> Unit,
     scale: Float,
+    modifier: Modifier = Modifier,
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = if (isActive) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
         onClick = onClick,
+        modifier = modifier
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),

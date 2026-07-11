@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shrivatsav.monomail.data.settings.*
+import com.shrivatsav.monomail.ui.theme.MonoOpacity
+import com.shrivatsav.monomail.ui.theme.MonoSpring
 
 // ── Shared UI Primitives ────────────────────────────────────────────
 
@@ -43,10 +45,7 @@ internal fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMedium
-                )
+                animationSpec = MonoSpring.bouncy()
             )
     ) {
         Column(content = content)
@@ -96,7 +95,7 @@ internal fun SettingsToggleRow(
     indented: Boolean = false,
     enabled: Boolean = true
 ) {
-    val alpha = if (enabled) 1f else 0.4f
+    val alpha = if (enabled) 1f else MonoOpacity.disabled
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -140,6 +139,50 @@ internal fun SettingsToggleRow(
                 checkedThumbColor = MaterialTheme.colorScheme.onPrimary
             ),
             enabled = enabled
+        )
+    }
+}
+
+@Composable
+internal fun SettingsActionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(24.dp)
+        )
+        Spacer(Modifier.width(16.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            modifier = Modifier.size(22.dp)
         )
     }
 }
@@ -653,7 +696,7 @@ internal fun InfoRow(
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = MonoOpacity.secondary),
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -1013,55 +1056,6 @@ internal fun dockTabLabel(tab: DockTabId): String = when (tab) {
     DockTabId.STARRED  -> "Starred"
     DockTabId.TRASH    -> "Trash"
     DockTabId.SPAM     -> "Spam"
-}
-
-// ── Support Section ──────────────────────────────────────────────────
-
-@Composable
-internal fun SupportSection() {
-    SettingsCard {
-        SectionHeader(icon = Icons.Rounded.FavoriteBorder, title = "Support")
-        val context = androidx.compose.ui.platform.LocalContext.current
-        val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-        val kofiIcon = remember {
-            val bmp = android.graphics.BitmapFactory.decodeStream(
-                context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi)
-            )
-            if (bmp != null) androidx.compose.ui.graphics.painter.BitmapPainter(bmp.asImageBitmap()) else null
-        }
-        Box(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                GroupLabel(text = "Donate")
-                SupportButton(label = "Buy me a coffee", onClick = { uriHandler.openUri("https://ko-fi.com/N4N2W53M5") }, primary = true) { m ->
-                    if (kofiIcon != null) Icon(painter = kofiIcon, contentDescription = null, modifier = m, tint = Color.Unspecified)
-                    else Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = m)
-                }
-                SupportButton(label = "Pay with UPI", onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }, primary = true) { m ->
-                    Icon(Icons.Rounded.Payments, contentDescription = null, modifier = m)
-                }
-                SupportButton(label = "Donate Crypto (BASE)", onClick = {
-                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Crypto Address", "0xB27Ba9241de81F6DBCB322aDd76a9d9686462e9E"))
-                    android.widget.Toast.makeText(context, "Address copied to clipboard", android.widget.Toast.LENGTH_SHORT).show()
-                }, primary = true) { m -> Icon(Icons.Rounded.AccountBalanceWallet, contentDescription = null, modifier = m) }
-                GroupLabel(text = "Community", modifier = Modifier.padding(top = 6.dp))
-                SupportButton(label = "Star on GitHub", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }) { m -> Icon(Icons.Rounded.Star, contentDescription = null, modifier = m) }
-                SupportButton(label = "Join Discord Server", onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }) { m -> Icon(Icons.Rounded.HeadsetMic, contentDescription = null, modifier = m) }
-                SupportButton(label = "Share Monomail", onClick = {
-                    val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
-                        type = "text/plain"
-                        putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail — a private, open-source email client: https://github.com/shrivatsav-0/monomail")
-                    }
-                    context.startActivity(android.content.Intent.createChooser(intent, "Share Monomail"))
-                }) { m -> Icon(Icons.Rounded.Share, contentDescription = null, modifier = m) }
-                GroupLabel(text = "Help", modifier = Modifier.padding(top = 6.dp))
-                SupportButton(label = "Report Issue", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }) { m -> Icon(Icons.Rounded.BugReport, contentDescription = null, modifier = m) }
-            }
-        }
-    }
 }
 
 @Composable

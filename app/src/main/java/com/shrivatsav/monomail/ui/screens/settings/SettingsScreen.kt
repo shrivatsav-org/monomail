@@ -24,20 +24,26 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.shrivatsav.monomail.ui.theme.MonoSpring
+import com.shrivatsav.monomail.ui.theme.MonoTween
 
 enum class SettingsSection(val icon: ImageVector, val title: String, val subtitle: String) {
-    APPEARANCE(Icons.Rounded.Palette, "Appearance", "Theme, font size, display preferences"),
-    INBOX(Icons.Rounded.Inbox, "Inbox", "Threading, smart grouping, swipe gestures"),
+    ACCOUNTS(Icons.Rounded.ManageAccounts, "Accounts", "Manage accounts, providers, connection status"),
+    APPEARANCE(Icons.Rounded.Palette, "Appearance", "Theme, font size, colors"),
+    INBOX(Icons.Rounded.Inbox, "Inbox", "Threading, grouping, list density, swipe actions"),
+    READING(Icons.Rounded.MenuBook, "Reading", "Inline attachments, markdown renderer"),
+    PRIVACY(Icons.Rounded.Shield, "Privacy & Security", "PGP encryption keys, remote images"),
     COMPOSE(Icons.AutoMirrored.Rounded.Send, "Compose", "Reply defaults, confirm send, undo send"),
-    NAVIGATION(Icons.Rounded.SpaceDashboard, "Navigation", "Dock tabs & navigation bar"),
-    NOTIFICATIONS(Icons.Rounded.Notifications, "Notifications", "Push alerts, sync frequency"),
-    ABOUT(Icons.Rounded.Info, "About", "Version, updates, legal, licenses")
+    NAVIGATION(Icons.Rounded.Explore, "Navigation", "Gestures & actions"),
+    NOTIFICATIONS(Icons.Rounded.Notifications, "Notifications", "Alerts & sync"),
+    SUPPORT(Icons.Rounded.Favorite, "Support", "Donate & community")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
+    authManager: com.shrivatsav.monomail.auth.AuthManager,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
     onNavigateToPgpKeys: () -> Unit = {}
@@ -50,20 +56,25 @@ fun SettingsScreen(
         transitionSpec = {
             val isDrill = targetState != null
             if (isDrill) {
-                (slideInHorizontally { width -> width } + fadeIn(animationSpec = tween(250)))
-                    .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut(animationSpec = tween(200)))
+                (slideInHorizontally { width -> width } + fadeIn(animationSpec = MonoTween.fadeIn))
+                    .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut(animationSpec = MonoTween.fadeOut))
             } else {
-                (slideInHorizontally { width -> -width / 4 } + fadeIn(animationSpec = tween(250)))
-                    .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = tween(200)))
+                (slideInHorizontally { width -> -width / 4 } + fadeIn(animationSpec = MonoTween.fadeIn))
+                    .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = MonoTween.fadeOut))
             }
         },
         label = "settingsNav"
     ) { section ->
         when (section) {
             null -> SettingsHubScreen(
+                viewModel = viewModel,
                 onSectionClick = { currentSection = it },
-                onNavigateToPgpKeys = onNavigateToPgpKeys,
-                onBack = onNavigateBack
+                onNavigateBack = onNavigateBack,
+                onNavigateToLegal = onNavigateToLegal
+            )
+            SettingsSection.ACCOUNTS -> AccountsSettingsScreen(
+                authManager = authManager,
+                onBack = { currentSection = null }
             )
             SettingsSection.APPEARANCE -> AppearanceSettingsScreen(
                 viewModel = viewModel,
@@ -71,6 +82,15 @@ fun SettingsScreen(
             )
             SettingsSection.INBOX -> InboxSettingsScreen(
                 viewModel = viewModel,
+                onBack = { currentSection = null }
+            )
+            SettingsSection.READING -> ReadingSettingsScreen(
+                viewModel = viewModel,
+                onBack = { currentSection = null }
+            )
+            SettingsSection.PRIVACY -> PrivacySettingsScreen(
+                viewModel = viewModel,
+                onNavigateToPgpKeys = onNavigateToPgpKeys,
                 onBack = { currentSection = null }
             )
             SettingsSection.COMPOSE -> ComposeSettingsScreen(
@@ -82,12 +102,11 @@ fun SettingsScreen(
                 onBack = { currentSection = null }
             )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsScreen(
+                authManager = authManager,
                 viewModel = viewModel,
                 onBack = { currentSection = null }
             )
-            SettingsSection.ABOUT -> AboutSettingsScreen(
-                viewModel = viewModel,
-                onNavigateToLegal = onNavigateToLegal,
+            SettingsSection.SUPPORT -> SupportSettingsScreen(
                 onBack = { currentSection = null }
             )
         }
@@ -99,10 +118,15 @@ fun SettingsScreen(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsHubScreen(
+    viewModel: SettingsViewModel,
     onSectionClick: (SettingsSection) -> Unit,
-    onNavigateToPgpKeys: () -> Unit,
-    onBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    onNavigateToLegal: (String) -> Unit
 ) {
+    val buildFlavorName = if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
+    val buildTypeName = if (com.shrivatsav.monomail.BuildConfig.DEBUG) "Debug" else "Release"
+    val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -115,7 +139,7 @@ private fun SettingsHubScreen(
                     Text("Settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
                     }
                 },
@@ -142,16 +166,35 @@ private fun SettingsHubScreen(
                 )
             }
 
-            // ── PGP (direct nav to existing screen) ──────────────────────
-            CategoryCard(
-                icon = Icons.Rounded.Lock,
-                title = "PGP Encryption",
-                subtitle = "Manage encryption keys",
-                onClick = onNavigateToPgpKeys
-            )
-
-            Spacer(Modifier.height(6.dp))
-            SupportSection()
+            Spacer(Modifier.height(16.dp))
+            SettingsCard {
+                InfoRow(
+                    icon = Icons.Rounded.Info,
+                    title = "Version",
+                    value = "${com.shrivatsav.monomail.BuildConfig.VERSION_NAME} ($buildFlavorName $buildTypeName)"
+                )
+                CardDivider()
+                InfoRow(
+                    icon = Icons.Rounded.Language,
+                    title = "Website",
+                    value = "",
+                    onClick = { uriHandler.openUri("https://monomail.millosaurs.me") }
+                )
+                CardDivider()
+                InfoRow(
+                    icon = Icons.Rounded.PrivacyTip,
+                    title = "Privacy Policy",
+                    value = "",
+                    onClick = { onNavigateToLegal("privacy") }
+                )
+                CardDivider()
+                InfoRow(
+                    icon = Icons.Rounded.Gavel,
+                    title = "Terms of Service",
+                    value = "",
+                    onClick = { onNavigateToLegal("tos") }
+                )
+            }
             Spacer(Modifier.height(24.dp))
 
             Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
@@ -177,10 +220,7 @@ private fun CategoryCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val cardScale by animateFloatAsState(
         targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        animationSpec = MonoSpring.bouncy(),
         label = "cardScale"
     )
 

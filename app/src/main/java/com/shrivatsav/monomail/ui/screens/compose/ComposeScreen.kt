@@ -10,10 +10,12 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -27,8 +29,14 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.TextButton
@@ -65,6 +73,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -85,6 +94,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,6 +122,19 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.launch
 
 private fun resolveAttachmentMimeType(contentResolver: android.content.ContentResolver, uri: Uri, name: String): String {
     var mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
@@ -142,13 +165,12 @@ private fun TemplatesModal(
             Text(text = "Templates", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             if (templates.isEmpty()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(imageVector = Icons.Rounded.Description, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), modifier = Modifier.size(36.dp))
-                    Spacer(Modifier.height(8.dp))
-                    Text(text = "No templates yet", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
-                    Spacer(Modifier.height(4.dp))
-                    Text(text = "Add them in Settings", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
-                }
+                com.shrivatsav.monomail.ui.components.EmptyStateView(
+                    illustration = com.shrivatsav.monomail.ui.components.IllustrationType.SEARCH_EMPTY,
+                    title = "No templates yet",
+                    subtitle = "Add them in Settings",
+                    modifier = Modifier.height(200.dp)
+                )
             } else {
                 templates.forEach { template ->
                     Row(
@@ -213,6 +235,19 @@ private fun TopBarActions(state: ComposeUiState, viewModel: ComposeViewModel) {
             templates = templates,
             onDismiss = { showTemplates = false },
             onApply = { subj, body -> viewModel.applyTemplate(subj, body) }
+        )
+    }
+    IconButton(
+        onClick = { viewModel.showSchedulePicker() },
+        enabled = state.to.isNotBlank()
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Schedule,
+            contentDescription = "Schedule",
+            tint = if (state.to.isNotBlank())
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            else
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
         )
     }
     if (state.hasEncryptionKeys || state.hasSigningKeys) {
@@ -340,7 +375,6 @@ fun ComposeScreen(
                 isSent = state.isSent,
                 canSend = canSend,
                 onAttach = { launcher.launch("*/*") },
-                onSchedule = { viewModel.showSchedulePicker() },
                 onSend = { viewModel.send() }
             )
         },
@@ -380,6 +414,7 @@ fun ComposeScreen(
                 state = state,
                 onToggleCcBcc = { showCcBcc = !showCcBcc },
                 onSelectAlias = { viewModel.selectAlias(it) },
+                onSelectAccount = { viewModel.selectAccount(it) },
                 onToggleFromDropdown = { viewModel.toggleFromDropdown() },
                 onDismissFromDropdown = { viewModel.dismissFromDropdown() }
             )
@@ -684,14 +719,20 @@ private fun FromFieldSection(
     state: ComposeUiState,
     onToggleCcBcc: () -> Unit,
     onSelectAlias: (SendAsAlias) -> Unit,
+    onSelectAccount: (com.shrivatsav.monomail.auth.UserProfile) -> Unit,
     onToggleFromDropdown: () -> Unit,
     onDismissFromDropdown: () -> Unit
 ) {
+    val showDropdown = if (state.unifiedMode && state.allAccounts.size > 1) {
+        true
+    } else {
+        state.fromAliases.size > 1
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
-                if (state.fromAliases.size > 1) onToggleFromDropdown()
+                if (showDropdown) onToggleFromDropdown()
             }
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -710,7 +751,7 @@ private fun FromFieldSection(
             ),
             modifier = Modifier.weight(1f)
         )
-        if (state.fromAliases.size > 1) {
+        if (showDropdown) {
             Icon(
                 imageVector = Icons.Rounded.ArrowDropDown,
                 contentDescription = "Select sender",
@@ -720,23 +761,44 @@ private fun FromFieldSection(
                 expanded = state.showFromDropdown,
                 onDismissRequest = { onDismissFromDropdown() }
             ) {
-                state.fromAliases.forEach { alias ->
-                    DropdownMenuItem(
-                        text = {
-                            Column {
-                                Text(
-                                    text = alias.displayName.ifEmpty { alias.email },
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                                Text(
-                                    text = alias.email,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        },
-                        onClick = { onSelectAlias(alias) }
-                    )
+                if (state.unifiedMode && state.allAccounts.size > 1) {
+                    state.allAccounts.forEach { account ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = account.displayName.ifEmpty { account.email },
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = account.email,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onClick = { onSelectAccount(account) }
+                        )
+                    }
+                } else {
+                    state.fromAliases.forEach { alias ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(
+                                        text = alias.displayName.ifEmpty { alias.email },
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
+                                    Text(
+                                        text = alias.email,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            },
+                            onClick = { onSelectAlias(alias) }
+                        )
+                    }
                 }
             }
         }
@@ -912,14 +974,13 @@ private fun QuotedBodySection(originalBody: String) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun ComposeBottomBar(
     isSending: Boolean,
     isSent: Boolean,
     canSend: Boolean,
     onAttach: () -> Unit,
-    onSchedule: () -> Unit,
     onSend: () -> Unit
 ) {
     Box(
@@ -940,60 +1001,183 @@ private fun ComposeBottomBar(
                     .padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onAttach) {
+                IconButton(onClick = onAttach, enabled = !isSending && !isSent) {
                     Icon(
                         imageVector = Icons.Rounded.AttachFile,
                         contentDescription = "Attach",
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
                 }
+                Spacer(Modifier.width(4.dp))
                 Spacer(Modifier.weight(1f))
                 when {
-                    isSending -> CircularProgressIndicator(
-                        modifier = Modifier
-                            .size(24.dp)
-                            .padding(end = 8.dp),
-                        strokeWidth = 2.dp,
+                    isSending -> LoadingIndicator(
+                        modifier = Modifier.size(36.dp),
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    !isSent -> {
-                    IconButton(
-                        onClick = onSchedule,
+                    !isSent -> IconButton(
+                        onClick = onSend,
                         enabled = canSend
                     ) {
                         Icon(
-                            imageVector = Icons.Rounded.Schedule,
-                            contentDescription = "Schedule",
-                            tint = if (canSend)
-                                MaterialTheme.colorScheme.onSurface
-                            else
-                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                        )
-                    }
-                    FilledTonalButton(
-                        onClick = onSend,
-                        enabled = canSend,
-                        shape = RoundedCornerShape(20.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    ) {
-                        Icon(
                             imageVector = Icons.AutoMirrored.Rounded.Send,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
+                            contentDescription = "Send",
+                            tint = if (canSend) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                         )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            text = "Send",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SlideToSendControl(
+    canSend: Boolean,
+    onSend: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    val thumbSize = 48.dp
+    val thumbPadding = 0.dp
+
+    var trackWidthPx by remember { mutableStateOf(0f) }
+    val maxOffset by remember(trackWidthPx) {
+        derivedStateOf {
+            with(density) { (trackWidthPx - thumbSize.toPx() - thumbPadding.toPx() * 2).coerceAtLeast(0f) }
+        }
+    }
+
+    val thumbOffset = remember { Animatable(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+    var hasTriggeredHaptic by remember { mutableStateOf(false) }
+    var completing by remember { mutableStateOf(false) }
+
+    val progress = if (maxOffset > 0f) (thumbOffset.value / maxOffset).coerceIn(0f, 1f) else 0f
+    val sendThreshold = 0.82f
+    val morphed = progress >= 0.6f
+
+    val infiniteTransition = rememberInfiniteTransition(label = "slideHint")
+    val hintOffset by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "hintOffset"
+    )
+
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .onGloballyPositioned { trackWidthPx = it.size.width.toFloat() }
+            .clip(RoundedCornerShape(24.dp))
+            .background(
+                if (canSend) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHigh
+            )
+            .border(
+                width = 1.dp,
+                color = if (canSend)
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
+                else
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                shape = RoundedCornerShape(24.dp)
+            )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(with(density) { (thumbOffset.value + thumbSize.toPx() + thumbPadding.toPx()).toDp() })
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f + 0.18f * progress))
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = thumbSize + thumbPadding * 2)
+                .alpha((1f - progress * 1.6f).coerceIn(0f, 1f)),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = if (canSend) "Slide to send" else "Add a recipient",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (canSend)
+                    MaterialTheme.colorScheme.onPrimaryContainer
+                else
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                maxLines = 1
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .padding(thumbPadding)
+                .offset { IntOffset(x = thumbOffset.value.toInt(), y = 0) }
+                .size(thumbSize)
+                .scale(if (isDragging) 1.1f else 1f)
+                .clip(CircleShape)
+                .background(
+                    if (canSend) MaterialTheme.colorScheme.tertiaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerHighest
+                )
+                .border(
+                    width = if (canSend) 0.dp else 1.dp,
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                    shape = CircleShape
+                )
+                .pointerInput(canSend, maxOffset) {
+                    if (!canSend) return@pointerInput
+                    detectHorizontalDragGestures(
+                        onDragStart = { isDragging = true; hasTriggeredHaptic = false },
+                        onDragEnd = {
+                            isDragging = false
+                            val reached = maxOffset > 0f && thumbOffset.value / maxOffset >= sendThreshold
+                            scope.launch {
+                                if (reached && !completing) {
+                                    completing = true
+                                    thumbOffset.animateTo(maxOffset, spring(dampingRatio = 0.7f, stiffness = 400f))
+                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onSend()
+                                } else {
+                                    thumbOffset.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 300f))
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            isDragging = false
+                            scope.launch { thumbOffset.animateTo(0f, spring(dampingRatio = 0.55f, stiffness = 300f)) }
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            scope.launch {
+                                thumbOffset.snapTo((thumbOffset.value + dragAmount).coerceIn(0f, maxOffset))
+                            }
+                            if (!hasTriggeredHaptic && maxOffset > 0f && thumbOffset.value / maxOffset >= sendThreshold) {
+                                hasTriggeredHaptic = true
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            }
+                        }
+                    )
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = if (morphed) Icons.Rounded.CheckCircle else Icons.AutoMirrored.Rounded.Send,
+                contentDescription = null,
+                tint = if (canSend) MaterialTheme.colorScheme.onTertiaryContainer
+                       else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier
+                    .size(20.dp)
+                    .offset(x = if (canSend && !isDragging && progress < 0.05f) (hintOffset * 3).dp else 0.dp)
+            )
         }
     }
 }

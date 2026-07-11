@@ -133,3 +133,15 @@ val SystemTypography = Typography(
     labelMedium = AppTypography.labelMedium.copy(fontFamily = FontFamily.Default),
     labelSmall = AppTypography.labelSmall.copy(fontFamily = FontFamily.Default),
 )
+
+/**
+ * Special typography style for large display numbers (stats, email counts).
+ * Uses the non-rounded, sharp variant of Google Sans Flex.
+ */
+val DisplayNumberStyle = TextStyle(
+    fontFamily = GoogleSansFamily, // Non-rounded
+    fontWeight = FontWeight.W600,
+    fontSize = 32.sp,
+    lineHeight = 40.sp,
+    letterSpacing = 0.5.sp
+)

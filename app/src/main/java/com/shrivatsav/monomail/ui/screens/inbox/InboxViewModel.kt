@@ -97,6 +97,7 @@ class InboxViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     private val _lastSelectedThreadId = MutableStateFlow<String?>(null)
     val lastSelectedThreadId: StateFlow<String?> = _lastSelectedThreadId.asStateFlow()
+    val animatedItemsTracker = mutableSetOf<String>()
     private val _appSettings = MutableStateFlow(AppSettings())
     val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()
     private var pollingIntervalMs = 120_000L
@@ -222,11 +223,16 @@ class InboxViewModel @Inject constructor(
                 _appSettings.value = settings
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
-                pollingIntervalMs = when (settings.syncFrequency) {
-                    SyncFrequency.MIN_15 -> 15 * 60 * 1000L
-                    SyncFrequency.MIN_30 -> 30 * 60 * 1000L
-                    SyncFrequency.HOUR_1 -> 60 * 60 * 1000L
-                    SyncFrequency.MANUAL -> Long.MAX_VALUE
+                val isPlayStoreBuild = !com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD
+                pollingIntervalMs = if (isPlayStoreBuild) {
+                    Long.MAX_VALUE
+                } else {
+                    when (settings.syncFrequency) {
+                        SyncFrequency.MIN_15 -> 15 * 60 * 1000L
+                        SyncFrequency.MIN_30 -> 30 * 60 * 1000L
+                        SyncFrequency.HOUR_1 -> 60 * 60 * 1000L
+                        SyncFrequency.MANUAL -> Long.MAX_VALUE
+                    }
                 }
                 if (!settings.hasSeenWelcomePrompt && authManager.currentUser != null) {
                     _showWelcomePrompt.value = true
@@ -433,44 +439,18 @@ class InboxViewModel @Inject constructor(
     }
 
     fun emptyTrash() {
-        val currentState = state.value as? InboxState.Success ?: return
-        val trashIds = currentState.threads.map { it.threadId }.toSet()
-        if (trashIds.isEmpty()) return
-
-        val sentinelId = "empty_trash"
-        val currentGen = ++trashOperationGeneration
-        pendingHiddenTrashIds.clear()
-        pendingHiddenTrashIds.addAll(trashIds)
-        trashIds.forEach { pendingHideIdsSnapshot[it] = true }
-        _toastState.value = ToastState(sentinelId, "Trash emptied", ActionType.EMPTY_TRASH)
-
-        if (pendingActionJobs.size >= 30) {
-            pendingActionJobs.entries.take(10).forEach { (key, job) ->
-                job.cancel()
-                pendingActionJobs.remove(key)
-            }
-        }
-        pendingActionJobs[sentinelId]?.cancel()
-        pendingActionJobs[sentinelId] = viewModelScope.launch {
+        val isUnified = _currentTab.value == InboxTab.UNIFIED || _unifiedInboxEnabled.value
+        viewModelScope.launch {
             try {
-                delay(4000)
-                if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
-                    repository.emptyTrash()
-                }
+                repository.emptyTrash(isUnified)
             } catch (e: Exception) {
                 android.util.Log.w(TAG, "emptyTrash failed", e)
-            } finally {
-                if (_toastState.value?.threadId == sentinelId && currentGen == trashOperationGeneration) {
-                    _toastState.value = null
-                    pendingHiddenTrashIds.forEach { pendingHideIdsSnapshot.remove(it) }
-                    pendingHiddenTrashIds.clear()
-                    pendingActionJobs.remove(sentinelId)
-                }
             }
         }
     }
     fun emptySpam() {
-        viewModelScope.launch { repository.emptySpam() }
+        val isUnified = _currentTab.value == InboxTab.UNIFIED || _unifiedInboxEnabled.value
+        viewModelScope.launch { repository.emptySpam(isUnified) }
     }
 
     fun restoreThread(threadId: String) {
