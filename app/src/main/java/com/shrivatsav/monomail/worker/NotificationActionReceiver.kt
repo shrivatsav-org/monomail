@@ -48,23 +48,19 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val SNOOZE_REQUEST_CODE_BASE = 40000
         const val UNDO_SNOOZE_REQUEST_CODE_BASE = 50000
 
-        fun createReplyPendingIntent(
-            context: Context, accountId: String, threadId: String,
-            messageId: String, subject: String, fromEmail: String,
-            fromName: String, notificationId: Int
-        ): PendingIntent {
+        fun createReplyPendingIntent(context: Context, params: ReplyParams): PendingIntent {
             val intent = Intent(context, NotificationActionReceiver::class.java).apply {
                 action = ACTION_REPLY
-                putExtra(EXTRA_ACCOUNT_ID, accountId)
-                putExtra(EXTRA_THREAD_ID, threadId)
-                putExtra(EXTRA_MESSAGE_ID, messageId)
-                putExtra(EXTRA_SUBJECT, subject)
-                putExtra(EXTRA_FROM_EMAIL, fromEmail)
-                putExtra(EXTRA_FROM_NAME, fromName)
-                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+                putExtra(EXTRA_ACCOUNT_ID, params.accountId)
+                putExtra(EXTRA_THREAD_ID, params.threadId)
+                putExtra(EXTRA_MESSAGE_ID, params.messageId)
+                putExtra(EXTRA_SUBJECT, params.subject)
+                putExtra(EXTRA_FROM_EMAIL, params.fromEmail)
+                putExtra(EXTRA_FROM_NAME, params.fromName)
+                putExtra(EXTRA_NOTIFICATION_ID, params.notificationId)
             }
             return PendingIntent.getBroadcast(
-                context, REPLY_REQUEST_CODE_BASE + notificationId, intent,
+                context, REPLY_REQUEST_CODE_BASE + params.notificationId, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
         }
@@ -106,6 +102,16 @@ class NotificationActionReceiver : BroadcastReceiver() {
             fun emailRepository(): EmailRepository
         }
     }
+
+    data class ReplyParams(
+        val accountId: String,
+        val threadId: String,
+        val messageId: String,
+        val subject: String,
+        val fromEmail: String,
+        val fromName: String,
+        val notificationId: Int
+    )
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

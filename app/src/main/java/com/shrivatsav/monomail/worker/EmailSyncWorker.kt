@@ -157,13 +157,15 @@ class EmailSyncWorker @AssistedInject constructor(
 
         val replyPendingIntent = NotificationActionReceiver.createReplyPendingIntent(
             context = context,
-            accountId = accountId,
-            threadId = thread.threadId,
-            messageId = thread.latestMessageId,
-            subject = thread.subject,
-            fromEmail = thread.fromEmail,
-            fromName = thread.from,
-            notificationId = notificationId
+            params = NotificationActionReceiver.ReplyParams(
+                accountId = accountId,
+                threadId = thread.threadId,
+                messageId = thread.latestMessageId,
+                subject = thread.subject,
+                fromEmail = thread.fromEmail,
+                fromName = thread.from,
+                notificationId = notificationId
+            )
         )
         val replyRemoteInput = RemoteInput.Builder(NotificationActionReceiver.KEY_TEXT_REPLY)
             .setLabel("Reply")
