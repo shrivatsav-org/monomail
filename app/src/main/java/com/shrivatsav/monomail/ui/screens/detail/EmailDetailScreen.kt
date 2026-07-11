@@ -639,11 +639,7 @@ private fun MessageBody(
     messageCount: Int = 0,
     modifier: Modifier = Modifier
 ) {
-    val isEncryptedBlob = decryptedResult == null && (
-        email.body.startsWith("-----BEGIN PGP MESSAGE-----") ||
-        email.body.contains("multipart/encrypted;") ||
-        email.body.contains("multipart/encrypted\r\n")
-    )
+    val isEncryptedBlob = isEncryptedBlob(email)
     val normalizedBody = if (isEncryptedBlob) {
         normalizeEmailBody("", bodyIsHtml = false)
     } else {
@@ -660,55 +656,74 @@ private fun MessageBody(
             }
             return
         }
-        var showQuotedText by remember { mutableStateOf(false) }
-        val hasQuotedText = remember(safeBodyText) {
-            safeBodyText.contains("<blockquote", ignoreCase = true) ||
-            safeBodyText.contains("gmail_quote", ignoreCase = true) ||
-            safeBodyText.contains("gmail_extra", ignoreCase = true) ||
-            safeBodyText.contains("yahoo_quoted", ignoreCase = true) ||
-            safeBodyText.contains("moz-cite-prefix", ignoreCase = true) ||
-            safeBodyText.contains("appendonsend", ignoreCase = true) ||
-            safeBodyText.contains("divRplyFwdMsg", ignoreCase = true) ||
-            safeBodyText.contains("On ", ignoreCase = true) && safeBodyText.contains(" wrote:", ignoreCase = true)
-        }
-        if (showSender) {
-            SenderInfoSection(email, messageCount)
-        }
-        if (showSender && !config.showInlineAttachments && email.attachments.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            ThreadAttachmentsSummary(
-                attachmentsWithSender = email.attachments.map { it to displayName(email.from) },
-                onFetchAttachment = onFetchAttachment
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-        var showRemoteImages by remember { mutableStateOf(false) }
-        RemoteImagesBanner(config.loadRemoteImages, showRemoteImages, bodyIsHtml) { showRemoteImages = true }
-        val textColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.onBackground.toArgb())
-        val linkColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.primary.toArgb())
-        val useOverviewScaling = remember(safeBodyText, bodyIsHtml) {
-            bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksMobileFriendly(safeBodyText) && !looksDataTableEmail(safeBodyText)
-        }
-        val emailZoomFactor = if (useOverviewScaling) {
-            val screenWidthDp = LocalConfiguration.current.screenWidthDp
-            ((screenWidthDp - 56).toFloat() / 600f).coerceIn(0.3f, 1.0f)
-        } else 1.0f
-        val htmlContent = remember(email.id, safeBodyText, config.fontScaleMultiplier, showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, config.emailTheme, useOverviewScaling, emailZoomFactor) {
-            buildEmailHtml(email, safeBodyText, bodyIsHtml, config.fontScaleMultiplier, HtmlBuildParams(showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor))
-        }
-        EmailWebViewCard(email.id, htmlContent, config.emailTheme, useOverviewScaling)
-        if (hasQuotedText) {
-            QuotedTextToggle(showQuotedText) { showQuotedText = !showQuotedText }
-        }
-        if (config.isDeveloperMode) {
-            DeveloperCopyButton(email)
-        }
-        if (config.showInlineAttachments && email.attachments.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(16.dp))
-            AttachmentsSection(attachments = email.attachments, onFetchAttachment = onFetchAttachment)
-        }
+        MessageBodyContent(email, safeBodyText, bodyIsHtml, config, showSender, messageCount, onFetchAttachment)
     }
 }
+
+private fun isEncryptedBlob(email: Email): Boolean =
+    email.body.startsWith("-----BEGIN PGP MESSAGE-----") ||
+        email.body.contains("multipart/encrypted;") ||
+        email.body.contains("multipart/encrypted\r\n")
+
+@Composable
+private fun MessageBodyContent(
+    email: Email,
+    safeBodyText: String,
+    bodyIsHtml: Boolean,
+    config: EmailDisplayConfig,
+    showSender: Boolean,
+    messageCount: Int,
+    onFetchAttachment: suspend (String, String) -> ByteArray?
+) {
+    var showQuotedText by remember { mutableStateOf(false) }
+    val hasQuotedText = remember(safeBodyText) { hasQuotedTextBlock(safeBodyText) }
+    if (showSender) {
+        SenderInfoSection(email, messageCount)
+    }
+    if (showSender && !config.showInlineAttachments && email.attachments.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(8.dp))
+        ThreadAttachmentsSummary(
+            attachmentsWithSender = email.attachments.map { it to displayName(email.from) },
+            onFetchAttachment = onFetchAttachment
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+    }
+    var showRemoteImages by remember { mutableStateOf(false) }
+    RemoteImagesBanner(config.loadRemoteImages, showRemoteImages, bodyIsHtml) { showRemoteImages = true }
+    val textColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.onBackground.toArgb())
+    val linkColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.primary.toArgb())
+    val useOverviewScaling = remember(safeBodyText, bodyIsHtml) {
+        bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksMobileFriendly(safeBodyText) && !looksDataTableEmail(safeBodyText)
+    }
+    val emailZoomFactor = if (useOverviewScaling) {
+        val screenWidthDp = LocalConfiguration.current.screenWidthDp
+        ((screenWidthDp - 56).toFloat() / 600f).coerceIn(0.3f, 1.0f)
+    } else 1.0f
+    val htmlContent = remember(email.id, safeBodyText, config.fontScaleMultiplier, showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, config.emailTheme, useOverviewScaling, emailZoomFactor) {
+        buildEmailHtml(email, safeBodyText, bodyIsHtml, config.fontScaleMultiplier, HtmlBuildParams(showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor))
+    }
+    EmailWebViewCard(email.id, htmlContent, config.emailTheme, useOverviewScaling)
+    if (hasQuotedText) {
+        QuotedTextToggle(showQuotedText) { showQuotedText = !showQuotedText }
+    }
+    if (config.isDeveloperMode) {
+        DeveloperCopyButton(email)
+    }
+    if (config.showInlineAttachments && email.attachments.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(16.dp))
+        AttachmentsSection(attachments = email.attachments, onFetchAttachment = onFetchAttachment)
+    }
+}
+
+private fun hasQuotedTextBlock(body: String): Boolean =
+    body.contains("<blockquote", ignoreCase = true) ||
+        body.contains("gmail_quote", ignoreCase = true) ||
+        body.contains("gmail_extra", ignoreCase = true) ||
+        body.contains("yahoo_quoted", ignoreCase = true) ||
+        body.contains("moz-cite-prefix", ignoreCase = true) ||
+        body.contains("appendonsend", ignoreCase = true) ||
+        body.contains("divRplyFwdMsg", ignoreCase = true) ||
+        (body.contains("On ", ignoreCase = true) && body.contains(" wrote:", ignoreCase = true))
 
 @Composable
 private fun EncryptionBadge(decryptedResult: PgpDecryptionResult?) {

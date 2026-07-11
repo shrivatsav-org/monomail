@@ -13,9 +13,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
+
+data class SwipeCallbacks(
+    val onThreadToDeleteChange: (String?) -> Unit,
+    val onEmailClick: () -> Unit,
+    val onLongClick: () -> Unit,
+    val isNested: Boolean = false
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,15 +33,8 @@ internal fun SwipeableEmailItem(
     tabForSwipe: InboxTab,
     appSettings: com.shrivatsav.monomail.data.settings.AppSettings,
     viewModel: InboxViewModel,
-    onThreadToDeleteChange: (String?) -> Unit,
-    onEmailClick: () -> Unit,
-    onLongClick: () -> Unit,
-    isNested: Boolean = false,
-    isSelected: Boolean = false,
-    isBulkMode: Boolean = false,
-    onSelectToggle: () -> Unit = {},
-    onRangeSelect: () -> Unit = {},
-    onAvatarLongClick: () -> Unit = {}
+    callbacks: SwipeCallbacks,
+    selection: SelectionState = SelectionState()
 ) {
     var optIsRead by remember(thread.isRead) { mutableStateOf(thread.isRead) }
     var optIsStarred by remember(thread.isStarred) { mutableStateOf(thread.isStarred) }
@@ -47,52 +48,47 @@ internal fun SwipeableEmailItem(
 
     LaunchedEffect(dismissState.currentValue) {
         if (dismissState.currentValue == SwipeToDismissBoxValue.Settled) return@LaunchedEffect
-        val action = when (dismissState.currentValue) {
-            SwipeToDismissBoxValue.StartToEnd -> appSettings.swipeRightAction
-            SwipeToDismissBoxValue.EndToStart -> appSettings.swipeLeftAction
-            else -> return@LaunchedEffect
-        }
+        val action = resolveSwipeAction(dismissState, appSettings) ?: return@LaunchedEffect
         when (action) {
             com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> {
                 if (tabForSwipe == InboxTab.ARCHIVED) viewModel.unarchiveThread(thread.threadId)
                 else if (tabForSwipe == InboxTab.SPAM) viewModel.reportNotSpam(thread.threadId)
                 else viewModel.archiveThread(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
             }
             com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> {
                 optIsStarred = !optIsStarred
                 viewModel.toggleStar(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
             }
             com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> {
-                onThreadToDeleteChange(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
+                callbacks.onThreadToDeleteChange(thread.threadId)
             }
             com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> {
                 val wasRead = optIsRead
                 optIsRead = !wasRead
                 if (wasRead) viewModel.markThreadAsUnread(thread.threadId)
                 else viewModel.markThreadAsRead(thread.threadId)
-                scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
             }
         }
+        scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
     }
 
     Column(
-        modifier = modifier.let { if (isNested) it.padding(start = 32.dp) else it }
+        modifier = modifier.let { if (callbacks.isNested) it.padding(start = 32.dp) else it }
     ) {
-        if (isBulkMode) {
+        if (selection.isBulkMode) {
             EmailItem(
                 thread = displayThread,
-                onClick = onEmailClick,
-                onLongClick = onLongClick,
+                onClick = callbacks.onEmailClick,
+                onLongClick = callbacks.onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
-                isSelected = isSelected,
-                isBulkMode = true,
-                onSelectToggle = onSelectToggle,
-                onRangeSelect = onRangeSelect,
-                onAvatarLongClick = onAvatarLongClick
+                selection = SelectionState(
+                    isSelected = selection.isSelected,
+                    isBulkMode = true,
+                    onSelectToggle = selection.onSelectToggle,
+                    onRangeSelect = selection.onRangeSelect,
+                    onAvatarLongClick = selection.onAvatarLongClick
+                )
             )
         } else {
         SwipeToDismissBox(
@@ -100,118 +96,22 @@ internal fun SwipeableEmailItem(
             enableDismissFromEndToStart = true,
             enableDismissFromStartToEnd = true,
             backgroundContent = {
-                val getAction = { v: SwipeToDismissBoxValue ->
-                    when (v) {
-                        SwipeToDismissBoxValue.StartToEnd -> appSettings.swipeRightAction
-                        SwipeToDismissBoxValue.EndToStart -> appSettings.swipeLeftAction
-                        else -> null
-                    }
-                }
-                val action =
-                    getAction(dismissState.targetValue) ?: getAction(dismissState.dismissDirection)
-                val color by animateColorAsState(
-                    when (action) {
-                        com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.primaryContainer
-                        com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> MaterialTheme.colorScheme.tertiaryContainer
-                        com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> MaterialTheme.colorScheme.errorContainer
-                        com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> MaterialTheme.colorScheme.secondaryContainer
-                        else -> Color.Transparent
-                    },
-                    animationSpec = tween(200),
-                    label = "swipeBg"
-                )
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(color)
-                        .padding(horizontal = 20.dp),
-                    contentAlignment = if (
-                        dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd ||
-                        dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
-                    ) Alignment.CenterStart else Alignment.CenterEnd
-                ) {
-                    when (action) {
-                        com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    if (tabForSwipe == InboxTab.ARCHIVED) Icons.Rounded.Inbox else if (tabForSwipe == InboxTab.SPAM) Icons.Rounded.Restore else Icons.Rounded.Archive,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = when (tabForSwipe) {
-                                        InboxTab.ARCHIVED -> "Inbox"
-                                        InboxTab.SPAM -> "Restore"
-                                        else -> "Archive"
-                                    },
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        com.shrivatsav.monomail.data.settings.SwipeAction.STAR ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    if (optIsStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = if (optIsStarred) "Unstar" else "Star",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onTertiaryContainer
-                                )
-                            }
-                        com.shrivatsav.monomail.data.settings.SwipeAction.DELETE ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    Icons.Rounded.Delete,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = "Delete",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            }
-                        com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD ->
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(
-                                    if (optIsRead) Icons.Rounded.MarkEmailRead else Icons.Rounded.MarkEmailUnread,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = if (optIsRead) "Mark\nUnread" else "Mark\nRead",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                                )
-                            }
-                        else -> {}
-                    }
-                }
+                SwipeBackground(dismissState, appSettings, tabForSwipe, optIsStarred, optIsRead)
             }
         ) {
             EmailItem(
                 thread = displayThread,
-                onClick = onEmailClick,
-                onLongClick = onLongClick,
+                onClick = callbacks.onEmailClick,
+                onLongClick = callbacks.onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
-                isSelected = isSelected,
-                isBulkMode = false,
-                onSelectToggle = onSelectToggle,
-                onRangeSelect = onRangeSelect,
-                onAvatarLongClick = onAvatarLongClick
+                selection = SelectionState(
+                    isSelected = selection.isSelected,
+                    isBulkMode = false,
+                    onSelectToggle = selection.onSelectToggle,
+                    onRangeSelect = selection.onRangeSelect,
+                    onAvatarLongClick = selection.onAvatarLongClick
+                )
             )
         }
         }
@@ -223,4 +123,115 @@ internal fun SwipeableEmailItem(
             )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+private fun resolveSwipeAction(
+    state: SwipeToDismissBoxState,
+    appSettings: com.shrivatsav.monomail.data.settings.AppSettings
+): com.shrivatsav.monomail.data.settings.SwipeAction? {
+    return when (state.currentValue) {
+        SwipeToDismissBoxValue.StartToEnd -> appSettings.swipeRightAction
+        SwipeToDismissBoxValue.EndToStart -> appSettings.swipeLeftAction
+        else -> null
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SwipeBackground(
+    dismissState: SwipeToDismissBoxState,
+    appSettings: com.shrivatsav.monomail.data.settings.AppSettings,
+    tabForSwipe: InboxTab,
+    optIsStarred: Boolean,
+    optIsRead: Boolean
+) {
+    val getAction = { v: SwipeToDismissBoxValue ->
+        when (v) {
+            SwipeToDismissBoxValue.StartToEnd -> appSettings.swipeRightAction
+            SwipeToDismissBoxValue.EndToStart -> appSettings.swipeLeftAction
+            else -> null
+        }
+    }
+    val action = getAction(dismissState.targetValue) ?: getAction(dismissState.dismissDirection)
+    val color by animateColorAsState(
+        swipeActionColor(action),
+        animationSpec = tween(200),
+        label = "swipeBg"
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(color)
+            .padding(horizontal = 20.dp),
+        contentAlignment = if (
+            dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd ||
+            dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+        ) Alignment.CenterStart else Alignment.CenterEnd
+    ) {
+        SwipeActionLabel(action, tabForSwipe, optIsStarred, optIsRead)
+    }
+}
+
+@Composable
+private fun SwipeActionLabel(
+    action: com.shrivatsav.monomail.data.settings.SwipeAction?,
+    tabForSwipe: InboxTab,
+    optIsStarred: Boolean,
+    optIsRead: Boolean
+) {
+    val (icon, label, tint) = swipeActionVisuals(action, tabForSwipe, optIsStarred, optIsRead) ?: return
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(icon, contentDescription = null, tint = tint)
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = tint,
+            textAlign = if (action == com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD) TextAlign.Center else TextAlign.Unspecified
+        )
+    }
+}
+
+@Composable
+private fun swipeActionColor(action: com.shrivatsav.monomail.data.settings.SwipeAction?) =
+    when (action) {
+        com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> MaterialTheme.colorScheme.primaryContainer
+        com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> MaterialTheme.colorScheme.tertiaryContainer
+        com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> MaterialTheme.colorScheme.errorContainer
+        com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> MaterialTheme.colorScheme.secondaryContainer
+        else -> Color.Transparent
+    }
+
+private data class SwipeVisuals(val icon: androidx.compose.ui.graphics.vector.ImageVector, val label: String, val tint: Color)
+
+@Composable
+private fun swipeActionVisuals(
+    action: com.shrivatsav.monomail.data.settings.SwipeAction?,
+    tabForSwipe: InboxTab,
+    optIsStarred: Boolean,
+    optIsRead: Boolean
+): SwipeVisuals? = when (action) {
+    com.shrivatsav.monomail.data.settings.SwipeAction.ARCHIVE -> SwipeVisuals(
+        icon = when (tabForSwipe) { InboxTab.ARCHIVED -> Icons.Rounded.Inbox; InboxTab.SPAM -> Icons.Rounded.Restore; else -> Icons.Rounded.Archive },
+        label = when (tabForSwipe) { InboxTab.ARCHIVED -> "Inbox"; InboxTab.SPAM -> "Restore"; else -> "Archive" },
+        tint = MaterialTheme.colorScheme.onPrimaryContainer
+    )
+    com.shrivatsav.monomail.data.settings.SwipeAction.STAR -> SwipeVisuals(
+        icon = if (optIsStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+        label = if (optIsStarred) "Unstar" else "Star",
+        tint = MaterialTheme.colorScheme.onTertiaryContainer
+    )
+    com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> SwipeVisuals(
+        icon = Icons.Rounded.Delete,
+        label = "Delete",
+        tint = MaterialTheme.colorScheme.onErrorContainer
+    )
+    com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> SwipeVisuals(
+        icon = if (optIsRead) Icons.Rounded.MarkEmailRead else Icons.Rounded.MarkEmailUnread,
+        label = if (optIsRead) "Mark\nUnread" else "Mark\nRead",
+        tint = MaterialTheme.colorScheme.onSecondaryContainer
+    )
+    else -> null
 }

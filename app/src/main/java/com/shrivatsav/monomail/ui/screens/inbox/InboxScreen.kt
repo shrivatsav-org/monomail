@@ -38,18 +38,22 @@ import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
 
+data class InboxNavActions(
+    val onEmailClick: (String) -> Unit,
+    val onSignOut: () -> Unit,
+    val onCompose: () -> Unit = {},
+    val onSettings: () -> Unit = {},
+    val onAddAccount: () -> Unit = {},
+    val onScheduledClick: () -> Unit = {},
+    val onNavigateToImapSetup: () -> Unit = {}
+)
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun InboxScreen(
     viewModel: InboxViewModel,
     userProfile: UserProfile?,
-    onEmailClick: (String) -> Unit,
-    onSignOut: () -> Unit,
-    onCompose: () -> Unit = {},
-    onSettings: () -> Unit = {},
-    onAddAccount: () -> Unit = {},
-    onScheduledClick: () -> Unit = {},
-    onNavigateToImapSetup: () -> Unit = {}
+    navActions: InboxNavActions
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
@@ -175,19 +179,23 @@ fun InboxScreen(
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
                         onServerSearch = { viewModel.searchServer(it) },
-                        onMarkAllRead = { viewModel.markAllAsRead() },
-                        onScheduledClick = onScheduledClick,
+                        actions = SearchBarActions(
+                            onMarkAllRead = { viewModel.markAllAsRead() },
+                            onScheduledClick = navActions.onScheduledClick,
+                            scheduledCount = scheduledCount,
+                            onUndo = { viewModel.undoAction() },
+                            onOpenProfile = { activeModal = ModalType.PROFILE }
+                        ),
                         isRefreshing = isRefreshing,
                         toastState = toastState,
-                        onUndo = { viewModel.undoAction() },
-                        onOpenProfile = { activeModal = ModalType.PROFILE },
-                        scheduledCount = scheduledCount,
-                        isBulkMode = isBulkMode,
-                        selectedCount = selectedCount,
-                        totalCount = localFilteredThreads?.size ?: currentThreads.size,
-                        onSelectAll = { viewModel.selectAll() },
-                        onDeselectAll = { viewModel.deselectAll() },
-                        onDone = { viewModel.exitBulkSelectMode() },
+                        bulkSelection = BulkSelectionState(
+                            isBulkMode = isBulkMode,
+                            selectedCount = selectedCount,
+                            totalCount = localFilteredThreads?.size ?: currentThreads.size,
+                            onSelectAll = { viewModel.selectAll() },
+                            onDeselectAll = { viewModel.deselectAll() },
+                            onDone = { viewModel.exitBulkSelectMode() }
+                        ),
                         unifiedInboxEnabled = unifiedInboxEnabled
                     )
 
@@ -383,22 +391,26 @@ fun InboxScreen(
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
-                                                        onThreadToDeleteChange = { threadToDelete = it },
-                                                        onEmailClick = { onEmailClick(displayItem.thread.threadId) },
-                                                        onLongClick = {
-                                                            hapticFeedback.performHapticFeedback(
-                                                                HapticFeedbackType.LongPress
-                                                            )
-                                                            longPressedThread = displayItem.thread
-                                                        },
-                                                        isNested = false,
-                                                        isBulkMode = isBulkMode,
-                                                        isSelected = displayItem.thread.threadId in selectedThreadIds,
-                                                        onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
-                                                        onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
-                                                        onAvatarLongClick = {
-                                                            viewModel.enterBulkSelectMode(displayItem.thread.threadId)
-                                                        }
+                                                        callbacks = SwipeCallbacks(
+                                                            onThreadToDeleteChange = { threadToDelete = it },
+                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
+                                                            onLongClick = {
+                                                                hapticFeedback.performHapticFeedback(
+                                                                    HapticFeedbackType.LongPress
+                                                                )
+                                                                longPressedThread = displayItem.thread
+                                                            },
+                                                            isNested = false
+                                                        ),
+                                                        selection = SelectionState(
+                                                            isSelected = displayItem.thread.threadId in selectedThreadIds,
+                                                            isBulkMode = isBulkMode,
+                                                            onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                            onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
+                                                            onAvatarLongClick = {
+                                                                viewModel.enterBulkSelectMode(displayItem.thread.threadId)
+                                                            }
+                                                        )
                                                     )
                                                 }
 
@@ -409,22 +421,26 @@ fun InboxScreen(
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
-                                                        onThreadToDeleteChange = { threadToDelete = it },
-                                                        onEmailClick = { onEmailClick(displayItem.thread.threadId) },
-                                                        onLongClick = {
-                                                            hapticFeedback.performHapticFeedback(
-                                                                HapticFeedbackType.LongPress
-                                                            )
-                                                            longPressedThread = displayItem.thread
-                                                        },
-                                                        isNested = true,
-                                                        isBulkMode = isBulkMode,
-                                                        isSelected = displayItem.thread.threadId in selectedThreadIds,
-                                                        onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
-                                                        onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
-                                                        onAvatarLongClick = {
-                                                            viewModel.enterBulkSelectMode(displayItem.thread.threadId)
-                                                        }
+                                                        callbacks = SwipeCallbacks(
+                                                            onThreadToDeleteChange = { threadToDelete = it },
+                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
+                                                            onLongClick = {
+                                                                hapticFeedback.performHapticFeedback(
+                                                                    HapticFeedbackType.LongPress
+                                                                )
+                                                                longPressedThread = displayItem.thread
+                                                            },
+                                                            isNested = true
+                                                        ),
+                                                        selection = SelectionState(
+                                                            isSelected = displayItem.thread.threadId in selectedThreadIds,
+                                                            isBulkMode = isBulkMode,
+                                                            onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                            onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
+                                                            onAvatarLongClick = {
+                                                                viewModel.enterBulkSelectMode(displayItem.thread.threadId)
+                                                            }
+                                                        )
                                                     )
                                                 }
                                             }
@@ -481,114 +497,15 @@ fun InboxScreen(
                 exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                val tabForDock by remember { derivedStateOf { immediateTab } }
-                Row(
-                    modifier = Modifier.padding(bottom = navBarHeight + 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    BottomDockBar(
-                        currentTab = tabForDock,
-                        dockConfig = appSettings.dockConfig,
-                        unifiedInboxEnabled = unifiedInboxEnabled,
-                        appSettings = appSettings,
-                        onTabClick = { viewModel.switchTab(it) }
-                    )
-                    AnimatedContent(
-                        targetState = when {
-                            tabForDock == InboxTab.TRASH -> "trash"
-                            tabForDock == InboxTab.SPAM -> "spam"
-                            else -> "default"
-                        },
-                        label = "FabIconMorph",
-                        transitionSpec = {
-                            (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.85f)) togetherWith
-                                    (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f))
-                        }
-                    ) { state ->
-                        when (state) {
-                            "trash" -> {
-                                FloatingActionButton(
-                                    onClick = { showClearTrashWarning = true },
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                    shape = CircleShape,
-                                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                                    modifier = Modifier.height((42 * appSettings.navScale).dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.Delete,
-                                            contentDescription = "Empty Trash",
-                                            modifier = Modifier.size((22 * appSettings.navScale).dp)
-                                        )
-                                        Text(
-                                            text = "Empty",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                }
-                            }
-                            "spam" -> {
-                                FloatingActionButton(
-                                    onClick = { showClearSpamWarning = true },
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                    shape = CircleShape,
-                                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                                    modifier = Modifier.height((42 * appSettings.navScale).dp)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Rounded.Report,
-                                            contentDescription = "Empty Spam",
-                                            modifier = Modifier.size((22 * appSettings.navScale).dp)
-                                        )
-                                        Text(
-                                            text = "Empty",
-                                            style = MaterialTheme.typography.labelLarge,
-                                            color = MaterialTheme.colorScheme.onErrorContainer
-                                        )
-                                    }
-                                }
-                            }
-                            "default" -> {
-                                val fabInteractionSource = remember { MutableInteractionSource() }
-                                val isFabPressed by fabInteractionSource.collectIsPressedAsState()
-                                val fabScale by animateFloatAsState(
-                                    targetValue = if (isFabPressed) 0.92f else 1f,
-                                    animationSpec = spring(
-                                        dampingRatio = Spring.DampingRatioMediumBouncy,
-                                        stiffness = Spring.StiffnessMedium
-                                    ),
-                                    label = "fabScale"
-                                )
-                                FloatingActionButton(
-                                    onClick = onCompose,
-                                    interactionSource = fabInteractionSource,
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                    shape = CircleShape,
-                                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                                    modifier = Modifier
-                                        .size((52 * appSettings.navScale).dp)
-                                        .graphicsLayer(scaleX = fabScale, scaleY = fabScale)
-                                ) {
-                                    Icon(Icons.Rounded.Edit, contentDescription = "Compose")
-                                }
-                            }
-                        }
-                    }
-                }
+                BottomFabArea(
+                    immediateTab = immediateTab,
+                    appSettings = appSettings,
+                    unifiedInboxEnabled = unifiedInboxEnabled,
+                    navActions = navActions,
+                    viewModel = viewModel,
+                    navBarHeight = navBarHeight,
+                    onEmptyBin = { isTrash -> if (isTrash) showClearTrashWarning = true else showClearSpamWarning = true }
+                )
             }
 
             AnimatedVisibility(
@@ -626,135 +543,27 @@ fun InboxScreen(
             ) {
                 val thread = displayedThread ?: return@AnimatedVisibility
                 BackHandler { longPressedThread = null }
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
-                        .clickable(
-                            indication = null,
-                            interactionSource = remember { MutableInteractionSource() }
-                        ) { longPressedThread = null }
+                LongPressMenu(
+                    thread = thread,
+                    state = state,
+                    onDismiss = { longPressedThread = null },
+                    actions = LongPressMenuActions(
+                        onEmailClick = { navActions.onEmailClick(thread.threadId) },
+                        onStar = { viewModel.toggleStar(thread.threadId) },
+                        onArchive = { tab -> when (tab) {
+                            InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
+                            InboxTab.SPAM -> viewModel.reportNotSpam(thread.threadId)
+                            else -> viewModel.archiveThread(thread.threadId)
+                        } },
+                        onToggleRead = {
+                            if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId)
+                            else viewModel.markThreadAsRead(thread.threadId)
+                        },
+                        onDelete = { threadToDelete = thread.threadId },
+                        onSnooze = { onSnoozeSelected(thread.threadId) },
+                        onUnsnooze = { viewModel.unsnoozeThread(thread.threadId) }
+                    )
                 )
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .animateEnterExit(
-                                enter = scaleIn(
-                                    tween(300, easing = FastOutSlowInEasing),
-                                    initialScale = 0.9f
-                                ),
-                                exit = scaleOut(tween(200), targetScale = 0.9f)
-                            ),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainer,
-                            tonalElevation = 0.dp,
-                            shadowElevation = 8.dp
-                        ) {
-                            EmailItem(
-                                thread = thread,
-                                onClick = {
-                                    longPressedThread = null
-                                    onEmailClick(thread.threadId)
-                                },
-                                onLongClick = {},
-                                modifier = Modifier
-                            )
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainer,
-                            tonalElevation = 0.dp,
-                            shadowElevation = 8.dp
-                        ) {
-                            val tabForMenu =
-                                (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.Bottom
-                            ) {
-                                if (tabForMenu == InboxTab.SNOOZED) {
-                                    LongPressAction(
-                                        icon = Icons.Rounded.Restore,
-                                        label = "Unsnooze",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        onClick = {
-                                            viewModel.unsnoozeThread(thread.threadId)
-                                            longPressedThread = null
-                                        }
-                                    )
-                                } else {
-                                    LongPressAction(
-                                        icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder,
-                                        label = if (thread.isStarred) "Unstar" else "Star",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        onClick = {
-                                            viewModel.toggleStar(thread.threadId)
-                                            longPressedThread = null
-                                        }
-                                    )
-                                }
-                                LongPressAction(
-                                    icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
-                                    label = when (tabForMenu) {
-                                        InboxTab.ARCHIVED -> "Unarchive"
-                                        InboxTab.SPAM -> "Not spam"
-                                        else -> "Archive"
-                                    },
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    onClick = {
-                                        when (tabForMenu) {
-                                            InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
-                                            InboxTab.SPAM -> viewModel.reportNotSpam(thread.threadId)
-                                            else -> viewModel.archiveThread(thread.threadId)
-                                        }
-                                        longPressedThread = null
-                                    }
-                                )
-                                LongPressAction(
-                                    icon = if (thread.isRead) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle,
-                                    label = if (thread.isRead) "Unread" else "Read",
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    onClick = {
-                                        if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId)
-                                        else viewModel.markThreadAsRead(thread.threadId)
-                                        longPressedThread = null
-                                    }
-                                )
-                                if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED && tabForMenu != InboxTab.SPAM) {
-                                    LongPressAction(
-                                        icon = Icons.Rounded.Schedule,
-                                        label = "Snooze",
-                                        tint = MaterialTheme.colorScheme.onSurface,
-                                        onClick = {
-                                            longPressedThread = null
-                                            onSnoozeSelected(thread.threadId)
-                                        }
-                                    )
-                                }
-                                LongPressAction(
-                                    icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
-                                    label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
-                                    tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface
-                                    else MaterialTheme.colorScheme.error,
-                                    onClick = {
-                                        if (tabForMenu == InboxTab.TRASH) viewModel.restoreThread(thread.threadId)
-                                        else threadToDelete = thread.threadId
-                                        longPressedThread = null
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
             }
 
             
@@ -765,7 +574,7 @@ fun InboxScreen(
                 accounts = accounts,
                 callbacks = ModalCallbacks(
                     onDismiss = { activeModal = null },
-                    onSignOut = { activeModal = null; onSignOut() },
+                    onSignOut = { activeModal = null; navActions.onSignOut() },
                     onSwitchAccount = { viewModel.switchAccount(it); activeModal = null },
                     onCycleAccount = { viewModel.switchAccount(it) },
                     onAddAccount = {
@@ -779,8 +588,8 @@ fun InboxScreen(
                     },
                     onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
                     onBackToProfile = { activeModal = ModalType.PROFILE },
-                    onSettings = { activeModal = null; onSettings() },
-                    onNavigateToImapSetup = onNavigateToImapSetup,
+                    onSettings = { activeModal = null; navActions.onSettings() },
+                    onNavigateToImapSetup = navActions.onNavigateToImapSetup,
                     onToggleUnified = { viewModel.setUnifiedInboxEnabled(it) }
                 ),
                 unifiedInboxEnabled = unifiedInboxEnabled
@@ -1017,140 +826,30 @@ fun InboxScreen(
         visible = showClearTrashWarning,
         onDismiss = { showClearTrashWarning = false; isTrashCountdownActive = false }
     ) {
-        var trashCountdown by remember { mutableIntStateOf(5) }
-        LaunchedEffect(showClearTrashWarning) {
-            if (showClearTrashWarning) {
-                trashCountdown = 5
-                isTrashCountdownActive = true
-                while (trashCountdown > 0 && isTrashCountdownActive) {
-                    kotlinx.coroutines.delay(1000)
-                    trashCountdown--
-                }
-                if (isTrashCountdownActive) {
-                    viewModel.emptyTrash()
-                    showClearTrashWarning = false
-                }
-            }
-        }
-
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onBackground,
-            shadowElevation = 32.dp,
-            modifier = Modifier.fillMaxWidth(0.88f)
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = "Clear Trash?",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Are you sure you want to permanently delete all messages in the trash? This action cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                ) {
-                    Text(
-                        text = if (trashCountdown > 0) "Clearing trash in $trashCountdown..."
-                               else "Clearing trash...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = {
-                        isTrashCountdownActive = false
-                        showClearTrashWarning = false
-                    }) {
-                        Text("Cancel")
-                    }
-                }
-            }
-        }
+        ClearCountdownDialog(
+            title = "Clear Trash?",
+            message = "Are you sure you want to permanently delete all messages in the trash? This action cannot be undone.",
+            onDismiss = { isTrashCountdownActive = false; showClearTrashWarning = false },
+            onCountdownFinished = { viewModel.emptyTrash(); showClearTrashWarning = false },
+            isActive = showClearTrashWarning,
+            isCountdownActive = isTrashCountdownActive,
+            setCountdownActive = { isTrashCountdownActive = it }
+        )
     }
 
     com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
         visible = showClearSpamWarning,
         onDismiss = { showClearSpamWarning = false; isSpamCountdownActive = false }
     ) {
-        var spamCountdown by remember { mutableIntStateOf(5) }
-        LaunchedEffect(showClearSpamWarning) {
-            if (showClearSpamWarning) {
-                spamCountdown = 5
-                isSpamCountdownActive = true
-                while (spamCountdown > 0 && isSpamCountdownActive) {
-                    kotlinx.coroutines.delay(1000)
-                    spamCountdown--
-                }
-                if (isSpamCountdownActive) {
-                    viewModel.emptySpam()
-                    showClearSpamWarning = false
-                }
-            }
-        }
-
-        Surface(
-            shape = RoundedCornerShape(28.dp),
-            color = MaterialTheme.colorScheme.background,
-            contentColor = MaterialTheme.colorScheme.onBackground,
-            shadowElevation = 32.dp,
-            modifier = Modifier.fillMaxWidth(0.88f)
-        ) {
-            Column(modifier = Modifier.padding(24.dp)) {
-                Text(
-                    text = "Clear Spam?",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Are you sure you want to permanently delete all messages in spam? This action cannot be undone.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                ) {
-                    Text(
-                        text = if (spamCountdown > 0) "Clearing spam in $spamCountdown..."
-                               else "Clearing spam...",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        fontWeight = FontWeight.Medium,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(20.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    TextButton(onClick = {
-                        isSpamCountdownActive = false
-                        showClearSpamWarning = false
-                    }) {
-                        Text("Cancel")
-                    }
-                }
-            }
-        }
+        ClearCountdownDialog(
+            title = "Clear Spam?",
+            message = "Are you sure you want to permanently delete all messages in spam? This action cannot be undone.",
+            onDismiss = { isSpamCountdownActive = false; showClearSpamWarning = false },
+            onCountdownFinished = { viewModel.emptySpam(); showClearSpamWarning = false },
+            isActive = showClearSpamWarning,
+            isCountdownActive = isSpamCountdownActive,
+            setCountdownActive = { isSpamCountdownActive = it }
+        )
     }
 
     if (showSnoozePicker && snoozeThreadId != null) {
@@ -1164,6 +863,248 @@ fun InboxScreen(
     }
 }
 
+
+@Composable
+private fun ClearCountdownDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit,
+    onCountdownFinished: () -> Unit,
+    isActive: Boolean,
+    isCountdownActive: Boolean,
+    setCountdownActive: (Boolean) -> Unit
+) {
+    var countdown by remember { mutableIntStateOf(5) }
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            countdown = 5
+            setCountdownActive(true)
+            while (countdown > 0 && isCountdownActive) {
+                kotlinx.coroutines.delay(1000)
+                countdown--
+            }
+            if (isCountdownActive) onCountdownFinished()
+        }
+    }
+    Surface(
+        shape = RoundedCornerShape(28.dp),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground,
+        shadowElevation = 32.dp,
+        modifier = Modifier.fillMaxWidth(0.88f)
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(modifier = Modifier.height(16.dp))
+            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)) {
+                Text(
+                    text = if (countdown > 0) "Clearing in $countdown..." else "Clearing...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(20.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = { setCountdownActive(false); onDismiss() }) { Text("Cancel") }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@Composable
+private fun BottomFabArea(
+    immediateTab: InboxTab,
+    appSettings: com.shrivatsav.monomail.data.settings.AppSettings,
+    unifiedInboxEnabled: Boolean,
+    navActions: InboxNavActions,
+    viewModel: InboxViewModel,
+    navBarHeight: Dp,
+    onEmptyBin: (isTrash: Boolean) -> Unit
+) {
+    val tabForDock by remember { derivedStateOf { immediateTab } }
+    Row(
+        modifier = Modifier.padding(bottom = navBarHeight + 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        BottomDockBar(
+            currentTab = tabForDock,
+            dockConfig = appSettings.dockConfig,
+            unifiedInboxEnabled = unifiedInboxEnabled,
+            appSettings = appSettings,
+            onTabClick = { viewModel.switchTab(it) }
+        )
+        AnimatedContent(
+            targetState = when {
+                tabForDock == InboxTab.TRASH -> "trash"
+                tabForDock == InboxTab.SPAM -> "spam"
+                else -> "default"
+            },
+            label = "FabIconMorph",
+            transitionSpec = {
+                (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.85f)) togetherWith
+                        (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f))
+            }
+        ) { state ->
+            when (state) {
+                "trash" -> EmptyTrashFab(appSettings) { onEmptyBin(true) }
+                "spam" -> EmptySpamFab(appSettings) { onEmptyBin(false) }
+                "default" -> ComposeFab(appSettings, navActions.onCompose)
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyTrashFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
+    FloatingActionButton(
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = CircleShape,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+        modifier = Modifier.height((42 * appSettings.navScale).dp)
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Rounded.Delete, contentDescription = "Empty Trash", modifier = Modifier.size((22 * appSettings.navScale).dp))
+            Text("Empty", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
+        }
+    }
+}
+
+@Composable
+private fun EmptySpamFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
+    FloatingActionButton(
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.errorContainer,
+        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+        shape = CircleShape,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+        modifier = Modifier.height((42 * appSettings.navScale).dp)
+    ) {
+        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Icon(Icons.Rounded.Report, contentDescription = "Empty Spam", modifier = Modifier.size((22 * appSettings.navScale).dp))
+            Text("Empty", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
+        }
+    }
+}
+
+@Composable
+private fun ComposeFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
+    val fabInteractionSource = remember { MutableInteractionSource() }
+    val isFabPressed by fabInteractionSource.collectIsPressedAsState()
+    val fabScale by animateFloatAsState(
+        targetValue = if (isFabPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "fabScale"
+    )
+    FloatingActionButton(
+        onClick = onClick,
+        interactionSource = fabInteractionSource,
+        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+        shape = CircleShape,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+        modifier = Modifier.size((52 * appSettings.navScale).dp).graphicsLayer(scaleX = fabScale, scaleY = fabScale)
+    ) {
+        Icon(Icons.Rounded.Edit, contentDescription = "Compose")
+    }
+}
+
+private data class LongPressMenuActions(
+    val onEmailClick: () -> Unit,
+    val onStar: () -> Unit,
+    val onArchive: (InboxTab) -> Unit,
+    val onToggleRead: () -> Unit,
+    val onDelete: () -> Unit,
+    val onSnooze: () -> Unit,
+    val onUnsnooze: () -> Unit
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LongPressMenu(
+    thread: EmailThread,
+    state: InboxState,
+    onDismiss: () -> Unit,
+    actions: LongPressMenuActions
+) {
+    val tabForMenu = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
+    BackHandler { onDismiss() }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
+            .clickable(indication = null, interactionSource = remember { MutableInteractionSource() }) { onDismiss() }
+    )
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            modifier = Modifier.fillMaxWidth(0.85f),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
+                EmailItem(thread = thread, onClick = { onDismiss(); actions.onEmailClick() }, onLongClick = {}, modifier = Modifier)
+            }
+            Spacer(Modifier.height(8.dp))
+            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
+                LongPressActionRow(thread, tabForMenu, actions) { onDismiss() }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LongPressActionRow(thread: EmailThread, tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
+        StarOrUnsnoozeAction(thread, tabForMenu, actions, onDismiss)
+        ArchiveOrRestoreAction(tabForMenu, actions, onDismiss)
+        ReadUnreadAction(thread, actions, onDismiss)
+        if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED && tabForMenu != InboxTab.SPAM) {
+            LongPressAction(icon = Icons.Rounded.Schedule, label = "Snooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { onDismiss(); actions.onSnooze() })
+        }
+        DeleteOrRestoreAction(tabForMenu, actions, onDismiss)
+    }
+}
+
+@Composable
+private fun StarOrUnsnoozeAction(thread: EmailThread, tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    if (tabForMenu == InboxTab.SNOOZED) {
+        LongPressAction(icon = Icons.Rounded.Restore, label = "Unsnooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onUnsnooze(); onDismiss() })
+    } else {
+        LongPressAction(icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder, label = if (thread.isStarred) "Unstar" else "Star", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onStar(); onDismiss() })
+    }
+}
+
+@Composable
+private fun ArchiveOrRestoreAction(tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    LongPressAction(
+        icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
+        label = when (tabForMenu) { InboxTab.ARCHIVED -> "Unarchive"; InboxTab.SPAM -> "Not spam"; else -> "Archive" },
+        tint = MaterialTheme.colorScheme.onSurface,
+        onClick = { actions.onArchive(tabForMenu); onDismiss() }
+    )
+}
+
+@Composable
+private fun ReadUnreadAction(thread: EmailThread, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    LongPressAction(icon = if (thread.isRead) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle, label = if (thread.isRead) "Unread" else "Read", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onToggleRead(); onDismiss() })
+}
+
+@Composable
+private fun DeleteOrRestoreAction(tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    LongPressAction(
+        icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
+        label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
+        tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+        onClick = { if (tabForMenu == InboxTab.TRASH) { actions.onArchive(tabForMenu) } else { actions.onDelete() }; onDismiss() }
+    )
+}
 
 @Composable
 private fun SnoozePickerDialog(

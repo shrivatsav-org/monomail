@@ -52,6 +52,14 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 private val displayNameRegex = Regex("""^"?([^"<]+?)"?\s*<""")
 
+data class SelectionState(
+    val isSelected: Boolean = false,
+    val isBulkMode: Boolean = false,
+    val onSelectToggle: () -> Unit = {},
+    val onRangeSelect: () -> Unit = {},
+    val onAvatarLongClick: () -> Unit = {}
+)
+
 @Composable
 fun EmailItem(
     thread: EmailThread,
@@ -59,11 +67,7 @@ fun EmailItem(
     onLongClick: () -> Unit = {},
     showSnippet: Boolean = true,
     compactMode: Boolean = false,
-    isSelected: Boolean = false,
-    isBulkMode: Boolean = false,
-    onSelectToggle: () -> Unit = {},
-    onRangeSelect: () -> Unit = {},
-    onAvatarLongClick: () -> Unit = {},
+    selection: SelectionState = SelectionState(),
     modifier: Modifier = Modifier
 ) {
     val isUnread = !thread.isRead
@@ -74,7 +78,7 @@ fun EmailItem(
     }
     val verticalPad = if (compactMode) 7.dp else 11.dp
     val hapticFeedback = LocalHapticFeedback.current
-    val avatarClickAction = if (isBulkMode) onSelectToggle else onClick
+    val avatarClickAction = if (selection.isBulkMode) selection.onSelectToggle else onClick
     val interactionSource = remember { MutableInteractionSource() }
     val isPressed by interactionSource.collectIsPressedAsState()
     val rowScale by animateFloatAsState(
@@ -91,11 +95,11 @@ fun EmailItem(
             .scale(rowScale)
             .background(backgroundColor)
             .then(
-                if (isBulkMode) {
+                if (selection.isBulkMode) {
                     Modifier.combinedClickable(
                         interactionSource = interactionSource,
-                        onClick = onRangeSelect,
-                        onLongClick = onSelectToggle
+                        onClick = selection.onRangeSelect,
+                        onLongClick = selection.onSelectToggle
                     )
                 } else {
                     Modifier.combinedClickable(
@@ -111,18 +115,18 @@ fun EmailItem(
         Box {
             SenderAvatar(
                 senderInitial = senderInitial,
-                isSelected = isSelected,
-                isBulkMode = isBulkMode,
+                isSelected = selection.isSelected,
+                isBulkMode = selection.isBulkMode,
                 onClick = avatarClickAction,
                 onLongClick = {
-                    if (!isBulkMode) {
+                    if (!selection.isBulkMode) {
                         hapticFeedback.performHapticFeedback(HapticFeedbackType.LongPress)
-                        onAvatarLongClick()
+                        selection.onAvatarLongClick()
                     }
                 },
                 modifier = Modifier.padding(top = 2.dp)
             )
-            UnreadDot(isUnread = isUnread, isBulkMode = isBulkMode)
+            UnreadDot(isUnread = isUnread, isBulkMode = selection.isBulkMode)
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {

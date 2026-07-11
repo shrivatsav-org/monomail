@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +26,30 @@ import androidx.compose.foundation.layout.offset
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.settings.SwipeAction
 
+data class SearchBarActions(
+    val onMarkAllRead: () -> Unit,
+    val onScheduledClick: () -> Unit = {},
+    val scheduledCount: Int = 0,
+    val onUndo: () -> Unit,
+    val onOpenProfile: () -> Unit
+)
+
+data class BulkSelectionState(
+    val isBulkMode: Boolean = false,
+    val selectedCount: Int = 0,
+    val totalCount: Int = 0,
+    val onSelectAll: () -> Unit = {},
+    val onDeselectAll: () -> Unit = {},
+    val onDone: () -> Unit = {}
+)
+
+data class SearchDisplayState(
+    val isRefreshing: Boolean = false,
+    val unifiedInboxEnabled: Boolean = false,
+    val accounts: List<UserProfile> = emptyList(),
+    val userProfile: UserProfile? = null
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun InboxSearchBar(
@@ -33,24 +58,15 @@ internal fun InboxSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onServerSearch: (String) -> Unit,
-    onMarkAllRead: () -> Unit,
-    onScheduledClick: () -> Unit = {},
-    scheduledCount: Int = 0,
+    actions: SearchBarActions,
     isRefreshing: Boolean,
     toastState: InboxViewModel.ToastState?,
-    onUndo: () -> Unit,
-    onOpenProfile: () -> Unit,
-    isBulkMode: Boolean = false,
-    selectedCount: Int = 0,
-    totalCount: Int = 0,
-    onSelectAll: () -> Unit = {},
-    onDeselectAll: () -> Unit = {},
-    onDone: () -> Unit = {},
+    bulkSelection: BulkSelectionState = BulkSelectionState(),
     unifiedInboxEnabled: Boolean = false,
 ) {
     val containerColor by animateColorAsState(
         targetValue = when {
-            isBulkMode -> MaterialTheme.colorScheme.secondaryContainer
+            bulkSelection.isBulkMode -> MaterialTheme.colorScheme.secondaryContainer
             toastState != null -> MaterialTheme.colorScheme.secondaryContainer
             else -> MaterialTheme.colorScheme.surfaceContainer
         },
@@ -70,67 +86,8 @@ internal fun InboxSearchBar(
                         .fillMaxWidth()
                         .height(56.dp)
                 ) {
-                    if (isBulkMode) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(start = 20.dp, end = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            AnimatedContent(
-                                targetState = selectedCount,
-                                label = "selectedCount",
-                                modifier = Modifier.weight(1f),
-                                transitionSpec = {
-                                    (fadeIn(tween(200)) + scaleIn(tween(200))).togetherWith(
-                                        fadeOut(tween(150)) + scaleOut(tween(150))
-                                    )
-                                }
-                            ) { count ->
-                                Text(
-                                    text = if (count == 1) "1 selected" else "$count selected",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (selectedCount < totalCount) {
-                                    TextButton(
-                                        onClick = onSelectAll,
-                                        shape = RoundedCornerShape(24.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.primary
-                                        )
-                                    ) {
-                                        Text("Select all")
-                                    }
-                                } else {
-                                    TextButton(
-                                        onClick = onDeselectAll,
-                                        shape = RoundedCornerShape(24.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.primary
-                                        )
-                                    ) {
-                                        Text("Deselect all")
-                                    }
-                                }
-                                Spacer(Modifier.width(4.dp))
-                                IconButton(
-                                    onClick = onDone,
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Rounded.Close,
-                                        contentDescription = "Done",
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        }
+                    if (bulkSelection.isBulkMode) {
+                        BulkSelectionContent(bulkSelection)
                     } else {
                         AnimatedContent(
                             targetState = toastState,
@@ -138,136 +95,9 @@ internal fun InboxSearchBar(
                             transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }
                         ) { toast ->
                             if (toast != null) {
-                                val icon = when (toast.actionType) {
-                                    InboxViewModel.ActionType.ARCHIVE -> Icons.Rounded.Archive
-                                    InboxViewModel.ActionType.DELETE -> Icons.Rounded.Delete
-                                    InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Rounded.Delete
-                                    InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Rounded.Send
-                                    InboxViewModel.ActionType.SNOOZE -> Icons.Rounded.Schedule
-                                    InboxViewModel.ActionType.UNARCHIVE -> Icons.Rounded.Unarchive
-                                    InboxViewModel.ActionType.RESTORE -> Icons.Rounded.Restore
-                                }
-                                Row(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Spacer(Modifier.width(16.dp))
-                                    Icon(
-                                        icon, null,
-                                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Text(
-                                        toast.message,
-                                        modifier = Modifier.weight(1f),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    TextButton(
-                                        onClick = onUndo,
-                                        shape = RoundedCornerShape(24.dp),
-                                        colors = ButtonDefaults.textButtonColors(
-                                            contentColor = MaterialTheme.colorScheme.primary
-                                        )
-                                    ) {
-                                        Text("Undo")
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                }
+                                ToastContent(toast, actions)
                             } else {
-                                SearchBarDefaults.InputField(
-                                    query = query,
-                                    onQueryChange = onQueryChange,
-                                    onSearch = { onServerSearch(query) },
-                                    expanded = false,
-                                    onExpandedChange = {},
-                                    placeholder = {
-                                        Text(
-                                            if (isRefreshing) "Syncing..."
-                                            else if (unifiedInboxEnabled) "Search all accounts..."
-                                            else "Search in mail",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        if (isRefreshing) {
-                                            LoadingIndicator(
-                                                modifier = Modifier
-                                                    .padding(start = 8.dp)
-                                                    .size(40.dp),
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                        } else {
-                                            Icon(
-                                                Icons.Rounded.Search,
-                                                contentDescription = "Search",
-                                                tint = MaterialTheme.colorScheme.onSurface,
-                                                modifier = Modifier.padding(start = 8.dp)
-                                            )
-                                        }
-                                    },
-                                    trailingIcon = {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            BadgedBox(
-                                                badge = {
-                                                    if (scheduledCount > 0) {
-                                                        Badge(
-                                                            containerColor = MaterialTheme.colorScheme.error,
-                                                            contentColor = MaterialTheme.colorScheme.onError
-                                                        ) {
-                                                            Text(
-                                                                if (scheduledCount > 99) "99+" else scheduledCount.toString(),
-                                                                style = MaterialTheme.typography.labelSmall
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            ) {
-                                                IconButton(
-                                                    onClick = onScheduledClick,
-                                                    modifier = Modifier.size(40.dp)
-                                                ) {
-                                                    Icon(
-                                                        Icons.Rounded.CalendarMonth,
-                                                        contentDescription = "Scheduled",
-                                                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                                        modifier = Modifier.size(25.dp)
-                                                    )
-                                                }
-                                            }
-                                            IconButton(
-                                                onClick = onMarkAllRead,
-                                                modifier = Modifier.size(40.dp)
-                                            ) {
-                                                Icon(
-                                                    Icons.Rounded.CheckCircle,
-                                                    contentDescription = "Mark all as read",
-                                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
-                                                    modifier = Modifier.size(25.dp)
-                                                )
-                                            }
-                                            Spacer(Modifier.width(4.dp))
-                                            if (unifiedInboxEnabled && accounts.size > 1) {
-                                                StackedAccountAvatars(
-                                                    accounts = accounts,
-                                                    onClick = onOpenProfile
-                                                )
-                                            } else {
-                                                AvatarButton(
-                                                    userProfile = userProfile,
-                                                    onClick = onOpenProfile
-                                                )
-                                            }
-                                        }
-                                    }
-                                )
+                                SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile))
                             }
                         }
                     }
@@ -280,6 +110,142 @@ internal fun InboxSearchBar(
             shape = MaterialTheme.shapes.extraLarge,
             windowInsets = WindowInsets(0.dp)
         ) {}
+    }
+}
+
+@Composable
+private fun BulkSelectionContent(bulkSelection: BulkSelectionState) {
+    Row(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 20.dp, end = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        AnimatedContent(
+            targetState = bulkSelection.selectedCount,
+            label = "selectedCount",
+            modifier = Modifier.weight(1f),
+            transitionSpec = {
+                (fadeIn(tween(200)) + scaleIn(tween(200))).togetherWith(
+                    fadeOut(tween(150)) + scaleOut(tween(150))
+                )
+            }
+        ) { count ->
+            Text(
+                text = if (count == 1) "1 selected" else "$count selected",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (bulkSelection.selectedCount < bulkSelection.totalCount) {
+                TextButton(
+                    onClick = bulkSelection.onSelectAll,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                ) { Text("Select all") }
+            } else {
+                TextButton(
+                    onClick = bulkSelection.onDeselectAll,
+                    shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                ) { Text("Deselect all") }
+            }
+            Spacer(Modifier.width(4.dp))
+            IconButton(onClick = bulkSelection.onDone, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Rounded.Close, contentDescription = "Done", tint = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToastContent(toast: InboxViewModel.ToastState, actions: SearchBarActions) {
+    val icon = when (toast.actionType) {
+        InboxViewModel.ActionType.ARCHIVE -> Icons.Rounded.Archive
+        InboxViewModel.ActionType.DELETE -> Icons.Rounded.Delete
+        InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Rounded.Delete
+        InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Rounded.Send
+        InboxViewModel.ActionType.SNOOZE -> Icons.Rounded.Schedule
+        InboxViewModel.ActionType.UNARCHIVE -> Icons.Rounded.Unarchive
+        InboxViewModel.ActionType.RESTORE -> Icons.Rounded.Restore
+    }
+    Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+        Spacer(Modifier.width(16.dp))
+        Icon(icon, null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            toast.message, modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+        TextButton(
+            onClick = actions.onUndo, shape = RoundedCornerShape(24.dp),
+            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+        ) { Text("Undo") }
+        Spacer(Modifier.width(12.dp))
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun SearchInputContent(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    onServerSearch: (String) -> Unit,
+    actions: SearchBarActions,
+    display: SearchDisplayState
+) {
+    SearchBarDefaults.InputField(
+        query = query,
+        onQueryChange = onQueryChange,
+        onSearch = { onServerSearch(query) },
+        expanded = false,
+        onExpandedChange = {},
+        placeholder = {
+            Text(
+                if (display.isRefreshing) "Syncing..." else if (display.unifiedInboxEnabled) "Search all accounts..." else "Search in mail",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+            )
+        },
+        leadingIcon = {
+            if (display.isRefreshing) {
+                LoadingIndicator(modifier = Modifier.padding(start = 8.dp).size(40.dp), color = MaterialTheme.colorScheme.onSurface)
+            } else {
+                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 8.dp))
+            }
+        },
+        trailingIcon = { SearchTrailingIcon(actions, display) }
+    )
+}
+
+@Composable
+private fun SearchTrailingIcon(actions: SearchBarActions, display: SearchDisplayState) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        BadgedBox(badge = {
+            if (actions.scheduledCount > 0) {
+                Badge(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) {
+                    Text(if (actions.scheduledCount > 99) "99+" else actions.scheduledCount.toString(), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }) {
+            IconButton(onClick = actions.onScheduledClick, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Rounded.CalendarMonth, contentDescription = "Scheduled", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+            }
+        }
+        IconButton(onClick = actions.onMarkAllRead, modifier = Modifier.size(40.dp)) {
+            Icon(Icons.Rounded.CheckCircle, contentDescription = "Mark all as read", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+        }
+        Spacer(Modifier.width(4.dp))
+        if (display.unifiedInboxEnabled && display.accounts.size > 1) {
+            StackedAccountAvatars(accounts = display.accounts, onClick = actions.onOpenProfile)
+        } else {
+            AvatarButton(userProfile = display.userProfile, onClick = actions.onOpenProfile)
+        }
     }
 }
 
