@@ -101,6 +101,12 @@ object AppModule {
                 providerCache.remove(profile.id)
             }
             newToken
+        } catch (e: com.google.android.gms.auth.UserRecoverableAuthException) {
+            runBlocking(kotlinx.coroutines.Dispatchers.Main) {
+                authManager.notifyReauthRequired(profile.email, profile.provider, e.intent)
+            }
+            android.util.Log.e("AppModule", "Token refresh requires consent for ${profile.id}", e)
+            null
         } catch (e: Exception) {
             android.util.Log.e("AppModule", "Token refresh failed for ${profile.id}", e)
             null

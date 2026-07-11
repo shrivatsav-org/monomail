@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import com.shrivatsav.monomail.push.PushNotificationManager
 
-data class ReauthInfo(val email: String, val provider: String)
+data class ReauthInfo(val email: String, val provider: String, val intent: android.content.Intent? = null)
 sealed class SignInResult {
     data class Success(val profile: UserProfile) : SignInResult()
     data class NeedsConsent(val intent: Intent)  : SignInResult()
@@ -46,8 +46,12 @@ class AuthManager(
     val activeAccountFlow = accountManager.activeAccountFlow
     private val _reauthNeeded = MutableStateFlow<ReauthInfo?>(null)
     val reauthNeeded: StateFlow<ReauthInfo?> = _reauthNeeded.asStateFlow()
-    fun notifyReauthRequired(email: String, provider: String) {
-        _reauthNeeded.value = ReauthInfo(email, provider)
+    fun notifyReauthRequired(email: String, provider: String, intent: android.content.Intent? = null) {
+        val current = _reauthNeeded.value
+        if (current != null && current.email == email && current.intent != null && intent == null) {
+            return
+        }
+        _reauthNeeded.value = ReauthInfo(email, provider, intent)
     }
     fun dismissReauth() {
         _reauthNeeded.value = null
@@ -97,8 +101,8 @@ class AuthManager(
                     }
                     return
                 }
-            } catch (e: UserRecoverableAuthException) {
-                notifyReauthRequired(target.email, target.provider)
+            } catch (e: com.google.android.gms.auth.UserRecoverableAuthException) {
+                notifyReauthRequired(target.email, target.provider, e.intent)
                 return
             } catch (e: Exception) {
                 lastException = e
@@ -119,8 +123,8 @@ class AuthManager(
                     else -> return
                 }
                 if (refreshed) return
-            } catch (e: UserRecoverableAuthException) {
-                notifyReauthRequired(profile.email, profile.provider)
+            } catch (e: com.google.android.gms.auth.UserRecoverableAuthException) {
+                notifyReauthRequired(profile.email, profile.provider, e.intent)
                 return
             } catch (e: Exception) {
                 lastException = e

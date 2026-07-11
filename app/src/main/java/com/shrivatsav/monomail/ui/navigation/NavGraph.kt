@@ -105,6 +105,17 @@ private fun ReauthDialog(
     val reauth = reauthInfo
     if (reauth == null) return
 
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == android.app.Activity.RESULT_OK) {
+            scope.launch {
+                authManager.dismissReauth()
+                authManager.forceRefreshToken(reauth.email)
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = { authManager.dismissReauth() },
         title = { Text("Session Expired") },
@@ -118,12 +129,16 @@ private fun ReauthDialog(
         confirmButton = {
             Column {
                 TextButton(onClick = {
-                    scope.launch {
-                        authManager.dismissReauth()
-                        authManager.forceRefreshToken(reauth.email)
+                    if (reauth.intent != null) {
+                        launcher.launch(reauth.intent)
+                    } else {
+                        scope.launch {
+                            authManager.dismissReauth()
+                            authManager.forceRefreshToken(reauth.email)
+                        }
                     }
                 }) {
-                    Text("Refresh Token")
+                    Text(if (reauth.intent != null) "Grant Permission" else "Refresh Token")
                 }
                 TextButton(onClick = {
                     scope.launch {
