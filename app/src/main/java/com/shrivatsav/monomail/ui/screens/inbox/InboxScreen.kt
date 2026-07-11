@@ -179,19 +179,23 @@ fun InboxScreen(
                         query = searchQuery,
                         onQueryChange = { searchQuery = it },
                         onServerSearch = { viewModel.searchServer(it) },
-                        onMarkAllRead = { viewModel.markAllAsRead() },
-                        onScheduledClick = navActions.onScheduledClick,
+                        actions = SearchBarActions(
+                            onMarkAllRead = { viewModel.markAllAsRead() },
+                            onScheduledClick = navActions.onScheduledClick,
+                            scheduledCount = scheduledCount,
+                            onUndo = { viewModel.undoAction() },
+                            onOpenProfile = { activeModal = ModalType.PROFILE }
+                        ),
                         isRefreshing = isRefreshing,
                         toastState = toastState,
-                        onUndo = { viewModel.undoAction() },
-                        onOpenProfile = { activeModal = ModalType.PROFILE },
-                        scheduledCount = scheduledCount,
-                        isBulkMode = isBulkMode,
-                        selectedCount = selectedCount,
-                        totalCount = localFilteredThreads?.size ?: currentThreads.size,
-                        onSelectAll = { viewModel.selectAll() },
-                        onDeselectAll = { viewModel.deselectAll() },
-                        onDone = { viewModel.exitBulkSelectMode() },
+                        bulkSelection = BulkSelectionState(
+                            isBulkMode = isBulkMode,
+                            selectedCount = selectedCount,
+                            totalCount = localFilteredThreads?.size ?: currentThreads.size,
+                            onSelectAll = { viewModel.selectAll() },
+                            onDeselectAll = { viewModel.deselectAll() },
+                            onDone = { viewModel.exitBulkSelectMode() }
+                        ),
                         unifiedInboxEnabled = unifiedInboxEnabled
                     )
 
