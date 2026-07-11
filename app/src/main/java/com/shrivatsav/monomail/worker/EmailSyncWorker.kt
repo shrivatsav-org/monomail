@@ -37,6 +37,7 @@ import java.util.concurrent.TimeUnit
 class EmailSyncWorker @AssistedInject constructor(
     private val emailRepository: EmailRepository,
     private val accountManager: AccountManager,
+    private val settingsDataStore: com.shrivatsav.monomail.data.settings.SettingsDataStore,
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
@@ -93,8 +94,13 @@ class EmailSyncWorker @AssistedInject constructor(
         val newTimestamp = newestThread.date
         Log.i("EmailSyncWorker", "Latest thread for $accountId: subject='${newestThread.subject}', date=$newTimestamp")
         if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp) {
-            Log.i("EmailSyncWorker", "New email detected for $accountId! Showing notification...")
-            showNotification(accountId, newestThread, accountId.hashCode())
+            val disabledAccounts = settingsDataStore.settingsFlow.value.disabledNotificationAccounts
+            if (disabledAccounts.contains(accountId)) {
+                Log.i("EmailSyncWorker", "New email detected for $accountId, but notifications are disabled for this account. Skipping notification banner.")
+            } else {
+                Log.i("EmailSyncWorker", "New email detected for $accountId! Showing notification...")
+                showNotification(accountId, newestThread, accountId.hashCode())
+            }
         } else if (lastKnownTimestamp == null) {
             Log.i("EmailSyncWorker", "lastKnownTimestamp was null (first sync baseline). Skipping notification banner.")
         } else {
