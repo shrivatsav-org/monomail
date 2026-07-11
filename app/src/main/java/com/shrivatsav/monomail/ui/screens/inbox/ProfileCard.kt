@@ -132,6 +132,36 @@ private fun ProfileAvatarSection(
     }
 }
 
+private fun Modifier.cycleAccountDrag(
+    accounts: List<UserProfile>,
+    userProfile: UserProfile,
+    unifiedInboxEnabled: Boolean,
+    onCycleAccount: (String) -> Unit
+): Modifier = this.pointerInput(accounts, unifiedInboxEnabled) {
+    if (accounts.size > 1 && !unifiedInboxEnabled) {
+        var totalDrag = 0f
+        detectHorizontalDragGestures(
+            onDragStart = { totalDrag = 0f },
+            onHorizontalDrag = { change, dragAmount ->
+                change.consume()
+                totalDrag += dragAmount
+                if (kotlin.math.abs(totalDrag) > 60f) {
+                    val nextId = nextAccountId(accounts, userProfile.id, totalDrag > 0)
+                    if (nextId != null) onCycleAccount(nextId)
+                    totalDrag = 0f
+                }
+            }
+        )
+    }
+}
+
+private fun nextAccountId(accounts: List<UserProfile>, currentId: String, goForward: Boolean): String? {
+    val idx = accounts.indexOfFirst { it.id == currentId }
+    if (idx == -1) return null
+    val nextIdx = if (goForward) (idx + 1) % accounts.size else (idx - 1 + accounts.size) % accounts.size
+    return accounts[nextIdx].id
+}
+
 @Composable
 private fun DraggableAvatarBox(
     userProfile: UserProfile,
@@ -141,29 +171,7 @@ private fun DraggableAvatarBox(
 ) {
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier.pointerInput(accounts, unifiedInboxEnabled) {
-            if (accounts.size > 1 && !unifiedInboxEnabled) {
-                var totalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { totalDrag = 0f },
-                    onHorizontalDrag = { change, dragAmount ->
-                        change.consume()
-                        totalDrag += dragAmount
-                        if (kotlin.math.abs(totalDrag) > 60f) {
-                            val currentIdx = accounts.indexOfFirst { it.id == userProfile.id }
-                            if (currentIdx != -1) {
-                                val nextIdx = if (totalDrag > 0)
-                                    (currentIdx + 1) % accounts.size
-                                else
-                                    if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
-                                callbacks.onCycleAccount(accounts[nextIdx].id)
-                            }
-                            totalDrag = 0f
-                        }
-                    }
-                )
-            }
-        }
+        modifier = Modifier.cycleAccountDrag(accounts, userProfile, unifiedInboxEnabled, callbacks.onCycleAccount)
     ) {
         if (accounts.size > 1) {
             StackedAvatars(userProfile, accounts)

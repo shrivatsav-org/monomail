@@ -1062,28 +1062,48 @@ private fun LongPressMenu(
 @Composable
 private fun LongPressActionRow(thread: EmailThread, tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.Bottom) {
-        if (tabForMenu == InboxTab.SNOOZED) {
-            LongPressAction(icon = Icons.Rounded.Restore, label = "Unsnooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onUnsnooze(); onDismiss() })
-        } else {
-            LongPressAction(icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder, label = if (thread.isStarred) "Unstar" else "Star", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onStar(); onDismiss() })
-        }
-        LongPressAction(
-            icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
-            label = when (tabForMenu) { InboxTab.ARCHIVED -> "Unarchive"; InboxTab.SPAM -> "Not spam"; else -> "Archive" },
-            tint = MaterialTheme.colorScheme.onSurface,
-            onClick = { actions.onArchive(tabForMenu); onDismiss() }
-        )
-        LongPressAction(icon = if (thread.isRead) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle, label = if (thread.isRead) "Unread" else "Read", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onToggleRead(); onDismiss() })
+        StarOrUnsnoozeAction(thread, tabForMenu, actions, onDismiss)
+        ArchiveOrRestoreAction(tabForMenu, actions, onDismiss)
+        ReadUnreadAction(thread, actions, onDismiss)
         if (tabForMenu != InboxTab.TRASH && tabForMenu != InboxTab.SNOOZED && tabForMenu != InboxTab.SPAM) {
             LongPressAction(icon = Icons.Rounded.Schedule, label = "Snooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { onDismiss(); actions.onSnooze() })
         }
-        LongPressAction(
-            icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
-            label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
-            tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
-            onClick = { if (tabForMenu == InboxTab.TRASH) { actions.onArchive(tabForMenu) } else { actions.onDelete() }; onDismiss() }
-        )
+        DeleteOrRestoreAction(tabForMenu, actions, onDismiss)
     }
+}
+
+@Composable
+private fun StarOrUnsnoozeAction(thread: EmailThread, tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    if (tabForMenu == InboxTab.SNOOZED) {
+        LongPressAction(icon = Icons.Rounded.Restore, label = "Unsnooze", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onUnsnooze(); onDismiss() })
+    } else {
+        LongPressAction(icon = if (thread.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder, label = if (thread.isStarred) "Unstar" else "Star", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onStar(); onDismiss() })
+    }
+}
+
+@Composable
+private fun ArchiveOrRestoreAction(tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    LongPressAction(
+        icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
+        label = when (tabForMenu) { InboxTab.ARCHIVED -> "Unarchive"; InboxTab.SPAM -> "Not spam"; else -> "Archive" },
+        tint = MaterialTheme.colorScheme.onSurface,
+        onClick = { actions.onArchive(tabForMenu); onDismiss() }
+    )
+}
+
+@Composable
+private fun ReadUnreadAction(thread: EmailThread, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    LongPressAction(icon = if (thread.isRead) Icons.Rounded.MarkEmailUnread else Icons.Rounded.CheckCircle, label = if (thread.isRead) "Unread" else "Read", tint = MaterialTheme.colorScheme.onSurface, onClick = { actions.onToggleRead(); onDismiss() })
+}
+
+@Composable
+private fun DeleteOrRestoreAction(tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
+    LongPressAction(
+        icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
+        label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
+        tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+        onClick = { if (tabForMenu == InboxTab.TRASH) { actions.onArchive(tabForMenu) } else { actions.onDelete() }; onDismiss() }
+    )
 }
 
 @Composable
