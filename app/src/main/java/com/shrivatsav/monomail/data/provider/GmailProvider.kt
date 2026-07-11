@@ -262,7 +262,8 @@ class GmailProvider(
         }
     }
     override suspend fun batchMarkRead(messageIds: List<String>) {
-        messageIds.chunked(1000).forEach { chunk ->
+        messageIds.filter { it.isNotBlank() }.chunked(1000).forEach { chunk ->
+            if (chunk.isEmpty()) return@forEach
             try {
                 api.batchModifyMessages(BatchModifyMessagesRequest(ids = chunk, removeLabelIds = listOf("UNREAD")))
             } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
@@ -279,43 +280,57 @@ class GmailProvider(
         subject: String,
         body: String,
         options: SendEmailOptions
-    ): String? {
-        val session = Session.getInstance(Properties())
-        val message = MimeMessage(session).apply {
-            setFrom(InternetAddress(from))
-            setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
-            if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
-            if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
-            setSubject(subject, "utf-8")
-            if (options.attachments.isEmpty()) {
-                setContent(body, "text/html; charset=utf-8")
-            } else {
-                val multipart = MimeMultipart()
-                val textPart = MimeBodyPart()
-                textPart.setContent(body, "text/html; charset=utf-8")
-                multipart.addBodyPart(textPart)
-                for (att in options.attachments) {
-                    val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() }
-                    if (bytes != null) {
-                        val attPart = MimeBodyPart()
-                        val source = jakarta.mail.util.ByteArrayDataSource(bytes, att.mimeType)
-                        attPart.dataHandler = jakarta.activation.DataHandler(source)
-                        attPart.fileName = att.name
-                        multipart.addBodyPart(attPart)
+    ): String? = withContext(Dispatchers.IO) {
+        try {
+            val session = Session.getInstance(Properties())
+            val message = MimeMessage(session).apply {
+                setFrom(InternetAddress(from))
+                setRecipients(Message.RecipientType.TO, InternetAddress.parse(to))
+                if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
+                if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
+                setSubject(subject, "utf-8")
+                if (options.attachments.isEmpty()) {
+                    setContent(body, "text/html; charset=utf-8")
+                } else {
+                    val multipart = MimeMultipart()
+                    val textPart = MimeBodyPart()
+                    textPart.setContent(body, "text/html; charset=utf-8")
+                    multipart.addBodyPart(textPart)
+                    for (att in options.attachments) {
+                        val bytes = context.contentResolver.openInputStream(att.uri)?.use { it.readBytes() }
+                        if (bytes != null) {
+                            val attPart = MimeBodyPart()
+                            val source = jakarta.mail.util.ByteArrayDataSource(bytes, att.mimeType)
+                            attPart.dataHandler = jakarta.activation.DataHandler(source)
+                            attPart.fileName = att.name
+                            multipart.addBodyPart(attPart)
+                        }
                     }
+                    setContent(multipart)
                 }
-                setContent(multipart)
+                saveChanges()
             }
-            saveChanges()
-        }
 
-        val rawBytes = ByteArrayOutputStream().also { message.writeTo(it) }.toByteArray()
-        val raw = android.util.Base64.encodeToString(
-            rawBytes,
-            android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
-        )
-        val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = options.threadId))
-        return response.threadId
+            val rawBytes = ByteArrayOutputStream().also { message.writeTo(it) }.toByteArray()
+            val raw = android.util.Base64.encodeToString(
+                rawBytes,
+                android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
+            )
+            val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = options.threadId))
+            response.threadId
+        } catch (e: HttpException) {
+            val msg = when (e.code()) {
+                400 -> "Invalid message format"
+                403 -> "Insufficient permissions to send email"
+                429 -> "Too many requests, try again later"
+                else -> "Send failed (HTTP ${e.code()})"
+            }
+            throw RuntimeException(msg, e)
+        } catch (e: java.io.IOException) {
+            throw RuntimeException("Network error — check your connection and try again", e)
+        } catch (e: Exception) {
+            throw RuntimeException("Send failed: ${e.message ?: e.javaClass.simpleName}", e)
+        }
     }
 
     override suspend fun getSendAsAliases(): List<SendAsAlias> {

@@ -33,7 +33,7 @@ class ScheduledSendWorker @AssistedInject constructor(
         return try {
             val provider = emailRepository.getProviderForAccount(message.accountId)
             if (provider == null) return Result.retry()
-            emailRepository.sendEmail(
+            val sendResult = emailRepository.sendEmail(
                 from = message.fromEmail,
                 to = message.to,
                 subject = message.subject,
@@ -41,9 +41,14 @@ class ScheduledSendWorker @AssistedInject constructor(
                 params = SendEmailParams(cc = message.cc, bcc = message.bcc, attachments = attachments, threadId = message.threadId, inReplyToMessageId = message.messageId, references = message.messageId),
                 explicitAccountId = message.accountId
             )
-            dao.markAsSent(messageId)
-            cleanupCachedFiles(attachments)
-            Result.success()
+            if (sendResult.isFailure) {
+                android.util.Log.e("ScheduledSendWorker", "sendEmail failed", sendResult.exceptionOrNull())
+                if (runAttemptCount < 3) Result.retry() else Result.failure()
+            } else {
+                dao.markAsSent(messageId)
+                cleanupCachedFiles(attachments)
+                Result.success()
+            }
         } catch (e: Exception) {
             if (runAttemptCount < 3) Result.retry() else Result.failure()
         }

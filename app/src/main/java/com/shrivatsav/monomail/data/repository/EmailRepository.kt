@@ -440,44 +440,50 @@ class EmailRepository(
                 options = SendEmailOptions(cc = params.cc, bcc = params.bcc, threadId = params.threadId, inReplyToMessageId = params.inReplyToMessageId, references = params.references, attachments = params.attachments)
             )
             val actualThreadId = sentThreadId ?: UUID.randomUUID().toString()
-            val msgId = UUID.randomUUID().toString()
-            val now = System.currentTimeMillis()
-            val domainThread = EmailThread(
-                threadId = actualThreadId,
-                subject = subject.cleanSubject(),
-                from = from,
-                fromEmail = from,
-                snippet = body.take(100),
-                date = now,
-                messageCount = 1,
-                isRead = true,
-                isStarred = false,
-                latestMessageId = msgId,
-                participants = listOf(from, to)
-            )
-            val domainEmail = Email(
-                id = msgId,
-                threadId = actualThreadId,
-                subject = subject,
-                from = from,
-                fromEmail = from,
-                to = to,
-                cc = params.cc,
-                bcc = params.bcc,
-                snippet = body.take(100),
-                body = body,
-                date = now,
-                isRead = true,
-                isStarred = false,
-                labels = listOf(EmailFolder.SENT.name),
-                attachments = params.attachments.map { com.shrivatsav.monomail.data.model.EmailAttachmentInfo(id = it.name, messageId = msgId, name = it.name, mimeType = it.mimeType, size = it.size.toInt()) }
-            )
-            database.withTransaction {
-                threadDao.insertThreads(listOf(domainThread.toEntity(targetAccountId, inInbox = false, inSent = true, inArchived = false, inTrash = false, inSpam = false)))
-                emailDao.insertEmails(listOf(domainEmail.toEntity(targetAccountId)))
+            // ponytail: DB insert is best-effort — email already sent to server, don't report false failure
+            try {
+                val msgId = UUID.randomUUID().toString()
+                val now = System.currentTimeMillis()
+                val domainThread = EmailThread(
+                    threadId = actualThreadId,
+                    subject = subject.cleanSubject(),
+                    from = from,
+                    fromEmail = from,
+                    snippet = body.take(100),
+                    date = now,
+                    messageCount = 1,
+                    isRead = true,
+                    isStarred = false,
+                    latestMessageId = msgId,
+                    participants = listOf(from, to)
+                )
+                val domainEmail = Email(
+                    id = msgId,
+                    threadId = actualThreadId,
+                    subject = subject,
+                    from = from,
+                    fromEmail = from,
+                    to = to,
+                    cc = params.cc,
+                    bcc = params.bcc,
+                    snippet = body.take(100),
+                    body = body,
+                    date = now,
+                    isRead = true,
+                    isStarred = false,
+                    labels = listOf(EmailFolder.SENT.name),
+                    attachments = params.attachments.map { com.shrivatsav.monomail.data.model.EmailAttachmentInfo(id = it.name, messageId = msgId, name = it.name, mimeType = it.mimeType, size = it.size.toInt()) }
+                )
+                database.withTransaction {
+                    threadDao.insertThreads(listOf(domainThread.toEntity(targetAccountId, inInbox = false, inSent = true, inArchived = false, inTrash = false, inSpam = false)))
+                    emailDao.insertEmails(listOf(domainEmail.toEntity(targetAccountId)))
+                }
+            } catch (e: Exception) {
+                Log.w("EmailRepo", "DB insert after send failed (email was sent)", e)
             }
             Result.success(actualThreadId)
         } catch (e: Exception) {
+            Log.e("EmailRepo", "sendEmail failed", e)
             Result.failure(e)
         }
     }
