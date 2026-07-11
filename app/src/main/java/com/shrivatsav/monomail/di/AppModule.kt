@@ -40,8 +40,9 @@ object AppModule {
     fun provideAuthManager(
         @ApplicationContext context: Context,
         accountManager: AccountManager,
-        pushNotificationManager: com.shrivatsav.monomail.push.PushNotificationManager
-    ): AuthManager = AuthManager(context, accountManager, pushNotificationManager)
+        pushNotificationManager: com.shrivatsav.monomail.push.PushNotificationManager,
+        database: com.shrivatsav.monomail.data.local.AppDatabase
+    ): AuthManager = AuthManager(context, accountManager, pushNotificationManager, database)
 
     @Provides @Singleton
     fun provideSettingsDataStore(@ApplicationContext context: Context): SettingsDataStore =

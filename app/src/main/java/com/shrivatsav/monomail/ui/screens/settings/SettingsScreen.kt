@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.shrivatsav.monomail.ui.theme.MonoSpring
+import com.shrivatsav.monomail.ui.theme.MonoTween
 
 enum class SettingsSection(val icon: ImageVector, val title: String, val subtitle: String) {
     APPEARANCE(Icons.Rounded.Palette, "Appearance", "Theme, font size, display preferences"),
@@ -50,11 +52,11 @@ fun SettingsScreen(
         transitionSpec = {
             val isDrill = targetState != null
             if (isDrill) {
-                (slideInHorizontally { width -> width } + fadeIn(animationSpec = tween(250)))
-                    .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut(animationSpec = tween(200)))
+                (slideInHorizontally { width -> width } + fadeIn(animationSpec = MonoTween.fadeIn))
+                    .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut(animationSpec = MonoTween.fadeOut))
             } else {
-                (slideInHorizontally { width -> -width / 4 } + fadeIn(animationSpec = tween(250)))
-                    .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = tween(200)))
+                (slideInHorizontally { width -> -width / 4 } + fadeIn(animationSpec = MonoTween.fadeIn))
+                    .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = MonoTween.fadeOut))
             }
         },
         label = "settingsNav"
@@ -177,10 +179,7 @@ private fun CategoryCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val cardScale by animateFloatAsState(
         targetValue = if (isPressed) 0.97f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
+        animationSpec = MonoSpring.bouncy(),
         label = "cardScale"
     )
 

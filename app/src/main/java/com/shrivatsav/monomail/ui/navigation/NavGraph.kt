@@ -6,6 +6,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.AlertDialog
@@ -44,6 +45,7 @@ import com.shrivatsav.monomail.ui.screens.auth.SignInViewModel
 import com.shrivatsav.monomail.ui.screens.compose.ComposeMode
 import com.shrivatsav.monomail.ui.screens.compose.ComposeScreen
 import com.shrivatsav.monomail.ui.screens.compose.ComposeViewModel
+import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
 import com.shrivatsav.monomail.ui.screens.detail.EmailDetailScreen
 import com.shrivatsav.monomail.ui.screens.detail.EmailDetailViewModel
 import com.shrivatsav.monomail.ui.screens.inbox.InboxScreen
@@ -63,17 +65,18 @@ sealed class Screen(val route: String) {
     object ThreadDetail : Screen("thread/{threadId}") {
         fun createRoute(threadId: String) = "thread/$threadId"
     }
-    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}") {
+    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}&unified={unified}") {
         fun createRoute(
             mode: ComposeMode = ComposeMode.NEW,
             to: String = "",
             subject: String = "",
             threadId: String = "",
             messageId: String = "",
-            scheduledId: String = ""
+            scheduledId: String = "",
+            unified: Boolean = false
         ): String {
             val enc = { s: String -> Uri.encode(s) }
-            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}&scheduledId=${enc(scheduledId)}"
+            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}&scheduledId=${enc(scheduledId)}&unified=$unified"
         }
     }
     object Scheduled : Screen("scheduled")
@@ -113,22 +116,32 @@ private fun ReauthDialog(
             )
         },
         confirmButton = {
-            TextButton(onClick = {
-                scope.launch {
-                    authManager.dismissReauth()
-                    val accounts = authManager.getAccounts()
-                    val targetId = accounts.find { it.email == reauth.email }?.id ?: return@launch
-                    authManager.removeAccount(targetId)
-                    val remaining = authManager.getAccounts()
-                    if (remaining.isEmpty()) {
-                        authManager.signOutAll()
-                        navController.navigate(Screen.SignIn.route) {
-                            popUpTo(0) { inclusive = true }
+            Column {
+                TextButton(onClick = {
+                    scope.launch {
+                        authManager.dismissReauth()
+                        authManager.forceRefreshToken(reauth.email)
+                    }
+                }) {
+                    Text("Refresh Token")
+                }
+                TextButton(onClick = {
+                    scope.launch {
+                        authManager.dismissReauth()
+                        val accounts = authManager.getAccounts()
+                        val targetId = accounts.find { it.email.equals(reauth.email, ignoreCase = true) }?.id ?: return@launch
+                        authManager.removeAccount(targetId)
+                        val remaining = authManager.getAccounts()
+                        if (remaining.isEmpty()) {
+                            authManager.signOutAll()
+                            navController.navigate(Screen.SignIn.route) {
+                                popUpTo(0) { inclusive = true }
+                            }
                         }
                     }
+                }) {
+                    Text("Sign out this account", color = MaterialTheme.colorScheme.error)
                 }
-            }) {
-                Text("Sign out this account")
             }
         },
         dismissButton = {
@@ -283,7 +296,8 @@ fun NavGraph(
                             }
                         },
                         onCompose = {
-                            navController.navigate(Screen.Compose.createRoute()) { launchSingleTop = true }
+                            val isUnified = vm.currentTab.value == InboxTab.UNIFIED
+                            navController.navigate(Screen.Compose.createRoute(unified = isUnified)) { launchSingleTop = true }
                         },
                         onSettings = {
                             navController.navigate(Screen.Settings.route) { launchSingleTop = true }
@@ -360,14 +374,15 @@ fun NavGraph(
                 )
             }
             composable(
-                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}",
+                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}&unified={unified}",
                 arguments = listOf(
                     navArgument("mode") { type = NavType.StringType; defaultValue = "NEW" },
                     navArgument("to") { type = NavType.StringType; defaultValue = "" },
                     navArgument("subject") { type = NavType.StringType; defaultValue = "" },
                     navArgument("threadId") { type = NavType.StringType; defaultValue = "" },
                     navArgument("messageId") { type = NavType.StringType; defaultValue = "" },
-                    navArgument("scheduledId") { type = NavType.StringType; defaultValue = "" }
+                    navArgument("scheduledId") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("unified") { type = NavType.BoolType; defaultValue = false }
                 )
             ) { _ ->
                 val vm: ComposeViewModel = hiltViewModel()

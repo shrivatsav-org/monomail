@@ -19,13 +19,22 @@ val DarkSurfaceContainerHigh = Color(0xFF1C1C1C)
 val DarkOutlineVariant       = Color(0xFF2A2A2A)
 val DarkOnSurfaceMuted       = Color(0xFFA0A0A0) // AA-contrast on black surfaces
 
-// Purple accent colors (M3 default purple palette)
-val PurplePrimaryLight       = Color(0xFF6750A4)
-val PurpleOnPrimaryLight     = Color(0xFFFFFFFF)
-val PurplePrimaryContainerLight = Color(0xFFEADDFF)
-val PurpleOnPrimaryContainerLight = Color(0xFF21005D)
+// Opacity tokens for consistent text hierarchy
+object MonoOpacity {
+    const val heading = 1.0f
+    const val body = 0.80f
+    const val secondary = 0.60f
+    const val tertiary = 0.45f
+    const val disabled = 0.30f
+    const val subtle = 0.15f
+    const val whisper = 0.08f
+}
 
-val PurplePrimaryDark        = Color(0xFFD0BCFF)
-val PurpleOnPrimaryDark      = Color(0xFF381E72)
-val PurplePrimaryContainerDark = Color(0xFF4F378B)
-val PurpleOnPrimaryContainerDark = Color(0xFFEADDFF)
+// Tinted shadow colors (never pure black/grey)
+object MonoShadows {
+    val light = Color(0x1A000000)  // 10% black
+    val medium = Color(0x26000000) // 15% black
+    val strong = Color(0x33000000) // 20% black
+    val dark = Color(0x1AFFFFFF)   // 10% white (for dark mode)
+    val darkMedium = Color(0x26FFFFFF)
+}

@@ -101,6 +101,7 @@ import com.shrivatsav.monomail.util.normalizeEmailBody
 import com.shrivatsav.monomail.util.stripUnsafeHtml
 import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewFeature
+import com.shrivatsav.monomail.ui.theme.MonoTween
 
 import androidx.compose.material3.ModalBottomSheet
 import kotlinx.coroutines.launch
@@ -160,8 +161,8 @@ fun EmailDetailScreen(
                         AnimatedContent(
                             targetState = isStarred,
                             transitionSpec = {
-                                (fadeIn(tween(200)) + scaleIn(tween(200))) togetherWith
-                                (fadeOut(tween(150)) + scaleOut(tween(150)))
+                                (fadeIn(MonoTween.fadeIn) + scaleIn(MonoTween.fadeIn)) togetherWith
+                                (fadeOut(MonoTween.fadeOut) + scaleOut(MonoTween.fadeOut))
                             },
                             label = "starToggle"
                         ) { starred ->
@@ -239,28 +240,12 @@ private fun DetailContent(
 ) {
     when (val s = state) {
         is EmailDetailState.Error -> {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Warning,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
-                    modifier = Modifier.size(48.dp)
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(
-                    text = s.message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                )
-            }
+            com.shrivatsav.monomail.ui.components.EmptyStateView(
+                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.ERROR_CLOUD,
+                title = "Something went wrong",
+                subtitle = s.message,
+                isError = true
+            )
         }
         is EmailDetailState.Success -> {
             val emails = s.emails
@@ -878,7 +863,7 @@ private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: E
     DisposableEffect(emailId) {
         onDispose { emailContentWebView?.apply { removeAllViews(); destroy() }; emailContentWebView = null }
     }
-    val cardBgColor = if (emailTheme == EmailTheme.ORIGINAL) Color.White else MaterialTheme.colorScheme.surfaceContainerLow
+    val cardBgColor = if (emailTheme == EmailTheme.ORIGINAL) Color.White else Color.Transparent
     val useDarkening = when (emailTheme) {
         EmailTheme.FORCE_DARK -> true
         EmailTheme.AUTO -> isSystemInDarkTheme()

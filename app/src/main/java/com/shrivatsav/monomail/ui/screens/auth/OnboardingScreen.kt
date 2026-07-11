@@ -21,6 +21,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
+import com.shrivatsav.monomail.ui.components.IllustrationType
+import com.shrivatsav.monomail.ui.components.MonoIllustration
+import com.shrivatsav.monomail.ui.theme.MonoOpacity
+import com.shrivatsav.monomail.ui.theme.MonoSpring
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,14 +43,14 @@ import kotlinx.coroutines.launch
 
 private const val TOTAL_PAGES = 5
 
-private data class PageContent(val icon: ImageVector, val title: String, val description: String)
+private data class PageContent(val illustration: IllustrationType, val title: String, val description: String)
 
 private val pageContents = listOf(
-    PageContent(Icons.Rounded.Email, "Welcome to Monomail", "An open-source, privacy-first email client built for modern Android. We're currently in active beta, rapidly evolving with community feedback."),
-    PageContent(Icons.Rounded.AccountTree, "Why Monomail?", "Seamlessly manage all your accounts in one place with our Unified Inbox. Enjoy full support for Gmail, Outlook, and IMAP/SMTP, with more providers on the way."),
-    PageContent(Icons.Rounded.DashboardCustomize, "Modern Layout & Features", "Experience an elegant Material 3 Expressive design with a customizable bottom dock. Packed with powerful tools like undo send, swipe gestures, long-press menus, custom templates, and scheduled send."),
-    PageContent(Icons.Rounded.VolunteerActivism, "Support Monomail", "Monomail is free, open-source, and built with privacy in mind. If you find it useful, here is how you can support its active development."),
-    PageContent(Icons.Rounded.Security, "Permissions & Setup", "To provide real-time alerts with contact names and ensure push notifications arrive instantly even when the app is closed, Monomail requires background permissions.")
+    PageContent(IllustrationType.ENVELOPE, "Welcome to Monomail", "An open-source, privacy-first email client built for modern Android. We're currently in active beta, rapidly evolving with community feedback."),
+    PageContent(IllustrationType.CONNECTION, "Why Monomail?", "Seamlessly manage all your accounts in one place with our Unified Inbox. Enjoy full support for Gmail, Outlook, and IMAP/SMTP, with more providers on the way."),
+    PageContent(IllustrationType.PAPER_PLANE, "Modern Layout & Features", "Experience an elegant Material 3 Expressive design with a customizable bottom dock. Packed with powerful tools like undo send, swipe gestures, long-press menus, custom templates, and scheduled send."),
+    PageContent(IllustrationType.ENVELOPE, "Support Monomail", "Monomail is free, open-source, and built with privacy in mind. If you find it useful, here is how you can support its active development."),
+    PageContent(IllustrationType.SHIELD, "Permissions & Setup", "To provide real-time alerts with contact names and ensure push notifications arrive instantly even when the app is closed, Monomail requires background permissions.")
 )
 
 @Composable
@@ -150,8 +156,29 @@ private fun PagerControls(currentPage: Int, onPrev: () -> Unit, onNext: () -> Un
 
         if (currentPage < TOTAL_PAGES - 1) Button(onClick = onNext, shape = RoundedCornerShape(16.dp)) {
             Text("Next", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-        } else Button(onClick = onFinish, shape = RoundedCornerShape(16.dp), enabled = enabled) {
-            Text("Get Started", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+        } else {
+            val transition = rememberInfiniteTransition(label = "pulse_transition")
+            val scale by transition.animateFloat(
+                initialValue = 1f,
+                targetValue = if (enabled) 1.03f else 1f,
+                animationSpec = infiniteRepeatable(
+                    animation = tween(1000, easing = FastOutSlowInEasing),
+                    repeatMode = RepeatMode.Reverse
+                ),
+                label = "pulse_scale"
+            )
+            
+            Button(
+                onClick = onFinish, 
+                shape = RoundedCornerShape(16.dp), 
+                enabled = enabled, 
+                modifier = Modifier.graphicsLayer { 
+                    scaleX = scale 
+                    scaleY = scale 
+                }
+            ) {
+                Text("Get Started", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
         }
     }
 }
@@ -161,10 +188,16 @@ private fun PageIndicatorDots(currentPage: Int) {
     Row(modifier = Modifier.padding(bottom = 24.dp), horizontalArrangement = Arrangement.Center) {
         repeat(TOTAL_PAGES) { index ->
             val selected = currentPage == index
+            val width by animateDpAsState(
+                targetValue = if (selected) 24.dp else 8.dp,
+                animationSpec = MonoSpring.bouncy(),
+                label = "indicatorWidth"
+            )
             Box(
                 modifier = Modifier
-                    .padding(4.dp)
-                    .size(if (selected) 12.dp else 8.dp)
+                    .padding(horizontal = 4.dp, vertical = 6.dp)
+                    .height(8.dp)
+                    .width(width)
                     .clip(CircleShape)
                     .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
             )
@@ -211,6 +244,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) { page ->
+                val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
                 OnboardingPage(
                     page = page,
                     uriHandler = uriHandler,
@@ -218,7 +252,8 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                     kofiIcon = kofiIcon,
                     permissionsState = PermissionsState(granted = permissionsGranted, batteryOptimizationIgnored = isIgnoringBatteryOptimizations),
                     onRequestNotifications = { requestNotifications(context, permissionLauncher) { permissionsGranted = true } },
-                    onRequestBatteryOptimization = { requestBatteryOptimization(context, isIgnoringBatteryOptimizations) }
+                    onRequestBatteryOptimization = { requestBatteryOptimization(context, isIgnoringBatteryOptimizations) },
+                    pageOffset = pageOffset
                 )
             }
 
@@ -246,7 +281,8 @@ private fun OnboardingPage(
     kofiIcon: androidx.compose.ui.graphics.painter.Painter?,
     permissionsState: PermissionsState,
     onRequestNotifications: () -> Unit,
-    onRequestBatteryOptimization: () -> Unit
+    onRequestBatteryOptimization: () -> Unit,
+    pageOffset: Float = 0f
 ) {
     Column(
         modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
@@ -256,25 +292,43 @@ private fun OnboardingPage(
         val content = pageContents[page]
 
         Box(
-            modifier = Modifier.size(96.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            modifier = Modifier
+                .height(200.dp)
+                .fillMaxWidth()
+                .offset(x = (pageOffset * -40).dp), // subtle parallax
             contentAlignment = Alignment.Center
         ) {
-            Icon(imageVector = content.icon, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            MonoIllustration(type = content.illustration, size = 160.dp, animated = true)
         }
         Spacer(modifier = Modifier.height(28.dp))
-        Text(text = content.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
+        Text(
+            text = content.title, 
+            style = MaterialTheme.typography.headlineMedium, 
+            fontWeight = FontWeight.Bold, 
+            color = MaterialTheme.colorScheme.onBackground, 
+            textAlign = TextAlign.Center,
+            modifier = Modifier.offset(x = (pageOffset * -20).dp)
+        )
         Spacer(modifier = Modifier.height(12.dp))
-        Text(text = content.description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Text(
+            text = content.description, 
+            style = MaterialTheme.typography.bodyLarge, 
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = MonoOpacity.secondary), 
+            textAlign = TextAlign.Center,
+            modifier = Modifier.offset(x = (pageOffset * -10).dp)
+        )
         Spacer(modifier = Modifier.height(24.dp))
 
-        when (page) {
-            3 -> SupportPage(uriHandler, context, kofiIcon)
-            4 -> PermissionsPage(
-                permissionsGranted = permissionsState.granted,
-                onRequestNotifications = onRequestNotifications,
-                isIgnoringBatteryOptimizations = permissionsState.batteryOptimizationIgnored,
-                onRequestBatteryOptimization = onRequestBatteryOptimization
-            )
+        Box(modifier = Modifier.offset(x = (pageOffset * -5).dp)) {
+            when (page) {
+                3 -> SupportPage(uriHandler, context, kofiIcon)
+                4 -> PermissionsPage(
+                    permissionsGranted = permissionsState.granted,
+                    onRequestNotifications = onRequestNotifications,
+                    isIgnoringBatteryOptimizations = permissionsState.batteryOptimizationIgnored,
+                    onRequestBatteryOptimization = onRequestBatteryOptimization
+                )
+            }
         }
     }
 }

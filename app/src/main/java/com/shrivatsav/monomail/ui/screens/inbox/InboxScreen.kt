@@ -9,6 +9,7 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.*
 import androidx.compose.material.icons.Icons
@@ -99,6 +100,8 @@ fun InboxScreen(
     val selectedCount by viewModel.selectedCount.collectAsState()
     if (isBulkMode) {
         BackHandler { viewModel.exitBulkSelectMode() }
+    } else if (immediateTab != InboxTab.INBOX) {
+        BackHandler { viewModel.switchTab(InboxTab.INBOX) }
     }
 
     val localFilteredThreads by remember(searchQuery, currentThreads) {
@@ -209,38 +212,22 @@ fun InboxScreen(
                     }
                     when (val s = state) {
                         is InboxState.Loading -> {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                LoadingIndicator(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .semantics { contentDescription = "Loading emails" },
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                            Column(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                repeat(8) { ShimmerEmailItem() }
                             }
                         }
 
                         is InboxState.Error -> {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                                    modifier = Modifier.padding(32.dp)
-                                ) {
-                                    Text(
-                                        s.message,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                                    )
-                                    Button(
-                                        onClick = { viewModel.refresh() },
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.onSurface,
-                                            contentColor = MaterialTheme.colorScheme.background
-                                        ),
-                                        shape = MaterialTheme.shapes.large
-                                    ) { Text("Retry") }
-                                }
-                            }
+                            com.shrivatsav.monomail.ui.components.EmptyStateView(
+                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.ERROR_CLOUD,
+                                title = "Something went wrong",
+                                subtitle = s.message,
+                                ctaText = "Retry",
+                                onCtaClick = { viewModel.refresh() }
+                            )
                         }
 
                         is InboxState.Success -> {
@@ -313,53 +300,96 @@ fun InboxScreen(
                                 indicator = {}
                             ) {
                                 if (threadsToDisplay.isEmpty()) {
-                                    Box(
-                                        Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Column(
-                                            horizontalAlignment = Alignment.CenterHorizontally,
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Text(
-                                                if (isSearchActive) "No results for \"$searchQuery\"" else "No emails",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                                            )
-                                            if (isSearchActive) {
-                                                OutlinedButton(
-                                                    onClick = { viewModel.searchServer(searchQuery) },
-                                                    shape = MaterialTheme.shapes.large
-                                                ) { Text("Search server") }
+                                    val illustration: com.shrivatsav.monomail.ui.components.IllustrationType
+                                    val title: String
+                                    val subtitle: String
+                                    val ctaText: String?
+                                    val onCtaClick: (() -> Unit)?
+                                    if (isSearchActive) {
+                                        illustration = com.shrivatsav.monomail.ui.components.IllustrationType.SEARCH_EMPTY
+                                        title = "No results found"
+                                        subtitle = "Try searching on the server instead."
+                                        ctaText = "Search server"
+                                        onCtaClick = { viewModel.searchServer(searchQuery) }
+                                    } else {
+                                        when (currentTab) {
+                                            InboxTab.SENT -> {
+                                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.PAPER_PLANE
+                                                title = "Nothing sent yet"
+                                                subtitle = "Your sent emails will appear here."
+                                                ctaText = "Compose"
+                                                onCtaClick = { navActions.onCompose() }
+                                            }
+                                            InboxTab.STARRED -> {
+                                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO
+                                                title = "No starred emails"
+                                                subtitle = "Star important emails to find them here."
+                                                ctaText = null
+                                                onCtaClick = null
+                                            }
+                                            InboxTab.TRASH, InboxTab.SPAM -> {
+                                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO
+                                                title = "Empty"
+                                                subtitle = "No messages here."
+                                                ctaText = null
+                                                onCtaClick = null
+                                            }
+                                            InboxTab.ARCHIVED -> {
+                                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO
+                                                title = "No archived emails"
+                                                subtitle = "Emails you archive will appear here."
+                                                ctaText = null
+                                                onCtaClick = null
+                                            }
+                                            InboxTab.SNOOZED -> {
+                                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO
+                                                title = "Nothing snoozed"
+                                                subtitle = "Snoozed emails will reappear when ready."
+                                                ctaText = null
+                                                onCtaClick = null
+                                            }
+                                            InboxTab.UNIFIED -> {
+                                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO
+                                                title = "You're all caught up"
+                                                subtitle = "No emails across all your accounts."
+                                                ctaText = null
+                                                onCtaClick = null
+                                            }
+                                            else -> {
+                                                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO
+                                                title = "You're all caught up"
+                                                subtitle = "Your inbox is empty."
+                                                ctaText = null
+                                                onCtaClick = null
                                             }
                                         }
                                     }
+                                    com.shrivatsav.monomail.ui.components.EmptyStateView(
+                                        illustration = illustration,
+                                        title = title,
+                                        subtitle = subtitle,
+                                        ctaText = ctaText,
+                                        onCtaClick = onCtaClick
+                                    )
                                 } else {
-                                    val itemKeyFn = remember { { it: InboxDisplayItem -> it.key } }
+                                    val itemKeyFn = remember(currentTab) { { it: InboxDisplayItem -> "${currentTab.name}_${it.key}" } }
                                     LazyColumn(
                                         state = listState,
                                         modifier = Modifier
                                             .fillMaxSize(),
                                         contentPadding = PaddingValues(bottom = 100.dp)
                                     ) {
-                                        items(displayItems, key = itemKeyFn) { displayItem ->
-                                            when (displayItem) {
+                                        itemsIndexed(displayItems, key = { _, it -> itemKeyFn(it) }) { index, displayItem ->
+                                            com.shrivatsav.monomail.ui.components.AnimatedListItem(
+                                                index = index,
+                                                itemKey = itemKeyFn(displayItem),
+                                                animatedItemsTracker = viewModel.animatedItemsTracker
+                                            ) {
+                                                when (displayItem) {
                                                 is InboxDisplayItem.DateHeader -> {
-                                                    Text(
-                                                        text = displayItem.title,
-                                                        style = MaterialTheme.typography.labelMedium,
-                                                        fontWeight = FontWeight.SemiBold,
-                                                        color = MaterialTheme.colorScheme.onSurface.copy(
-                                                            alpha = 0.5f
-                                                        ),
-                                                        modifier = Modifier
-                                                            .animateItem()
-                                                            .fillMaxWidth()
-                                                            .background(MaterialTheme.colorScheme.background)
-                                                            .padding(
-                                                                horizontal = 20.dp,
-                                                                vertical = 10.dp
-                                                            )
+                                                    com.shrivatsav.monomail.ui.components.SectionHeader(
+                                                        label = displayItem.title,
+                                                        modifier = Modifier.animateItem().background(MaterialTheme.colorScheme.background)
                                                     )
                                                 }
 
@@ -443,6 +473,7 @@ fun InboxScreen(
                                                         )
                                                     )
                                                 }
+                                                }
                                             }
                                         }
 
@@ -497,15 +528,32 @@ fun InboxScreen(
                 exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                BottomFabArea(
-                    immediateTab = immediateTab,
-                    appSettings = appSettings,
-                    unifiedInboxEnabled = unifiedInboxEnabled,
-                    navActions = navActions,
-                    viewModel = viewModel,
-                    navBarHeight = navBarHeight,
-                    onEmptyBin = { isTrash -> if (isTrash) showClearTrashWarning = true else showClearSpamWarning = true }
-                )
+                                    val showScrollToTop by remember { derivedStateOf { (state as? InboxState.Success)?.let { 
+                        val listState = viewModel.scrollPositions.value[it.currentTab] ?: (0 to 0)
+                        listState.first > 20
+                    } ?: false } }
+
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp)
+                    ) {
+                        BottomFabArea(
+                            immediateTab = immediateTab,
+                            appSettings = appSettings,
+                            unifiedInboxEnabled = unifiedInboxEnabled,
+                            navActions = navActions,
+                            viewModel = viewModel,
+                            navBarHeight = navBarHeight,
+                            onEmptyBin = { isTrash -> if (isTrash) showClearTrashWarning = true else showClearSpamWarning = true },
+                            showScrollToTop = showScrollToTop,
+                            onScrollToTop = {
+                                coroutineScope.launch {
+                                    viewModel.saveScrollState(immediateTab, 0, 0)
+                                }
+                            }
+                        )
+                    }
             }
 
             AnimatedVisibility(
@@ -871,19 +919,17 @@ private fun ClearCountdownDialog(
     onDismiss: () -> Unit,
     onCountdownFinished: () -> Unit,
     isActive: Boolean,
-    isCountdownActive: Boolean,
+    isCountdownActive: Boolean, // Kept for compatibility with existing call sites
     setCountdownActive: (Boolean) -> Unit
 ) {
     var countdown by remember { mutableIntStateOf(5) }
     LaunchedEffect(isActive) {
         if (isActive) {
             countdown = 5
-            setCountdownActive(true)
-            while (countdown > 0 && isCountdownActive) {
+            while (countdown > 0) {
                 kotlinx.coroutines.delay(1000)
                 countdown--
             }
-            if (isCountdownActive) onCountdownFinished()
         }
     }
     Surface(
@@ -897,19 +943,20 @@ private fun ClearCountdownDialog(
             Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Spacer(modifier = Modifier.height(12.dp))
             Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(16.dp))
-            Surface(shape = RoundedCornerShape(12.dp), color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)) {
-                Text(
-                    text = if (countdown > 0) "Clearing in $countdown..." else "Clearing...",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 TextButton(onClick = { setCountdownActive(false); onDismiss() }) { Text("Cancel") }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = { onCountdownFinished() },
+                    enabled = countdown == 0,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text(if (countdown > 0) "Delete ($countdown)" else "Delete")
+                }
             }
         }
     }
@@ -924,7 +971,9 @@ private fun BottomFabArea(
     navActions: InboxNavActions,
     viewModel: InboxViewModel,
     navBarHeight: Dp,
-    onEmptyBin: (isTrash: Boolean) -> Unit
+    onEmptyBin: (isTrash: Boolean) -> Unit,
+    showScrollToTop: Boolean = false,
+    onScrollToTop: () -> Unit = {}
 ) {
     val tabForDock = immediateTab
     Row(
@@ -941,6 +990,7 @@ private fun BottomFabArea(
         )
         AnimatedContent(
             targetState = when {
+                showScrollToTop -> "scrollUp"
                 tabForDock == InboxTab.TRASH -> "trash"
                 tabForDock == InboxTab.SPAM -> "spam"
                 else -> "default"
@@ -952,6 +1002,7 @@ private fun BottomFabArea(
             }
         ) { state ->
             when (state) {
+                "scrollUp" -> ScrollToTopFab(appSettings, onScrollToTop)
                 "trash" -> EmptyTrashFab(appSettings) { onEmptyBin(true) }
                 "spam" -> EmptySpamFab(appSettings) { onEmptyBin(false) }
                 "default" -> ComposeFab(appSettings, navActions.onCompose)
@@ -991,6 +1042,20 @@ private fun EmptySpamFab(appSettings: com.shrivatsav.monomail.data.settings.AppS
             Icon(Icons.Rounded.Report, contentDescription = "Empty Spam", modifier = Modifier.size((22 * appSettings.navScale).dp))
             Text("Empty", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
         }
+    }
+}
+
+@Composable
+private fun ScrollToTopFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
+    FloatingActionButton(
+        onClick = onClick,
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        shape = CircleShape,
+        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+        modifier = Modifier.size((42 * appSettings.navScale).dp)
+    ) {
+        Icon(Icons.Rounded.ArrowUpward, contentDescription = "Scroll to top", modifier = Modifier.size((22 * appSettings.navScale).dp))
     }
 }
 

@@ -26,7 +26,8 @@ sealed class SignInResult {
 class AuthManager(
     private val context: Context,
     private val accountManager: AccountManager,
-    private val pushNotificationManager: PushNotificationManager
+    private val pushNotificationManager: PushNotificationManager,
+    private val database: com.shrivatsav.monomail.data.local.AppDatabase
 ) {
     companion object {
         private const val TAG = "AuthManager"
@@ -71,6 +72,42 @@ class AuthManager(
         _isSignedIn.value = true
         return true
     }
+    suspend fun forceRefreshToken(email: String) {
+        val target = accountManager.getAccounts().find { it.email.equals(email, ignoreCase = true) } ?: return
+        if (target.provider == "gmail") {
+            withContext(Dispatchers.IO) {
+                try { GoogleAuthUtil.clearToken(context, target.accessToken) } catch (e: Exception) {}
+            }
+        } else if (target.provider == "outlook") {
+            // Outlook SDK typically handles its own token clearing, but we can force interactive if needed.
+            // For now, rely on refreshOutlookToken.
+        }
+        
+        var lastException: Exception? = null
+        repeat(3) { attempt ->
+            try {
+                val refreshed = when (target.provider) {
+                    "gmail" -> refreshGmailToken(target)
+                    "outlook" -> refreshOutlookToken(target, attempt)
+                    else -> return
+                }
+                if (refreshed) {
+                    if (_userProfile?.id == target.id) {
+                        _userProfile = accountManager.getActiveAccount()
+                    }
+                    return
+                }
+            } catch (e: UserRecoverableAuthException) {
+                notifyReauthRequired(target.email, target.provider)
+                return
+            } catch (e: Exception) {
+                lastException = e
+                if (attempt < 2) kotlinx.coroutines.delay(1000L * (1 shl attempt))
+            }
+        }
+        handleRefreshFailure(target, lastException)
+    }
+
     private suspend fun refreshCurrentToken() {
         val profile = _userProfile ?: return
         var lastException: Exception? = null
@@ -214,6 +251,14 @@ class AuthManager(
         }
         accountManager.removeAccount(accountId)
         try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "push unregister failed during removeAccount for ${target.id}", e) }
+        try {
+            database.emailDao().clearForAccount(accountId)
+            database.threadDao().clearForAccount(accountId)
+            database.pendingActionDao().clearForAccount(accountId)
+            database.scheduledMessageDao().clearForAccount(accountId)
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to clear database for $accountId", e)
+        }
         val remaining = accountManager.getAccounts()
         if (remaining.isNotEmpty()) {
             val newActive = if (_userProfile?.id == accountId) remaining.first() else _userProfile
@@ -245,6 +290,14 @@ class AuthManager(
         accountManager.removeAccount(active.id)
         try { pushNotificationManager.unregisterForPushNotifications(active.id) } catch (e: Exception) {
             android.util.Log.w("AuthManager", "push unregister failed during signOut for ${active.id}", e)
+        }
+        try {
+            database.emailDao().clearForAccount(active.id)
+            database.threadDao().clearForAccount(active.id)
+            database.pendingActionDao().clearForAccount(active.id)
+            database.scheduledMessageDao().clearForAccount(active.id)
+        } catch (e: Exception) {
+            android.util.Log.w(TAG, "Failed to clear database for ${active.id}", e)
         }
         val newActive = accountManager.getActiveAccount()
         if (newActive != null) {

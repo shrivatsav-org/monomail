@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.shrivatsav.monomail.data.settings.*
+import com.shrivatsav.monomail.ui.theme.MonoOpacity
+import com.shrivatsav.monomail.ui.theme.MonoSpring
 
 // ── Shared UI Primitives ────────────────────────────────────────────
 
@@ -43,10 +45,7 @@ internal fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                    stiffness = Spring.StiffnessMedium
-                )
+                animationSpec = MonoSpring.bouncy()
             )
     ) {
         Column(content = content)
@@ -96,7 +95,7 @@ internal fun SettingsToggleRow(
     indented: Boolean = false,
     enabled: Boolean = true
 ) {
-    val alpha = if (enabled) 1f else 0.4f
+    val alpha = if (enabled) 1f else MonoOpacity.disabled
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -653,7 +652,7 @@ internal fun InfoRow(
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = MonoOpacity.secondary),
                 modifier = Modifier.size(18.dp)
             )
         }

@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.data.model.EmailThread
+import com.shrivatsav.monomail.ui.theme.MonoOpacity
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -73,7 +74,7 @@ fun EmailItem(
     val isUnread = !thread.isRead
     val senderInitial = thread.from.firstOrNull()?.uppercase() ?: "?"
     val backgroundColor = when {
-        isUnread -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+        isUnread -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = MonoOpacity.subtle)
         else -> MaterialTheme.colorScheme.background
     }
     val verticalPad = if (compactMode) 7.dp else 11.dp
@@ -179,7 +180,7 @@ private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean) {
                     text = "${thread.messageCount}",
                     style = MaterialTheme.typography.labelSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = MonoOpacity.secondary),
                     modifier = Modifier
                         .background(
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -195,7 +196,7 @@ private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean) {
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface.copy(
-                alpha = if (isUnread) 0.75f else 0.45f
+                alpha = if (isUnread) 0.85f else MonoOpacity.tertiary
             )
         )
     }
@@ -208,7 +209,7 @@ private fun EmailItemSubject(thread: EmailThread, isUnread: Boolean) {
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Normal,
         color = MaterialTheme.colorScheme.onSurface.copy(
-            alpha = if (isUnread) 1f else 0.8f
+            alpha = if (isUnread) 1f else MonoOpacity.secondary
         ),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -220,7 +221,7 @@ private fun EmailItemSnippet(thread: EmailThread, compactMode: Boolean) {
     Text(
         text = thread.snippet,
         style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = MonoOpacity.secondary),
         maxLines = if (compactMode) 1 else 2,
         overflow = TextOverflow.Ellipsis
     )
