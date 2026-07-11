@@ -195,109 +195,139 @@ fun EmailDetailScreen(
             )
         }
     ) { padding ->
-        when (val s = state) {
-            is EmailDetailState.Error -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 48.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(20.dp))
-                    Text(
-                        text = s.message,
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        DetailContent(
+            state = state,
+            padding = padding,
+            isConversationView = isConversationView,
+            fontScaleMultiplier = fontScaleMultiplier,
+            loadRemoteImages = loadRemoteImages,
+            emailTheme = emailTheme,
+            showInlineAttachments = showInlineAttachments,
+            isDeveloperMode = isDeveloperMode,
+            decryptedBodies = decryptedBodies,
+            currentUserEmail = viewModel.currentUserEmail,
+            onReply = onReply,
+            onForward = onForward,
+            onFetchAttachment = onFetchAttachment
+        )
+    }
+
+}
+
+@Composable
+private fun DetailContent(
+    state: EmailDetailState,
+    padding: androidx.compose.foundation.layout.PaddingValues,
+    isConversationView: Boolean,
+    fontScaleMultiplier: Float,
+    loadRemoteImages: Boolean,
+    emailTheme: EmailTheme,
+    showInlineAttachments: Boolean,
+    isDeveloperMode: Boolean,
+    decryptedBodies: Map<String, PgpDecryptionResult>,
+    currentUserEmail: String,
+    onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit,
+    onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit,
+    onFetchAttachment: suspend (String, String) -> ByteArray?
+) {
+    when (val s = state) {
+        is EmailDetailState.Error -> {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .padding(horizontal = 48.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.25f),
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = s.message,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+        is EmailDetailState.Success -> {
+            val emails = s.emails
+            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                if (s.isRefreshing) {
+                    LinearProgressIndicator(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
-            is EmailDetailState.Success -> {
-                val emails = s.emails
-                androidx.compose.foundation.layout.Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                    if (s.isRefreshing) {
-                        LinearProgressIndicator(
-                            modifier = Modifier.fillMaxWidth(),
-                            color = MaterialTheme.colorScheme.onSurface
+                if (s.refreshError != null) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            text = s.refreshError,
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    if (s.refreshError != null) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 24.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Warning,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
-                                modifier = Modifier.size(16.dp)
+                }
+                if (emails.isEmpty()) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                             )
+                            Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = s.refreshError,
-                                color = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
-                                style = MaterialTheme.typography.bodySmall,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
+                                "Loading…",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                             )
                         }
                     }
-                    if (emails.isEmpty()) {
-                        Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                androidx.compose.material3.CircularProgressIndicator(
-                                    modifier = Modifier.size(24.dp),
-                                    strokeWidth = 2.dp,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                                )
-                                Spacer(modifier = Modifier.height(16.dp))
-                                Text(
-                                    "Loading…",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                                )
-                            }
-                        }
-                    } else {
-                        val latestEmail = emails.last()
-                        val latestBody = decryptedBodies[latestEmail.id]?.decryptedBody ?: latestEmail.body
-                        // Reply should target the other party, not the current user. If the last
-                        // message in the thread was sent by us, reply to the most recent message
-                        // that wasn't (falling back to its recipient if the whole thread is ours).
-                        val myEmail = viewModel.currentUserEmail
-                        val replyTarget = emails.lastOrNull {
-                            it.fromEmail.isNotBlank() && !it.fromEmail.equals(myEmail, ignoreCase = true)
-                        }?.fromEmail ?: latestEmail.to
-                        ThreadConversationContent(
-                            emails = emails,
-                            decryptedBodies = decryptedBodies,
-                            modifier = Modifier.weight(1f),
-                            isConversationView = isConversationView,
-                            fontScaleMultiplier = fontScaleMultiplier,
-                            loadRemoteImages = loadRemoteImages,
-                            emailTheme = emailTheme,
-                            showInlineAttachments = showInlineAttachments,
-                            isDeveloperMode = isDeveloperMode,
-                            onReply = { onReply(replyTarget, latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
-                            onForward = { onForward(latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
-                            onFetchAttachment = onFetchAttachment
-                        )
-                    }
+                } else {
+                    val latestEmail = emails.last()
+                    val latestBody = decryptedBodies[latestEmail.id]?.decryptedBody ?: latestEmail.body
+                    val myEmail = currentUserEmail
+                    val replyTarget = emails.lastOrNull {
+                        it.fromEmail.isNotBlank() && !it.fromEmail.equals(myEmail, ignoreCase = true)
+                    }?.fromEmail ?: latestEmail.to
+                    ThreadConversationContent(
+                        emails = emails,
+                        decryptedBodies = decryptedBodies,
+                        modifier = Modifier.weight(1f),
+                        isConversationView = isConversationView,
+                        fontScaleMultiplier = fontScaleMultiplier,
+                        loadRemoteImages = loadRemoteImages,
+                        emailTheme = emailTheme,
+                        showInlineAttachments = showInlineAttachments,
+                        isDeveloperMode = isDeveloperMode,
+                        onReply = { onReply(replyTarget, latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
+                        onForward = { onForward(latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
+                        onFetchAttachment = onFetchAttachment
+                    )
                 }
             }
         }
     }
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
