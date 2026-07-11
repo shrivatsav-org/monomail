@@ -926,7 +926,7 @@ private fun BottomFabArea(
     navBarHeight: Dp,
     onEmptyBin: (isTrash: Boolean) -> Unit
 ) {
-    val tabForDock by remember { derivedStateOf { immediateTab } }
+    val tabForDock = immediateTab
     Row(
         modifier = Modifier.padding(bottom = navBarHeight + 8.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp),
