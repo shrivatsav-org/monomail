@@ -109,26 +109,36 @@ private fun PermissionsPage(
     onRequestBatteryOptimization: () -> Unit
 ) {
     Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Button(
+        PermissionButton(
+            granted = permissionsGranted,
             onClick = onRequestNotifications,
-            modifier = Modifier.fillMaxWidth(0.9f),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = if (permissionsGranted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary)
-        ) {
-            Icon(imageVector = if (permissionsGranted) Icons.Rounded.CheckCircle else Icons.Rounded.Notifications, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = if (permissionsGranted) "Notifications Granted" else "Grant Notifications", modifier = Modifier.padding(vertical = 8.dp))
-        }
-        Button(
+            grantedLabel = "Notifications Granted",
+            defaultLabel = "Grant Notifications",
+            grantedIcon = Icons.Rounded.CheckCircle,
+            defaultIcon = Icons.Rounded.Notifications
+        )
+        PermissionButton(
+            granted = isIgnoringBatteryOptimizations,
             onClick = onRequestBatteryOptimization,
-            modifier = Modifier.fillMaxWidth(0.9f),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = if (isIgnoringBatteryOptimizations) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary)
-        ) {
-            Icon(imageVector = if (isIgnoringBatteryOptimizations) Icons.Rounded.CheckCircle else Icons.Rounded.BatteryChargingFull, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = if (isIgnoringBatteryOptimizations) "Battery Optimization Disabled" else "Disable Battery Optimization", modifier = Modifier.padding(vertical = 8.dp))
-        }
+            grantedLabel = "Battery Optimization Disabled",
+            defaultLabel = "Disable Battery Optimization",
+            grantedIcon = Icons.Rounded.CheckCircle,
+            defaultIcon = Icons.Rounded.BatteryChargingFull
+        )
+    }
+}
+
+@Composable
+private fun PermissionButton(granted: Boolean, onClick: () -> Unit, grantedLabel: String, defaultLabel: String, grantedIcon: androidx.compose.ui.graphics.vector.ImageVector, defaultIcon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(0.9f),
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = if (granted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary)
+    ) {
+        Icon(imageVector = if (granted) grantedIcon else defaultIcon, contentDescription = null, modifier = Modifier.size(20.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = if (granted) grantedLabel else defaultLabel, modifier = Modifier.padding(vertical = 8.dp))
     }
 }
 

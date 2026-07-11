@@ -141,6 +141,7 @@ private fun AccountSettingsSection(
     )
 }
 
+@Suppress("TooManyParameters")
 @Composable
 private fun ServerSection(
     title: String,
