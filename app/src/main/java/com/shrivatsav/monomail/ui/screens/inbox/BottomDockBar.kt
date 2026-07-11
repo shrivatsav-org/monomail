@@ -37,7 +37,10 @@ internal fun BottomDockBar(
     val primaryIds = dockConfig.primaryTabs
     val remainingIds = allTabs.filter { it !in primaryIds }
 
-    Box(contentAlignment = Alignment.TopCenter) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.wrapContentSize()
+    ) {
         RemainingTabsPopup(
             visible = showRemainingTabs,
             remainingIds = remainingIds,
