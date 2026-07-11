@@ -88,11 +88,13 @@ internal fun SwipeableEmailItem(
                 onLongClick = onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
-                isSelected = isSelected,
-                isBulkMode = true,
-                onSelectToggle = onSelectToggle,
-                onRangeSelect = onRangeSelect,
-                onAvatarLongClick = onAvatarLongClick
+                selection = SelectionState(
+                    isSelected = isSelected,
+                    isBulkMode = true,
+                    onSelectToggle = onSelectToggle,
+                    onRangeSelect = onRangeSelect,
+                    onAvatarLongClick = onAvatarLongClick
+                )
             )
         } else {
         SwipeToDismissBox(
@@ -207,11 +209,13 @@ internal fun SwipeableEmailItem(
                 onLongClick = onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
-                isSelected = isSelected,
-                isBulkMode = false,
-                onSelectToggle = onSelectToggle,
-                onRangeSelect = onRangeSelect,
-                onAvatarLongClick = onAvatarLongClick
+                selection = SelectionState(
+                    isSelected = isSelected,
+                    isBulkMode = false,
+                    onSelectToggle = onSelectToggle,
+                    onRangeSelect = onRangeSelect,
+                    onAvatarLongClick = onAvatarLongClick
+                )
             )
         }
         }
