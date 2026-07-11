@@ -110,6 +110,79 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+
+private fun resolveAttachmentMimeType(contentResolver: android.content.ContentResolver, uri: Uri, name: String): String {
+    var mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
+    if (mimeType != "application/octet-stream") return mimeType
+    val lower = name.lowercase()
+    return when {
+        lower.endsWith(".png") -> "image/png"
+        lower.endsWith(".jpg") || lower.endsWith(".jpeg") -> "image/jpeg"
+        lower.endsWith(".gif") -> "image/gif"
+        lower.endsWith(".webp") -> "image/webp"
+        else -> mimeType
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TemplatesModal(
+    templates: List<com.shrivatsav.monomail.data.settings.EmailTemplate>,
+    onDismiss: () -> Unit,
+    onApply: (String, String) -> Unit
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)) {
+            Text(text = "Templates", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            if (templates.isEmpty()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(imageVector = Icons.Rounded.Description, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f), modifier = Modifier.size(36.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Text(text = "No templates yet", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                    Spacer(Modifier.height(4.dp))
+                    Text(text = "Add them in Settings", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f))
+                }
+            } else {
+                templates.forEach { template ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth()
+                            .clickable { onApply(template.subject, template.body); onDismiss() }
+                            .padding(horizontal = 24.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = template.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                            if (template.subject.isNotEmpty()) {
+                                Text(text = template.subject, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 24.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SentAnimationOverlay() {
+    Box(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(imageVector = Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(80.dp), tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.height(16.dp))
+            Text(text = "Sent!", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun ComposeScreen(
@@ -132,24 +205,13 @@ fun ComposeScreen(
             var size = 0L
             contentResolver.query(uri, null, null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) {
-                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                    val sizeIndex = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                    if (nameIndex != -1) name = cursor.getString(nameIndex)
-                    if (sizeIndex != -1) size = cursor.getLong(sizeIndex)
+                    val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    val sizeIdx = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+                    if (nameIdx != -1) name = cursor.getString(nameIdx)
+                    if (sizeIdx != -1) size = cursor.getLong(sizeIdx)
                 }
             }
-            var mimeType = contentResolver.getType(uri) ?: "application/octet-stream"
-            if (mimeType == "application/octet-stream") {
-                val lowerName = name.lowercase()
-                mimeType = when {
-                    lowerName.endsWith(".png") -> "image/png"
-                    lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg") -> "image/jpeg"
-                    lowerName.endsWith(".gif") -> "image/gif"
-                    lowerName.endsWith(".webp") -> "image/webp"
-                    else -> mimeType
-                }
-            }
-            viewModel.addAttachment(EmailAttachment(uri, name, size, mimeType))
+            viewModel.addAttachment(EmailAttachment(uri, name, size, resolveAttachmentMimeType(contentResolver, uri, name)))
         }
     }
     LaunchedEffect(state.isSent) {
@@ -227,87 +289,11 @@ fun ComposeScreen(
                         )
                     }
                     if (showTemplates) {
-                        ModalBottomSheet(
-                            onDismissRequest = { showTemplates = false },
-                            containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(bottom = 32.dp)
-                            ) {
-                                Text(
-                                    text = "Templates",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-                                )
-                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                                if (templates.isEmpty()) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 24.dp, vertical = 24.dp),
-                                        horizontalAlignment = Alignment.CenterHorizontally
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Description,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.3f),
-                                            modifier = Modifier.size(36.dp)
-                                        )
-                                        Spacer(Modifier.height(8.dp))
-                                        Text(
-                                            text = "No templates yet",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                                        )
-                                        Spacer(Modifier.height(4.dp))
-                                        Text(
-                                            text = "Add them in Settings",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
-                                        )
-                                    }
-                                } else {
-                                    templates.forEach { template ->
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable {
-                                                    viewModel.applyTemplate(template.subject, template.body)
-                                                    showTemplates = false
-                                                }
-                                                .padding(horizontal = 24.dp, vertical = 14.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = template.name,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    fontWeight = FontWeight.Medium,
-                                                    color = MaterialTheme.colorScheme.onSurface
-                                                )
-                                                if (template.subject.isNotEmpty()) {
-                                                    Text(
-                                                        text = template.subject,
-                                                        style = MaterialTheme.typography.bodySmall,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                        }
-                                        HorizontalDivider(
-                                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f),
-                                            modifier = Modifier.padding(horizontal = 24.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        TemplatesModal(
+                            templates = templates,
+                            onDismiss = { showTemplates = false },
+                            onApply = { subj, body -> viewModel.applyTemplate(subj, body) }
+                        )
                     }
                     // PGP encrypt/sign toggles
                     if (state.hasEncryptionKeys || state.hasSigningKeys) {
@@ -709,28 +695,7 @@ fun ComposeScreen(
         exit = fadeOut() + scaleOut(),
         modifier = Modifier.fillMaxSize()
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.85f)),
-            contentAlignment = Alignment.Center
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Rounded.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(80.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.height(16.dp))
-                Text(
-                    text = "Sent!",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-        }
+        SentAnimationOverlay()
     }
     }
 }
