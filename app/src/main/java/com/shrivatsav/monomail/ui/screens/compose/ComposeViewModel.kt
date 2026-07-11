@@ -137,7 +137,10 @@ class ComposeViewModel @Inject constructor(
                         cc = scheduled.cc,
                         bcc = scheduled.bcc,
                         subject = scheduled.subject,
-                        body = scheduled.body
+                        body = scheduled.body,
+                        threadId = scheduled.threadId,
+                        inReplyToMessageId = scheduled.messageId,
+                        references = scheduled.messageId
                     )
                 }
             }
@@ -331,7 +334,7 @@ class ComposeViewModel @Inject constructor(
                 subject = current.subject,
                 body = finalBody,
                 scheduledAt = scheduledAt,
-                params = ScheduleSendParams(cc = current.cc, bcc = current.bcc, attachments = cachedAttachments, fromAlias = fromAlias)
+                params = ScheduleSendParams(cc = current.cc, bcc = current.bcc, attachments = cachedAttachments, fromAlias = fromAlias, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references)
             )
             scheduledEmailEvents.tryEmit(
                 ScheduledEmailEvent(

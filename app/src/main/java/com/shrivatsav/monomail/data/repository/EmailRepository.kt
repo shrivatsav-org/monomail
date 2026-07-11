@@ -428,7 +428,7 @@ class EmailRepository(
         body: String,
         params: SendEmailParams = SendEmailParams(),
         explicitAccountId: String? = null
-    ): Result<String?> {
+    ): Result<String> {
         return try {
             val targetAccountId = explicitAccountId ?: getActiveAccountId()
             val provider = (if (explicitAccountId != null) getProviderForAccount(explicitAccountId) else getActiveProvider()) ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
@@ -437,9 +437,9 @@ class EmailRepository(
                 to = to,
                 subject = subject,
                 body = body,
-                options = SendEmailOptions(cc = params.cc, bcc = params.bcc, threadId = params.threadId, attachments = params.attachments)
+                options = SendEmailOptions(cc = params.cc, bcc = params.bcc, threadId = params.threadId, inReplyToMessageId = params.inReplyToMessageId, references = params.references, attachments = params.attachments)
             )
-            val actualThreadId = sentThreadId ?: params.threadId ?: UUID.randomUUID().toString()
+            val actualThreadId = sentThreadId ?: UUID.randomUUID().toString()
             val msgId = UUID.randomUUID().toString()
             val now = System.currentTimeMillis()
             val domainThread = EmailThread(
@@ -511,7 +511,9 @@ class EmailRepository(
                 }
             ),
             scheduledAt = scheduledAt,
-            fromAlias = params.fromAlias
+            fromAlias = params.fromAlias,
+            threadId = params.threadId,
+            messageId = params.inReplyToMessageId
         )
         scheduledMessageDao.insertScheduledMessage(entity)
         val delay = scheduledAt - System.currentTimeMillis()
@@ -612,5 +614,8 @@ data class ScheduleSendParams(
     val cc: String = "",
     val bcc: String = "",
     val attachments: List<EmailAttachment> = emptyList(),
-    val fromAlias: String? = null
+    val fromAlias: String? = null,
+    val threadId: String? = null,
+    val inReplyToMessageId: String? = null,
+    val references: String? = null
 )

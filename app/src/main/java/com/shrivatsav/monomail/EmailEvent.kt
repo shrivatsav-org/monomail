@@ -1,7 +1,7 @@
 package com.shrivatsav.monomail
 
 data class SentEmailEvent(
-    val threadId: String?,
+    val threadId: String,
     val to: String,
     val subject: String
 )

@@ -316,7 +316,9 @@ private fun DetailContent(
                     val myEmail = config.currentUserEmail
                     val replyTarget = emails.lastOrNull {
                         it.fromEmail.isNotBlank() && !it.fromEmail.equals(myEmail, ignoreCase = true)
-                    }?.fromEmail ?: latestEmail.to
+                    }?.fromEmail ?: latestEmail.to.split(",").map { it.trim() }.filter {
+                        it.isNotBlank() && !it.equals(myEmail, ignoreCase = true)
+                    }.joinToString(", ").ifEmpty { latestEmail.to }
                     ThreadConversationContent(
                         emails = emails,
                         decryptedBodies = decryptedBodies,

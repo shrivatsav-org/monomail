@@ -38,7 +38,7 @@ class ScheduledSendWorker @AssistedInject constructor(
                 to = message.to,
                 subject = message.subject,
                 body = message.body,
-                params = SendEmailParams(cc = message.cc, bcc = message.bcc, attachments = attachments),
+                params = SendEmailParams(cc = message.cc, bcc = message.bcc, attachments = attachments, threadId = message.threadId, inReplyToMessageId = message.messageId, references = message.messageId),
                 explicitAccountId = message.accountId
             )
             dao.markAsSent(messageId)

@@ -5,6 +5,8 @@ data class SendEmailOptions(
     val cc: String = "",
     val bcc: String = "",
     val threadId: String? = null,
+    val inReplyToMessageId: String? = null,
+    val references: String? = null,
     val attachments: List<EmailAttachment> = emptyList()
 )
 
