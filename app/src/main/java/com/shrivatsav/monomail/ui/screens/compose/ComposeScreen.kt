@@ -164,9 +164,79 @@ private fun TemplatesModal(
                             }
                         }
                     }
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f), modifier = Modifier.padding(horizontal = 24.dp))
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ComposeDialogs(state: ComposeUiState, viewModel: ComposeViewModel) {
+    if (state.showConfirmSendDialog) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissConfirmSend() },
+            title = { Text("Confirm Send") },
+            text = { Text("Are you sure you want to send this email?") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmSend() }) {
+                    Text("Send")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissConfirmSend() }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+    if (state.showSchedulePicker) {
+        ScheduleSendDialog(
+            onDismiss = { viewModel.dismissSchedulePicker() },
+            onSchedule = { millis -> viewModel.scheduleSend(millis) }
+        )
+    }
+}
+
+@Composable
+private fun TopBarActions(state: ComposeUiState, viewModel: ComposeViewModel) {
+    var showTemplates by remember { androidx.compose.runtime.mutableStateOf(false) }
+    val templates by viewModel.templatesFlow.collectAsState(initial = emptyList())
+    IconButton(onClick = { showTemplates = true }) {
+        Icon(
+            imageVector = Icons.Rounded.Description,
+            contentDescription = "Templates",
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+    }
+    if (showTemplates) {
+        TemplatesModal(
+            templates = templates,
+            onDismiss = { showTemplates = false },
+            onApply = { subj, body -> viewModel.applyTemplate(subj, body) }
+        )
+    }
+    if (state.hasEncryptionKeys || state.hasSigningKeys) {
+        IconButton(
+            onClick = { viewModel.toggleEncrypt() },
+            enabled = state.hasEncryptionKeys
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Lock,
+                contentDescription = "Encrypt",
+                tint = if (state.encryptEnabled) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+        IconButton(
+            onClick = { viewModel.toggleSign() },
+            enabled = state.hasSigningKeys
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.Edit,
+                contentDescription = "Sign",
+                tint = if (state.signEnabled) MaterialTheme.colorScheme.primary
+                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
         }
     }
 }
@@ -229,29 +299,7 @@ fun ComposeScreen(
             viewModel.dismissError()
         }
     }
-    if (state.showConfirmSendDialog) {
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissConfirmSend() },
-            title = { Text("Confirm Send") },
-            text = { Text("Are you sure you want to send this email?") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmSend() }) {
-                    Text("Send")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissConfirmSend() }) {
-                    Text("Cancel")
-                }
-            }
-        )
-    }
-    if (state.showSchedulePicker) {
-        ScheduleSendDialog(
-            onDismiss = { viewModel.dismissSchedulePicker() },
-            onSchedule = { millis -> viewModel.scheduleSend(millis) }
-        )
-    }
+    ComposeDialogs(state, viewModel)
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -280,49 +328,7 @@ fun ComposeScreen(
                         )
                     }
                 },
-                actions = {
-                    var showTemplates by remember { androidx.compose.runtime.mutableStateOf(false) }
-                    val templates by viewModel.templatesFlow.collectAsState(initial = emptyList())
-                    IconButton(onClick = { showTemplates = true }) {
-                        Icon(
-                            imageVector = Icons.Rounded.Description,
-                            contentDescription = "Templates",
-                            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                        )
-                    }
-                    if (showTemplates) {
-                        TemplatesModal(
-                            templates = templates,
-                            onDismiss = { showTemplates = false },
-                            onApply = { subj, body -> viewModel.applyTemplate(subj, body) }
-                        )
-                    }
-                    // PGP encrypt/sign toggles
-                    if (state.hasEncryptionKeys || state.hasSigningKeys) {
-                        IconButton(
-                            onClick = { viewModel.toggleEncrypt() },
-                            enabled = state.hasEncryptionKeys
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Lock,
-                                contentDescription = "Encrypt",
-                                tint = if (state.encryptEnabled) MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                        IconButton(
-                            onClick = { viewModel.toggleSign() },
-                            enabled = state.hasSigningKeys
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Edit,
-                                contentDescription = "Sign",
-                                tint = if (state.signEnabled) MaterialTheme.colorScheme.primary
-                                       else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                        }
-                    }
-                },
+                actions = { TopBarActions(state, viewModel) },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background
                 )
@@ -372,7 +378,6 @@ fun ComposeScreen(
             )
             FromFieldSection(
                 state = state,
-                showCcBcc = showCcBcc,
                 onToggleCcBcc = { showCcBcc = !showCcBcc },
                 onSelectAlias = { viewModel.selectAlias(it) },
                 onToggleFromDropdown = { viewModel.toggleFromDropdown() },
@@ -677,7 +682,6 @@ private fun SuggestionsDropdown(
 @Composable
 private fun FromFieldSection(
     state: ComposeUiState,
-    showCcBcc: Boolean,
     onToggleCcBcc: () -> Unit,
     onSelectAlias: (SendAsAlias) -> Unit,
     onToggleFromDropdown: () -> Unit,
