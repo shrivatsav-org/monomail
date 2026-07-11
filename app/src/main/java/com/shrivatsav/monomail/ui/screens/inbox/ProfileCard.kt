@@ -57,123 +57,9 @@ internal fun ProfileCard(
                     .padding(top = 28.dp, bottom = 20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                AnimatedContent(
-                    targetState = userProfile.id,
-                    transitionSpec = {
-                        (fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.9f)) togetherWith
-                        (fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f))
-                    },
-                    label = "profileContent"
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.pointerInput(accounts, unifiedInboxEnabled) {
-                                if (accounts.size > 1 && !unifiedInboxEnabled) {
-                                    var totalDrag = 0f
-                                    detectHorizontalDragGestures(
-                                        onDragStart = { totalDrag = 0f },
-                                        onHorizontalDrag = { change, dragAmount ->
-                                            change.consume()
-                                            totalDrag += dragAmount
-                                            if (kotlin.math.abs(totalDrag) > 60f) {
-                                                val currentIdx = accounts.indexOfFirst { it.id == userProfile.id }
-                                                if (currentIdx != -1) {
-                                                    val nextIdx = if (totalDrag > 0)
-                                                        (currentIdx + 1) % accounts.size
-                                                    else
-                                                        if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
-                                                    callbacks.onCycleAccount(accounts[nextIdx].id)
-                                                }
-                                                totalDrag = 0f
-                                            }
-                                        }
-                                    )
-                                }
-                            }
-                        ) {
-                            if (accounts.size > 1) {
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy((-16).dp),
-                                    modifier = Modifier.offset(x = 28.dp)
-                                ) {
-                                    accounts.filter { it.id != userProfile.id }.take(2).forEach { acc ->
-                                        Box(
-                                            modifier = Modifier
-                                                .size(44.dp)
-                                                .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
-                                                .clip(CircleShape)
-                                                .alpha(0.45f)
-                                        ) {
-                                            AvatarCircle(
-                                                acc.photoUrl,
-                                                acc.displayName,
-                                                44.dp,
-                                                MaterialTheme.typography.titleSmall
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                            Box(modifier = Modifier.border(3.dp, MaterialTheme.colorScheme.background, CircleShape)) {
-                                AvatarCircle(
-                                    photoUrl = userProfile.photoUrl,
-                                    displayName = userProfile.displayName,
-                                    size = 72.dp,
-                                    textStyle = MaterialTheme.typography.headlineSmall
-                                )
-                            }
-                        }
-
-                        Spacer(Modifier.height(14.dp))
-                        Text(
-                            text = userProfile.displayName,
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground,
-                            maxLines = 1
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            text = userProfile.email,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 24.dp)
-                        )
-                    }
-                }
-
+                ProfileAvatarSection(userProfile, accounts, callbacks, unifiedInboxEnabled)
                 if (accounts.size > 1 && !unifiedInboxEnabled) {
-                    Spacer(Modifier.height(12.dp))
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
-                        modifier = Modifier.clickable { callbacks.onShowSwitchAccount() }
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Text(
-                                text = "${accounts.size} accounts",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Medium,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-                            )
-                            Icon(
-                                Icons.Rounded.KeyboardArrowDown,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                                modifier = Modifier.size(14.dp)
-                            )
-                        }
-                    }
+                    AccountSwitcherButton(accounts, callbacks)
                 }
             }
 
@@ -182,49 +68,8 @@ internal fun ProfileCard(
                 thickness = 0.5.dp
             )
 
-            // Unified inbox toggle
             if (accounts.size > 1) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Rounded.Inbox,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
-                        modifier = Modifier
-                            .padding(horizontal = 14.dp)
-                            .size(21.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            "Unified Inbox",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Medium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
-                        if (unifiedInboxEnabled) {
-                            Text(
-                                "All accounts combined",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                            )
-                        }
-                    }
-                    Switch(
-                        checked = unifiedInboxEnabled,
-                        onCheckedChange = callbacks.onToggleUnified,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onBackground,
-                            checkedTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
-                            uncheckedThumbColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-                            uncheckedTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)
-                        ),
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                }
+                UnifiedInboxToggle(unifiedInboxEnabled, callbacks)
             }
 
             Column(
@@ -240,50 +85,228 @@ internal fun ProfileCard(
                 thickness = 0.5.dp
             )
 
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedButton(
-                    onClick = callbacks.onSignOut,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onBackground
-                    ),
-                    border = BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
-                    ),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Text(
-                        "Sign out",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
+            ProfileCardButtons(callbacks)
+        }
+    }
+}
+
+@Composable
+private fun ProfileAvatarSection(
+    userProfile: UserProfile,
+    accounts: List<UserProfile>,
+    callbacks: ProfileCardCallbacks,
+    unifiedInboxEnabled: Boolean
+) {
+    AnimatedContent(
+        targetState = userProfile.id,
+        transitionSpec = {
+            (fadeIn(tween(220)) + scaleIn(tween(220), initialScale = 0.9f)) togetherWith
+            (fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f))
+        },
+        label = "profileContent"
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.pointerInput(accounts, unifiedInboxEnabled) {
+                    if (accounts.size > 1 && !unifiedInboxEnabled) {
+                        var totalDrag = 0f
+                        detectHorizontalDragGestures(
+                            onDragStart = { totalDrag = 0f },
+                            onHorizontalDrag = { change, dragAmount ->
+                                change.consume()
+                                totalDrag += dragAmount
+                                if (kotlin.math.abs(totalDrag) > 60f) {
+                                    val currentIdx = accounts.indexOfFirst { it.id == userProfile.id }
+                                    if (currentIdx != -1) {
+                                        val nextIdx = if (totalDrag > 0)
+                                            (currentIdx + 1) % accounts.size
+                                        else
+                                            if (currentIdx - 1 < 0) accounts.size - 1 else currentIdx - 1
+                                        callbacks.onCycleAccount(accounts[nextIdx].id)
+                                    }
+                                    totalDrag = 0f
+                                }
+                            }
+                        )
+                    }
                 }
-                Button(
-                    onClick = callbacks.onAddAccount,
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onBackground,
-                        contentColor = MaterialTheme.colorScheme.background
-                    ),
-                    contentPadding = PaddingValues(vertical = 12.dp)
-                ) {
-                    Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Add account",
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.SemiBold
+            ) {
+                if (accounts.size > 1) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy((-16).dp),
+                        modifier = Modifier.offset(x = 28.dp)
+                    ) {
+                        accounts.filter { it.id != userProfile.id }.take(2).forEach { acc ->
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .border(2.dp, MaterialTheme.colorScheme.background, CircleShape)
+                                    .clip(CircleShape)
+                                    .alpha(0.45f)
+                            ) {
+                                AvatarCircle(
+                                    acc.photoUrl,
+                                    acc.displayName,
+                                    44.dp,
+                                    MaterialTheme.typography.titleSmall
+                                )
+                            }
+                        }
+                    }
+                }
+                Box(modifier = Modifier.border(3.dp, MaterialTheme.colorScheme.background, CircleShape)) {
+                    AvatarCircle(
+                        photoUrl = userProfile.photoUrl,
+                        displayName = userProfile.displayName,
+                        size = 72.dp,
+                        textStyle = MaterialTheme.typography.headlineSmall
                     )
                 }
             }
+
+            Spacer(Modifier.height(14.dp))
+            Text(
+                text = userProfile.displayName,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 1
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = userProfile.email,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun AccountSwitcherButton(accounts: List<UserProfile>, callbacks: ProfileCardCallbacks) {
+    Spacer(Modifier.height(12.dp))
+    Surface(
+        shape = CircleShape,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.07f),
+        modifier = Modifier.clickable { callbacks.onShowSwitchAccount() }
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "${accounts.size} accounts",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+            )
+            Icon(
+                Icons.Rounded.KeyboardArrowDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun UnifiedInboxToggle(unifiedInboxEnabled: Boolean, callbacks: ProfileCardCallbacks) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Rounded.Inbox,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+            modifier = Modifier
+                .padding(horizontal = 14.dp)
+                .size(21.dp)
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                "Unified Inbox",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            if (unifiedInboxEnabled) {
+                Text(
+                    "All accounts combined",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                )
+            }
+        }
+        Switch(
+            checked = unifiedInboxEnabled,
+            onCheckedChange = callbacks.onToggleUnified,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onBackground,
+                checkedTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f),
+                uncheckedThumbColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                uncheckedTrackColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.12f)
+            ),
+            modifier = Modifier.padding(end = 8.dp)
+        )
+    }
+}
+
+@Composable
+private fun ProfileCardButtons(callbacks: ProfileCardCallbacks) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedButton(
+            onClick = callbacks.onSignOut,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.onBackground
+            ),
+            border = BorderStroke(
+                1.dp,
+                MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f)
+            ),
+            contentPadding = PaddingValues(vertical = 12.dp)
+        ) {
+            Text(
+                "Sign out",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        Button(
+            onClick = callbacks.onAddAccount,
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.onBackground,
+                contentColor = MaterialTheme.colorScheme.background
+            ),
+            contentPadding = PaddingValues(vertical = 12.dp)
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "Add account",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold
+            )
         }
     }
 }
