@@ -387,22 +387,26 @@ fun InboxScreen(
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
-                                                        onThreadToDeleteChange = { threadToDelete = it },
-                                                        onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
-                                                        onLongClick = {
-                                                            hapticFeedback.performHapticFeedback(
-                                                                HapticFeedbackType.LongPress
-                                                            )
-                                                            longPressedThread = displayItem.thread
-                                                        },
-                                                        isNested = false,
-                                                        isBulkMode = isBulkMode,
-                                                        isSelected = displayItem.thread.threadId in selectedThreadIds,
-                                                        onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
-                                                        onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
-                                                        onAvatarLongClick = {
-                                                            viewModel.enterBulkSelectMode(displayItem.thread.threadId)
-                                                        }
+                                                        callbacks = SwipeCallbacks(
+                                                            onThreadToDeleteChange = { threadToDelete = it },
+                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
+                                                            onLongClick = {
+                                                                hapticFeedback.performHapticFeedback(
+                                                                    HapticFeedbackType.LongPress
+                                                                )
+                                                                longPressedThread = displayItem.thread
+                                                            },
+                                                            isNested = false
+                                                        ),
+                                                        selection = SelectionState(
+                                                            isSelected = displayItem.thread.threadId in selectedThreadIds,
+                                                            isBulkMode = isBulkMode,
+                                                            onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                            onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
+                                                            onAvatarLongClick = {
+                                                                viewModel.enterBulkSelectMode(displayItem.thread.threadId)
+                                                            }
+                                                        )
                                                     )
                                                 }
 
@@ -413,22 +417,26 @@ fun InboxScreen(
                                                         tabForSwipe = currentTab,
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
-                                                        onThreadToDeleteChange = { threadToDelete = it },
-                                                        onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
-                                                        onLongClick = {
-                                                            hapticFeedback.performHapticFeedback(
-                                                                HapticFeedbackType.LongPress
-                                                            )
-                                                            longPressedThread = displayItem.thread
-                                                        },
-                                                        isNested = true,
-                                                        isBulkMode = isBulkMode,
-                                                        isSelected = displayItem.thread.threadId in selectedThreadIds,
-                                                        onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
-                                                        onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
-                                                        onAvatarLongClick = {
-                                                            viewModel.enterBulkSelectMode(displayItem.thread.threadId)
-                                                        }
+                                                        callbacks = SwipeCallbacks(
+                                                            onThreadToDeleteChange = { threadToDelete = it },
+                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
+                                                            onLongClick = {
+                                                                hapticFeedback.performHapticFeedback(
+                                                                    HapticFeedbackType.LongPress
+                                                                )
+                                                                longPressedThread = displayItem.thread
+                                                            },
+                                                            isNested = true
+                                                        ),
+                                                        selection = SelectionState(
+                                                            isSelected = displayItem.thread.threadId in selectedThreadIds,
+                                                            isBulkMode = isBulkMode,
+                                                            onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                            onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
+                                                            onAvatarLongClick = {
+                                                                viewModel.enterBulkSelectMode(displayItem.thread.threadId)
+                                                            }
+                                                        )
                                                     )
                                                 }
                                             }

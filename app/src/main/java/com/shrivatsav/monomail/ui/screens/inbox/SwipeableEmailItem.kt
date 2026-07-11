@@ -17,6 +17,13 @@ import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
 
+data class SwipeCallbacks(
+    val onThreadToDeleteChange: (String?) -> Unit,
+    val onEmailClick: () -> Unit,
+    val onLongClick: () -> Unit,
+    val isNested: Boolean = false
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SwipeableEmailItem(
@@ -25,15 +32,8 @@ internal fun SwipeableEmailItem(
     tabForSwipe: InboxTab,
     appSettings: com.shrivatsav.monomail.data.settings.AppSettings,
     viewModel: InboxViewModel,
-    onThreadToDeleteChange: (String?) -> Unit,
-    onEmailClick: () -> Unit,
-    onLongClick: () -> Unit,
-    isNested: Boolean = false,
-    isSelected: Boolean = false,
-    isBulkMode: Boolean = false,
-    onSelectToggle: () -> Unit = {},
-    onRangeSelect: () -> Unit = {},
-    onAvatarLongClick: () -> Unit = {}
+    callbacks: SwipeCallbacks,
+    selection: SelectionState = SelectionState()
 ) {
     var optIsRead by remember(thread.isRead) { mutableStateOf(thread.isRead) }
     var optIsStarred by remember(thread.isStarred) { mutableStateOf(thread.isStarred) }
@@ -65,7 +65,7 @@ internal fun SwipeableEmailItem(
                 scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
             }
             com.shrivatsav.monomail.data.settings.SwipeAction.DELETE -> {
-                onThreadToDeleteChange(thread.threadId)
+                callbacks.onThreadToDeleteChange(thread.threadId)
                 scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }
             }
             com.shrivatsav.monomail.data.settings.SwipeAction.READ_UNREAD -> {
@@ -79,21 +79,21 @@ internal fun SwipeableEmailItem(
     }
 
     Column(
-        modifier = modifier.let { if (isNested) it.padding(start = 32.dp) else it }
+        modifier = modifier.let { if (callbacks.isNested) it.padding(start = 32.dp) else it }
     ) {
-        if (isBulkMode) {
+        if (selection.isBulkMode) {
             EmailItem(
                 thread = displayThread,
-                onClick = onEmailClick,
-                onLongClick = onLongClick,
+                onClick = callbacks.onEmailClick,
+                onLongClick = callbacks.onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
                 selection = SelectionState(
-                    isSelected = isSelected,
+                    isSelected = selection.isSelected,
                     isBulkMode = true,
-                    onSelectToggle = onSelectToggle,
-                    onRangeSelect = onRangeSelect,
-                    onAvatarLongClick = onAvatarLongClick
+                    onSelectToggle = selection.onSelectToggle,
+                    onRangeSelect = selection.onRangeSelect,
+                    onAvatarLongClick = selection.onAvatarLongClick
                 )
             )
         } else {
@@ -205,16 +205,16 @@ internal fun SwipeableEmailItem(
         ) {
             EmailItem(
                 thread = displayThread,
-                onClick = onEmailClick,
-                onLongClick = onLongClick,
+                onClick = callbacks.onEmailClick,
+                onLongClick = callbacks.onLongClick,
                 showSnippet = appSettings.showSnippet,
                 compactMode = appSettings.compactList,
                 selection = SelectionState(
-                    isSelected = isSelected,
+                    isSelected = selection.isSelected,
                     isBulkMode = false,
-                    onSelectToggle = onSelectToggle,
-                    onRangeSelect = onRangeSelect,
-                    onAvatarLongClick = onAvatarLongClick
+                    onSelectToggle = selection.onSelectToggle,
+                    onRangeSelect = selection.onRangeSelect,
+                    onAvatarLongClick = selection.onAvatarLongClick
                 )
             )
         }
