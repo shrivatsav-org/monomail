@@ -239,6 +239,116 @@ private fun SyncingOverlay() {
     }
 }
 
+private fun applyImapTlsChange(
+    mode: TlsMode,
+    setSsl: (Boolean) -> Unit,
+    setStartTls: (Boolean) -> Unit
+) {
+    when (mode) {
+        TlsMode.SSL -> { setSsl(true); setStartTls(false) }
+        TlsMode.STARTTLS -> { setStartTls(true); setSsl(false) }
+        TlsMode.NONE -> { setSsl(false); setStartTls(false) }
+    }
+}
+
+private fun tlsModeFor(ssl: Boolean, startTls: Boolean): TlsMode = when {
+    ssl -> TlsMode.SSL
+    startTls -> TlsMode.STARTTLS
+    else -> TlsMode.NONE
+}
+
+@Composable
+private fun ImapSetupForm(
+    imapHost: String, onImapHostChange: (String) -> Unit,
+    imapPort: String, onImapPortChange: (String) -> Unit,
+    imapTlsMode: TlsMode, onImapTlsModeChange: (TlsMode) -> Unit,
+    smtpHost: String, onSmtpHostChange: (String) -> Unit,
+    smtpPort: String, onSmtpPortChange: (String) -> Unit,
+    smtpTlsMode: TlsMode, onSmtpTlsModeChange: (TlsMode) -> Unit,
+    username: String, onUsernameChange: (String) -> Unit,
+    password: String, onPasswordChange: (String) -> Unit,
+    displayName: String, onDisplayNameChange: (String) -> Unit,
+    onApplyPreset: (ImapAccountConfig) -> Unit,
+    isBusy: Boolean, testState: ImapTestState,
+    onSignIn: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        AccountSettingsSection(
+            displayName = displayName,
+            onDisplayNameChange = onDisplayNameChange,
+            username = username,
+            onUsernameChange = onUsernameChange,
+            password = password,
+            onPasswordChange = onPasswordChange,
+            onApplyPreset = onApplyPreset
+        )
+
+        ServerSection(
+            title = "Incoming Server (IMAP)",
+            icon = Icons.Rounded.MoveToInbox,
+            config = ServerConfig(host = imapHost, port = imapPort, tlsMode = imapTlsMode),
+            onHostChange = onImapHostChange,
+            onPortChange = onImapPortChange,
+            onTlsModeChange = onImapTlsModeChange,
+            portImeAction = ImeAction.Next
+        )
+
+        ServerSection(
+            title = "Outgoing Server (SMTP)",
+            icon = Icons.AutoMirrored.Rounded.Outbound,
+            config = ServerConfig(host = smtpHost, port = smtpPort, tlsMode = smtpTlsMode),
+            onHostChange = onSmtpHostChange,
+            onPortChange = onSmtpPortChange,
+            onTlsModeChange = onSmtpTlsModeChange,
+            portImeAction = ImeAction.Done
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SignInButton(isBusy = isBusy, testState = testState, onClick = onSignIn)
+
+        if (testState is ImapTestState.Error) {
+            ErrorText(message = testState.message)
+        }
+
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun SignInButton(isBusy: Boolean, testState: ImapTestState, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth().height(50.dp),
+        enabled = !isBusy
+    ) {
+        if (isBusy) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(if (testState is ImapTestState.Testing) "Signing In..." else "Syncing Emails...")
+        } else {
+            Text("Sign In")
+        }
+    }
+}
+
+@Composable
+private fun ErrorText(message: String) {
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = message,
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+        modifier = Modifier.align(Alignment.CenterHorizontally)
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImapSetupScreen(
@@ -283,99 +393,24 @@ fun ImapSetupScreen(
                 )
             }
         ) { padding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                AccountSettingsSection(
-                    displayName = displayName,
-                    onDisplayNameChange = { viewModel.setDisplayName(it) },
-                    username = username,
-                    onUsernameChange = { viewModel.setUsername(it) },
-                    password = password,
-                    onPasswordChange = { viewModel.setPassword(it) },
-                    onApplyPreset = { viewModel.applySuggestion(it) }
+            Column(modifier = Modifier.padding(padding)) {
+                ImapSetupForm(
+                    imapHost = imapHost, onImapHostChange = { viewModel.setImapHost(it) },
+                    imapPort = imapPort, onImapPortChange = { viewModel.setImapPort(it) },
+                    imapTlsMode = tlsModeFor(imapSsl, imapStartTls),
+                    onImapTlsModeChange = { applyImapTlsChange(it, viewModel::setImapSsl, viewModel::setImapStartTls) },
+                    smtpHost = smtpHost, onSmtpHostChange = { viewModel.setSmtpHost(it) },
+                    smtpPort = smtpPort, onSmtpPortChange = { viewModel.setSmtpPort(it) },
+                    smtpTlsMode = tlsModeFor(smtpSsl, smtpStartTls),
+                    onSmtpTlsModeChange = { applyImapTlsChange(it, viewModel::setSmtpSsl, viewModel::setSmtpStartTls) },
+                    username = username, onUsernameChange = { viewModel.setUsername(it) },
+                    password = password, onPasswordChange = { viewModel.setPassword(it) },
+                    displayName = displayName, onDisplayNameChange = { viewModel.setDisplayName(it) },
+                    onApplyPreset = { viewModel.applySuggestion(it) },
+                    isBusy = isBusy,
+                    testState = testState,
+                    onSignIn = { viewModel.testAndSaveAccount(context, onSetupComplete) }
                 )
-
-                ServerSection(
-                    title = "Incoming Server (IMAP)",
-                    icon = Icons.Rounded.MoveToInbox,
-                    config = ServerConfig(
-                        host = imapHost,
-                        port = imapPort,
-                        tlsMode = when {
-                            imapSsl -> TlsMode.SSL
-                            imapStartTls -> TlsMode.STARTTLS
-                            else -> TlsMode.NONE
-                        }
-                    ),
-                    onHostChange = { viewModel.setImapHost(it) },
-                    onPortChange = { viewModel.setImapPort(it) },
-                    onTlsModeChange = {
-                        when (it) {
-                            TlsMode.SSL -> { viewModel.setImapSsl(true); viewModel.setImapStartTls(false) }
-                            TlsMode.STARTTLS -> { viewModel.setImapStartTls(true); viewModel.setImapSsl(false) }
-                            TlsMode.NONE -> { viewModel.setImapSsl(false); viewModel.setImapStartTls(false) }
-                        }
-                    },
-                    portImeAction = ImeAction.Next
-                )
-
-                ServerSection(
-                    title = "Outgoing Server (SMTP)",
-                    icon = Icons.AutoMirrored.Rounded.Outbound,
-                    config = ServerConfig(
-                        host = smtpHost,
-                        port = smtpPort,
-                        tlsMode = when {
-                            smtpSsl -> TlsMode.SSL
-                            smtpStartTls -> TlsMode.STARTTLS
-                            else -> TlsMode.NONE
-                        }
-                    ),
-                    onHostChange = { viewModel.setSmtpHost(it) },
-                    onPortChange = { viewModel.setSmtpPort(it) },
-                    onTlsModeChange = {
-                        when (it) {
-                            TlsMode.SSL -> { viewModel.setSmtpSsl(true); viewModel.setSmtpStartTls(false) }
-                            TlsMode.STARTTLS -> { viewModel.setSmtpStartTls(true); viewModel.setSmtpSsl(false) }
-                            TlsMode.NONE -> { viewModel.setSmtpSsl(false); viewModel.setSmtpStartTls(false) }
-                        }
-                    },
-                    portImeAction = ImeAction.Done
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Button(
-                    onClick = { viewModel.testAndSaveAccount(context, onSetupComplete) },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                    enabled = isFormValid && !isBusy
-                ) {
-                    if (isBusy) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(if (testState is ImapTestState.Testing) "Signing In..." else "Syncing Emails...")
-                    } else {
-                        Text("Sign In")
-                    }
-                }
-
-                if (testState is ImapTestState.Error) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = (testState as ImapTestState.Error).message,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
             }
         }
 
