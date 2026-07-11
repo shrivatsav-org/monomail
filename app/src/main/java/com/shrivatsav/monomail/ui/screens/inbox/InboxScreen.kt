@@ -38,18 +38,22 @@ import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
 
+data class InboxNavActions(
+    val onEmailClick: (String) -> Unit,
+    val onSignOut: () -> Unit,
+    val onCompose: () -> Unit = {},
+    val onSettings: () -> Unit = {},
+    val onAddAccount: () -> Unit = {},
+    val onScheduledClick: () -> Unit = {},
+    val onNavigateToImapSetup: () -> Unit = {}
+)
+
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun InboxScreen(
     viewModel: InboxViewModel,
     userProfile: UserProfile?,
-    onEmailClick: (String) -> Unit,
-    onSignOut: () -> Unit,
-    onCompose: () -> Unit = {},
-    onSettings: () -> Unit = {},
-    onAddAccount: () -> Unit = {},
-    onScheduledClick: () -> Unit = {},
-    onNavigateToImapSetup: () -> Unit = {}
+    navActions: InboxNavActions
 ) {
     val state by viewModel.state.collectAsState()
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
@@ -176,7 +180,7 @@ fun InboxScreen(
                         onQueryChange = { searchQuery = it },
                         onServerSearch = { viewModel.searchServer(it) },
                         onMarkAllRead = { viewModel.markAllAsRead() },
-                        onScheduledClick = onScheduledClick,
+                        onScheduledClick = navActions.onScheduledClick,
                         isRefreshing = isRefreshing,
                         toastState = toastState,
                         onUndo = { viewModel.undoAction() },
@@ -384,7 +388,7 @@ fun InboxScreen(
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
                                                         onThreadToDeleteChange = { threadToDelete = it },
-                                                        onEmailClick = { onEmailClick(displayItem.thread.threadId) },
+                                                        onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
                                                         onLongClick = {
                                                             hapticFeedback.performHapticFeedback(
                                                                 HapticFeedbackType.LongPress
@@ -410,7 +414,7 @@ fun InboxScreen(
                                                         appSettings = appSettings,
                                                         viewModel = viewModel,
                                                         onThreadToDeleteChange = { threadToDelete = it },
-                                                        onEmailClick = { onEmailClick(displayItem.thread.threadId) },
+                                                        onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
                                                         onLongClick = {
                                                             hapticFeedback.performHapticFeedback(
                                                                 HapticFeedbackType.LongPress
@@ -573,7 +577,7 @@ fun InboxScreen(
                                     label = "fabScale"
                                 )
                                 FloatingActionButton(
-                                    onClick = onCompose,
+                                    onClick = navActions.onCompose,
                                     interactionSource = fabInteractionSource,
                                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                                     contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -659,7 +663,7 @@ fun InboxScreen(
                                 thread = thread,
                                 onClick = {
                                     longPressedThread = null
-                                    onEmailClick(thread.threadId)
+                                    navActions.onEmailClick(thread.threadId)
                                 },
                                 onLongClick = {},
                                 modifier = Modifier
@@ -765,7 +769,7 @@ fun InboxScreen(
                 accounts = accounts,
                 callbacks = ModalCallbacks(
                     onDismiss = { activeModal = null },
-                    onSignOut = { activeModal = null; onSignOut() },
+                    onSignOut = { activeModal = null; navActions.onSignOut() },
                     onSwitchAccount = { viewModel.switchAccount(it); activeModal = null },
                     onCycleAccount = { viewModel.switchAccount(it) },
                     onAddAccount = {
@@ -779,8 +783,8 @@ fun InboxScreen(
                     },
                     onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
                     onBackToProfile = { activeModal = ModalType.PROFILE },
-                    onSettings = { activeModal = null; onSettings() },
-                    onNavigateToImapSetup = onNavigateToImapSetup,
+                    onSettings = { activeModal = null; navActions.onSettings() },
+                    onNavigateToImapSetup = navActions.onNavigateToImapSetup,
                     onToggleUnified = { viewModel.setUnifiedInboxEnabled(it) }
                 ),
                 unifiedInboxEnabled = unifiedInboxEnabled

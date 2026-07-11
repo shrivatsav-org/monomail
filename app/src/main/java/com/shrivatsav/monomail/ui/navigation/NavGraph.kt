@@ -47,6 +47,7 @@ import com.shrivatsav.monomail.ui.screens.compose.ComposeViewModel
 import com.shrivatsav.monomail.ui.screens.detail.EmailDetailScreen
 import com.shrivatsav.monomail.ui.screens.detail.EmailDetailViewModel
 import com.shrivatsav.monomail.ui.screens.inbox.InboxScreen
+import com.shrivatsav.monomail.ui.screens.inbox.InboxNavActions
 import com.shrivatsav.monomail.ui.screens.inbox.InboxViewModel
 import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesScreen
 import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
@@ -265,33 +266,35 @@ fun NavGraph(
                 InboxScreen(
                     viewModel    = vm,
                     userProfile  = activeAccount,
-                    onEmailClick = { threadId ->
-                        navController.navigate(Screen.ThreadDetail.createRoute(threadId)) { launchSingleTop = true }
-                    },
-                    onSignOut = {
-                        inboxScope.launch {
-                            authManager.signOutActiveAccount()
-                            val accounts = authManager.getAccounts()
-                            if (accounts.isEmpty()) {
-                                navController.navigate(Screen.SignIn.route) {
-                                    popUpTo(0) { inclusive = true }
+                    navActions = InboxNavActions(
+                        onEmailClick = { threadId ->
+                            navController.navigate(Screen.ThreadDetail.createRoute(threadId)) { launchSingleTop = true }
+                        },
+                        onSignOut = {
+                            inboxScope.launch {
+                                authManager.signOutActiveAccount()
+                                val accounts = authManager.getAccounts()
+                                if (accounts.isEmpty()) {
+                                    navController.navigate(Screen.SignIn.route) {
+                                        popUpTo(0) { inclusive = true }
+                                    }
+                                    emailRepository.clearLocalData()
                                 }
-                                emailRepository.clearLocalData()
                             }
+                        },
+                        onCompose = {
+                            navController.navigate(Screen.Compose.createRoute()) { launchSingleTop = true }
+                        },
+                        onSettings = {
+                            navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                        },
+                        onScheduledClick = {
+                            navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
+                        },
+                        onNavigateToImapSetup = {
+                            navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
                         }
-                    },
-                    onCompose = {
-                        navController.navigate(Screen.Compose.createRoute()) { launchSingleTop = true }
-                    },
-                    onSettings = {
-                        navController.navigate(Screen.Settings.route) { launchSingleTop = true }
-                    },
-                    onScheduledClick = {
-                        navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
-                    },
-                    onNavigateToImapSetup = {
-                        navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
-                    }
+                    )
                 )
             }
             composable(Screen.Settings.route) {
