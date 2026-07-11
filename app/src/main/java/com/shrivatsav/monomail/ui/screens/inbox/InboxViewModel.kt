@@ -434,11 +434,7 @@ class InboxViewModel @Inject constructor(
     }
 
     fun emptyTrash() {
-        val currentState = state.value as? InboxState.Success ?: return
-        val trashIds = currentState.threads.map { it.threadId }.toSet()
-        if (trashIds.isEmpty()) return
-
-        val isUnified = _currentTab.value == InboxTab.UNIFIED
+        val isUnified = _currentTab.value == InboxTab.UNIFIED || _unifiedInboxEnabled.value
         viewModelScope.launch {
             try {
                 repository.emptyTrash(isUnified)
@@ -448,7 +444,7 @@ class InboxViewModel @Inject constructor(
         }
     }
     fun emptySpam() {
-        val isUnified = _currentTab.value == InboxTab.UNIFIED
+        val isUnified = _currentTab.value == InboxTab.UNIFIED || _unifiedInboxEnabled.value
         viewModelScope.launch { repository.emptySpam(isUnified) }
     }
 
