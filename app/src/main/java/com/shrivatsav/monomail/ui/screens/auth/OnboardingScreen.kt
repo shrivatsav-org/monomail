@@ -216,8 +216,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                     uriHandler = uriHandler,
                     context = context,
                     kofiIcon = kofiIcon,
-                    permissionsGranted = permissionsGranted,
-                    isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                    permissionsState = PermissionsState(granted = permissionsGranted, batteryOptimizationIgnored = isIgnoringBatteryOptimizations),
                     onRequestNotifications = { requestNotifications(context, permissionLauncher) { permissionsGranted = true } },
                     onRequestBatteryOptimization = { requestBatteryOptimization(context, isIgnoringBatteryOptimizations) }
                 )
@@ -237,14 +236,15 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
     }
 }
 
+private data class PermissionsState(val granted: Boolean, val batteryOptimizationIgnored: Boolean)
+
 @Composable
 private fun OnboardingPage(
     page: Int,
     uriHandler: androidx.compose.ui.platform.UriHandler,
     context: android.content.Context,
     kofiIcon: androidx.compose.ui.graphics.painter.Painter?,
-    permissionsGranted: Boolean,
-    isIgnoringBatteryOptimizations: Boolean,
+    permissionsState: PermissionsState,
     onRequestNotifications: () -> Unit,
     onRequestBatteryOptimization: () -> Unit
 ) {
@@ -270,9 +270,9 @@ private fun OnboardingPage(
         when (page) {
             3 -> SupportPage(uriHandler, context, kofiIcon)
             4 -> PermissionsPage(
-                permissionsGranted = permissionsGranted,
+                permissionsGranted = permissionsState.granted,
                 onRequestNotifications = onRequestNotifications,
-                isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
+                isIgnoringBatteryOptimizations = permissionsState.batteryOptimizationIgnored,
                 onRequestBatteryOptimization = onRequestBatteryOptimization
             )
         }
