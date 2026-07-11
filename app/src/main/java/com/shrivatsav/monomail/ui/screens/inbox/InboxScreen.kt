@@ -506,81 +506,85 @@ fun InboxScreen(
                                     (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f))
                         }
                     ) { state ->
-                        if (state == "trash") {
-                            FloatingActionButton(
-                                onClick = { showClearTrashWarning = true },
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                shape = CircleShape,
-                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                                modifier = Modifier.height((42 * appSettings.navScale).dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        when (state) {
+                            "trash" -> {
+                                FloatingActionButton(
+                                    onClick = { showClearTrashWarning = true },
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                    shape = CircleShape,
+                                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                                    modifier = Modifier.height((42 * appSettings.navScale).dp)
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.Delete,
-                                        contentDescription = "Empty Trash",
-                                        modifier = Modifier.size((22 * appSettings.navScale).dp)
-                                    )
-                                    Text(
-                                        text = "Empty",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Delete,
+                                            contentDescription = "Empty Trash",
+                                            modifier = Modifier.size((22 * appSettings.navScale).dp)
+                                        )
+                                        Text(
+                                            text = "Empty",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
                                 }
                             }
-                        } else if (state == "spam") {
-                            FloatingActionButton(
-                                onClick = { showClearSpamWarning = true },
-                                containerColor = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                shape = CircleShape,
-                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                                modifier = Modifier.height((42 * appSettings.navScale).dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            "spam" -> {
+                                FloatingActionButton(
+                                    onClick = { showClearSpamWarning = true },
+                                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                                    shape = CircleShape,
+                                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                                    modifier = Modifier.height((42 * appSettings.navScale).dp)
                                 ) {
-                                    Icon(
-                                        Icons.Rounded.Report,
-                                        contentDescription = "Empty Spam",
-                                        modifier = Modifier.size((22 * appSettings.navScale).dp)
-                                    )
-                                    Text(
-                                        text = "Empty",
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.onErrorContainer
-                                    )
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.Report,
+                                            contentDescription = "Empty Spam",
+                                            modifier = Modifier.size((22 * appSettings.navScale).dp)
+                                        )
+                                        Text(
+                                            text = "Empty",
+                                            style = MaterialTheme.typography.labelLarge,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
                                 }
                             }
-                        } else if (state == "default") {
-                            val fabInteractionSource = remember { MutableInteractionSource() }
-                            val isFabPressed by fabInteractionSource.collectIsPressedAsState()
-                            val fabScale by animateFloatAsState(
-                                targetValue = if (isFabPressed) 0.92f else 1f,
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioMediumBouncy,
-                                    stiffness = Spring.StiffnessMedium
-                                ),
-                                label = "fabScale"
-                            )
-                            FloatingActionButton(
-                                onClick = onCompose,
-                                interactionSource = fabInteractionSource,
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                shape = CircleShape,
-                                elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-                                modifier = Modifier
-                                    .size((52 * appSettings.navScale).dp)
-                                    .graphicsLayer(scaleX = fabScale, scaleY = fabScale)
-                            ) {
-                                Icon(Icons.Rounded.Edit, contentDescription = "Compose")
+                            "default" -> {
+                                val fabInteractionSource = remember { MutableInteractionSource() }
+                                val isFabPressed by fabInteractionSource.collectIsPressedAsState()
+                                val fabScale by animateFloatAsState(
+                                    targetValue = if (isFabPressed) 0.92f else 1f,
+                                    animationSpec = spring(
+                                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                                        stiffness = Spring.StiffnessMedium
+                                    ),
+                                    label = "fabScale"
+                                )
+                                FloatingActionButton(
+                                    onClick = onCompose,
+                                    interactionSource = fabInteractionSource,
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                    shape = CircleShape,
+                                    elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
+                                    modifier = Modifier
+                                        .size((52 * appSettings.navScale).dp)
+                                        .graphicsLayer(scaleX = fabScale, scaleY = fabScale)
+                                ) {
+                                    Icon(Icons.Rounded.Edit, contentDescription = "Compose")
+                                }
                             }
                         }
                     }
@@ -707,12 +711,11 @@ fun InboxScreen(
                                     },
                                     tint = MaterialTheme.colorScheme.onSurface,
                                     onClick = {
-                                        if (tabForMenu == InboxTab.ARCHIVED) viewModel.unarchiveThread(
-                                            thread.threadId
-                                        )
-                                        else if (tabForMenu == InboxTab.SPAM) {
-                                            viewModel.reportNotSpam(thread.threadId)
-                                        } else viewModel.archiveThread(thread.threadId)
+                                        when (tabForMenu) {
+                                            InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
+                                            InboxTab.SPAM -> viewModel.reportNotSpam(thread.threadId)
+                                            else -> viewModel.archiveThread(thread.threadId)
+                                        }
                                         longPressedThread = null
                                     }
                                 )
@@ -766,13 +769,13 @@ fun InboxScreen(
                     onSwitchAccount = { viewModel.switchAccount(it); activeModal = null },
                     onCycleAccount = { viewModel.switchAccount(it) },
                     onAddAccount = {
-                        if (accounts.size >= 10) {
-                            coroutineScope.launch {
+                        when {
+                            accounts.size >= 10 -> coroutineScope.launch {
                                 snackbarHostState.showSnackbar("Maximum limit of 10 accounts reached.")
                             }
-                        } else if (accounts.size >= 3) {
-                            showPerformanceWarningDialog = true
-                        } else activeModal = ModalType.ADD_ACCOUNT
+                            accounts.size >= 3 -> showPerformanceWarningDialog = true
+                            else -> activeModal = ModalType.ADD_ACCOUNT
+                        }
                     },
                     onShowSwitchAccount = { activeModal = ModalType.SWITCH_ACCOUNT },
                     onBackToProfile = { activeModal = ModalType.PROFILE },
