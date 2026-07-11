@@ -170,7 +170,7 @@ fun SignInScreen(
             ProviderSheet(
                 state = state,
                 onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
-                onGoogleSignIn = { handleGoogleSignIn(context) { showProviderSheet = false; showVerificationModal = true } { viewModel.signIn(context) } },
+                onGoogleSignIn = { handleGoogleSignIn { showProviderSheet = false; showVerificationModal = true } { viewModel.signIn(context) } },
                 onMicrosoftSignIn = { handleMicrosoftSignIn(context) { activity -> viewModel.signInMicrosoft(activity) } },
                 onImapClick = onNavigateToImapSetup,
             )
@@ -179,7 +179,6 @@ fun SignInScreen(
 }
 
 private fun handleGoogleSignIn(
-    context: Context,
     onGithub: () -> Unit,
     onOther: () -> Unit
 ) {
