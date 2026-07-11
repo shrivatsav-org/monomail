@@ -211,48 +211,15 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) { page ->
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    val content = pageContents[page]
-
-                    Box(
-                        modifier = Modifier.size(96.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = content.icon, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                    }
-                    Spacer(modifier = Modifier.height(28.dp))
-                    Text(text = content.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(text = content.description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    when (page) {
-                        3 -> SupportPage(uriHandler, context, kofiIcon)
-                        4 -> PermissionsPage(
-                            permissionsGranted = permissionsGranted,
-                            onRequestNotifications = {
-                                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                                ) permissionLauncher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
-                                else permissionsGranted = true
-                            },
-                            isIgnoringBatteryOptimizations = isIgnoringBatteryOptimizations,
-                            onRequestBatteryOptimization = {
-                                if (!isIgnoringBatteryOptimizations) {
-                                    try {
-                                        context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") })
-                                    } catch (e: Exception) {
-                                        android.util.Log.e("Onboarding", "Failed to launch battery settings", e)
-                                    }
-                                }
-                            }
-                        )
-                    }
-                }
+                OnboardingPage(
+                    page = page,
+                    uriHandler = uriHandler,
+                    context = context,
+                    kofiIcon = kofiIcon,
+                    permissionsState = PermissionsState(granted = permissionsGranted, batteryOptimizationIgnored = isIgnoringBatteryOptimizations),
+                    onRequestNotifications = { requestNotifications(context, permissionLauncher) { permissionsGranted = true } },
+                    onRequestBatteryOptimization = { requestBatteryOptimization(context, isIgnoringBatteryOptimizations) }
+                )
             }
 
             Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -265,6 +232,73 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
                     enabled = permissionsGranted
                 )
             }
+        }
+    }
+}
+
+private data class PermissionsState(val granted: Boolean, val batteryOptimizationIgnored: Boolean)
+
+@Composable
+private fun OnboardingPage(
+    page: Int,
+    uriHandler: androidx.compose.ui.platform.UriHandler,
+    context: android.content.Context,
+    kofiIcon: androidx.compose.ui.graphics.painter.Painter?,
+    permissionsState: PermissionsState,
+    onRequestNotifications: () -> Unit,
+    onRequestBatteryOptimization: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        val content = pageContents[page]
+
+        Box(
+            modifier = Modifier.size(96.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(imageVector = content.icon, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+        Spacer(modifier = Modifier.height(28.dp))
+        Text(text = content.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(text = content.description, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
+        Spacer(modifier = Modifier.height(24.dp))
+
+        when (page) {
+            3 -> SupportPage(uriHandler, context, kofiIcon)
+            4 -> PermissionsPage(
+                permissionsGranted = permissionsState.granted,
+                onRequestNotifications = onRequestNotifications,
+                isIgnoringBatteryOptimizations = permissionsState.batteryOptimizationIgnored,
+                onRequestBatteryOptimization = onRequestBatteryOptimization
+            )
+        }
+    }
+}
+
+private fun requestNotifications(
+    context: android.content.Context,
+    launcher: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    onGranted: () -> Unit
+) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+    ) {
+        launcher.launch(arrayOf(Manifest.permission.POST_NOTIFICATIONS))
+    } else {
+        onGranted()
+    }
+}
+
+private fun requestBatteryOptimization(context: android.content.Context, isIgnoring: Boolean) {
+    if (!isIgnoring) {
+        try {
+            context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply { data = Uri.parse("package:${context.packageName}") })
+        } catch (e: Exception) {
+            android.util.Log.e("Onboarding", "Failed to launch battery settings", e)
         }
     }
 }
