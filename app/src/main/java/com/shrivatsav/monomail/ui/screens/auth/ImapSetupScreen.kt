@@ -141,19 +141,17 @@ private fun AccountSettingsSection(
     )
 }
 
-@Suppress("TooManyParameters")
+private enum class TlsMode { NONE, SSL, STARTTLS }
+private data class ServerConfig(val host: String = "", val port: String = "", val tlsMode: TlsMode = TlsMode.NONE)
+
 @Composable
 private fun ServerSection(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    host: String,
+    config: ServerConfig,
     onHostChange: (String) -> Unit,
-    port: String,
     onPortChange: (String) -> Unit,
-    ssl: Boolean,
-    onSslChange: (Boolean) -> Unit,
-    startTls: Boolean,
-    onStartTlsChange: (Boolean) -> Unit,
+    onTlsModeChange: (TlsMode) -> Unit,
     portImeAction: ImeAction
 ) {
     Spacer(modifier = Modifier.height(8.dp))
@@ -165,7 +163,7 @@ private fun ServerSection(
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
-            value = host,
+            value = config.host,
             onValueChange = onHostChange,
             label = { Text("Host") },
             modifier = Modifier.weight(0.7f),
@@ -173,7 +171,7 @@ private fun ServerSection(
             singleLine = true
         )
         OutlinedTextField(
-            value = port,
+            value = config.port,
             onValueChange = onPortChange,
             label = { Text("Port") },
             modifier = Modifier.weight(0.3f),
@@ -185,17 +183,17 @@ private fun ServerSection(
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text("Use SSL")
         Switch(
-            checked = ssl,
-            onCheckedChange = { onSslChange(it) }
+            checked = config.tlsMode == TlsMode.SSL,
+            onCheckedChange = { onTlsModeChange(if (it) TlsMode.SSL else TlsMode.NONE) }
         )
     }
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text("Use STARTTLS")
         Switch(
-            checked = startTls,
-            onCheckedChange = { onStartTlsChange(it) },
-            enabled = !ssl
+            checked = config.tlsMode == TlsMode.STARTTLS,
+            onCheckedChange = { onTlsModeChange(if (it) TlsMode.STARTTLS else TlsMode.NONE) },
+            enabled = config.tlsMode != TlsMode.SSL
         )
     }
 }
@@ -306,28 +304,48 @@ fun ImapSetupScreen(
                 ServerSection(
                     title = "Incoming Server (IMAP)",
                     icon = Icons.Rounded.MoveToInbox,
-                    host = imapHost,
+                    config = ServerConfig(
+                        host = imapHost,
+                        port = imapPort,
+                        tlsMode = when {
+                            imapSsl -> TlsMode.SSL
+                            imapStartTls -> TlsMode.STARTTLS
+                            else -> TlsMode.NONE
+                        }
+                    ),
                     onHostChange = { viewModel.setImapHost(it) },
-                    port = imapPort,
                     onPortChange = { viewModel.setImapPort(it) },
-                    ssl = imapSsl,
-                    onSslChange = { viewModel.setImapSsl(it); if (it) viewModel.setImapStartTls(false) },
-                    startTls = imapStartTls,
-                    onStartTlsChange = { viewModel.setImapStartTls(it); if (it) viewModel.setImapSsl(false) },
+                    onTlsModeChange = {
+                        when (it) {
+                            TlsMode.SSL -> { viewModel.setImapSsl(true); viewModel.setImapStartTls(false) }
+                            TlsMode.STARTTLS -> { viewModel.setImapStartTls(true); viewModel.setImapSsl(false) }
+                            TlsMode.NONE -> { viewModel.setImapSsl(false); viewModel.setImapStartTls(false) }
+                        }
+                    },
                     portImeAction = ImeAction.Next
                 )
 
                 ServerSection(
                     title = "Outgoing Server (SMTP)",
                     icon = Icons.AutoMirrored.Rounded.Outbound,
-                    host = smtpHost,
+                    config = ServerConfig(
+                        host = smtpHost,
+                        port = smtpPort,
+                        tlsMode = when {
+                            smtpSsl -> TlsMode.SSL
+                            smtpStartTls -> TlsMode.STARTTLS
+                            else -> TlsMode.NONE
+                        }
+                    ),
                     onHostChange = { viewModel.setSmtpHost(it) },
-                    port = smtpPort,
                     onPortChange = { viewModel.setSmtpPort(it) },
-                    ssl = smtpSsl,
-                    onSslChange = { viewModel.setSmtpSsl(it); if (it) viewModel.setSmtpStartTls(false) },
-                    startTls = smtpStartTls,
-                    onStartTlsChange = { viewModel.setSmtpStartTls(it); if (it) viewModel.setSmtpSsl(false) },
+                    onTlsModeChange = {
+                        when (it) {
+                            TlsMode.SSL -> { viewModel.setSmtpSsl(true); viewModel.setSmtpStartTls(false) }
+                            TlsMode.STARTTLS -> { viewModel.setSmtpStartTls(true); viewModel.setSmtpSsl(false) }
+                            TlsMode.NONE -> { viewModel.setSmtpSsl(false); viewModel.setSmtpStartTls(false) }
+                        }
+                    },
                     portImeAction = ImeAction.Done
                 )
 
