@@ -25,6 +25,23 @@ import androidx.compose.foundation.layout.offset
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.settings.SwipeAction
 
+data class SearchBarActions(
+    val onMarkAllRead: () -> Unit,
+    val onScheduledClick: () -> Unit = {},
+    val scheduledCount: Int = 0,
+    val onUndo: () -> Unit,
+    val onOpenProfile: () -> Unit
+)
+
+data class BulkSelectionState(
+    val isBulkMode: Boolean = false,
+    val selectedCount: Int = 0,
+    val totalCount: Int = 0,
+    val onSelectAll: () -> Unit = {},
+    val onDeselectAll: () -> Unit = {},
+    val onDone: () -> Unit = {}
+)
+
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 internal fun InboxSearchBar(
@@ -33,24 +50,15 @@ internal fun InboxSearchBar(
     query: String,
     onQueryChange: (String) -> Unit,
     onServerSearch: (String) -> Unit,
-    onMarkAllRead: () -> Unit,
-    onScheduledClick: () -> Unit = {},
-    scheduledCount: Int = 0,
+    actions: SearchBarActions,
     isRefreshing: Boolean,
     toastState: InboxViewModel.ToastState?,
-    onUndo: () -> Unit,
-    onOpenProfile: () -> Unit,
-    isBulkMode: Boolean = false,
-    selectedCount: Int = 0,
-    totalCount: Int = 0,
-    onSelectAll: () -> Unit = {},
-    onDeselectAll: () -> Unit = {},
-    onDone: () -> Unit = {},
+    bulkSelection: BulkSelectionState = BulkSelectionState(),
     unifiedInboxEnabled: Boolean = false,
 ) {
     val containerColor by animateColorAsState(
         targetValue = when {
-            isBulkMode -> MaterialTheme.colorScheme.secondaryContainer
+            bulkSelection.isBulkMode -> MaterialTheme.colorScheme.secondaryContainer
             toastState != null -> MaterialTheme.colorScheme.secondaryContainer
             else -> MaterialTheme.colorScheme.surfaceContainer
         },
@@ -70,7 +78,7 @@ internal fun InboxSearchBar(
                         .fillMaxWidth()
                         .height(56.dp)
                 ) {
-                    if (isBulkMode) {
+                    if (bulkSelection.isBulkMode) {
                         Row(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -78,7 +86,7 @@ internal fun InboxSearchBar(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             AnimatedContent(
-                                targetState = selectedCount,
+                                targetState = bulkSelection.selectedCount,
                                 label = "selectedCount",
                                 modifier = Modifier.weight(1f),
                                 transitionSpec = {
@@ -97,9 +105,9 @@ internal fun InboxSearchBar(
                                 )
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                if (selectedCount < totalCount) {
+                                if (bulkSelection.selectedCount < bulkSelection.totalCount) {
                                     TextButton(
-                                        onClick = onSelectAll,
+                                        onClick = bulkSelection.onSelectAll,
                                         shape = RoundedCornerShape(24.dp),
                                         colors = ButtonDefaults.textButtonColors(
                                             contentColor = MaterialTheme.colorScheme.primary
@@ -109,7 +117,7 @@ internal fun InboxSearchBar(
                                     }
                                 } else {
                                     TextButton(
-                                        onClick = onDeselectAll,
+                                        onClick = bulkSelection.onDeselectAll,
                                         shape = RoundedCornerShape(24.dp),
                                         colors = ButtonDefaults.textButtonColors(
                                             contentColor = MaterialTheme.colorScheme.primary
@@ -120,7 +128,7 @@ internal fun InboxSearchBar(
                                 }
                                 Spacer(Modifier.width(4.dp))
                                 IconButton(
-                                    onClick = onDone,
+                                    onClick = bulkSelection.onDone,
                                     modifier = Modifier.size(40.dp)
                                 ) {
                                     Icon(
@@ -168,7 +176,7 @@ internal fun InboxSearchBar(
                                         overflow = TextOverflow.Ellipsis
                                     )
                                     TextButton(
-                                        onClick = onUndo,
+                                        onClick = actions.onUndo,
                                         shape = RoundedCornerShape(24.dp),
                                         colors = ButtonDefaults.textButtonColors(
                                             contentColor = MaterialTheme.colorScheme.primary
@@ -217,13 +225,13 @@ internal fun InboxSearchBar(
                                         ) {
                                             BadgedBox(
                                                 badge = {
-                                                    if (scheduledCount > 0) {
+                                                    if (actions.scheduledCount > 0) {
                                                         Badge(
                                                             containerColor = MaterialTheme.colorScheme.error,
                                                             contentColor = MaterialTheme.colorScheme.onError
                                                         ) {
                                                             Text(
-                                                                if (scheduledCount > 99) "99+" else scheduledCount.toString(),
+                                                                if (actions.scheduledCount > 99) "99+" else actions.scheduledCount.toString(),
                                                                 style = MaterialTheme.typography.labelSmall
                                                             )
                                                         }
@@ -231,7 +239,7 @@ internal fun InboxSearchBar(
                                                 }
                                             ) {
                                                 IconButton(
-                                                    onClick = onScheduledClick,
+                                                    onClick = actions.onScheduledClick,
                                                     modifier = Modifier.size(40.dp)
                                                 ) {
                                                     Icon(
@@ -243,7 +251,7 @@ internal fun InboxSearchBar(
                                                 }
                                             }
                                             IconButton(
-                                                onClick = onMarkAllRead,
+                                                onClick = actions.onMarkAllRead,
                                                 modifier = Modifier.size(40.dp)
                                             ) {
                                                 Icon(
@@ -257,12 +265,12 @@ internal fun InboxSearchBar(
                                             if (unifiedInboxEnabled && accounts.size > 1) {
                                                 StackedAccountAvatars(
                                                     accounts = accounts,
-                                                    onClick = onOpenProfile
+                                                    onClick = actions.onOpenProfile
                                                 )
                                             } else {
                                                 AvatarButton(
                                                     userProfile = userProfile,
-                                                    onClick = onOpenProfile
+                                                    onClick = actions.onOpenProfile
                                                 )
                                             }
                                         }
