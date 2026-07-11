@@ -316,7 +316,9 @@ private fun DetailContent(
                     val myEmail = config.currentUserEmail
                     val replyTarget = emails.lastOrNull {
                         it.fromEmail.isNotBlank() && !it.fromEmail.equals(myEmail, ignoreCase = true)
-                    }?.fromEmail ?: latestEmail.to
+                    }?.fromEmail ?: latestEmail.to.split(",").map { it.trim() }.filter {
+                        it.isNotBlank() && !it.equals(myEmail, ignoreCase = true)
+                    }.joinToString(", ").ifEmpty { latestEmail.to }
                     ThreadConversationContent(
                         emails = emails,
                         decryptedBodies = decryptedBodies,
@@ -916,8 +918,8 @@ private fun configureWebView(webView: WebView) {
     webView.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
     webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
     webView.settings.loadsImagesAutomatically = true
-    try { WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(webView, true) } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowFileAccess failed", e) }
-    try { WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(webView, false) } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowContentAccess failed", e) }
+    try { WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(webView, true) } catch (_: Exception) { }
+    try { WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(webView, true) } catch (_: Exception) { }
     webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
     webView.isVerticalScrollBarEnabled = false
     webView.isHorizontalScrollBarEnabled = true

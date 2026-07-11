@@ -562,9 +562,13 @@ class ImapProvider(
         if (options.cc.isNotBlank()) setRecipients(Message.RecipientType.CC, InternetAddress.parse(options.cc))
         if (options.bcc.isNotBlank()) setRecipients(Message.RecipientType.BCC, InternetAddress.parse(options.bcc))
         this.subject = subject
-        if (options.threadId != null) {
-            setHeader(HEADER_IN_REPLY_TO, options.threadId)
-            setHeader(HEADER_REFERENCES, options.threadId)
+        if (options.inReplyToMessageId != null) {
+            setHeader(HEADER_IN_REPLY_TO, options.inReplyToMessageId)
+        }
+        val refs = options.references?.takeIf { it.isNotBlank() }
+            ?: options.inReplyToMessageId
+        if (refs != null) {
+            setHeader(HEADER_REFERENCES, refs)
         }
         if (options.attachments.isEmpty()) {
             setContent(body, "text/html; charset=utf-8")

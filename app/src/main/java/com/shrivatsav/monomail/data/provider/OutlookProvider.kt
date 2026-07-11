@@ -19,6 +19,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import retrofit2.HttpException
 import java.util.Locale
+import java.util.UUID
 class OutlookProvider(
     private val api: OutlookApi,
     private val context: Context
@@ -321,7 +322,7 @@ class OutlookProvider(
             attachments = draftAttachments.takeIf { it.isNotEmpty() }
         )
         api.sendMail(OutlookSendMailRequest(msg))
-        return null
+        return options.threadId ?: UUID.randomUUID().toString()
     }
 
     private fun parseRecipients(csv: String): List<OutlookRecipient> {

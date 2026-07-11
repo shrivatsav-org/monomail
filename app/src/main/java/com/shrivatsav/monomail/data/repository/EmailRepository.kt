@@ -428,7 +428,7 @@ class EmailRepository(
         body: String,
         params: SendEmailParams = SendEmailParams(),
         explicitAccountId: String? = null
-    ): Result<String?> {
+    ): Result<String> {
         return try {
             val targetAccountId = explicitAccountId ?: getActiveAccountId()
             val provider = (if (explicitAccountId != null) getProviderForAccount(explicitAccountId) else getActiveProvider()) ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
@@ -437,47 +437,53 @@ class EmailRepository(
                 to = to,
                 subject = subject,
                 body = body,
-                options = SendEmailOptions(cc = params.cc, bcc = params.bcc, threadId = params.threadId, attachments = params.attachments)
+                options = SendEmailOptions(cc = params.cc, bcc = params.bcc, threadId = params.threadId, inReplyToMessageId = params.inReplyToMessageId, references = params.references, attachments = params.attachments)
             )
-            val actualThreadId = sentThreadId ?: params.threadId ?: UUID.randomUUID().toString()
-            val msgId = UUID.randomUUID().toString()
-            val now = System.currentTimeMillis()
-            val domainThread = EmailThread(
-                threadId = actualThreadId,
-                subject = subject.cleanSubject(),
-                from = from,
-                fromEmail = from,
-                snippet = body.take(100),
-                date = now,
-                messageCount = 1,
-                isRead = true,
-                isStarred = false,
-                latestMessageId = msgId,
-                participants = listOf(from, to)
-            )
-            val domainEmail = Email(
-                id = msgId,
-                threadId = actualThreadId,
-                subject = subject,
-                from = from,
-                fromEmail = from,
-                to = to,
-                cc = params.cc,
-                bcc = params.bcc,
-                snippet = body.take(100),
-                body = body,
-                date = now,
-                isRead = true,
-                isStarred = false,
-                labels = listOf(EmailFolder.SENT.name),
-                attachments = params.attachments.map { com.shrivatsav.monomail.data.model.EmailAttachmentInfo(id = it.name, messageId = msgId, name = it.name, mimeType = it.mimeType, size = it.size.toInt()) }
-            )
-            database.withTransaction {
-                threadDao.insertThreads(listOf(domainThread.toEntity(targetAccountId, inInbox = false, inSent = true, inArchived = false, inTrash = false, inSpam = false)))
-                emailDao.insertEmails(listOf(domainEmail.toEntity(targetAccountId)))
+            val actualThreadId = sentThreadId ?: UUID.randomUUID().toString()
+            // ponytail: DB insert is best-effort — email already sent to server, don't report false failure
+            try {
+                val msgId = UUID.randomUUID().toString()
+                val now = System.currentTimeMillis()
+                val domainThread = EmailThread(
+                    threadId = actualThreadId,
+                    subject = subject.cleanSubject(),
+                    from = from,
+                    fromEmail = from,
+                    snippet = body.take(100),
+                    date = now,
+                    messageCount = 1,
+                    isRead = true,
+                    isStarred = false,
+                    latestMessageId = msgId,
+                    participants = listOf(from, to)
+                )
+                val domainEmail = Email(
+                    id = msgId,
+                    threadId = actualThreadId,
+                    subject = subject,
+                    from = from,
+                    fromEmail = from,
+                    to = to,
+                    cc = params.cc,
+                    bcc = params.bcc,
+                    snippet = body.take(100),
+                    body = body,
+                    date = now,
+                    isRead = true,
+                    isStarred = false,
+                    labels = listOf(EmailFolder.SENT.name),
+                    attachments = params.attachments.map { com.shrivatsav.monomail.data.model.EmailAttachmentInfo(id = it.name, messageId = msgId, name = it.name, mimeType = it.mimeType, size = it.size.toInt()) }
+                )
+                database.withTransaction {
+                    threadDao.insertThreads(listOf(domainThread.toEntity(targetAccountId, inInbox = false, inSent = true, inArchived = false, inTrash = false, inSpam = false)))
+                    emailDao.insertEmails(listOf(domainEmail.toEntity(targetAccountId)))
+                }
+            } catch (e: Exception) {
+                Log.w("EmailRepo", "DB insert after send failed (email was sent)", e)
             }
             Result.success(actualThreadId)
         } catch (e: Exception) {
+            Log.e("EmailRepo", "sendEmail failed", e)
             Result.failure(e)
         }
     }
@@ -511,7 +517,9 @@ class EmailRepository(
                 }
             ),
             scheduledAt = scheduledAt,
-            fromAlias = params.fromAlias
+            fromAlias = params.fromAlias,
+            threadId = params.threadId,
+            messageId = params.inReplyToMessageId
         )
         scheduledMessageDao.insertScheduledMessage(entity)
         val delay = scheduledAt - System.currentTimeMillis()
@@ -612,5 +620,8 @@ data class ScheduleSendParams(
     val cc: String = "",
     val bcc: String = "",
     val attachments: List<EmailAttachment> = emptyList(),
-    val fromAlias: String? = null
+    val fromAlias: String? = null,
+    val threadId: String? = null,
+    val inReplyToMessageId: String? = null,
+    val references: String? = null
 )

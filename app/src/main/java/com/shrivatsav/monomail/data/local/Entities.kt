@@ -160,7 +160,9 @@ data class ScheduledMessageEntity(
     val scheduledAt: Long,
     val isSent: Boolean = false,
     val createdAt: Long = System.currentTimeMillis(),
-    val fromAlias: String? = null
+    val fromAlias: String? = null,
+    val threadId: String? = null,
+    val messageId: String? = null
 )
 
 enum class PendingActionType {

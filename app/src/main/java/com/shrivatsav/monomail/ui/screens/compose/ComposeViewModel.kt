@@ -54,7 +54,9 @@ data class ComposeUiState(
     val encryptEnabled: Boolean = false,
     val signEnabled: Boolean = false,
     val hasEncryptionKeys: Boolean = false,
-    val hasSigningKeys: Boolean = false
+    val hasSigningKeys: Boolean = false,
+    val unifiedMode: Boolean = false,
+    val allAccounts: List<com.shrivatsav.monomail.auth.UserProfile> = emptyList()
 )
 
 @HiltViewModel
@@ -77,6 +79,7 @@ class ComposeViewModel @Inject constructor(
     private val threadIdArg: String? = savedStateHandle.get<String>("threadId")?.takeIf { it.isNotEmpty() }
     private val messageIdArg: String? = savedStateHandle.get<String>("messageId")?.takeIf { it.isNotEmpty() }
     private val scheduledId: String? = savedStateHandle.get<String>("scheduledId")?.takeIf { it.isNotEmpty() }
+    private val unifiedMode: Boolean = savedStateHandle.get<Boolean>("unified") ?: false
 
     private var scheduledMessageId: String? = scheduledId
 
@@ -84,6 +87,7 @@ class ComposeViewModel @Inject constructor(
         ComposeUiState(
             from = fromEmail,
             mode = mode,
+            unifiedMode = unifiedMode,
             to = when (mode) {
                 ComposeMode.REPLY -> replyTo
                 else -> ""
@@ -137,7 +141,10 @@ class ComposeViewModel @Inject constructor(
                         cc = scheduled.cc,
                         bcc = scheduled.bcc,
                         subject = scheduled.subject,
-                        body = scheduled.body
+                        body = scheduled.body,
+                        threadId = scheduled.threadId,
+                        inReplyToMessageId = scheduled.messageId,
+                        references = scheduled.messageId
                     )
                 }
             }
@@ -150,6 +157,12 @@ class ComposeViewModel @Inject constructor(
                     fromAliases = aliases,
                     from = currentFrom.ifEmpty { fromEmail }
                 )
+            }
+        }
+        if (unifiedMode) {
+            viewModelScope.launch {
+                val accounts = authManager.getAccounts()
+                _state.value = _state.value.copy(allAccounts = accounts)
             }
         }
     }
@@ -171,6 +184,10 @@ class ComposeViewModel @Inject constructor(
 
     fun selectAlias(alias: SendAsAlias) {
         _state.value = _state.value.copy(from = alias.email, showFromDropdown = false)
+    }
+
+    fun selectAccount(account: com.shrivatsav.monomail.auth.UserProfile) {
+        _state.value = _state.value.copy(from = account.email, showFromDropdown = false)
     }
 
     fun toggleFromDropdown() {
@@ -264,7 +281,11 @@ class ComposeViewModel @Inject constructor(
     private fun executeSend(current: ComposeUiState) {
         viewModelScope.launch {
             val sId = scheduledMessageId
-            if (!sId.isNullOrEmpty()) repository.cancelScheduledMessage(sId)
+            if (!sId.isNullOrEmpty()) {
+                try { repository.cancelScheduledMessage(sId) } catch (e: Exception) {
+                    android.util.Log.w("ComposeVM", "cancelScheduledMessage failed, proceeding with send", e)
+                }
+            }
             _state.value = current.copy(isSending = true, error = null)
             val fullBody = buildString {
                 append(current.body)
@@ -331,7 +352,7 @@ class ComposeViewModel @Inject constructor(
                 subject = current.subject,
                 body = finalBody,
                 scheduledAt = scheduledAt,
-                params = ScheduleSendParams(cc = current.cc, bcc = current.bcc, attachments = cachedAttachments, fromAlias = fromAlias)
+                params = ScheduleSendParams(cc = current.cc, bcc = current.bcc, attachments = cachedAttachments, fromAlias = fromAlias, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references)
             )
             scheduledEmailEvents.tryEmit(
                 ScheduledEmailEvent(

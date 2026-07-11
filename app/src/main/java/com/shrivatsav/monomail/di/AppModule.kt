@@ -90,12 +90,13 @@ object AppModule {
         authManager: AuthManager,
         providerCache: java.util.concurrent.ConcurrentHashMap<String, EmailProvider>
     ): String? {
-        val currentProfile = runBlocking { accountManager.getAccounts().find { it.id == profile.id } }
+        // ponytail: runBlocking required — tokenRefresher is sync (OkHttp interceptor). Dispatchers.IO keeps DataStore ops off the dispatcher thread.
+        val currentProfile = runBlocking(kotlinx.coroutines.Dispatchers.IO) { accountManager.getAccounts().find { it.id == profile.id } }
             ?: return null
         return try {
             val newToken = fetchNewToken(currentProfile, context, authManager)
             if (newToken != null) {
-                runBlocking { authManager.updateAccessToken(currentProfile.copy(accessToken = newToken)) }
+                runBlocking(kotlinx.coroutines.Dispatchers.IO) { authManager.updateAccessToken(currentProfile.copy(accessToken = newToken)) }
                 providerCache.remove(profile.id)
             }
             newToken
@@ -107,9 +108,11 @@ object AppModule {
 
     private fun fetchNewToken(profile: UserProfile, context: Context, authManager: AuthManager): String? = when (profile.provider) {
         "gmail" -> {
+            // ponytail: get new token first, then clear old — if getToken fails, old token is still valid
+            val newToken = GoogleAuthUtil.getToken(context, Account(profile.email, "com.google"), AuthManager.GMAIL_SCOPE)
             val oldToken = profile.accessToken
-            if (oldToken.isNotEmpty()) GoogleAuthUtil.clearToken(context, oldToken)
-            GoogleAuthUtil.getToken(context, Account(profile.email, "com.google"), AuthManager.GMAIL_SCOPE)
+            if (oldToken.isNotEmpty() && oldToken != newToken) GoogleAuthUtil.clearToken(context, oldToken)
+            newToken
         }
         "outlook" -> runBlocking { authManager.microsoftAuthManager.getAccessTokenSilently(profile.id) }
         else -> null
