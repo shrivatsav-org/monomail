@@ -52,19 +52,24 @@ internal fun BottomDockBar(
                 showRemainingTabs = false
             }
         )
-        PrimaryDockRow(
-            currentTab = currentTab,
-            primaryIds = primaryIds,
-            unifiedInboxEnabled = unifiedInboxEnabled,
-            appSettings = appSettings,
-            onTabClick = onTabClick
-        )
-        if (remainingIds.isNotEmpty() && currentTab != InboxTab.TRASH && currentTab != InboxTab.SPAM) {
-            MoreTabsButton(
-                showRemainingTabs = showRemainingTabs,
-                navScale = appSettings.navScale,
-                onClick = { showRemainingTabs = !showRemainingTabs }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            PrimaryDockRow(
+                currentTab = currentTab,
+                primaryIds = primaryIds,
+                unifiedInboxEnabled = unifiedInboxEnabled,
+                appSettings = appSettings,
+                onTabClick = onTabClick
             )
+            if (remainingIds.isNotEmpty() && currentTab != InboxTab.TRASH && currentTab != InboxTab.SPAM) {
+                MoreTabsButton(
+                    showRemainingTabs = showRemainingTabs,
+                    navScale = appSettings.navScale,
+                    onClick = { showRemainingTabs = !showRemainingTabs }
+                )
+            }
         }
     }
 }
