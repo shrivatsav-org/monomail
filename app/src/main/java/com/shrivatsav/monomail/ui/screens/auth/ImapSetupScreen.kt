@@ -259,19 +259,25 @@ private fun tlsModeFor(ssl: Boolean, startTls: Boolean): TlsMode = when {
 
 @Composable
 private fun ImapSetupForm(
-    imapHost: String, onImapHostChange: (String) -> Unit,
-    imapPort: String, onImapPortChange: (String) -> Unit,
-    imapTlsMode: TlsMode, onImapTlsModeChange: (TlsMode) -> Unit,
-    smtpHost: String, onSmtpHostChange: (String) -> Unit,
-    smtpPort: String, onSmtpPortChange: (String) -> Unit,
-    smtpTlsMode: TlsMode, onSmtpTlsModeChange: (TlsMode) -> Unit,
-    username: String, onUsernameChange: (String) -> Unit,
-    password: String, onPasswordChange: (String) -> Unit,
-    displayName: String, onDisplayNameChange: (String) -> Unit,
-    onApplyPreset: (ImapAccountConfig) -> Unit,
-    isBusy: Boolean, testState: ImapTestState,
+    viewModel: ImapSetupViewModel,
+    isBusy: Boolean,
+    testState: ImapTestState,
     onSignIn: () -> Unit
 ) {
+    val imapHost by viewModel.imapHost.collectAsState()
+    val imapPort by viewModel.imapPort.collectAsState()
+    val imapSsl by viewModel.imapSsl.collectAsState()
+    val imapStartTls by viewModel.imapStartTls.collectAsState()
+
+    val smtpHost by viewModel.smtpHost.collectAsState()
+    val smtpPort by viewModel.smtpPort.collectAsState()
+    val smtpSsl by viewModel.smtpSsl.collectAsState()
+    val smtpStartTls by viewModel.smtpStartTls.collectAsState()
+
+    val username by viewModel.username.collectAsState()
+    val password by viewModel.password.collectAsState()
+    val displayName by viewModel.displayName.collectAsState()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -281,31 +287,31 @@ private fun ImapSetupForm(
     ) {
         AccountSettingsSection(
             displayName = displayName,
-            onDisplayNameChange = onDisplayNameChange,
+            onDisplayNameChange = { viewModel.setDisplayName(it) },
             username = username,
-            onUsernameChange = onUsernameChange,
+            onUsernameChange = { viewModel.setUsername(it) },
             password = password,
-            onPasswordChange = onPasswordChange,
-            onApplyPreset = onApplyPreset
+            onPasswordChange = { viewModel.setPassword(it) },
+            onApplyPreset = { viewModel.applySuggestion(it) }
         )
 
         ServerSection(
             title = "Incoming Server (IMAP)",
             icon = Icons.Rounded.MoveToInbox,
-            config = ServerConfig(host = imapHost, port = imapPort, tlsMode = imapTlsMode),
-            onHostChange = onImapHostChange,
-            onPortChange = onImapPortChange,
-            onTlsModeChange = onImapTlsModeChange,
+            config = ServerConfig(host = imapHost, port = imapPort, tlsMode = tlsModeFor(imapSsl, imapStartTls)),
+            onHostChange = { viewModel.setImapHost(it) },
+            onPortChange = { viewModel.setImapPort(it) },
+            onTlsModeChange = { applyImapTlsChange(it, viewModel::setImapSsl, viewModel::setImapStartTls) },
             portImeAction = ImeAction.Next
         )
 
         ServerSection(
             title = "Outgoing Server (SMTP)",
             icon = Icons.AutoMirrored.Rounded.Outbound,
-            config = ServerConfig(host = smtpHost, port = smtpPort, tlsMode = smtpTlsMode),
-            onHostChange = onSmtpHostChange,
-            onPortChange = onSmtpPortChange,
-            onTlsModeChange = onSmtpTlsModeChange,
+            config = ServerConfig(host = smtpHost, port = smtpPort, tlsMode = tlsModeFor(smtpSsl, smtpStartTls)),
+            onHostChange = { viewModel.setSmtpHost(it) },
+            onPortChange = { viewModel.setSmtpPort(it) },
+            onTlsModeChange = { applyImapTlsChange(it, viewModel::setSmtpSsl, viewModel::setSmtpStartTls) },
             portImeAction = ImeAction.Done
         )
 
@@ -356,27 +362,8 @@ fun ImapSetupScreen(
     onSetupComplete: () -> Unit,
     onBack: () -> Unit
 ) {
-    val imapHost by viewModel.imapHost.collectAsState()
-    val imapPort by viewModel.imapPort.collectAsState()
-    val imapSsl by viewModel.imapSsl.collectAsState()
-    val imapStartTls by viewModel.imapStartTls.collectAsState()
-
-    val smtpHost by viewModel.smtpHost.collectAsState()
-    val smtpPort by viewModel.smtpPort.collectAsState()
-    val smtpSsl by viewModel.smtpSsl.collectAsState()
-    val smtpStartTls by viewModel.smtpStartTls.collectAsState()
-
-    val username by viewModel.username.collectAsState()
-    val password by viewModel.password.collectAsState()
-    val displayName by viewModel.displayName.collectAsState()
-
     val testState by viewModel.testState.collectAsState()
     val context = LocalContext.current
-
-    val isFormValid = imapHost.isNotBlank() && imapPort.isNotBlank() &&
-                      smtpHost.isNotBlank() && smtpPort.isNotBlank() &&
-                      username.isNotBlank() && password.isNotBlank()
-
     val isBusy = testState is ImapTestState.Testing || testState is ImapTestState.Syncing
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -395,18 +382,7 @@ fun ImapSetupScreen(
         ) { padding ->
             Column(modifier = Modifier.padding(padding)) {
                 ImapSetupForm(
-                    imapHost = imapHost, onImapHostChange = { viewModel.setImapHost(it) },
-                    imapPort = imapPort, onImapPortChange = { viewModel.setImapPort(it) },
-                    imapTlsMode = tlsModeFor(imapSsl, imapStartTls),
-                    onImapTlsModeChange = { applyImapTlsChange(it, viewModel::setImapSsl, viewModel::setImapStartTls) },
-                    smtpHost = smtpHost, onSmtpHostChange = { viewModel.setSmtpHost(it) },
-                    smtpPort = smtpPort, onSmtpPortChange = { viewModel.setSmtpPort(it) },
-                    smtpTlsMode = tlsModeFor(smtpSsl, smtpStartTls),
-                    onSmtpTlsModeChange = { applyImapTlsChange(it, viewModel::setSmtpSsl, viewModel::setSmtpStartTls) },
-                    username = username, onUsernameChange = { viewModel.setUsername(it) },
-                    password = password, onPasswordChange = { viewModel.setPassword(it) },
-                    displayName = displayName, onDisplayNameChange = { viewModel.setDisplayName(it) },
-                    onApplyPreset = { viewModel.applySuggestion(it) },
+                    viewModel = viewModel,
                     isBusy = isBusy,
                     testState = testState,
                     onSignIn = { viewModel.testAndSaveAccount(context, onSetupComplete) }
