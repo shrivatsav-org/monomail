@@ -143,6 +143,7 @@ fun SignInScreen(
                 showProviderSheet = false
                 snackbarHostState.showSnackbar((state as SignInState.Error).message)
             }
+            else -> {}
         }
     }
 
@@ -170,7 +171,7 @@ fun SignInScreen(
             ProviderSheet(
                 state = state,
                 onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
-                onGoogleSignIn = { handleGoogleSignIn { showProviderSheet = false; showVerificationModal = true } { viewModel.signIn(context) } },
+                onGoogleSignIn = { handleGoogleSignIn(onGithub = { showProviderSheet = false; showVerificationModal = true }, onOther = { viewModel.signIn(context) }) },
                 onMicrosoftSignIn = { handleMicrosoftSignIn(context) { activity -> viewModel.signInMicrosoft(activity) } },
                 onImapClick = onNavigateToImapSetup,
             )

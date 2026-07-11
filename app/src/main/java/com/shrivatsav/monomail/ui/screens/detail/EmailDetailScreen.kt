@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
@@ -112,7 +113,8 @@ data class EmailDisplayConfig(
     val loadRemoteImages: Boolean = true,
     val emailTheme: EmailTheme = EmailTheme.AUTO,
     val showInlineAttachments: Boolean = true,
-    val isDeveloperMode: Boolean = false
+    val isDeveloperMode: Boolean = false,
+    val currentUserEmail: String = ""
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -213,10 +215,10 @@ fun EmailDetailScreen(
                 loadRemoteImages = loadRemoteImages,
                 emailTheme = emailTheme,
                 showInlineAttachments = showInlineAttachments,
-                isDeveloperMode = isDeveloperMode
+                isDeveloperMode = isDeveloperMode,
+                currentUserEmail = viewModel.currentUserEmail
             ),
             decryptedBodies = decryptedBodies,
-            currentUserEmail = viewModel.currentUserEmail,
             onReply = onReply,
             onForward = onForward,
             onFetchAttachment = onFetchAttachment
@@ -231,7 +233,6 @@ private fun DetailContent(
     padding: androidx.compose.foundation.layout.PaddingValues,
     config: EmailDisplayConfig,
     decryptedBodies: Map<String, PgpDecryptionResult>,
-    currentUserEmail: String,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit,
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit,
     onFetchAttachment: suspend (String, String) -> ByteArray?
@@ -312,7 +313,7 @@ private fun DetailContent(
                 } else {
                     val latestEmail = emails.last()
                     val latestBody = decryptedBodies[latestEmail.id]?.decryptedBody ?: latestEmail.body
-                    val myEmail = currentUserEmail
+                    val myEmail = config.currentUserEmail
                     val replyTarget = emails.lastOrNull {
                         it.fromEmail.isNotBlank() && !it.fromEmail.equals(myEmail, ignoreCase = true)
                     }?.fromEmail ?: latestEmail.to
@@ -382,7 +383,7 @@ fun ThreadConversationContent(
                 ConversationEmailItem(
                     email = email,
                     index = index,
-                    threadSize = emails.size,
+                    isLast = index == emails.lastIndex,
                     isExpanded = isExpanded,
                     onToggleExpand = { expandedMap[email.id] = !isExpanded },
                     config = config,
@@ -467,7 +468,7 @@ fun ThreadConversationContent(
 private fun ConversationEmailItem(
     email: Email,
     index: Int,
-    threadSize: Int,
+    isLast: Boolean,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     config: EmailDisplayConfig,
@@ -573,35 +574,28 @@ private fun ConversationEmailItem(
         enter = fadeIn(tween(200)) + expandVertically(tween(200)),
         exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    if (index % 2 == 1)
-                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.25f)
-                    else MaterialTheme.colorScheme.background
-                )
-        ) {
-            if (index < threadSize - 1) {
-                Box(
-                    modifier = Modifier
-                        .width(2.dp)
-                        .fillMaxHeight()
-                        .heightIn(min = 120.dp)
-                        .padding(start = 28.dp)
-                        .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
-                )
-            }
-            Column(modifier = Modifier.weight(1f).heightIn(min = 120.dp)) {
-                CcBccBlock(email)
-                MessageBody(
-                    email = email,
-                    decryptedResult = decryptedBodies[email.id],
-                    config = config,
-                    onFetchAttachment = onFetchAttachment,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+        ConversationEmailBody(email, index, isLast, config, decryptedBodies, onFetchAttachment)
+    }
+}
+
+@Composable
+private fun ConversationEmailBody(
+    email: Email, index: Int, isLast: Boolean, config: EmailDisplayConfig,
+    decryptedBodies: Map<String, PgpDecryptionResult>,
+    onFetchAttachment: suspend (String, String) -> ByteArray?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().background(
+            if (index % 2 == 1) MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.25f)
+            else MaterialTheme.colorScheme.background
+        )
+    ) {
+        if (!isLast) {
+            Box(modifier = Modifier.width(2.dp).fillMaxHeight().heightIn(min = 120.dp).padding(start = 28.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)))
+        }
+        Column(modifier = Modifier.weight(1f).heightIn(min = 120.dp)) {
+            CcBccBlock(email)
+            MessageBody(email = email, decryptedResult = decryptedBodies[email.id], config = config, onFetchAttachment = onFetchAttachment, modifier = Modifier.fillMaxWidth())
         }
     }
 }
@@ -704,7 +698,7 @@ private fun MessageBody(
             ((screenWidthDp - 56).toFloat() / 600f).coerceIn(0.3f, 1.0f)
         } else 1.0f
         val htmlContent = remember(email.id, safeBodyText, config.fontScaleMultiplier, showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, config.emailTheme, useOverviewScaling, emailZoomFactor) {
-            buildEmailHtml(email, safeBodyText, bodyIsHtml, config.fontScaleMultiplier, showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor)
+            buildEmailHtml(email, safeBodyText, bodyIsHtml, config.fontScaleMultiplier, HtmlBuildParams(showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor))
         }
         EmailWebViewCard(email.id, htmlContent, config.emailTheme, useOverviewScaling)
         if (hasQuotedText) {
@@ -754,55 +748,72 @@ private fun SenderInfoSection(email: Email, messageCount: Int) {
     val isMsgUnread = !email.isRead
     var showCcBcc by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            AvatarCircle(photoUrl = null, displayName = displayName(email.from), size = 40.dp, textStyle = MaterialTheme.typography.titleMedium)
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = displayName(email.from), style = MaterialTheme.typography.titleSmall, fontWeight = if (isMsgUnread) FontWeight.Bold else FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = formatDetailDate(email.date), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = email.fromEmail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (isMsgUnread) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
-                    }
-                }
-            }
-        }
+        SenderDetails(email, isMsgUnread)
         Spacer(modifier = Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(text = "to:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = email.to, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                maxLines = 1, overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).clickable { if (email.cc.isNotBlank() || email.bcc.isNotBlank()) showCcBcc = !showCcBcc }
-            )
-        }
+        ToRow(email, showCcBcc) { showCcBcc = !showCcBcc }
         if (showCcBcc && (email.cc.isNotBlank() || email.bcc.isNotBlank())) {
-            Spacer(modifier = Modifier.height(4.dp))
-            if (email.cc.isNotBlank()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "cc:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = email.cc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 5, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            if (email.bcc.isNotBlank()) {
-                if (email.cc.isNotBlank()) Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "bcc:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = email.bcc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 5, overflow = TextOverflow.Ellipsis)
-                }
-            }
+            CcBccDetails(email)
         }
         if (messageCount > 1) {
             Text(text = "$messageCount messages in thread", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+        }
+    }
+}
+
+@Composable
+private fun SenderDetails(email: Email, isMsgUnread: Boolean) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        AvatarCircle(photoUrl = null, displayName = displayName(email.from), size = 40.dp, textStyle = MaterialTheme.typography.titleMedium)
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = displayName(email.from), style = MaterialTheme.typography.titleSmall, fontWeight = if (isMsgUnread) FontWeight.Bold else FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(text = formatDetailDate(email.date), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+            }
+            Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = email.fromEmail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (isMsgUnread) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ToRow(email: Email, showCcBcc: Boolean, onToggleCcBcc: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(text = "to:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = email.to, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f).clickable { if (email.cc.isNotBlank() || email.bcc.isNotBlank()) onToggleCcBcc() }
+        )
+    }
+}
+
+@Composable
+private fun CcBccDetails(email: Email) {
+    Column {
+        if (email.cc.isNotBlank()) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "cc:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = email.cc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 5, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        if (email.bcc.isNotBlank()) {
+            if (email.cc.isNotBlank()) Spacer(modifier = Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "bcc:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(text = email.bcc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 5, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
@@ -867,38 +878,9 @@ private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: E
             factory = { context ->
                 WebView(context).apply {
                     emailContentWebView = this
-                    settings.javaScriptEnabled = false
-                    settings.domStorageEnabled = false
-                    settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
-                    settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                    settings.loadsImagesAutomatically = true
-                    try { WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(this, true) } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowFileAccess failed", e) }
-                    try { WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(this, false) } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowContentAccess failed", e) }
-                    setBackgroundColor(android.graphics.Color.TRANSPARENT)
-                    isVerticalScrollBarEnabled = false
-                    isHorizontalScrollBarEnabled = true
-                    var downX = 0f; var downY = 0f
-                    setOnTouchListener { view, event ->
-                        when (event.actionMasked) {
-                            android.view.MotionEvent.ACTION_DOWN -> { downX = event.x; downY = event.y; view.parent?.requestDisallowInterceptTouchEvent(true) }
-                            android.view.MotionEvent.ACTION_MOVE -> { view.parent?.requestDisallowInterceptTouchEvent(kotlin.math.abs(event.x - downX) > kotlin.math.abs(event.y - downY)) }
-                            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> { view.parent?.requestDisallowInterceptTouchEvent(false) }
-                        }
-                        false
-                    }
-                    webViewClient = object : android.webkit.WebViewClient() {
-                        override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
-                            request?.url?.let { uri ->
-                                try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }); return true }
-                                catch (e: Exception) { android.util.Log.e("EmailDetail", "Failed to open URL in browser", e) }
-                            }
-                            return super.shouldOverrideUrlLoading(view, request)
-                        }
-                        override fun onReceivedError(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
-                            android.util.Log.e("EmailWebView", "WebView error: ${error?.description} on ${request?.url}")
-                        }
-                    }
+                    configureWebView(this, context)
+                    setOnTouchListener(createTouchHandler())
+                    webViewClient = createWebViewClient(context)
                 }
             },
             update = { webView ->
@@ -916,12 +898,56 @@ private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: E
     }
 }
 
+private fun configureWebView(webView: WebView, context: android.content.Context) {
+    webView.settings.javaScriptEnabled = false
+    webView.settings.domStorageEnabled = false
+    webView.settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
+    webView.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+    webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+    webView.settings.loadsImagesAutomatically = true
+    try { WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(webView, true) } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowFileAccess failed", e) }
+    try { WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(webView, false) } catch (e: Exception) { android.util.Log.w("EmailDetail", "setAllowContentAccess failed", e) }
+    webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+    webView.isVerticalScrollBarEnabled = false
+    webView.isHorizontalScrollBarEnabled = true
+}
+
+private fun createTouchHandler(): android.view.View.OnTouchListener {
+    var downX = 0f; var downY = 0f
+    return android.view.View.OnTouchListener { view, event ->
+        when (event.actionMasked) {
+            android.view.MotionEvent.ACTION_DOWN -> { downX = event.x; downY = event.y; view.parent?.requestDisallowInterceptTouchEvent(true) }
+            android.view.MotionEvent.ACTION_MOVE -> { view.parent?.requestDisallowInterceptTouchEvent(kotlin.math.abs(event.x - downX) > kotlin.math.abs(event.y - downY)) }
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> { view.parent?.requestDisallowInterceptTouchEvent(false) }
+        }
+        false
+    }
+}
+
+private fun createWebViewClient(context: android.content.Context) = object : android.webkit.WebViewClient() {
+    override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+        request?.url?.let { uri ->
+            try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }); return true }
+            catch (e: Exception) { android.util.Log.e("EmailDetail", "Failed to open URL in browser", e) }
+        }
+        return super.shouldOverrideUrlLoading(view, request)
+    }
+    override fun onReceivedError(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+        android.util.Log.e("EmailWebView", "WebView error: ${error?.description} on ${request?.url}")
+    }
+}
+
+private data class HtmlBuildParams(
+    val showQuotedText: Boolean, val showInlineAttachments: Boolean, val loadRemoteImages: Boolean,
+    val showRemoteImages: Boolean, val useOverviewScaling: Boolean, val emailZoomFactor: Float,
+    val textColor: String, val linkColor: String
+)
+
 private fun buildEmailHtml(
     email: Email, safeBodyText: String, bodyIsHtml: Boolean, fontScaleMultiplier: Float,
-    showQuotedText: Boolean, showInlineAttachments: Boolean, loadRemoteImages: Boolean,
-    showRemoteImages: Boolean, useOverviewScaling: Boolean, emailZoomFactor: Float,
-    textColor: String, linkColor: String
+    params: HtmlBuildParams
 ): String {
+    val (showQuotedText, showInlineAttachments, loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor) = params
     val displayBody = if (bodyIsHtml) safeBodyText else TextUtils.htmlEncode(safeBodyText).replace("\n", "<br>")
     val bodyWithCidPlaceholders = if (!showInlineAttachments && email.attachments.isNotEmpty()) {
         var b = displayBody

@@ -936,6 +936,7 @@ private fun ComposeBottomBar(
                             fontWeight = FontWeight.SemiBold
                         )
                     }
+                    }
                 }
             }
         }
@@ -943,7 +944,7 @@ private fun ComposeBottomBar(
 }
 
 @Composable
-private fun AttachmentPreview(
+fun AttachmentPreview(
     attachment: EmailAttachment,
     onRemove: () -> Unit
 ) {
