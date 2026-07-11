@@ -383,7 +383,6 @@ fun ThreadConversationContent(
                 ConversationEmailItem(
                     email = email,
                     index = index,
-                    isLast = index == emails.lastIndex,
                     isExpanded = isExpanded,
                     onToggleExpand = { expandedMap[email.id] = !isExpanded },
                     config = config,
@@ -468,7 +467,6 @@ fun ThreadConversationContent(
 private fun ConversationEmailItem(
     email: Email,
     index: Int,
-    isLast: Boolean,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit,
     config: EmailDisplayConfig,
@@ -574,13 +572,13 @@ private fun ConversationEmailItem(
         enter = fadeIn(tween(200)) + expandVertically(tween(200)),
         exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
     ) {
-        ConversationEmailBody(email, index, isLast, config, decryptedBodies, onFetchAttachment)
+        ConversationEmailBody(email, index, config, decryptedBodies, onFetchAttachment)
     }
 }
 
 @Composable
 private fun ConversationEmailBody(
-    email: Email, index: Int, isLast: Boolean, config: EmailDisplayConfig,
+    email: Email, index: Int, config: EmailDisplayConfig,
     decryptedBodies: Map<String, PgpDecryptionResult>,
     onFetchAttachment: suspend (String, String) -> ByteArray?
 ) {
@@ -590,9 +588,7 @@ private fun ConversationEmailBody(
             else MaterialTheme.colorScheme.background
         )
     ) {
-        if (!isLast) {
-            Box(modifier = Modifier.width(2.dp).fillMaxHeight().heightIn(min = 120.dp).padding(start = 28.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)))
-        }
+        Box(modifier = Modifier.width(2.dp).fillMaxHeight().heightIn(min = 120.dp).padding(start = 28.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)))
         Column(modifier = Modifier.weight(1f).heightIn(min = 120.dp)) {
             CcBccBlock(email)
             MessageBody(email = email, decryptedResult = decryptedBodies[email.id], config = config, onFetchAttachment = onFetchAttachment, modifier = Modifier.fillMaxWidth())
@@ -750,7 +746,7 @@ private fun SenderInfoSection(email: Email, messageCount: Int) {
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
         SenderDetails(email, isMsgUnread)
         Spacer(modifier = Modifier.height(8.dp))
-        ToRow(email, showCcBcc) { showCcBcc = !showCcBcc }
+        ToRow(email) { showCcBcc = !showCcBcc }
         if (showCcBcc && (email.cc.isNotBlank() || email.bcc.isNotBlank())) {
             CcBccDetails(email)
         }
@@ -784,7 +780,7 @@ private fun SenderDetails(email: Email, isMsgUnread: Boolean) {
 }
 
 @Composable
-private fun ToRow(email: Email, showCcBcc: Boolean, onToggleCcBcc: () -> Unit) {
+private fun ToRow(email: Email, onToggleCcBcc: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(text = "to:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
         Spacer(modifier = Modifier.width(4.dp))
@@ -878,7 +874,7 @@ private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: E
             factory = { context ->
                 WebView(context).apply {
                     emailContentWebView = this
-                    configureWebView(this, context)
+                    configureWebView(this)
                     setOnTouchListener(createTouchHandler())
                     webViewClient = createWebViewClient(context)
                 }
@@ -898,7 +894,7 @@ private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: E
     }
 }
 
-private fun configureWebView(webView: WebView, context: android.content.Context) {
+private fun configureWebView(webView: WebView) {
     webView.settings.javaScriptEnabled = false
     webView.settings.domStorageEnabled = false
     webView.settings.layoutAlgorithm = WebSettings.LayoutAlgorithm.NORMAL
