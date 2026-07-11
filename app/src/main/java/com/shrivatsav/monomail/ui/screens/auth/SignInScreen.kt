@@ -143,6 +143,7 @@ fun SignInScreen(
                 showProviderSheet = false
                 snackbarHostState.showSnackbar((state as SignInState.Error).message)
             }
+            else -> {}
         }
     }
 
@@ -170,23 +171,24 @@ fun SignInScreen(
             ProviderSheet(
                 state = state,
                 onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
-                onGoogleSignIn = {
-                    if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) {
-                        showProviderSheet = false
-                        showVerificationModal = true
-                    } else {
-                        viewModel.signIn(context)
-                    }
-                },
-                onMicrosoftSignIn = {
-                    context.findActivity()?.let { activity ->
-                        viewModel.signInMicrosoft(activity)
-                    } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
-                },
+                onGoogleSignIn = { handleGoogleSignIn(onGithub = { showProviderSheet = false; showVerificationModal = true }, onOther = { viewModel.signIn(context) }) },
+                onMicrosoftSignIn = { handleMicrosoftSignIn(context) { activity -> viewModel.signInMicrosoft(activity) } },
                 onImapClick = onNavigateToImapSetup,
             )
         }
     }
+}
+
+private fun handleGoogleSignIn(
+    onGithub: () -> Unit,
+    onOther: () -> Unit
+) {
+    if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) onGithub() else onOther()
+}
+
+private fun handleMicrosoftSignIn(context: Context, onSignIn: (android.app.Activity) -> Unit) {
+    context.findActivity()?.let { onSignIn(it) }
+        ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
 }
 
 @Composable
