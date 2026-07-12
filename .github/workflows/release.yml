@@ -69,12 +69,13 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          DRAFT_COUNT=$(gh release list --draft --json tagName --jq 'length')
+          DRAFTS=$(gh release list --json tagName,isDraft --jq '[.[] | select(.isDraft)]')
+          DRAFT_COUNT=$(echo "$DRAFTS" | jq 'length')
 
           if [ "$DRAFT_COUNT" -gt 0 ]; then
             # Pick the draft with the highest semver tag
-            TAG=$(gh release list --draft --json tagName \
-              --jq 'sort_by(.tagName | ltrimstr("v") | split(".") | map(tonumber)) | last | .tagName')
+            TAG=$(echo "$DRAFTS" | jq -r \
+              'sort_by(.tagName | ltrimstr("v") | split(".") | map(tonumber)) | last | .tagName')
             VERSION="${TAG#v}"
             echo "FOUND=true" >> $GITHUB_OUTPUT
             echo "TAG=$TAG" >> $GITHUB_OUTPUT
