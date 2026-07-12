@@ -279,6 +279,7 @@ jobs:
             gh release delete-asset "${{ steps.resolved.outputs.TAG }}" "app-playstore-release.aab" -y 2>/dev/null || true
 
             gh release edit "${{ steps.resolved.outputs.TAG }}" \
+              --title "${{ steps.resolved.outputs.TAG }}" \
               --notes-file release_notes.md
 
             gh release upload "${{ steps.resolved.outputs.TAG }}" \
@@ -291,5 +292,6 @@ jobs:
               "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
               "app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab" \
               --draft \
+              --title "${{ steps.resolved.outputs.TAG }}" \
               --notes-file release_notes.md
           fi
