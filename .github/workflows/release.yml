@@ -253,6 +253,17 @@ jobs:
           echo "===== RELEASE NOTES ====="
           cat release_notes.md
 
+      - name: Prepare Play Store release notes
+        run: |
+          mkdir -p distribution/whatsnew
+          # Strip markdown formatting, collapse whitespace, truncate to 300 chars
+          PLAIN=$(sed 's/^##.*//; s/^[-*] //; s/\*\*//g; s/\n\+/\n/g' release_notes.md \
+            | sed '/^$/d' | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//' \
+            | cut -c1-300)
+          printf '<en-GB>\n%s\n</en-GB>' "$PLAIN" > distribution/whatsnew/whatsnew-en-GB
+          echo "===== PLAY STORE NOTES ====="
+          cat distribution/whatsnew/whatsnew-en-GB
+
       # --------------------------------------------------------------------------
       # Build
       # --------------------------------------------------------------------------
@@ -275,6 +286,7 @@ jobs:
           releaseFiles: app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
           tracks: internal
           status: completed
+          whatsNewDirectory: distribution/whatsnew
 
       # --------------------------------------------------------------------------
       # Draft GitHub Release
