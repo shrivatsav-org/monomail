@@ -48,6 +48,30 @@ internal fun AppearanceSettingsScreen(
                 currentTheme = settings.emailTheme,
                 onThemeSelected = { viewModel.setEmailTheme(it) }
             )
+            CardDivider()
+            SettingsToggleRow(
+                icon = Icons.Rounded.DataArray,
+                title = "Show Dividers",
+                subtitle = "Show horizontal lines between emails",
+                checked = settings.showDividers,
+                onCheckedChange = { viewModel.setShowDividers(it) }
+            )
+            CardDivider()
+            SettingsToggleRow(
+                icon = Icons.Rounded.ViewHeadline,
+                title = "Compact List",
+                subtitle = "Reduce email list spacing",
+                checked = settings.compactList,
+                onCheckedChange = { viewModel.setCompactList(it) }
+            )
+            CardDivider()
+            SettingsToggleRow(
+                icon = Icons.Rounded.ShortText,
+                title = "Show Snippet",
+                subtitle = "Preview email body text in the list",
+                checked = settings.showSnippet,
+                onCheckedChange = { viewModel.setShowSnippet(it) }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         SettingsCard {
