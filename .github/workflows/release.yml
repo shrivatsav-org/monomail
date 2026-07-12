@@ -61,11 +61,41 @@ jobs:
           echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > app/src/playstore/google-services.json
 
       # --------------------------------------------------------------------------
-      # Version bump
+      # Check for existing draft release
+      # --------------------------------------------------------------------------
+
+      - name: Check for existing draft
+        id: draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          DRAFT_COUNT=$(gh release list --draft --json tagName --jq 'length')
+
+          if [ "$DRAFT_COUNT" -gt 0 ]; then
+            # Pick the draft with the highest semver tag
+            TAG=$(gh release list --draft --json tagName \
+              --jq 'sort_by(.tagName | ltrimstr("v") | split(".") | map(tonumber)) | last | .tagName')
+            VERSION="${TAG#v}"
+            echo "FOUND=true" >> $GITHUB_OUTPUT
+            echo "TAG=$TAG" >> $GITHUB_OUTPUT
+            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+            if [ "$DRAFT_COUNT" -gt 1 ]; then
+              echo "::warning::$DRAFT_COUNT draft releases found. Using latest: $TAG. Delete stale drafts manually."
+            fi
+            echo "Using existing draft: $TAG"
+          else
+            echo "FOUND=false" >> $GITHUB_OUTPUT
+            echo "No existing draft found"
+          fi
+
+      # --------------------------------------------------------------------------
+      # Version bump (only if no existing draft)
       # --------------------------------------------------------------------------
 
       - name: Bump version
         id: version
+        if: steps.draft.outputs.FOUND == 'false'
         run: |
           VERSION=$(grep 'versionName = "' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
           VCODE=$(grep 'versionCode = ' app/build.gradle.kts | sed 's/.*versionCode = \([0-9]*\).*/\1/')
@@ -90,11 +120,11 @@ jobs:
           echo "VCODE=$NEW_VCODE" >> $GITHUB_OUTPUT
 
       # --------------------------------------------------------------------------
-      # Commit & Tag
+      # Commit & Tag (only if new version)
       # --------------------------------------------------------------------------
 
       - name: Commit, tag, and push
-        id: committag
+        if: steps.draft.outputs.FOUND == 'false'
         run: |
           PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
           echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
@@ -123,12 +153,32 @@ jobs:
           opencode run --help
 
       # --------------------------------------------------------------------------
+      # Resolve version and tag for this run
+      # --------------------------------------------------------------------------
+
+      - name: Resolve version
+        id: resolved
+        run: |
+          if [ "${{ steps.draft.outputs.FOUND }}" = "true" ]; then
+            echo "VERSION=${{ steps.draft.outputs.VERSION }}" >> $GITHUB_OUTPUT
+            echo "TAG=${{ steps.draft.outputs.TAG }}" >> $GITHUB_OUTPUT
+            # Find the tag before the draft's tag (the last released version)
+            PREV_TAG=$(git describe --tags --abbrev=0 "${{ steps.draft.outputs.TAG }}"^ 2>/dev/null || true)
+            echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
+            echo "TAG=v${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
+            PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+            echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+          fi
+
+      # --------------------------------------------------------------------------
       # Gather commits since previous tag
       # --------------------------------------------------------------------------
 
       - name: Gather commits since previous tag
         run: |
-          PREV_TAG="${{ steps.committag.outputs.PREV_TAG }}"
+          PREV_TAG="${{ steps.resolved.outputs.PREV_TAG }}"
 
           if [ -n "$PREV_TAG" ]; then
             RANGE="$PREV_TAG..HEAD"
@@ -221,11 +271,25 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cp app/build/outputs/apk/github/release/app-github-release.apk \
-             "Github-release-v${{ steps.version.outputs.VERSION }}.apk"
+             "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk"
 
-          gh release create \
-            "v${{ steps.version.outputs.VERSION }}" \
-            "Github-release-v${{ steps.version.outputs.VERSION }}.apk" \
-            "app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab" \
-            --draft \
-            --notes-file release_notes.md
+          if [ "${{ steps.draft.outputs.FOUND }}" = "true" ]; then
+            # Update existing draft: delete old assets, update notes, upload new
+            gh release delete-asset "${{ steps.resolved.outputs.TAG }}" "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" -y 2>/dev/null || true
+            gh release delete-asset "${{ steps.resolved.outputs.TAG }}" "app-playstore-release.aab" -y 2>/dev/null || true
+
+            gh release edit "${{ steps.resolved.outputs.TAG }}" \
+              --notes-file release_notes.md
+
+            gh release upload "${{ steps.resolved.outputs.TAG }}" \
+              "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
+              "app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab" \
+              --clobber
+          else
+            gh release create \
+              "${{ steps.resolved.outputs.TAG }}" \
+              "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
+              "app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab" \
+              --draft \
+              --notes-file release_notes.md
+          fi
