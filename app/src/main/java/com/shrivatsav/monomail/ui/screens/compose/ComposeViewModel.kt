@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -79,7 +80,6 @@ class ComposeViewModel @Inject constructor(
     private val threadIdArg: String? = savedStateHandle.get<String>("threadId")?.takeIf { it.isNotEmpty() }
     private val messageIdArg: String? = savedStateHandle.get<String>("messageId")?.takeIf { it.isNotEmpty() }
     private val scheduledId: String? = savedStateHandle.get<String>("scheduledId")?.takeIf { it.isNotEmpty() }
-    private val unifiedMode: Boolean = savedStateHandle.get<Boolean>("unified") ?: false
 
     private var scheduledMessageId: String? = scheduledId
 
@@ -87,7 +87,7 @@ class ComposeViewModel @Inject constructor(
         ComposeUiState(
             from = fromEmail,
             mode = mode,
-            unifiedMode = unifiedMode,
+            unifiedMode = false,
             to = when (mode) {
                 ComposeMode.REPLY -> replyTo
                 else -> ""
@@ -159,10 +159,14 @@ class ComposeViewModel @Inject constructor(
                 )
             }
         }
-        if (unifiedMode) {
-            viewModelScope.launch {
+        viewModelScope.launch {
+            val isUnified = settingsDataStore.settingsFlow.first().unifiedInboxEnabled
+            if (isUnified) {
                 val accounts = authManager.getAccounts()
-                _state.value = _state.value.copy(allAccounts = accounts)
+                _state.value = _state.value.copy(
+                    unifiedMode = true,
+                    allAccounts = accounts
+                )
             }
         }
     }

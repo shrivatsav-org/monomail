@@ -187,7 +187,8 @@ fun InboxScreen(
                             onScheduledClick = navActions.onScheduledClick,
                             scheduledCount = scheduledCount,
                             onUndo = { viewModel.undoAction() },
-                            onOpenProfile = { activeModal = ModalType.PROFILE }
+                            onOpenProfile = { activeModal = ModalType.PROFILE },
+                            showMarkAllRead = appSettings.showMarkAllRead
                         ),
                         isRefreshing = isRefreshing,
                         toastState = toastState,
@@ -528,11 +529,6 @@ fun InboxScreen(
                 exit = fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.9f),
                 modifier = Modifier.align(Alignment.BottomCenter)
             ) {
-                                    val showScrollToTop by remember { derivedStateOf { (state as? InboxState.Success)?.let { 
-                        val listState = viewModel.scrollPositions.value[it.currentTab] ?: (0 to 0)
-                        listState.first > 20
-                    } ?: false } }
-
                     Box(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
@@ -545,13 +541,7 @@ fun InboxScreen(
                             navActions = navActions,
                             viewModel = viewModel,
                             navBarHeight = navBarHeight,
-                            onEmptyBin = { isTrash -> if (isTrash) showClearTrashWarning = true else showClearSpamWarning = true },
-                            showScrollToTop = showScrollToTop,
-                            onScrollToTop = {
-                                coroutineScope.launch {
-                                    viewModel.saveScrollState(immediateTab, 0, 0)
-                                }
-                            }
+                            onEmptyBin = { isTrash -> if (isTrash) showClearTrashWarning = true else showClearSpamWarning = true }
                         )
                     }
             }
@@ -971,9 +961,7 @@ private fun BottomFabArea(
     navActions: InboxNavActions,
     viewModel: InboxViewModel,
     navBarHeight: Dp,
-    onEmptyBin: (isTrash: Boolean) -> Unit,
-    showScrollToTop: Boolean = false,
-    onScrollToTop: () -> Unit = {}
+    onEmptyBin: (isTrash: Boolean) -> Unit
 ) {
     val tabForDock = immediateTab
     Row(
@@ -989,8 +977,9 @@ private fun BottomFabArea(
             onTabClick = { viewModel.switchTab(it) }
         )
         AnimatedContent(
-            targetState = when {
-                showScrollToTop -> "scrollUp"
+            targetState = when (immediateTab) {
+                InboxTab.TRASH -> "trash"
+                InboxTab.SPAM -> "spam"
                 else -> "default"
             },
             label = "FabIconMorph",
@@ -1000,7 +989,6 @@ private fun BottomFabArea(
             }
         ) { state ->
             when (state) {
-                "scrollUp" -> ScrollToTopFab(appSettings, onScrollToTop)
                 "trash" -> EmptyTrashFab(appSettings) { onEmptyBin(true) }
                 "spam" -> EmptySpamFab(appSettings) { onEmptyBin(false) }
                 "default" -> ComposeFab(appSettings, navActions.onCompose)
@@ -1040,20 +1028,6 @@ private fun EmptySpamFab(appSettings: com.shrivatsav.monomail.data.settings.AppS
             Icon(Icons.Rounded.Report, contentDescription = "Empty Spam", modifier = Modifier.size((22 * appSettings.navScale).dp))
             Text("Empty", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
         }
-    }
-}
-
-@Composable
-private fun ScrollToTopFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
-    FloatingActionButton(
-        onClick = onClick,
-        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-        shape = CircleShape,
-        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-        modifier = Modifier.size((42 * appSettings.navScale).dp)
-    ) {
-        Icon(Icons.Rounded.ArrowUpward, contentDescription = "Scroll to top", modifier = Modifier.size((22 * appSettings.navScale).dp))
     }
 }
 

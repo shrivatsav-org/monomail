@@ -72,6 +72,14 @@ internal fun AppearanceSettingsScreen(
                 checked = settings.showSnippet,
                 onCheckedChange = { viewModel.setShowSnippet(it) }
             )
+            CardDivider()
+            SettingsToggleRow(
+                icon = Icons.Rounded.CheckCircle,
+                title = "Mark All Read Button",
+                subtitle = "Show mark all as read button in the search bar",
+                checked = settings.showMarkAllRead,
+                onCheckedChange = { viewModel.setShowMarkAllRead(it) }
+            )
         }
         Spacer(modifier = Modifier.height(8.dp))
         SettingsCard {
