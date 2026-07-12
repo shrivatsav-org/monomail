@@ -263,6 +263,19 @@ jobs:
         run: ./gradlew bundlePlaystoreRelease
 
       # --------------------------------------------------------------------------
+      # Upload AAB to Play Store
+      # --------------------------------------------------------------------------
+
+      - name: Upload AAB to Play Store
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          packageName: com.shrivatsav.monomail
+          releaseFiles: app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
+          tracks: internal
+          status: completed
+
+      # --------------------------------------------------------------------------
       # Draft GitHub Release
       # --------------------------------------------------------------------------
 
@@ -276,7 +289,6 @@ jobs:
           if [ "${{ steps.draft.outputs.FOUND }}" = "true" ]; then
             # Update existing draft: delete old assets, update notes, upload new
             gh release delete-asset "${{ steps.resolved.outputs.TAG }}" "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" -y 2>/dev/null || true
-            gh release delete-asset "${{ steps.resolved.outputs.TAG }}" "app-playstore-release.aab" -y 2>/dev/null || true
 
             gh release edit "${{ steps.resolved.outputs.TAG }}" \
               --title "${{ steps.resolved.outputs.TAG }}" \
@@ -284,13 +296,11 @@ jobs:
 
             gh release upload "${{ steps.resolved.outputs.TAG }}" \
               "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
-              "app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab" \
               --clobber
           else
             gh release create \
               "${{ steps.resolved.outputs.TAG }}" \
               "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
-              "app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab" \
               --draft \
               --title "${{ steps.resolved.outputs.TAG }}" \
               --notes-file release_notes.md
