@@ -31,7 +31,8 @@ data class SearchBarActions(
     val onScheduledClick: () -> Unit = {},
     val scheduledCount: Int = 0,
     val onUndo: () -> Unit,
-    val onOpenProfile: () -> Unit
+    val onOpenProfile: () -> Unit,
+    val showMarkAllRead: Boolean = true
 )
 
 data class BulkSelectionState(
@@ -226,19 +227,21 @@ private fun SearchInputContent(
 @Composable
 private fun SearchTrailingIcon(actions: SearchBarActions, display: SearchDisplayState) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        BadgedBox(badge = {
-            if (actions.scheduledCount > 0) {
+        if (actions.scheduledCount > 0) {
+            BadgedBox(badge = {
                 Badge(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) {
                     Text(if (actions.scheduledCount > 99) "99+" else actions.scheduledCount.toString(), style = MaterialTheme.typography.labelSmall)
                 }
-            }
-        }) {
-            IconButton(onClick = actions.onScheduledClick, modifier = Modifier.size(40.dp)) {
-                Icon(Icons.Rounded.CalendarMonth, contentDescription = "Scheduled", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+            }) {
+                IconButton(onClick = actions.onScheduledClick, modifier = Modifier.size(40.dp)) {
+                    Icon(Icons.Rounded.CalendarMonth, contentDescription = "Scheduled", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+                }
             }
         }
-        IconButton(onClick = actions.onMarkAllRead, modifier = Modifier.size(40.dp)) {
-            Icon(Icons.Rounded.CheckCircle, contentDescription = "Mark all as read", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+        if (actions.showMarkAllRead) {
+            IconButton(onClick = actions.onMarkAllRead, modifier = Modifier.size(40.dp)) {
+                Icon(Icons.Rounded.CheckCircle, contentDescription = "Mark all as read", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
+            }
         }
         Spacer(Modifier.width(4.dp))
         if (display.unifiedInboxEnabled && display.accounts.size > 1) {

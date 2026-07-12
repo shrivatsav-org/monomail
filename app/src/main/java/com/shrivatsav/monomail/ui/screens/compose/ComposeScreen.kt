@@ -731,9 +731,6 @@ private fun FromFieldSection(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                if (showDropdown) onToggleFromDropdown()
-            }
             .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -744,22 +741,41 @@ private fun FromFieldSection(
             )
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = state.from,
-            style = MaterialTheme.typography.bodyLarge.copy(
-                color = MaterialTheme.colorScheme.onSurface
-            ),
-            modifier = Modifier.weight(1f)
-        )
-        if (showDropdown) {
-            Icon(
-                imageVector = Icons.Rounded.ArrowDropDown,
-                contentDescription = "Select sender",
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        if (!showDropdown) {
+            Text(
+                text = state.from,
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    color = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.weight(1f)
             )
-            DropdownMenu(
-                expanded = state.showFromDropdown,
-                onDismissRequest = { onDismissFromDropdown() }
+        } else {
+            androidx.compose.foundation.layout.Box(modifier = Modifier.weight(1f)) {
+                androidx.compose.foundation.layout.Row(
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = androidx.compose.runtime.remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                            indication = androidx.compose.material3.ripple()
+                        ) { onToggleFromDropdown() }
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = state.from,
+                        style = MaterialTheme.typography.bodyLarge.copy(
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.ArrowDropDown,
+                        contentDescription = "Select sender",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                DropdownMenu(
+                    expanded = state.showFromDropdown,
+                    onDismissRequest = { onDismissFromDropdown() }
             ) {
                 if (state.unifiedMode && state.allAccounts.size > 1) {
                     state.allAccounts.forEach { account ->
@@ -801,6 +817,7 @@ private fun FromFieldSection(
                     }
                 }
             }
+        }
         }
         Spacer(Modifier.width(8.dp))
         TextButton(

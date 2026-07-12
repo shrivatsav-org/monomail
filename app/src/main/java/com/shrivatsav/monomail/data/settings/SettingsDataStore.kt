@@ -71,7 +71,8 @@ data class AppSettings(
     val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10,
     val dockConfig: DockConfig = DockConfig.defaults(),
     val isDeveloperMode: Boolean = false,
-    val showInlineAttachments: Boolean = true
+    val showInlineAttachments: Boolean = true,
+    val showMarkAllRead: Boolean = true
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -106,6 +107,7 @@ class SettingsDataStore(private val context: Context) {
         val DOCK_CONFIG = stringPreferencesKey("dock_config")
         val IS_DEVELOPER_MODE = booleanPreferencesKey("is_developer_mode")
         val SHOW_INLINE_ATTACHMENTS = booleanPreferencesKey("show_inline_attachments")
+        val SHOW_MARK_ALL_READ = booleanPreferencesKey("show_mark_all_read")
     }
 
     private fun mapToSettings(prefs: Preferences): AppSettings {
@@ -148,7 +150,8 @@ class SettingsDataStore(private val context: Context) {
                 } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults(),
             isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false,
-            showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true
+            showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true,
+            showMarkAllRead = prefs[Keys.SHOW_MARK_ALL_READ] ?: true
         )
     }
 
@@ -237,6 +240,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setShowInlineAttachments(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_INLINE_ATTACHMENTS] = enabled }
+    }
+    suspend fun setShowMarkAllRead(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SHOW_MARK_ALL_READ] = enabled }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()
