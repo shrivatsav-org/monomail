@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail
 import android.app.Application
+import android.webkit.WebView
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.shrivatsav.monomail.data.worker.ActionQueueManager
@@ -21,6 +22,11 @@ class MonoMailApp : Application(), Configuration.Provider {
 
         initializeMailcap()
         actionQueueManager.start()
+
+        // ponytail: warm up Chromium engine so first WebView creation is faster
+        Thread {
+            try { WebView(applicationContext) } catch (_: Exception) {}
+        }.start()
     }
 
     private fun initializeMailcap() {
