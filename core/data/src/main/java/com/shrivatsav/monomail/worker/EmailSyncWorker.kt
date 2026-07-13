@@ -202,7 +202,7 @@ class EmailSyncWorker @AssistedInject constructor(
         val cleanSnippet = thread.snippet.replace(Regex("\\bOn\\s+[A-Z][a-z]{2},.*?wrote:.*"), "").trim()
         val channelId = channelIdForAccount(accountId)
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.ic_dialog_email)
+            .setSmallIcon(com.shrivatsav.monomail.core.data.R.drawable.ic_notification_leaf)
             .setContentTitle(thread.from)
             .setContentText(thread.subject)
             .setStyle(
