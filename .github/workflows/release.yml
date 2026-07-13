@@ -297,11 +297,10 @@ jobs:
       - name: Prepare Play Store release notes
         run: |
           mkdir -p distribution/whatsnew
-          # Strip markdown formatting, collapse whitespace, truncate to 300 chars
+          # Strip markdown formatting, collapse whitespace
           PLAIN=$(sed 's/^##.*//; s/^[-*] //; s/\*\*//g; s/\n\+/\n/g' release_notes.md \
-            | sed '/^$/d' | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//' \
-            | cut -c1-300)
-          printf '<en-GB>\n%s\n</en-GB>' "$PLAIN" > distribution/whatsnew/whatsnew-en-GB
+            | sed '/^$/d' | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
+          printf '%s' "$PLAIN" > distribution/whatsnew/whatsnew-en-GB
           echo "===== PLAY STORE NOTES ====="
           cat distribution/whatsnew/whatsnew-en-GB
 
