@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -231,7 +232,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
     }
 
     val kofiIcon = remember {
-        android.graphics.BitmapFactory.decodeStream(context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi))
+        android.graphics.BitmapFactory.decodeStream(context.resources.openRawResource(com.shrivatsav.monomail.feature.auth.R.raw.kofi))
             ?.asImageBitmap()?.let { androidx.compose.ui.graphics.painter.BitmapPainter(it) }
     }
 

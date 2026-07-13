@@ -21,12 +21,7 @@ internal fun SupportSettingsScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-    val kofiIcon = remember {
-        val bmp = android.graphics.BitmapFactory.decodeStream(
-            context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi)
-        )
-        if (bmp != null) androidx.compose.ui.graphics.painter.BitmapPainter(bmp.asImageBitmap()) else null
-    }
+    val kofiIcon = remember { android.graphics.BitmapFactory.decodeStream(context.resources.openRawResource(com.shrivatsav.monomail.feature.auth.R.raw.kofi))?.asImageBitmap()?.let { androidx.compose.ui.graphics.painter.BitmapPainter(it) } }
 
     val discordIcon: Painter = painterResource(com.shrivatsav.monomail.R.drawable.ic_discord)
 

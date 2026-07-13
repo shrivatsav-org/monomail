@@ -33,7 +33,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import javax.inject.Inject
-enum class InboxTab { INBOX, SENT, ARCHIVED, STARRED, TRASH, UNIFIED, SNOOZED, SPAM }
+// InboxTab moved to :core:model
+
 sealed class InboxState {
     object Loading : InboxState()
     data class Success(

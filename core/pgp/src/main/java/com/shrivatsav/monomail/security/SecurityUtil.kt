@@ -12,6 +12,7 @@ import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
+import com.shrivatsav.monomail.core.pgp.BuildConfig
 object SecurityUtil {
     private const val KEY_ALIAS = "monomail_data_keystore_alias"
     private const val PREFS_NAME = "monomail_secure_prefs"
@@ -112,6 +113,6 @@ object SecurityUtil {
         if (!customId.isNullOrBlank()) {
             return customId
         }
-        return com.shrivatsav.monomail.BuildConfig.GOOGLE_CLIENT_ID
+        return BuildConfig.GOOGLE_CLIENT_ID
     }
 }

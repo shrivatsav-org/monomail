@@ -652,7 +652,7 @@ fun InboxScreen(
 
             val kofiIcon = remember {
                 val bmp = android.graphics.BitmapFactory.decodeStream(
-                    context.resources.openRawResource(com.shrivatsav.monomail.R.raw.kofi)
+                    context.resources.openRawResource(com.shrivatsav.monomail.feature.auth.R.raw.kofi)
                 )
                 if (bmp != null) androidx.compose.ui.graphics.painter.BitmapPainter(bmp.asImageBitmap())
                 else null

@@ -30,3 +30,8 @@ rootProject.name = "Mono mail"
 include(":app")
 include(":core:model")
 include(":core:network")
+include(":core:designsystem")
+include(":core:database")
+include(":core:pgp")
+include(":core:data")
+include(":feature:auth")

@@ -34,6 +34,12 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.okhttp.logging)
 
+    // IMAP/SMTP — Eclipse Angus Mail (Jakarta Mail 2.x)
+    api("org.eclipse.angus:angus-mail:2.0.3") {
+        exclude(group = "jakarta.xml.soap")
+    }
+    api("org.eclipse.angus:angus-activation:2.0.2")
+
     // Hilt for DI (since network clients are usually provided via DI)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
