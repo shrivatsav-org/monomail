@@ -2,14 +2,6 @@ package com.shrivatsav.monomail.auth
 import android.accounts.Account
 import android.content.Context
 import android.content.Intent
-import androidx.credentials.ClearCredentialStateRequest
-import androidx.credentials.CredentialManager
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialException
-import com.google.android.gms.auth.GoogleAuthUtil
-import com.google.android.gms.auth.UserRecoverableAuthException
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -36,7 +28,7 @@ class AuthManager(
         private const val GOOGLE_ACCOUNT_TYPE = "com.google"
     }
     val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
-    private val credentialManager = CredentialManager.create(context)
+    private val googleAuthHelper = provideGoogleAuthHelper()
     private val _isSignedIn = MutableStateFlow(false)
     val isSignedIn: StateFlow<Boolean> = _isSignedIn.asStateFlow()
     private var _userProfile: UserProfile? = null
@@ -80,7 +72,7 @@ class AuthManager(
         val target = accountManager.getAccounts().find { it.email.equals(email, ignoreCase = true) } ?: return
         if (target.provider == "gmail") {
             withContext(Dispatchers.IO) {
-                try { GoogleAuthUtil.clearToken(context, target.accessToken) } catch (e: Exception) {}
+                try { googleAuthHelper.clearToken(context, target.accessToken) } catch (e: Exception) {}
             }
         } else if (target.provider == "outlook") {
             // Outlook SDK typically handles its own token clearing, but we can force interactive if needed.
@@ -101,9 +93,14 @@ class AuthManager(
                     }
                     return
                 }
-            } catch (e: com.google.android.gms.auth.UserRecoverableAuthException) {
-                notifyReauthRequired(target.email, target.provider, e.intent)
-                return
+            } catch (e: GoogleAuthException) {
+                if (e.intent != null) {
+                    notifyReauthRequired(target.email, target.provider, e.intent)
+                    return
+                } else {
+                    lastException = e
+                    if (attempt < 2) kotlinx.coroutines.delay(1000L * (1 shl attempt))
+                }
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < 2) kotlinx.coroutines.delay(1000L * (1 shl attempt))
@@ -123,9 +120,16 @@ class AuthManager(
                     else -> return
                 }
                 if (refreshed) return
-            } catch (e: com.google.android.gms.auth.UserRecoverableAuthException) {
-                notifyReauthRequired(profile.email, profile.provider, e.intent)
-                return
+            } catch (e: GoogleAuthException) {
+                if (e.intent != null) {
+                    notifyReauthRequired(profile.email, profile.provider, e.intent)
+                    return
+                } else {
+                    lastException = e
+                    if (attempt < 2) {
+                        kotlinx.coroutines.delay(1000L * (1 shl attempt))
+                    }
+                }
             } catch (e: Exception) {
                 lastException = e
                 if (attempt < 2) {
@@ -138,7 +142,7 @@ class AuthManager(
 
     private suspend fun refreshGmailToken(profile: UserProfile): Boolean {
         val newToken = withContext(Dispatchers.IO) {
-            GoogleAuthUtil.getToken(context, Account(profile.email, GOOGLE_ACCOUNT_TYPE), GMAIL_SCOPE)
+            googleAuthHelper.getToken(context, profile.email, GMAIL_SCOPE)
         }
         if (newToken != profile.accessToken) {
             updateAccessToken(profile.copy(accessToken = newToken))
@@ -189,29 +193,10 @@ class AuthManager(
             if (clientId.isBlank()) {
                 return SignInResult.Failure(Exception("Google Client ID is not configured. Please set your API key first."))
             }
-            val googleIdOption = GetGoogleIdOption.Builder()
-                .setFilterByAuthorizedAccounts(false)
-                .setServerClientId(clientId)
-                .setAutoSelectEnabled(false)
-                .build()
-            val request = GetCredentialRequest.Builder()
-                .addCredentialOption(googleIdOption)
-                .build()
-            val result = credentialManager.getCredential(
-                request = request,
-                context = activityContext
-            )
-            val googleIdTokenCredential = GoogleIdTokenCredential
-                .createFrom(result.credential.data)
-            val email       = googleIdTokenCredential.id
-            val displayName = googleIdTokenCredential.displayName ?: "User"
-            val photoUrl    = googleIdTokenCredential.profilePictureUri?.toString()
-            requestAccessToken(activityContext, email, displayName, photoUrl)
-        } catch (e: GetCredentialException) {
-            SignInResult.Failure(Exception(
-                "Google sign-in failed: ${e.message ?: e.type}. " +
-                "Make sure a Google account is added in Settings > Accounts."
-            ))
+            val googleData = googleAuthHelper.signIn(activityContext, clientId)
+            requestAccessToken(activityContext, googleData.email, googleData.displayName, googleData.photoUrl)
+        } catch (e: GoogleAuthException) {
+            SignInResult.Failure(e)
         } catch (e: Exception) {
             SignInResult.Failure(e)
         }
@@ -280,7 +265,7 @@ class AuthManager(
         val active = _userProfile ?: return
         if (active.provider == "gmail") {
             try {
-                credentialManager.clearCredentialState(ClearCredentialStateRequest())
+                googleAuthHelper.clearCredentialState(context)
             } catch (e: Exception) {
                 android.util.Log.w("AuthManager", "clearCredentialState failed", e)
             }
@@ -314,7 +299,7 @@ class AuthManager(
     }
     suspend fun signOutAll() {
         try {
-            credentialManager.clearCredentialState(ClearCredentialStateRequest())
+            googleAuthHelper.clearCredentialState(context)
         } catch (e: Exception) {
             android.util.Log.w("AuthManager", "signOutAll clearCredentialState failed", e)
         }
@@ -346,9 +331,9 @@ class AuthManager(
     ): SignInResult {
         return try {
             var accessToken = withContext(Dispatchers.IO) {
-                GoogleAuthUtil.getToken(
+                googleAuthHelper.getToken(
                     activityContext,
-                    Account(email, GOOGLE_ACCOUNT_TYPE),
+                    email,
                     GMAIL_SCOPE
                 )
             }
@@ -360,10 +345,10 @@ class AuthManager(
             }
             if (responseCode == 401 || responseCode == 403) {
                 accessToken = withContext(Dispatchers.IO) {
-                    GoogleAuthUtil.clearToken(activityContext, accessToken)
-                    GoogleAuthUtil.getToken(
+                    googleAuthHelper.clearToken(activityContext, accessToken)
+                    googleAuthHelper.getToken(
                         activityContext,
-                        Account(email, GOOGLE_ACCOUNT_TYPE),
+                        email,
                         GMAIL_SCOPE
                     )
                 }
@@ -387,7 +372,7 @@ class AuthManager(
             accountManager.setActiveAccountId(profile.id)
             try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
             SignInResult.Success(profile)
-        } catch (e: UserRecoverableAuthException) {
+        } catch (e: GoogleAuthException) {
             val consentIntent = e.intent
             if (consentIntent != null) {
                 _pendingConsentProfile = UserProfile(

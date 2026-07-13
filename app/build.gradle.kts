@@ -146,10 +146,10 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
 
     // Auth
-    implementation(libs.androidx.credentials)
-    implementation(libs.androidx.credentials.play.services)
-    implementation(libs.google.identity.googleid)
-    implementation(libs.google.play.services.auth)
+    "playstoreImplementation"(libs.androidx.credentials)
+    "playstoreImplementation"(libs.androidx.credentials.play.services)
+    "playstoreImplementation"(libs.google.identity.googleid)
+    "playstoreImplementation"(libs.google.play.services.auth)
     "playstoreImplementation"(libs.firebase.messaging)
 
     // Local modules

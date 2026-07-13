@@ -15,6 +15,19 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 
+    flavorDimensions += "distribution"
+
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+            buildConfigField("Boolean", "IS_GITHUB_BUILD", "true")
+        }
+        create("playstore") {
+            dimension = "distribution"
+            buildConfigField("Boolean", "IS_GITHUB_BUILD", "false")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

@@ -2,12 +2,13 @@ package com.shrivatsav.monomail.di
 
 import android.accounts.Account
 import android.content.Context
-import com.google.android.gms.auth.GoogleAuthUtil
 import com.shrivatsav.monomail.ScheduledEmailEvent
 import com.shrivatsav.monomail.SentEmailEvent
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.auth.GoogleAuthException
+import com.shrivatsav.monomail.auth.provideGoogleAuthHelper
 import com.shrivatsav.monomail.data.provider.EmailProvider
 import com.shrivatsav.monomail.data.provider.GmailProvider
 import com.shrivatsav.monomail.data.provider.OutlookProvider
@@ -101,9 +102,13 @@ object AppModule {
                 providerCache.remove(profile.id)
             }
             newToken
-        } catch (e: com.google.android.gms.auth.UserRecoverableAuthException) {
+        } catch (e: GoogleAuthException) {
             runBlocking(kotlinx.coroutines.Dispatchers.Main) {
-                authManager.notifyReauthRequired(profile.email, profile.provider, e.intent)
+                if (e.intent != null) {
+                    authManager.notifyReauthRequired(profile.email, profile.provider, e.intent)
+                } else {
+                    authManager.notifyReauthRequired(profile.email, profile.provider)
+                }
             }
             android.util.Log.e("AppModule", "Token refresh requires consent for ${profile.id}", e)
             null
@@ -116,10 +121,13 @@ object AppModule {
     private fun fetchNewToken(profile: UserProfile, context: Context, authManager: AuthManager): String? = when (profile.provider) {
         "gmail" -> {
             // ponytail: get new token first, then clear old — if getToken fails, old token is still valid
-            val newToken = GoogleAuthUtil.getToken(context, Account(profile.email, "com.google"), AuthManager.GMAIL_SCOPE)
-            val oldToken = profile.accessToken
-            if (oldToken.isNotEmpty() && oldToken != newToken) GoogleAuthUtil.clearToken(context, oldToken)
-            newToken
+            runBlocking(kotlinx.coroutines.Dispatchers.IO) {
+                val helper = provideGoogleAuthHelper()
+                val newToken = helper.getToken(context, profile.email, AuthManager.GMAIL_SCOPE)
+                val oldToken = profile.accessToken
+                if (oldToken.isNotEmpty() && oldToken != newToken) helper.clearToken(context, oldToken)
+                newToken
+            }
         }
         "outlook" -> runBlocking { authManager.microsoftAuthManager.getAccessTokenSilently(profile.id) }
         else -> null
