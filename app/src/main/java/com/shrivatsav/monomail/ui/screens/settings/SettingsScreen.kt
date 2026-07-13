@@ -36,6 +36,7 @@ enum class SettingsSection(val icon: ImageVector, val title: String, val subtitl
     COMPOSE(Icons.AutoMirrored.Rounded.Send, "Compose", "Reply defaults, confirm send, undo send"),
     NAVIGATION(Icons.Rounded.Explore, "Navigation", "Gestures & actions"),
     NOTIFICATIONS(Icons.Rounded.Notifications, "Notifications", "Alerts & sync"),
+    DEVELOPER(Icons.Rounded.DeveloperMode, "Developer", "Developer mode & debug tools"),
     SUPPORT(Icons.Rounded.Favorite, "Support", "Donate & community")
 }
 
@@ -98,6 +99,10 @@ fun SettingsScreen(
                 onBack = { currentSection = null }
             )
             SettingsSection.NAVIGATION -> NavigationSettingsScreen(
+                viewModel = viewModel,
+                onBack = { currentSection = null }
+            )
+            SettingsSection.DEVELOPER -> DeveloperSettingsScreen(
                 viewModel = viewModel,
                 onBack = { currentSection = null }
             )
@@ -205,6 +210,29 @@ private fun SettingsHubScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
             }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DeveloperSettingsScreen(
+    viewModel: SettingsViewModel,
+    onBack: () -> Unit
+) {
+    val settings by viewModel.settings.collectAsState()
+    ScrollableSettingsScaffold(
+        title = "Developer",
+        onBack = onBack
+    ) {
+        SettingsCard {
+            SettingsToggleRow(
+                icon = Icons.Rounded.BugReport,
+                title = "Developer Mode",
+                subtitle = "Enable share options for raw HTML/MD/plain text email body",
+                checked = settings.isDeveloperMode,
+                onCheckedChange = { viewModel.setDeveloperMode(it) }
+            )
         }
     }
 }

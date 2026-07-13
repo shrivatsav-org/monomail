@@ -1,16 +1,21 @@
 package com.shrivatsav.monomail.data.local
 import androidx.room.TypeConverter
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
+import org.json.JSONArray
+
 class Converters {
-    private val gson = Gson()
     @TypeConverter
     fun fromStringList(value: List<String>?): String {
-        return gson.toJson(value)
+        if (value == null) return "[]"
+        return JSONArray(value).toString()
     }
+    
     @TypeConverter
     fun toStringList(value: String): List<String> {
-        val listType = object : TypeToken<List<String>>() {}.type
-        return gson.fromJson(value, listType) ?: emptyList()
+        val array = JSONArray(value)
+        val list = mutableListOf<String>()
+        for (i in 0 until array.length()) {
+            list.add(array.getString(i))
+        }
+        return list
     }
 }

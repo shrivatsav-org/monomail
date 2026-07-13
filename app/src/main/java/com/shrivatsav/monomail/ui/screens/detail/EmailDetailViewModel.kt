@@ -1,4 +1,5 @@
 package com.shrivatsav.monomail.ui.screens.detail
+
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,15 +18,20 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+
 sealed class EmailDetailState {
-    data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) : EmailDetailState()
+    data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) :
+        EmailDetailState()
+
     data class Error(val message: String) : EmailDetailState()
 }
+
 @HiltViewModel
 class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
@@ -46,9 +52,9 @@ class EmailDetailViewModel @Inject constructor(
         .map { settings ->
             when (settings.fontScale) {
                 FontScale.EXTRA_SMALL -> 0.8f
-                FontScale.SMALL       -> 0.9f
-                FontScale.DEFAULT     -> 1.0f
-                FontScale.LARGE       -> 1.15f
+                FontScale.SMALL -> 0.9f
+                FontScale.DEFAULT -> 1.0f
+                FontScale.LARGE -> 1.15f
                 FontScale.EXTRA_LARGE -> 1.3f
             }
         }
@@ -83,6 +89,7 @@ class EmailDetailViewModel @Inject constructor(
                 val needsBodyFetch = emails.any { it.body.isEmpty() }
                 EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
             }
+
             error != null -> EmailDetailState.Error(error)
             !isLoading -> EmailDetailState.Error("Email thread not found.")
             else -> EmailDetailState.Success(emptyList(), isRefreshing = true)
@@ -99,6 +106,7 @@ class EmailDetailViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = false
         )
+
     init {
         viewModelScope.launch {
             repository.markThreadAsRead(threadId)
@@ -119,56 +127,65 @@ class EmailDetailViewModel @Inject constructor(
                 }
             }
         }
-        // PGP decryption — detect and decrypt encrypted messages
+        // PGP decryption — detect and decrypt encrypted messages.
+        // `state` re-emits on every isRefreshing/read-status/error tick, not just when
+        // bodies actually change, so we key this off (id, body) pairs specifically and
+        // skip the pass entirely when nothing relevant has changed. We also keep results
+        // for emails we've already decrypted instead of throwing the whole map away and
+        // recomputing it on each pass.
         viewModelScope.launch {
-            state.collect { s ->
-                if (s is EmailDetailState.Success) {
-                    val decrypted = mutableMapOf<String, PgpDecryptionResult>()
-                    for (email in s.emails) {
+            state
+                .map { s -> if (s is EmailDetailState.Success) s.emails.map { it.id to it.body } else emptyList() }
+                .distinctUntilChanged()
+                .collect { idsAndBodies ->
+                    val currentIds = idsAndBodies.map { it.first }.toSet()
+                    val decrypted = _decryptedBodies.value.filterKeys { it in currentIds }.toMutableMap()
+                    for ((id, body) in idsAndBodies) {
+                        if (decrypted.containsKey(id)) continue // already decrypted, body unchanged
                         try {
-                            val isPgp = withContext(Dispatchers.Default) {
-                                pgpManager.isPgpMessage(email.body)
-                            }
+                            val isPgp = withContext(Dispatchers.Default) { pgpManager.isPgpMessage(body) }
                             if (isPgp) {
-                                val result = withContext(Dispatchers.Default) {
-                                    pgpManager.decryptBody(email.body)
-                                }
+                                val result = withContext(Dispatchers.Default) { pgpManager.decryptBody(body) }
                                 if (result != null) {
-                                    decrypted[email.id] = result
+                                    decrypted[id] = result
                                 }
                             }
                         } catch (e: Exception) {
-                            Log.e("EmailDetailVM", "PGP processing failed for ${email.id}", e)
+                            Log.e("EmailDetailVM", "PGP processing failed for $id", e)
                         }
                     }
                     _decryptedBodies.value = decrypted
                 }
-            }
         }
     }
+
     fun toggleStar() {
         viewModelScope.launch {
             repository.toggleStar(threadId, isStarred.value)
         }
     }
+
     fun markUnread(onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.markThreadAsUnread(threadId)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
         }
     }
+
     fun archiveThread(onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.archiveThread(threadId)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
         }
     }
+
     fun trashThread(onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.deleteThread(threadId)
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
         }
     }
+
     suspend fun fetchAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
         return repository.getAttachmentBytes(messageId, attachmentId)
     }
