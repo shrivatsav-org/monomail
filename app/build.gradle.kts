@@ -31,8 +31,8 @@ android {
         applicationId = "com.shrivatsav.monomail"
         minSdk = 26
         targetSdk = 35
-        versionCode = 53
-        versionName = "1.7.29"
+        versionCode = 54
+        versionName = "1.7.30"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
