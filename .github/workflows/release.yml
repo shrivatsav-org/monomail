@@ -284,7 +284,7 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
           packageName: com.shrivatsav.monomail
           releaseFiles: app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
-          tracks: closed
+          tracks: alpha
           status: completed
           whatsNewDirectory: distribution/whatsnew
 
