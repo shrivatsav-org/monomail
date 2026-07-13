@@ -1,0 +1,22 @@
+plugins {
+    alias(libs.plugins.android.library)
+}
+
+android {
+    namespace = "com.shrivatsav.monomail.core.model"
+    compileSdk = 37
+
+    defaultConfig {
+        minSdk = 26
+    }
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_11
+        targetCompatibility = JavaVersion.VERSION_11
+    }
+}
+
+dependencies {
+    // Basic Android dependencies since we use android.net.Uri
+    implementation(libs.androidx.core.ktx)
+}

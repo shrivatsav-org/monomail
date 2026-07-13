@@ -1,4 +1,5 @@
 package com.shrivatsav.monomail.ui.screens.detail
+
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -16,6 +17,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -25,6 +27,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -108,6 +111,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
 data class EmailDisplayConfig(
     val isConversationView: Boolean = true,
     val fontScaleMultiplier: Float = 1f,
@@ -162,7 +166,7 @@ fun EmailDetailScreen(
                             targetState = isStarred,
                             transitionSpec = {
                                 (fadeIn(MonoTween.fadeIn) + scaleIn(MonoTween.fadeIn)) togetherWith
-                                (fadeOut(MonoTween.fadeOut) + scaleOut(MonoTween.fadeOut))
+                                        (fadeOut(MonoTween.fadeOut) + scaleOut(MonoTween.fadeOut))
                             },
                             label = "starToggle"
                         ) { starred ->
@@ -247,6 +251,7 @@ private fun DetailContent(
                 isError = true
             )
         }
+
         is EmailDetailState.Success -> {
             val emails = s.emails
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -279,40 +284,64 @@ private fun DetailContent(
                         )
                     }
                 }
-                if (emails.isEmpty()) {
-                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                "Loading…",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
-                            )
+                // Crossfade between the loading placeholder and the actual thread content
+                // instead of hard-cutting between them — this removes the "pop" that made
+                // opening an email feel like three separate screens stitched together.
+                Crossfade(
+                    targetState = emails.isEmpty(),
+                    label = "emailDetailContent",
+                    modifier = Modifier.weight(1f)
+                ) { isEmpty ->
+                    if (isEmpty) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(24.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    "Loading…",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                                )
+                            }
                         }
+                    } else {
+                        val latestEmail = emails.last()
+                        val latestBody = decryptedBodies[latestEmail.id]?.decryptedBody ?: latestEmail.body
+                        val myEmail = config.currentUserEmail
+                        val replyTarget = emails.lastOrNull {
+                            it.fromEmail.isNotBlank() && !it.fromEmail.equals(myEmail, ignoreCase = true)
+                        }?.fromEmail ?: latestEmail.to.split(",").map { it.trim() }.filter {
+                            it.isNotBlank() && !it.equals(myEmail, ignoreCase = true)
+                        }.joinToString(", ").ifEmpty { latestEmail.to }
+                        ThreadConversationContent(
+                            emails = emails,
+                            decryptedBodies = decryptedBodies,
+                            modifier = Modifier.fillMaxSize(),
+                            config = config,
+                            onReply = {
+                                onReply(
+                                    replyTarget,
+                                    latestEmail.subject,
+                                    latestBody,
+                                    latestEmail.threadId,
+                                    latestEmail.id
+                                )
+                            },
+                            onForward = {
+                                onForward(
+                                    latestEmail.subject,
+                                    latestBody,
+                                    latestEmail.threadId,
+                                    latestEmail.id
+                                )
+                            },
+                            onFetchAttachment = onFetchAttachment
+                        )
                     }
-                } else {
-                    val latestEmail = emails.last()
-                    val latestBody = decryptedBodies[latestEmail.id]?.decryptedBody ?: latestEmail.body
-                    val myEmail = config.currentUserEmail
-                    val replyTarget = emails.lastOrNull {
-                        it.fromEmail.isNotBlank() && !it.fromEmail.equals(myEmail, ignoreCase = true)
-                    }?.fromEmail ?: latestEmail.to.split(",").map { it.trim() }.filter {
-                        it.isNotBlank() && !it.equals(myEmail, ignoreCase = true)
-                    }.joinToString(", ").ifEmpty { latestEmail.to }
-                    ThreadConversationContent(
-                        emails = emails,
-                        decryptedBodies = decryptedBodies,
-                        modifier = Modifier.weight(1f),
-                        config = config,
-                        onReply = { onReply(replyTarget, latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
-                        onForward = { onForward(latestEmail.subject, latestBody, latestEmail.threadId, latestEmail.id) },
-                        onFetchAttachment = onFetchAttachment
-                    )
                 }
             }
         }
@@ -344,27 +373,37 @@ fun ThreadConversationContent(
         }
     }
     val subject = emails.firstOrNull()?.subject ?: "(no subject)"
-    Column(
-        modifier = modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState())
-    ) {
-        Text(
-            text = subject,
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
-        )
-        if (emails.size > 1) {
+    // LazyColumn instead of Column+verticalScroll: previously every message in the thread —
+    // and therefore every message's WebView — was composed and loaded eagerly the moment the
+    // screen opened, even messages that were collapsed or scrolled far off-screen. For long
+    // threads this meant paying the WebView-creation + HTML-load cost N times up front, all
+    // stacked on top of the state-transition pop. LazyColumn only composes what's near the
+    // viewport, so a message's WebView isn't created until it's about to be visible.
+    LazyColumn(modifier = modifier.fillMaxSize()) {
+        item {
             Text(
-                text = "${emails.size} messages in thread",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 0.dp)
+                text = subject,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)
             )
-            Spacer(modifier = Modifier.height(16.dp))
+        }
+        if (emails.size > 1) {
+            item {
+                Column {
+                    Text(
+                        text = "${emails.size} messages in thread",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 0.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+            }
         }
 
-        emails.forEachIndexed { index, email ->
+        itemsIndexed(emails, key = { _, email -> email.id }) { index, email ->
             val isExpanded = expandedMap[email.id] ?: true
             if (config.isConversationView) {
                 ConversationEmailItem(
@@ -394,59 +433,62 @@ fun ThreadConversationContent(
             }
         }
 
-            Spacer(modifier = Modifier.height(24.dp))
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .padding(bottom = 40.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Button(
-                    onClick = onReply,
+        item {
+            Column {
+                Spacer(modifier = Modifier.height(24.dp))
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.onBackground,
-                        contentColor = MaterialTheme.colorScheme.background
-                    )
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 40.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Reply,
-                        contentDescription = "Reply",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Reply", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-                }
-                OutlinedButton(
-                    onClick = onForward,
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(52.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    border = BorderStroke(
-                        1.dp,
-                        MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Forward,
-                        contentDescription = "Forward",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Forward", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Button(
+                        onClick = onReply,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.onBackground,
+                            contentColor = MaterialTheme.colorScheme.background
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Reply,
+                            contentDescription = "Reply",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Reply", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    }
+                    OutlinedButton(
+                        onClick = onForward,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        border = BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Forward,
+                            contentDescription = "Forward",
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Forward", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
-        
+        }
     }
 }
 
@@ -460,106 +502,108 @@ private fun ConversationEmailItem(
     decryptedBodies: Map<String, PgpDecryptionResult>,
     onFetchAttachment: suspend (String, String) -> ByteArray?
 ) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                if (index % 2 == 1 && isExpanded)
-                    MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.25f)
-                else MaterialTheme.colorScheme.background
-            )
-            .clickable { onToggleExpand() }
-            .padding(start = 16.dp, end = 24.dp, top = 12.dp, bottom = 0.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        Box(modifier = Modifier.width(40.dp)) {
-            AvatarCircle(
-                photoUrl = null,
-                displayName = displayName(email.from),
-                size = 36.dp,
-                textStyle = MaterialTheme.typography.titleSmall
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = displayName(email.from),
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    if (index % 2 == 1 && isExpanded)
+                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.25f)
+                    else MaterialTheme.colorScheme.background
                 )
-                Text(
-                    text = formatRelativeDate(email.date),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(
-                    imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = if (isExpanded) "Collapse" else "Expand",
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                    modifier = Modifier.size(20.dp)
+                .clickable { onToggleExpand() }
+                .padding(start = 16.dp, end = 24.dp, top = 12.dp, bottom = 0.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Box(modifier = Modifier.width(40.dp)) {
+                AvatarCircle(
+                    photoUrl = null,
+                    displayName = displayName(email.from),
+                    size = 36.dp,
+                    textStyle = MaterialTheme.typography.titleSmall
                 )
             }
-            Text(
-                text = email.fromEmail,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = displayName(email.from),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = formatRelativeDate(email.date),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        imageVector = if (isExpanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse" else "Expand",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
                 Text(
-                    text = "to:",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                    text = email.to,
+                    text = email.fromEmail,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            if (!isExpanded) {
-                val snippetText = remember(email.snippet) {
-                    email.snippet
-                        .replace(Regex("^\\s*(>|&gt;|\\|).*", RegexOption.MULTILINE), "")
-                        .replace(Regex("On\\s.+\\swrote:"), "")
-                        .replace(Regex("<blockquote[^>]*>[\\s\\S]*?</blockquote>"), "")
-                        .trim()
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = snippetText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "to:",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = email.to,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                if (!isExpanded) {
+                    val snippetText = remember(email.snippet) {
+                        email.snippet
+                            .replace(Regex("^\\s*(>|&gt;|\\|).*", RegexOption.MULTILINE), "")
+                            .replace(Regex("On\\s.+\\swrote:"), "")
+                            .replace(Regex("<blockquote[^>]*>[\\s\\S]*?</blockquote>"), "")
+                            .trim()
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = snippetText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
         }
-    }
-    if (!config.showInlineAttachments && email.attachments.isNotEmpty()) {
-        val perEmailAttachments = email.attachments.map { it to displayName(email.from) }
-        ThreadAttachmentsSummary(
-            attachmentsWithSender = perEmailAttachments,
-            onFetchAttachment = onFetchAttachment
-        )
-    }
-    AnimatedVisibility(
-        visible = isExpanded,
-        enter = fadeIn(tween(200)) + expandVertically(tween(200)),
-        exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
-    ) {
-        ConversationEmailBody(email, index, config, decryptedBodies, onFetchAttachment)
+        if (!config.showInlineAttachments && email.attachments.isNotEmpty()) {
+            val perEmailAttachments = email.attachments.map { it to displayName(email.from) }
+            ThreadAttachmentsSummary(
+                attachmentsWithSender = perEmailAttachments,
+                onFetchAttachment = onFetchAttachment
+            )
+        }
+        AnimatedVisibility(
+            visible = isExpanded,
+            enter = fadeIn(tween(200)) + expandVertically(tween(200)),
+            exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
+        ) {
+            ConversationEmailBody(email, index, config, decryptedBodies, onFetchAttachment)
+        }
     }
 }
 
@@ -575,10 +619,19 @@ private fun ConversationEmailBody(
             else MaterialTheme.colorScheme.background
         )
     ) {
-        Box(modifier = Modifier.width(2.dp).fillMaxHeight().heightIn(min = 120.dp).padding(start = 28.dp).background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f)))
+        Box(
+            modifier = Modifier.width(2.dp).fillMaxHeight().heightIn(min = 120.dp).padding(start = 28.dp)
+                .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.25f))
+        )
         Column(modifier = Modifier.weight(1f).heightIn(min = 120.dp)) {
             CcBccBlock(email)
-            MessageBody(email = email, decryptedResult = decryptedBodies[email.id], config = config, onFetchAttachment = onFetchAttachment, modifier = Modifier.fillMaxWidth())
+            MessageBody(
+                email = email,
+                decryptedResult = decryptedBodies[email.id],
+                config = config,
+                onFetchAttachment = onFetchAttachment,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
@@ -599,16 +652,40 @@ private fun CcBccBlock(email: Email) {
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 if (email.cc.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "cc:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(28.dp))
+                        Text(
+                            text = "cc:",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(28.dp)
+                        )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = email.cc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 5, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            text = email.cc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
                 if (email.bcc.isNotBlank()) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = "bcc:", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.width(28.dp))
+                        Text(
+                            text = "bcc:",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.width(28.dp)
+                        )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = email.bcc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 5, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            text = email.bcc,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
@@ -639,7 +716,11 @@ private fun MessageBody(
         EncryptionBadge(decryptedResult)
         if (isEncryptedBlob) {
             Box(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 32.dp)) {
-                Text(text = "Decrypting…", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                Text(
+                    text = "Decrypting…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
             }
             return
         }
@@ -649,8 +730,8 @@ private fun MessageBody(
 
 private fun isEncryptedBlob(email: Email): Boolean =
     email.body.startsWith("-----BEGIN PGP MESSAGE-----") ||
-        email.body.contains("multipart/encrypted;") ||
-        email.body.contains("multipart/encrypted\r\n")
+            email.body.contains("multipart/encrypted;") ||
+            email.body.contains("multipart/encrypted\r\n")
 
 @Composable
 private fun MessageBodyContent(
@@ -680,14 +761,42 @@ private fun MessageBodyContent(
     val textColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.onBackground.toArgb())
     val linkColor = String.format("#%06X", 0xFFFFFF and MaterialTheme.colorScheme.primary.toArgb())
     val useOverviewScaling = remember(safeBodyText, bodyIsHtml) {
-        bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksMobileFriendly(safeBodyText) && !looksDataTableEmail(safeBodyText)
+        bodyIsHtml && looksFixedWidthTemplate(safeBodyText) && !looksMobileFriendly(safeBodyText) && !looksDataTableEmail(
+            safeBodyText
+        )
     }
     val emailZoomFactor = if (useOverviewScaling) {
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 56).toFloat() / 600f).coerceIn(0.3f, 1.0f)
     } else 1.0f
-    val htmlContent = remember(email.id, safeBodyText, config.fontScaleMultiplier, showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, config.emailTheme, useOverviewScaling, emailZoomFactor) {
-        buildEmailHtml(email, safeBodyText, bodyIsHtml, config.fontScaleMultiplier, HtmlBuildParams(showQuotedText, config.showInlineAttachments, config.loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor))
+    val htmlContent = remember(
+        email.id,
+        safeBodyText,
+        config.fontScaleMultiplier,
+        showQuotedText,
+        config.showInlineAttachments,
+        config.loadRemoteImages,
+        showRemoteImages,
+        config.emailTheme,
+        useOverviewScaling,
+        emailZoomFactor
+    ) {
+        buildEmailHtml(
+            email,
+            safeBodyText,
+            bodyIsHtml,
+            config.fontScaleMultiplier,
+            HtmlBuildParams(
+                showQuotedText,
+                config.showInlineAttachments,
+                config.loadRemoteImages,
+                showRemoteImages,
+                useOverviewScaling,
+                emailZoomFactor,
+                textColor,
+                linkColor
+            )
+        )
     }
     EmailWebViewCard(email.id, htmlContent, config.emailTheme, useOverviewScaling)
     if (hasQuotedText) {
@@ -704,13 +813,13 @@ private fun MessageBodyContent(
 
 private fun hasQuotedTextBlock(body: String): Boolean =
     body.contains("<blockquote", ignoreCase = true) ||
-        body.contains("gmail_quote", ignoreCase = true) ||
-        body.contains("gmail_extra", ignoreCase = true) ||
-        body.contains("yahoo_quoted", ignoreCase = true) ||
-        body.contains("moz-cite-prefix", ignoreCase = true) ||
-        body.contains("appendonsend", ignoreCase = true) ||
-        body.contains("divRplyFwdMsg", ignoreCase = true) ||
-        (body.contains("On ", ignoreCase = true) && body.contains(" wrote:", ignoreCase = true))
+            body.contains("gmail_quote", ignoreCase = true) ||
+            body.contains("gmail_extra", ignoreCase = true) ||
+            body.contains("yahoo_quoted", ignoreCase = true) ||
+            body.contains("moz-cite-prefix", ignoreCase = true) ||
+            body.contains("appendonsend", ignoreCase = true) ||
+            body.contains("divRplyFwdMsg", ignoreCase = true) ||
+            (body.contains("On ", ignoreCase = true) && body.contains(" wrote:", ignoreCase = true))
 
 @Composable
 private fun EncryptionBadge(decryptedResult: PgpDecryptionResult?) {
@@ -721,7 +830,12 @@ private fun EncryptionBadge(decryptedResult: PgpDecryptionResult?) {
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(imageVector = Icons.Rounded.Lock, contentDescription = "Encrypted", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
+        Icon(
+            imageVector = Icons.Rounded.Lock,
+            contentDescription = "Encrypted",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(14.dp)
+        )
         Spacer(modifier = Modifier.width(4.dp))
         Text(text = "Encrypted", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         val sigs = decryptedResult.signatures
@@ -735,7 +849,13 @@ private fun EncryptionBadge(decryptedResult: PgpDecryptionResult?) {
                     tint = if (sig.isValid) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(14.dp)
                 )
-                Text(text = sig.signer, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = sig.signer,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -753,7 +873,11 @@ private fun SenderInfoSection(email: Email, messageCount: Int) {
             CcBccDetails(email)
         }
         if (messageCount > 1) {
-            Text(text = "$messageCount messages in thread", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f))
+            Text(
+                text = "$messageCount messages in thread",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+            )
         }
     }
 }
@@ -761,17 +885,40 @@ private fun SenderInfoSection(email: Email, messageCount: Int) {
 @Composable
 private fun SenderDetails(email: Email, isMsgUnread: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        AvatarCircle(photoUrl = null, displayName = displayName(email.from), size = 40.dp, textStyle = MaterialTheme.typography.titleMedium)
+        AvatarCircle(
+            photoUrl = null,
+            displayName = displayName(email.from),
+            size = 40.dp,
+            textStyle = MaterialTheme.typography.titleMedium
+        )
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = displayName(email.from), style = MaterialTheme.typography.titleSmall, fontWeight = if (isMsgUnread) FontWeight.Bold else FontWeight.SemiBold, color = MaterialTheme.colorScheme.onBackground, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                Text(
+                    text = displayName(email.from),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = if (isMsgUnread) FontWeight.Bold else FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = formatDetailDate(email.date), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f))
+                Text(
+                    text = formatDetailDate(email.date),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                )
             }
             Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = email.fromEmail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = email.fromEmail,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (isMsgUnread) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary))
@@ -784,12 +931,20 @@ private fun SenderDetails(email: Email, isMsgUnread: Boolean) {
 @Composable
 private fun ToRow(email: Email, onToggleCcBcc: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(text = "to:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+        Text(
+            text = "to:",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+        )
         Spacer(modifier = Modifier.width(4.dp))
         Text(
-            text = email.to, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-            maxLines = 1, overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f).clickable { if (email.cc.isNotBlank() || email.bcc.isNotBlank()) onToggleCcBcc() }
+            text = email.to,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+                .clickable { if (email.cc.isNotBlank() || email.bcc.isNotBlank()) onToggleCcBcc() }
         )
     }
 }
@@ -800,24 +955,49 @@ private fun CcBccDetails(email: Email) {
         if (email.cc.isNotBlank()) {
             Spacer(modifier = Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "cc:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                Text(
+                    text = "cc:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = email.cc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 5, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = email.cc,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
         if (email.bcc.isNotBlank()) {
             if (email.cc.isNotBlank()) Spacer(modifier = Modifier.height(2.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "bcc:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                Text(
+                    text = "bcc:",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f)
+                )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(text = email.bcc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f), maxLines = 5, overflow = TextOverflow.Ellipsis)
+                Text(
+                    text = email.bcc,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                    maxLines = 5,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RemoteImagesBanner(loadRemoteImages: Boolean, showRemoteImages: Boolean, bodyIsHtml: Boolean, onShow: () -> Unit) {
+private fun RemoteImagesBanner(
+    loadRemoteImages: Boolean,
+    showRemoteImages: Boolean,
+    bodyIsHtml: Boolean,
+    onShow: () -> Unit
+) {
     if (!loadRemoteImages && !showRemoteImages && bodyIsHtml) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
@@ -825,7 +1005,12 @@ private fun RemoteImagesBanner(loadRemoteImages: Boolean, showRemoteImages: Bool
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(text = "Remote images blocked", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+            Text(
+                text = "Remote images blocked",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
             TextButton(onClick = onShow) { Text("Show images", style = MaterialTheme.typography.labelSmall) }
         }
     }
@@ -834,9 +1019,18 @@ private fun RemoteImagesBanner(loadRemoteImages: Boolean, showRemoteImages: Bool
 @Composable
 private fun QuotedTextToggle(showQuotedText: Boolean, onToggle: () -> Unit) {
     TextButton(onClick = onToggle, modifier = Modifier.padding(start = 16.dp)) {
-        Icon(imageVector = if (showQuotedText) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore, contentDescription = null, modifier = Modifier.size(16.dp))
+        Icon(
+            imageVector = if (showQuotedText) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp)
+        )
         Spacer(modifier = Modifier.width(4.dp))
-        Text(text = if (showQuotedText) "Hide quoted text" else "Show quoted text", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
+        Text(
+            text = if (showQuotedText) "Hide quoted text" else "Show quoted text",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+        )
     }
 }
 
@@ -853,12 +1047,22 @@ private fun DeveloperCopyButton(email: Email) {
     ) {
         Icon(imageVector = Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(4.dp))
-        Text(text = "Copy raw ${if (email.bodyIsHtml) "HTML" else "text"}", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f))
+        Text(
+            text = "Copy raw ${if (email.bodyIsHtml) "HTML" else "text"}",
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
+        )
     }
 }
 
 @Composable
-private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: EmailTheme, useOverviewScaling: Boolean) {
+private fun EmailWebViewCard(
+    emailId: String,
+    htmlContent: String,
+    emailTheme: EmailTheme,
+    useOverviewScaling: Boolean
+) {
     var emailContentWebView by remember { mutableStateOf<WebView?>(null) }
     DisposableEffect(emailId) {
         onDispose { emailContentWebView?.apply { removeAllViews(); destroy() }; emailContentWebView = null }
@@ -869,6 +1073,10 @@ private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: E
         EmailTheme.AUTO -> isSystemInDarkTheme()
         else -> false
     }
+    // Track the last-applied settings combo so `update` only touches the WebView when
+    // something actually changed, instead of re-writing settings + re-checking the darkening
+    // feature flag on every single recomposition (scrolling, unrelated state changes, etc.)
+    var lastAppliedSettings by remember { mutableStateOf<Triple<Boolean, Boolean, Boolean>?>(null) }
     Column {
         AndroidView(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
@@ -882,14 +1090,23 @@ private fun EmailWebViewCard(emailId: String, htmlContent: String, emailTheme: E
                 }
             },
             update = { webView ->
-                webView.settings.loadWithOverviewMode = false
-                webView.settings.useWideViewPort = false
-                webView.isHorizontalScrollBarEnabled = !useOverviewScaling
-                if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) { WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, useDarkening) }
+                val desiredSettings = Triple(useOverviewScaling, useDarkening, webView.tag == htmlContent)
+                if (lastAppliedSettings?.first != useOverviewScaling || lastAppliedSettings?.second != useDarkening) {
+                    webView.settings.loadWithOverviewMode = false
+                    webView.settings.useWideViewPort = false
+                    webView.isHorizontalScrollBarEnabled = !useOverviewScaling
+                    if (WebViewFeature.isFeatureSupported(WebViewFeature.ALGORITHMIC_DARKENING)) {
+                        WebSettingsCompat.setAlgorithmicDarkeningAllowed(webView.settings, useDarkening)
+                    }
+                    lastAppliedSettings = desiredSettings
+                }
                 if (webView.tag != htmlContent) {
                     webView.tag = htmlContent
-                    try { webView.loadDataWithBaseURL("file:///android_asset/", htmlContent, "text/html", "UTF-8", null) }
-                    catch (e: Exception) { android.util.Log.e("EmailWebView", "Failed to load email HTML content", e) }
+                    try {
+                        webView.loadDataWithBaseURL("file:///android_asset/", htmlContent, "text/html", "UTF-8", null)
+                    } catch (e: Exception) {
+                        android.util.Log.e("EmailWebView", "Failed to load email HTML content", e)
+                    }
                 }
             }
         )
@@ -903,34 +1120,62 @@ private fun configureWebView(webView: WebView) {
     webView.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
     webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
     webView.settings.loadsImagesAutomatically = true
-    try { WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(webView, true) } catch (_: Exception) { }
-    try { WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(webView, true) } catch (_: Exception) { }
+    try {
+        WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(webView, true)
+    } catch (_: Exception) {
+    }
+    try {
+        WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(webView, true)
+    } catch (_: Exception) {
+    }
     webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)
     webView.isVerticalScrollBarEnabled = false
     webView.isHorizontalScrollBarEnabled = true
 }
 
 private fun createTouchHandler(): android.view.View.OnTouchListener {
-    var downX = 0f; var downY = 0f
+    var downX = 0f;
+    var downY = 0f
     return android.view.View.OnTouchListener { view, event ->
         when (event.actionMasked) {
-            android.view.MotionEvent.ACTION_DOWN -> { downX = event.x; downY = event.y; view.parent?.requestDisallowInterceptTouchEvent(true) }
-            android.view.MotionEvent.ACTION_MOVE -> { view.parent?.requestDisallowInterceptTouchEvent(kotlin.math.abs(event.x - downX) > kotlin.math.abs(event.y - downY)) }
-            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> { view.parent?.requestDisallowInterceptTouchEvent(false) }
+            android.view.MotionEvent.ACTION_DOWN -> {
+                downX = event.x; downY = event.y; view.parent?.requestDisallowInterceptTouchEvent(true)
+            }
+
+            android.view.MotionEvent.ACTION_MOVE -> {
+                view.parent?.requestDisallowInterceptTouchEvent(kotlin.math.abs(event.x - downX) > kotlin.math.abs(event.y - downY))
+            }
+
+            android.view.MotionEvent.ACTION_UP, android.view.MotionEvent.ACTION_CANCEL -> {
+                view.parent?.requestDisallowInterceptTouchEvent(false)
+            }
         }
         false
     }
 }
 
 private fun createWebViewClient(context: android.content.Context) = object : android.webkit.WebViewClient() {
-    override fun shouldOverrideUrlLoading(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?): Boolean {
+    override fun shouldOverrideUrlLoading(
+        view: android.webkit.WebView?,
+        request: android.webkit.WebResourceRequest?
+    ): Boolean {
         request?.url?.let { uri ->
-            try { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, uri).apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }); return true }
-            catch (e: Exception) { android.util.Log.e("EmailDetail", "Failed to open URL in browser", e) }
+            try {
+                context.startActivity(
+                    android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
+                        .apply { addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK) }); return true
+            } catch (e: Exception) {
+                android.util.Log.e("EmailDetail", "Failed to open URL in browser", e)
+            }
         }
         return super.shouldOverrideUrlLoading(view, request)
     }
-    override fun onReceivedError(view: android.webkit.WebView?, request: android.webkit.WebResourceRequest?, error: android.webkit.WebResourceError?) {
+
+    override fun onReceivedError(
+        view: android.webkit.WebView?,
+        request: android.webkit.WebResourceRequest?,
+        error: android.webkit.WebResourceError?
+    ) {
         android.util.Log.e("EmailWebView", "WebView error: ${error?.description} on ${request?.url}")
     }
 }
@@ -951,8 +1196,10 @@ private fun buildEmailHtml(
         var b = displayBody
         for (att in email.attachments) {
             if (att.name.isBlank()) continue
-            val cidPattern = Regex("""<img[^>]*src\s*=\s*["']cid:${Regex.escape(att.name)}["'][^>]*>""", RegexOption.IGNORE_CASE)
-            b = b.replace(cidPattern) { """<div style="padding:8px;margin:8px 0;background:#f0f0f0;border-radius:6px;text-align:center;font-family:sans-serif;font-size:13px;color:#666;">📎 <em>${att.name}</em> (inline image — see attachments)</div>""" }
+            val cidPattern =
+                Regex("""<img[^>]*src\s*=\s*["']cid:${Regex.escape(att.name)}["'][^>]*>""", RegexOption.IGNORE_CASE)
+            b =
+                b.replace(cidPattern) { """<div style="padding:8px;margin:8px 0;background:#f0f0f0;border-radius:6px;text-align:center;font-family:sans-serif;font-size:13px;color:#666;">📎 <em>${att.name}</em> (inline image — see attachments)</div>""" }
         }
         b
     } else displayBody
@@ -1018,13 +1265,15 @@ private fun openAttachment(context: android.content.Context, attachment: EmailAt
         android.util.Log.e("EmailDetail", "Failed to open attachment", e)
     }
 }
+
 private fun isImageAttachment(attachment: EmailAttachmentInfo): Boolean {
     val lowerName = attachment.name.lowercase()
     return attachment.mimeType.startsWith("image/") ||
-        lowerName.endsWith(".png") || lowerName.endsWith(".jpg") ||
-        lowerName.endsWith(".jpeg") || lowerName.endsWith(".gif") ||
-        lowerName.endsWith(".webp")
+            lowerName.endsWith(".png") || lowerName.endsWith(".jpg") ||
+            lowerName.endsWith(".jpeg") || lowerName.endsWith(".gif") ||
+            lowerName.endsWith(".webp")
 }
+
 private fun formatFileSize(bytes: Long): String {
     return when {
         bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
@@ -1032,6 +1281,7 @@ private fun formatFileSize(bytes: Long): String {
         else -> "$bytes B"
     }
 }
+
 @Composable
 private fun AttachmentsSection(
     attachments: List<EmailAttachmentInfo>,
@@ -1085,6 +1335,7 @@ private fun AttachmentsSection(
         }
     }
 }
+
 @Composable
 private fun ImageAttachmentCard(
     attachment: EmailAttachmentInfo,
@@ -1180,6 +1431,7 @@ private fun ImageAttachmentCard(
         }
     }
 }
+
 @Composable
 private fun FileAttachmentCard(
     attachment: EmailAttachmentInfo,
@@ -1294,7 +1546,7 @@ private fun AttachmentToggleButton(
         Spacer(modifier = Modifier.width(12.dp))
         Text(
             text = "$totalCount Attachment${if (totalCount != 1) "s" else ""}" +
-                if (imageCount > 0) " ($imageCount image${if (imageCount != 1) "s" else ""})" else "",
+                    if (imageCount > 0) " ($imageCount image${if (imageCount != 1) "s" else ""})" else "",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface,
@@ -1394,16 +1646,17 @@ private fun formatRelativeDate(epochMillis: Long): String {
     val hours = minutes / 60
     val days = hours / 24
     return when {
-        minutes < 1  -> "just now"
+        minutes < 1 -> "just now"
         minutes < 60 -> "${minutes}m ago"
-        hours < 24   -> "${hours}h ago"
-        days == 1L   -> "Yesterday"
-        days < 7     -> "${days}d ago"
-        days < 365   -> {
+        hours < 24 -> "${hours}h ago"
+        days == 1L -> "Yesterday"
+        days < 7 -> "${days}d ago"
+        days < 365 -> {
             val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
             val month = cal.getDisplayName(java.util.Calendar.MONTH, java.util.Calendar.SHORT, Locale.getDefault())
             "${cal.get(java.util.Calendar.DAY_OF_MONTH)} $month"
         }
+
         else -> formatDetailDate(epochMillis)
     }
 }
@@ -1416,17 +1669,17 @@ private fun displayName(from: String): String {
 private fun looksFixedWidthTemplate(html: String): Boolean {
     if (html.length < 500) return false
     return FIXED_WIDTH_ATTR.containsMatchIn(html) ||
-        FIXED_WIDTH_STYLE.containsMatchIn(html) ||
-        html.contains("m-shell", ignoreCase = true) ||
-        html.contains("tbl_main", ignoreCase = true)
+            FIXED_WIDTH_STYLE.containsMatchIn(html) ||
+            html.contains("m-shell", ignoreCase = true) ||
+            html.contains("tbl_main", ignoreCase = true)
 }
 
 private fun looksDataTableEmail(html: String): Boolean {
     val lower = html.lowercase(Locale.US)
     return lower.contains("<thead") ||
-        lower.contains("<th") ||
-        lower.contains("scope=\"col\"") ||
-        lower.contains("role=\"columnheader\"")
+            lower.contains("<th") ||
+            lower.contains("scope=\"col\"") ||
+            lower.contains("role=\"columnheader\"")
 }
 
 // ponytail: emails with "stack" class + column stacking are genuinely responsive — skip zoom
@@ -1434,7 +1687,6 @@ private fun looksMobileFriendly(html: String): Boolean {
     val lower = html.lowercase(Locale.US)
     return lower.contains("stack") && lower.contains("column")
 }
-
 
 
 // ponytail: strips inline style="" from <body> tags so wrapper CSS isn't overridden
@@ -1462,7 +1714,3 @@ private fun formatDetailDate(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
     return detailDateFormat.format(Date(epochMillis))
 }
-
-
-
-
