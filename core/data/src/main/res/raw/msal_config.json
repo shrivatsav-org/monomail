@@ -1,0 +1,16 @@
+{
+  "client_id": "dummy_client_id",
+  "authorization_user_agent": "WEBVIEW",
+  "redirect_uri": "msauth://com.shrivatsav.monomail/dummy_hash",
+  "account_mode": "SINGLE",
+  "broker_redirect_uri_registered": false,
+  "authorities": [
+    {
+      "type": "AAD",
+      "audience": {
+        "type": "AzureADandPersonalMicrosoftAccount",
+        "tenant_id": "common"
+      }
+    }
+  ]
+}
