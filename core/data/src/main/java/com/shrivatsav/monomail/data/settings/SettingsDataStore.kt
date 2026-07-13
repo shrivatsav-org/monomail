@@ -19,11 +19,9 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 /**
  * Controls how email HTML bodies are colored when rendered in the detail WebView.
  * - [AUTO]: adapt plain-ish mail to the app theme; render richly-styled mail as-is.
- * - [FORCE_DARK]: always adapt to the app's dark surface.
- * - [FORCE_LIGHT]: always render on a light/white background with dark text.
  * - [ORIGINAL]: never adapt — show the sender's original colors on a light card.
  */
-enum class EmailTheme { AUTO, FORCE_DARK, FORCE_LIGHT, ORIGINAL }
+enum class EmailTheme { AUTO, ORIGINAL }
 enum class FontScale { EXTRA_SMALL, SMALL, DEFAULT, LARGE, EXTRA_LARGE }
 enum class SwipeAction { ARCHIVE, STAR, DELETE, READ_UNREAD }
 enum class DefaultReply { REPLY, REPLY_ALL }

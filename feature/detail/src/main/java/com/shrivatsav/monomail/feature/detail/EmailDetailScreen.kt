@@ -1085,9 +1085,8 @@ private fun EmailWebViewCard(
     }
     val cardBgColor = if (emailTheme == EmailTheme.ORIGINAL) Color.White else Color.Transparent
     val useDarkening = when (emailTheme) {
-        EmailTheme.FORCE_DARK -> true
         EmailTheme.AUTO -> isSystemInDarkTheme()
-        else -> false
+        EmailTheme.ORIGINAL -> false
     }
     // Track the last-applied settings combo so `update` only touches the WebView when
     // something actually changed, instead of re-writing settings + re-checking the darkening
