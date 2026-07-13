@@ -8,6 +8,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.ui.theme.MonoSpring
 import com.shrivatsav.monomail.ui.theme.MonoTween
+import androidx.compose.ui.platform.LocalContext
 
 enum class SettingsSection(val icon: ImageVector, val title: String, val subtitle: String) {
     ACCOUNTS(Icons.Rounded.ManageAccounts, "Accounts", "Manage accounts, providers, connection status"),
@@ -221,6 +223,7 @@ internal fun DeveloperSettingsScreen(
     onBack: () -> Unit
 ) {
     val settings by viewModel.settings.collectAsState()
+    val context = LocalContext.current
     ScrollableSettingsScaffold(
         title = "Developer",
         onBack = onBack
@@ -233,6 +236,52 @@ internal fun DeveloperSettingsScreen(
                 checked = settings.isDeveloperMode,
                 onCheckedChange = { viewModel.setDeveloperMode(it) }
             )
+        }
+        Spacer(Modifier.height(8.dp))
+        SettingsCard {
+            // Preview Welcome button
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = {
+                        viewModel.resetWelcomePrompt()
+                        android.widget.Toast.makeText(
+                            context,
+                            "Welcome prompt will show on next app launch",
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    })
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Preview,
+                    contentDescription = "Preview Welcome",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Preview Welcome",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Reset welcome prompt and show modal on next app launch",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }

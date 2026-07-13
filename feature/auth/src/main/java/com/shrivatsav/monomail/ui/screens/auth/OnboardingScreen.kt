@@ -62,9 +62,6 @@ private fun SupportPage(uriHandler: androidx.compose.ui.platform.UriHandler, con
                 if (kofiIcon != null) Icon(painter = kofiIcon, contentDescription = null, modifier = Modifier.size(22.dp), tint = Color.Unspecified)
                 else Icon(Icons.Rounded.FavoriteBorder, contentDescription = null, modifier = Modifier.size(22.dp))
             }
-            OnboardingSupportCard(modifier = Modifier.weight(1f), label = "Pay with UPI", onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }) {
-                Icon(Icons.Rounded.Payments, contentDescription = null, modifier = Modifier.size(22.dp))
-            }
         }
         Spacer(modifier = Modifier.height(10.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {

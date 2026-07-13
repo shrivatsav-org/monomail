@@ -1,4 +1,5 @@
 package com.shrivatsav.monomail.ui.navigation
+import com.shrivatsav.monomail.BuildConfig
 import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
@@ -228,6 +229,7 @@ fun NavGraph(
     }
     val startDestination = when {
         isAuthenticated -> Screen.Inbox.route
+        BuildConfig.DEBUG -> Screen.SignIn.route
         !hasSeenWelcomePrompt -> Screen.Onboarding.route
         else -> Screen.SignIn.route
     }

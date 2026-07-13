@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.addPathNodes
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 
 import android.net.ConnectivityManager
@@ -638,7 +639,8 @@ fun InboxScreen(
         }
     }
 
-    
+    // ── Welcome to Monomail modal ────────────────────────────────────
+
     com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
         visible = showWelcomePrompt,
         onDismiss = { viewModel.dismissWelcomePrompt() }
@@ -661,25 +663,90 @@ fun InboxScreen(
                 else null
             }
 
-            Column(modifier = Modifier.padding(24.dp)) {
+            val versionName = remember {
+                try {
+                    context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.7.24"
+                } catch (_: Exception) { "1.7.24" }
+            }
 
-                // Header
+            val matchedNotes = remember(versionName) {
+                allReleaseNotes.firstOrNull { it.version == versionName }
+            }
+
+            Column(modifier = Modifier.padding(26.dp)) {
+
+                // ── Header ──────────────────────────────────────────────
                 Text(
                     text = "Welcome to Monomail",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Monomail is free & open-source, built with privacy in mind. If you find it useful, here's how you can help.",
+                    text = "v$versionName — An open-source, privacy-first email client",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(Modifier.height(24.dp))
 
-                // Primary 2x2 support grid — card style, icon-on-top
+                // ── What's New ─────────────────────────────────────────
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                Icons.Rounded.NewReleases,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "What's New",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        val notes = matchedNotes ?: allReleaseNotes.first()
+                        notes.changes.forEach { change ->
+                            Row(
+                                modifier = Modifier.padding(vertical = 2.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text(
+                                    "•",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.padding(end = 8.dp)
+                                )
+                                Text(
+                                    change,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(20.dp))
+
+                // ── Support ────────────────────────────────────────────
+                Text(
+                    "Support Monomail",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(10.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -702,42 +769,47 @@ fun InboxScreen(
                     }
                     SupportCard(
                         modifier = Modifier.weight(1f),
-                        label = "Pay with UPI",
-                        onClick = { uriHandler.openUri("upi://pay?pa=shrivatsav@slc&pn=Sharan%20Shrivatsav&mode=02") }
-                    ) {
-                        Icon(Icons.Rounded.Payments, contentDescription = null, modifier = Modifier.size(22.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    SupportCard(
-                        modifier = Modifier.weight(1f),
                         label = "Star on GitHub",
                         onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }
                     ) {
                         Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
-                    SupportCard(
-                        modifier = Modifier.weight(1f),
-                        label = "Join Discord",
-                        onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }
-                    ) {
-                        Icon(Icons.Rounded.HeadsetMic, contentDescription = null, modifier = Modifier.size(22.dp))
-                    }
+                }
+                Spacer(Modifier.height(10.dp))
+
+                SupportCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    label = "Join Discord",
+                    onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }
+                ) {
+                    Icon(
+                        imageVector = remember {
+                            ImageVector.Builder(
+                                name = "Discord",
+                            defaultWidth = 22.dp,
+                            defaultHeight = 22.dp,
+                            viewportWidth = 24f,
+                            viewportHeight = 24f
+                        ).addPath(
+                            fill = SolidColor(Color.Black),
+                            pathData = addPathNodes(
+                                "M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"
+                            )
+                        ).build()
+                    },
+                        contentDescription = null,
+                        modifier = Modifier.size(22.dp),
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(Modifier.height(18.dp))
 
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
 
-                // Secondary actions — icon-only row, tooltip-style
+                // ── Secondary actions ──────────────────────────────────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
@@ -772,14 +844,21 @@ fun InboxScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(Modifier.height(18.dp))
 
+                // ── Get Started ────────────────────────────────────────
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End
                 ) {
-                    TextButton(onClick = { viewModel.dismissWelcomePrompt() }) {
-                        Text("Get Started")
+                    FilledTonalButton(
+                        onClick = { viewModel.dismissWelcomePrompt() },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(
+                            "Get Started",
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
@@ -1547,3 +1626,26 @@ private fun OfflineBanner() {
         )
     }
 }
+
+// ── Release notes data ──────────────────────────────────────────────────
+
+private data class ReleaseNotes(
+    val version: String,
+    val changes: List<String>
+)
+
+private val allReleaseNotes = listOf(
+    ReleaseNotes(version = "1.7.24", changes = listOf(
+        "Optimized build times with configuration caching",
+        "Fixed MSAL sign-in for release builds",
+        "Enhanced FAB positioning in dock bar",
+        "Improved Discord icon theming",
+        "Various UI polish and bug fixes"
+    )),
+    ReleaseNotes(version = "1.7.23", changes = listOf(
+        "Redesigned bottom dock bar with custom layout options",
+        "Added template-backed scheduled send",
+        "Improved swipe gesture responsiveness",
+        "Enhanced tablet layout support"
+    ))
+)

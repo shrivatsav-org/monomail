@@ -62,7 +62,7 @@ internal fun SupportSettingsScreen(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                         )
                     ) {
-                        Icon(painter = discordIcon, contentDescription = "Discord", tint = Color.Unspecified)
+                        Icon(painter = discordIcon, contentDescription = "Discord", tint = MaterialTheme.colorScheme.onSurface)
                     }
                     IconButton(
                         onClick = {

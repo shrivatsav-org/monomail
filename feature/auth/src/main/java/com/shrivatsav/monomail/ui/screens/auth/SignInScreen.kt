@@ -391,11 +391,9 @@ fun ProviderSelectionDialog(
                     viewModel.signIn(context)
                 },
                 onMicrosoftSignIn = {
-                    if (com.shrivatsav.monomail.feature.auth.BuildConfig.DEBUG) {
-                        context.findActivity()?.let { activity ->
-                            viewModel.signInMicrosoft(activity)
-                        } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
-                    }
+                    context.findActivity()?.let { activity ->
+                        viewModel.signInMicrosoft(activity)
+                    } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
                 },
                 onImapClick = onNavigateToImapSetup
             )

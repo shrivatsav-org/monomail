@@ -56,6 +56,9 @@ class SettingsViewModel @Inject constructor(
     fun setDeveloperMode(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setDeveloperMode(enabled) }
     fun setShowInlineAttachments(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowInlineAttachments(enabled) }
     fun setShowMarkAllRead(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowMarkAllRead(enabled) }
+    fun resetWelcomePrompt() = viewModelScope.launch {
+        settingsDataStore.setHasSeenWelcomePrompt(false)
+    }
     val templates = settingsDataStore.templatesFlow
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun saveTemplates(templates: List<EmailTemplate>) = viewModelScope.launch {

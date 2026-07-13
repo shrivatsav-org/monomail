@@ -22,6 +22,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import com.shrivatsav.monomail.data.settings.DockConfig
 import com.shrivatsav.monomail.data.settings.DockTabId
 import com.shrivatsav.monomail.data.settings.AppSettings
@@ -39,23 +41,49 @@ internal fun BottomDockBar(
     val allTabs = DockTabId.entries.filter { it != DockTabId.UNIFIED }
     val primaryIds = dockConfig.primaryTabs
     val remainingIds = allTabs.filter { it !in primaryIds }
+    var dockRowHeightPx by remember { mutableStateOf(0f) }
+    val density = LocalDensity.current
 
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
         modifier = Modifier.wrapContentSize()
     ) {
-        RemainingTabsPopup(
-            visible = showRemainingTabs,
-            remainingIds = remainingIds,
-            currentTab = currentTab,
-            unifiedInboxEnabled = unifiedInboxEnabled,
-            navScale = appSettings.navScale,
-            onTabClick = { tab ->
-                onTabClick(tab)
-                showRemainingTabs = false
+        AnimatedVisibility(
+            visible = showRemainingTabs && remainingIds.isNotEmpty(),
+            enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(MonoTween.fadeIn),
+            exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(MonoTween.fadeOut),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = (dockRowHeightPx / density.density).dp + 8.dp)
+        ) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.surfaceContainer,
+                shadowElevation = 8.dp,
+            ) {
+                Row(modifier = Modifier.padding(4.dp)) {
+                    remainingIds.forEach { dockTabId ->
+                        val tab = dockTabId.toInboxTab()
+                        RemainingTabItem(
+                            icon = dockTabId.icon(unifiedInboxEnabled),
+                            label = dockTabId.label(unifiedInboxEnabled),
+                            isActive = tab == currentTab,
+                            onClick = {
+                                onTabClick(tab)
+                                showRemainingTabs = false
+                            },
+                            scale = appSettings.navScale,
+                            modifier = Modifier.width((76 * appSettings.navScale).dp)
+                        )
+                    }
+                }
             }
-        )
+        }
         Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .onGloballyPositioned { coordinates ->
+                    dockRowHeightPx = coordinates.size.height.toFloat()
+                },
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -77,42 +105,6 @@ internal fun BottomDockBar(
     }
 }
 
-@Composable
-private fun RemainingTabsPopup(
-    visible: Boolean,
-    remainingIds: List<DockTabId>,
-    currentTab: InboxTab,
-    unifiedInboxEnabled: Boolean,
-    navScale: Float,
-    onTabClick: (InboxTab) -> Unit,
-) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(MonoTween.fadeIn),
-        exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(MonoTween.fadeOut)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(20.dp),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            shadowElevation = 8.dp,
-            modifier = Modifier.padding(bottom = 8.dp)
-        ) {
-            Row(modifier = Modifier.padding(4.dp)) { // intentional: horizontal layout fits dock bar orientation
-                remainingIds.forEach { dockTabId ->
-                    val tab = dockTabId.toInboxTab()
-                    RemainingTabItem(
-                        icon = dockTabId.icon(unifiedInboxEnabled),
-                        label = dockTabId.label(unifiedInboxEnabled),
-                        isActive = tab == currentTab,
-                        onClick = { onTabClick(tab) },
-                        scale = navScale,
-                        modifier = Modifier.width((76 * navScale).dp)
-                    )
-                }
-            }
-        }
-    }
-}
 
 @Composable
 private fun PrimaryDockRow(

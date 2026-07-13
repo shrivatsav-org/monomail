@@ -210,29 +210,43 @@ jobs:
       - name: Generate release notes
         env:
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           PROMPT=$(cat <<'EOF'
           Write concise, user-facing GitHub release notes.
-
+          
           Group changes under:
           - Features
           - Bug Fixes
           - Maintenance
-
+          
           Omit any empty section.
-
+          
           Use ONLY the commits below.
           Don't invent features.
           Output Markdown only.
-
-          Commits:
           EOF
           )
-
+          
+          if [ -n "$PR_TITLE" ]; then
+            PROMPT="$PROMPT
+          
+          PR Title: $PR_TITLE"
+            if [ -n "$PR_BODY" ]; then
+              PROMPT="$PROMPT
+          
+          PR Description:
+          $PR_BODY"
+            fi
+          fi
+          
           PROMPT="$PROMPT
-
+          
+          Commits:
+          
           $(cat commit_log.txt)"
-
+          
           opencode run "$PROMPT" \
             --model opencode/mimo-v2.5-free \
             --print-logs \
