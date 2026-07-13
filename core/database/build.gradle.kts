@@ -14,6 +14,17 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 
+    flavorDimensions += "distribution"
+
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+        }
+        create("playstore") {
+            dimension = "distribution"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false

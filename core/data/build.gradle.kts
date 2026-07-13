@@ -14,6 +14,17 @@ android {
         consumerProguardFiles("consumer-rules.pro")
     }
 
+    flavorDimensions += "distribution"
+
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+        }
+        create("playstore") {
+            dimension = "distribution"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -44,10 +55,10 @@ dependencies {
     implementation(libs.androidx.work.runtime)
 
     // Auth dependencies
-    implementation(libs.androidx.credentials)
-    implementation(libs.androidx.credentials.play.services)
-    implementation(libs.google.identity.googleid)
-    implementation(libs.google.play.services.auth)
+    "playstoreImplementation"(libs.androidx.credentials)
+    "playstoreImplementation"(libs.androidx.credentials.play.services)
+    "playstoreImplementation"(libs.google.identity.googleid)
+    "playstoreImplementation"(libs.google.play.services.auth)
 
     // Room
     implementation(libs.androidx.room.runtime)

@@ -184,8 +184,11 @@ private fun handleGoogleSignIn(
     onGithub: () -> Unit,
     onOther: () -> Unit
 ) {
-    // TODO: Move IS_GITHUB_BUILD logic to a core configuration provider
-    onOther()
+    if (com.shrivatsav.monomail.feature.auth.BuildConfig.IS_GITHUB_BUILD) {
+        onGithub()
+    } else {
+        onOther()
+    }
 }
 
 private fun handleMicrosoftSignIn(context: Context, onSignIn: (android.app.Activity) -> Unit) {
@@ -387,8 +390,10 @@ fun ProviderSelectionDialog(
             ProviderButtons(
                 state = state,
                 onGoogleSignIn = {
-                    // TODO: Move IS_GITHUB_BUILD logic to a core configuration provider
-                    viewModel.signIn(context)
+                    handleGoogleSignIn(
+                        onGithub = { showVerificationModal = true },
+                        onOther = { viewModel.signIn(context) }
+                    )
                 },
                 onMicrosoftSignIn = {
                     context.findActivity()?.let { activity ->
