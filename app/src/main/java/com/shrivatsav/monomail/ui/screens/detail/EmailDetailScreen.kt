@@ -14,6 +14,7 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
@@ -80,6 +81,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -88,6 +90,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.text.font.FontWeight
@@ -107,7 +110,9 @@ import androidx.webkit.WebViewFeature
 import com.shrivatsav.monomail.ui.theme.MonoTween
 
 import androidx.compose.material3.ModalBottomSheet
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -769,7 +774,8 @@ private fun MessageBodyContent(
         val screenWidthDp = LocalConfiguration.current.screenWidthDp
         ((screenWidthDp - 56).toFloat() / 600f).coerceIn(0.3f, 1.0f)
     } else 1.0f
-    val htmlContent = remember(
+    var htmlContent by remember { mutableStateOf("") }
+    LaunchedEffect(
         email.id,
         safeBodyText,
         config.fontScaleMultiplier,
@@ -781,22 +787,24 @@ private fun MessageBodyContent(
         useOverviewScaling,
         emailZoomFactor
     ) {
-        buildEmailHtml(
-            email,
-            safeBodyText,
-            bodyIsHtml,
-            config.fontScaleMultiplier,
-            HtmlBuildParams(
-                showQuotedText,
-                config.showInlineAttachments,
-                config.loadRemoteImages,
-                showRemoteImages,
-                useOverviewScaling,
-                emailZoomFactor,
-                textColor,
-                linkColor
+        htmlContent = withContext(Dispatchers.Default) {
+            buildEmailHtml(
+                email,
+                safeBodyText,
+                bodyIsHtml,
+                config.fontScaleMultiplier,
+                HtmlBuildParams(
+                    showQuotedText,
+                    config.showInlineAttachments,
+                    config.loadRemoteImages,
+                    showRemoteImages,
+                    useOverviewScaling,
+                    emailZoomFactor,
+                    textColor,
+                    linkColor
+                )
             )
-        )
+        }
     }
     EmailWebViewCard(email.id, htmlContent, config.emailTheme, useOverviewScaling)
     if (hasQuotedText) {
@@ -1063,6 +1071,12 @@ private fun EmailWebViewCard(
     emailTheme: EmailTheme,
     useOverviewScaling: Boolean
 ) {
+    var isLoaded by remember(emailId) { mutableStateOf(false) }
+    val alpha by animateFloatAsState(
+        targetValue = if (isLoaded) 1f else 0f,
+        animationSpec = tween(300),
+        label = "WebViewFade"
+    )
     var emailContentWebView by remember { mutableStateOf<WebView?>(null) }
     DisposableEffect(emailId) {
         onDispose { emailContentWebView?.apply { removeAllViews(); destroy() }; emailContentWebView = null }
@@ -1080,13 +1094,14 @@ private fun EmailWebViewCard(
     Column {
         AndroidView(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(16.dp)).background(cardBgColor, RoundedCornerShape(16.dp)).padding(12.dp),
+                .clip(RoundedCornerShape(16.dp)).background(cardBgColor, RoundedCornerShape(16.dp)).padding(12.dp)
+                .alpha(alpha),
             factory = { context ->
                 WebView(context).apply {
                     emailContentWebView = this
                     configureWebView(this)
                     setOnTouchListener(createTouchHandler())
-                    webViewClient = createWebViewClient(context)
+                    webViewClient = createWebViewClient(context) { isLoaded = true }
                 }
             },
             update = { webView ->
@@ -1154,7 +1169,7 @@ private fun createTouchHandler(): android.view.View.OnTouchListener {
     }
 }
 
-private fun createWebViewClient(context: android.content.Context) = object : android.webkit.WebViewClient() {
+private fun createWebViewClient(context: android.content.Context, onPageFinished: () -> Unit = {}) = object : android.webkit.WebViewClient() {
     override fun shouldOverrideUrlLoading(
         view: android.webkit.WebView?,
         request: android.webkit.WebResourceRequest?
@@ -1169,6 +1184,11 @@ private fun createWebViewClient(context: android.content.Context) = object : and
             }
         }
         return super.shouldOverrideUrlLoading(view, request)
+    }
+
+    override fun onPageFinished(view: android.webkit.WebView?, url: String?) {
+        super.onPageFinished(view, url)
+        onPageFinished()
     }
 
     override fun onReceivedError(
