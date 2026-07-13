@@ -741,17 +741,13 @@ internal fun SyncFrequency.displayName() = when (this) {
 internal fun UndoSendWindow.displayName() = "${seconds}s"
 
 internal fun EmailTheme.displayName() = when (this) {
-    EmailTheme.AUTO        -> "Auto"
-    EmailTheme.FORCE_DARK  -> "Dark"
-    EmailTheme.FORCE_LIGHT -> "Light"
-    EmailTheme.ORIGINAL    -> "Original"
+    EmailTheme.AUTO     -> "Auto"
+    EmailTheme.ORIGINAL -> "Original"
 }
 
 internal fun EmailTheme.description() = when (this) {
-    EmailTheme.AUTO        -> "Adapt simple emails to the app theme; show styled emails as sent"
-    EmailTheme.FORCE_DARK  -> "Tint email backgrounds to match the app's dark theme"
-    EmailTheme.FORCE_LIGHT -> "Always show emails on a light background with dark text"
-    EmailTheme.ORIGINAL    -> "Always show the sender's original colors on a light background"
+    EmailTheme.AUTO     -> "Adapt simple emails to the app theme; show styled emails as sent"
+    EmailTheme.ORIGINAL -> "Always show the sender's original colors on a light background"
 }
 
 // ── Templates Card ───────────────────────────────────────────────────
