@@ -6,7 +6,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
-import com.shrivatsav.monomail.R
+import com.shrivatsav.monomail.core.designsystem.R
 private val fontFamilyCache = LruCache<String, FontFamily>(10)
 @OptIn(ExperimentalTextApi::class)
 fun googleSansFlex(rond: Float = 0f): FontFamily {

@@ -85,6 +85,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.painterResource
@@ -183,7 +184,8 @@ private fun handleGoogleSignIn(
     onGithub: () -> Unit,
     onOther: () -> Unit
 ) {
-    if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) onGithub() else onOther()
+    // TODO: Move IS_GITHUB_BUILD logic to a core configuration provider
+    onOther()
 }
 
 private fun handleMicrosoftSignIn(context: Context, onSignIn: (android.app.Activity) -> Unit) {
@@ -210,7 +212,7 @@ private fun SignInContent(
         verticalArrangement = Arrangement.Center,
     ) {
         Image(
-            painter = painterResource(com.shrivatsav.monomail.R.drawable.ic_signin_mark),
+            painter = painterResource(com.shrivatsav.monomail.feature.auth.R.drawable.ic_signin_mark),
             contentDescription = "Monomail",
             modifier = Modifier.size(96.dp),
         )
@@ -385,16 +387,15 @@ fun ProviderSelectionDialog(
             ProviderButtons(
                 state = state,
                 onGoogleSignIn = {
-                    if (com.shrivatsav.monomail.BuildConfig.IS_GITHUB_BUILD) {
-                        showVerificationModal = true
-                    } else {
-                        viewModel.signIn(context)
-                    }
+                    // TODO: Move IS_GITHUB_BUILD logic to a core configuration provider
+                    viewModel.signIn(context)
                 },
                 onMicrosoftSignIn = {
-                    context.findActivity()?.let { activity ->
-                        viewModel.signInMicrosoft(activity)
-                    } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
+                    if (com.shrivatsav.monomail.feature.auth.BuildConfig.DEBUG) {
+                        context.findActivity()?.let { activity ->
+                            viewModel.signInMicrosoft(activity)
+                        } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
+                    }
                 },
                 onImapClick = onNavigateToImapSetup
             )

@@ -129,8 +129,9 @@ private fun ReauthDialog(
         confirmButton = {
             Column {
                 TextButton(onClick = {
-                    if (reauth.intent != null) {
-                        launcher.launch(reauth.intent)
+                    val intent = reauth.intent
+                    if (intent != null) {
+                        launcher.launch(intent)
                     } else {
                         scope.launch {
                             authManager.dismissReauth()

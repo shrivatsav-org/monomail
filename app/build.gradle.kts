@@ -154,6 +154,11 @@ dependencies {
 
     // Local modules
     implementation(project(":core:model"))
+    implementation(project(":core:designsystem"))
+    implementation(project(":core:database"))
+    implementation(project(":core:pgp"))
+    implementation(project(":core:data"))
+    implementation(project(":feature:auth"))
 
     // Networking (now decoupled)
     implementation(project(":core:network"))

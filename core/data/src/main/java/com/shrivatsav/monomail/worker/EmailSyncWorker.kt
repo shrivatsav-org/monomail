@@ -20,7 +20,6 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.shrivatsav.monomail.MainActivity
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
@@ -153,9 +152,9 @@ class EmailSyncWorker @AssistedInject constructor(
         Log.i(TAG, "Creating notification channel and building notification for $accountId...")
         createNotificationChannel(context, accountId, thread.from)
 
-        val openIntent = Intent(context, MainActivity::class.java).apply {
+        val openIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
+        } ?: Intent()
         val openPendingIntent = PendingIntent.getActivity(
             context, 0, openIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -203,7 +202,7 @@ class EmailSyncWorker @AssistedInject constructor(
         val cleanSnippet = thread.snippet.replace(Regex("\\bOn\\s+[A-Z][a-z]{2},.*?wrote:.*"), "").trim()
         val channelId = channelIdForAccount(accountId)
         val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(com.shrivatsav.monomail.R.drawable.ic_notification_leaf)
+            .setSmallIcon(android.R.drawable.ic_dialog_email)
             .setContentTitle(thread.from)
             .setContentText(thread.subject)
             .setStyle(
