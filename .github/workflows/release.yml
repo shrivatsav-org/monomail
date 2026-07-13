@@ -169,7 +169,7 @@ jobs:
           else
             echo "VERSION=${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
             echo "TAG=v${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
-            PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
+            PREV_TAG="v${{ steps.version.outputs.OLD_VERSION }}"
             echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
           fi
 
