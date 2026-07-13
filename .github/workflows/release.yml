@@ -209,6 +209,7 @@ jobs:
 
       - name: Generate release notes
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENCODE_API_KEY: ${{ secrets.OPENCODE_API_KEY }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -238,6 +239,22 @@ jobs:
           
           PR Description:
           $PR_BODY"
+            fi
+          else
+            # workflow_dispatch — fetch latest merged PR for context
+            LATEST_PR=$(gh pr list --state merged --limit 1 --json title,body --jq '.[0]' 2>/dev/null || true)
+            if [ -n "$LATEST_PR" ]; then
+              PR_TITLE_FETCHED=$(echo "$LATEST_PR" | jq -r '.title')
+              PR_BODY_FETCHED=$(echo "$LATEST_PR" | jq -r '.body // ""')
+              PROMPT="$PROMPT
+          
+          PR Title: $PR_TITLE_FETCHED"
+              if [ -n "$PR_BODY_FETCHED" ]; then
+                PROMPT="$PROMPT
+          
+          PR Description:
+          $PR_BODY_FETCHED"
+              fi
             fi
           fi
           
