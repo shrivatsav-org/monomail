@@ -130,10 +130,15 @@ private fun SettingsHubScreen(
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val buildFlavorName = if (com.shrivatsav.monomail.model.AppConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
     val buildTypeName = if (com.shrivatsav.monomail.model.AppConfig.DEBUG) "Debug" else "Release"
+    val versionName = remember {
+        try {
+            context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"
+        } catch (_: Exception) { "1.0.0" }
+    }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
-
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -173,12 +178,11 @@ private fun SettingsHubScreen(
                 )
             }
 
-            Spacer(Modifier.height(16.dp))
             SettingsCard {
                 InfoRow(
                     icon = Icons.Rounded.Info,
                     title = "Version",
-                    value = "${com.shrivatsav.monomail.model.AppConfig.VERSION_NAME} ($buildFlavorName $buildTypeName)"
+                    value = "$versionName ($buildFlavorName $buildTypeName)"
                 )
                 CardDivider()
                 InfoRow(
