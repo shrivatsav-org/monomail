@@ -232,7 +232,7 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
     }
 
     val kofiIcon = remember {
-        android.graphics.BitmapFactory.decodeStream(context.resources.openRawResource(com.shrivatsav.monomail.feature.auth.R.raw.kofi))
+        android.graphics.BitmapFactory.decodeStream(context.resources.openRawResource(com.shrivatsav.monomail.core.designsystem.R.raw.kofi))
             ?.asImageBitmap()?.let { androidx.compose.ui.graphics.painter.BitmapPainter(it) }
     }
 

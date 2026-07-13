@@ -60,6 +60,7 @@ dependencies {
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
     implementation(libs.hilt.work)
+    ksp(libs.hilt.work.compiler)
     
     // Gson
     implementation("com.google.code.gson:gson:2.10.1")

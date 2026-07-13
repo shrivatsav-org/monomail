@@ -13,7 +13,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles("consumer-rules.pro")
         
-        val googleClientId = project.findProperty("GOOGLE_CLIENT_ID") as? String ?: ""
+        val secretsFile = rootProject.file("secrets.properties")
+        val googleClientId = if (secretsFile.exists()) {
+            secretsFile.readLines().firstOrNull { it.startsWith("GOOGLE_CLIENT_ID=") }?.substringAfter("=") ?: ""
+        } else ""
         buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
     }
 
