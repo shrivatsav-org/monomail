@@ -22,7 +22,7 @@ import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.shrivatsav.monomail.auth.AccountManager
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import com.shrivatsav.monomail.model.InboxTab
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers

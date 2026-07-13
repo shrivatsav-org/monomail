@@ -8,7 +8,7 @@ import com.shrivatsav.monomail.auth.AuthManager
 import com.shrivatsav.monomail.auth.SignInResult
 import com.shrivatsav.monomail.auth.UserProfile
 import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import com.shrivatsav.monomail.model.InboxTab
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

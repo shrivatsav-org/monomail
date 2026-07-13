@@ -26,7 +26,7 @@ import com.shrivatsav.monomail.data.provider.ResourceNotFoundException
 import com.shrivatsav.monomail.data.provider.SendAsAlias
 import com.shrivatsav.monomail.data.provider.SendEmailOptions
 import com.shrivatsav.monomail.data.remote.RetrofitClient
-import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import com.shrivatsav.monomail.model.InboxTab
 import com.shrivatsav.monomail.util.cleanSubject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow

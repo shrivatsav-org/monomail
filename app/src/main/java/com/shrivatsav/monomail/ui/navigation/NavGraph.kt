@@ -42,20 +42,20 @@ import com.shrivatsav.monomail.ui.screens.auth.ImapSetupScreen
 import com.shrivatsav.monomail.ui.screens.auth.ImapSetupViewModel
 import com.shrivatsav.monomail.ui.screens.auth.SignInScreen
 import com.shrivatsav.monomail.ui.screens.auth.SignInViewModel
-import com.shrivatsav.monomail.ui.screens.compose.ComposeMode
-import com.shrivatsav.monomail.ui.screens.compose.ComposeScreen
-import com.shrivatsav.monomail.ui.screens.compose.ComposeViewModel
-import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
-import com.shrivatsav.monomail.ui.screens.detail.EmailDetailScreen
-import com.shrivatsav.monomail.ui.screens.detail.EmailDetailViewModel
-import com.shrivatsav.monomail.ui.screens.inbox.InboxScreen
-import com.shrivatsav.monomail.ui.screens.inbox.InboxNavActions
-import com.shrivatsav.monomail.ui.screens.inbox.InboxViewModel
+import com.shrivatsav.monomail.feature.compose.ComposeMode
+import com.shrivatsav.monomail.feature.compose.ComposeScreen
+import com.shrivatsav.monomail.feature.compose.ComposeViewModel
+import com.shrivatsav.monomail.model.InboxTab
+import com.shrivatsav.monomail.feature.detail.EmailDetailScreen
+import com.shrivatsav.monomail.feature.detail.EmailDetailViewModel
+import com.shrivatsav.monomail.feature.inbox.InboxScreen
+import com.shrivatsav.monomail.feature.inbox.InboxNavActions
+import com.shrivatsav.monomail.feature.inbox.InboxViewModel
 import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesScreen
 import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
 import com.shrivatsav.monomail.ui.screens.pgp.PgpKeyManagementScreen
-import com.shrivatsav.monomail.ui.screens.settings.SettingsScreen
-import com.shrivatsav.monomail.ui.screens.settings.SettingsViewModel
+import com.shrivatsav.monomail.feature.settings.SettingsScreen
+import com.shrivatsav.monomail.feature.settings.SettingsViewModel
 
 sealed class Screen(val route: String) {
     object Onboarding   : Screen("onboarding")
@@ -350,7 +350,7 @@ fun NavGraph(
                 arguments = listOf(navArgument("type") { type = NavType.StringType })
             ) { backStackEntry ->
                 val type = backStackEntry.arguments?.getString("type") ?: "privacy"
-                com.shrivatsav.monomail.ui.screens.settings.LegalScreen(
+                com.shrivatsav.monomail.feature.settings.LegalScreen(
                     type = type,
                     onNavigateBack = { navController.popBackStack() }
                 )

@@ -159,6 +159,10 @@ dependencies {
     implementation(project(":core:pgp"))
     implementation(project(":core:data"))
     implementation(project(":feature:auth"))
+    implementation(project(":feature:inbox"))
+    implementation(project(":feature:detail"))
+    implementation(project(":feature:compose"))
+    implementation(project(":feature:settings"))
 
     // Networking (now decoupled)
     implementation(project(":core:network"))

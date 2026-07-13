@@ -10,7 +10,7 @@ import com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig
 import com.shrivatsav.monomail.data.provider.imap.ImapProvider
 import com.shrivatsav.monomail.data.repository.EmailRepository
 import com.shrivatsav.monomail.security.SecurityUtil
-import com.shrivatsav.monomail.ui.screens.inbox.InboxTab
+import com.shrivatsav.monomail.model.InboxTab
 import dagger.hilt.android.lifecycle.HiltViewModel
 import jakarta.mail.AuthenticationFailedException
 import jakarta.mail.MessagingException
