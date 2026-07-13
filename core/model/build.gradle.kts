@@ -19,4 +19,7 @@ android {
 dependencies {
     // Basic Android dependencies since we use android.net.Uri
     implementation(libs.androidx.core.ktx)
+
+    // Gson
+    implementation("com.google.code.gson:gson:2.10.1")
 }
