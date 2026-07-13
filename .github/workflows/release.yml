@@ -225,6 +225,7 @@ jobs:
           Omit any empty section.
           
           Use ONLY the commits below.
+          Use the previous release notes for tone and continuity.
           Don't invent features.
           Output Markdown only.
           EOF
@@ -256,6 +257,15 @@ jobs:
           $PR_BODY_FETCHED"
               fi
             fi
+          fi
+          
+          # Include previous release notes for continuity
+          PREV_NOTES=$(gh release view "${{ steps.resolved.outputs.PREV_TAG }}" --json body --jq '.body' 2>/dev/null || echo "")
+          if [ -n "$PREV_NOTES" ]; then
+            PROMPT="$PROMPT
+          
+          Previous Release Notes:
+          $PREV_NOTES"
           fi
           
           PROMPT="$PROMPT
