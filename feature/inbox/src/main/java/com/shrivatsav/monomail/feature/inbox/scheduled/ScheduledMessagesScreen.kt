@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.ui.screens.scheduled
+package com.shrivatsav.monomail.feature.inbox.scheduled
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn

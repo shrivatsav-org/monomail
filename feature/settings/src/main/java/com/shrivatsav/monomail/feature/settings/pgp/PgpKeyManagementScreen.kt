@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.ui.screens.pgp
+package com.shrivatsav.monomail.feature.settings.pgp
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.background

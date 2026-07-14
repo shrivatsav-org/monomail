@@ -52,9 +52,9 @@ import com.shrivatsav.monomail.feature.detail.EmailDetailViewModel
 import com.shrivatsav.monomail.feature.inbox.InboxScreen
 import com.shrivatsav.monomail.feature.inbox.InboxNavActions
 import com.shrivatsav.monomail.feature.inbox.InboxViewModel
-import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesScreen
-import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
-import com.shrivatsav.monomail.ui.screens.pgp.PgpKeyManagementScreen
+import com.shrivatsav.monomail.feature.inbox.scheduled.ScheduledMessagesScreen
+import com.shrivatsav.monomail.feature.inbox.scheduled.ScheduledMessagesViewModel
+import com.shrivatsav.monomail.feature.settings.pgp.PgpKeyManagementScreen
 import com.shrivatsav.monomail.feature.settings.SettingsScreen
 import com.shrivatsav.monomail.feature.settings.SettingsViewModel
 
