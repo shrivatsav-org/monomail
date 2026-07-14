@@ -117,8 +117,8 @@ private fun ModalContentBody(
     ) {
         when (modal) {
             ModalType.ADD_ACCOUNT -> {
-                val vm: com.shrivatsav.monomail.ui.screens.auth.SignInViewModel = hiltViewModel()
-                com.shrivatsav.monomail.ui.screens.auth.ProviderSelectionDialog(
+                val vm: com.shrivatsav.monomail.feature.auth.SignInViewModel = hiltViewModel()
+                com.shrivatsav.monomail.feature.auth.ProviderSelectionDialog(
                     viewModel = vm,
                     onSuccess = { callbacks.onDismiss() },
                     onNavigateToImapSetup = callbacks.onNavigateToImapSetup

@@ -1,6 +1,6 @@
 package com.shrivatsav.monomail.di
 
-import com.shrivatsav.monomail.push.PushNotificationManager
+import com.shrivatsav.monomail.core.data.push.PushNotificationManager
 import com.shrivatsav.monomail.push.PushNotificationManagerImpl
 import dagger.Module
 import dagger.Provides

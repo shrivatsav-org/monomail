@@ -27,7 +27,7 @@ import com.shrivatsav.monomail.core.data.settings.FontScale
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.ui.navigation.NavGraph
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
-import com.shrivatsav.monomail.worker.EmailSyncWorker
+import com.shrivatsav.monomail.core.data.worker.EmailSyncWorker
 import com.shrivatsav.monomail.worker.GraphSubscriptionRenewalWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope

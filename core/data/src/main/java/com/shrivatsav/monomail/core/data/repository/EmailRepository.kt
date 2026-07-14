@@ -7,7 +7,7 @@ import androidx.room.withTransaction
 import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
-import com.shrivatsav.monomail.worker.ScheduledSendWorker
+import com.shrivatsav.monomail.core.data.worker.ScheduledSendWorker
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import com.google.gson.Gson

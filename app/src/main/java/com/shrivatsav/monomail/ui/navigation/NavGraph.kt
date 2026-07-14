@@ -251,7 +251,7 @@ fun NavGraph(
         ) {
             composable(Screen.Onboarding.route) {
                 val onboardingScope = androidx.compose.runtime.rememberCoroutineScope()
-                com.shrivatsav.monomail.ui.screens.auth.OnboardingScreen(
+                com.shrivatsav.monomail.feature.auth.OnboardingScreen(
                     onFinishOnboarding = {
                         onboardingScope.launch {
                             settingsDataStore.setHasSeenWelcomePrompt(true)
