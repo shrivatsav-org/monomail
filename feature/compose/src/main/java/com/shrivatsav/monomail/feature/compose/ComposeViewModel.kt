@@ -7,7 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.ScheduledEmailEvent
 import com.shrivatsav.monomail.SentEmailEvent
-import com.shrivatsav.monomail.auth.AuthManager
+import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.pgp.PgpManager
 import com.shrivatsav.monomail.data.pgp.PgpKeyInfo
@@ -17,7 +17,7 @@ import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.core.data.repository.SendEmailParams
 import com.shrivatsav.monomail.core.data.repository.ScheduleSendParams
 import com.shrivatsav.monomail.core.data.repository.suggestContacts
-import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -59,7 +59,7 @@ data class ComposeUiState(
     val hasEncryptionKeys: Boolean = false,
     val hasSigningKeys: Boolean = false,
     val unifiedMode: Boolean = false,
-    val allAccounts: List<com.shrivatsav.monomail.auth.UserProfile> = emptyList()
+    val allAccounts: List<com.shrivatsav.monomail.core.data.auth.UserProfile> = emptyList()
 )
 
 @HiltViewModel
@@ -192,7 +192,7 @@ class ComposeViewModel @Inject constructor(
         _state.value = _state.value.copy(from = alias.email, showFromDropdown = false)
     }
 
-    fun selectAccount(account: com.shrivatsav.monomail.auth.UserProfile) {
+    fun selectAccount(account: com.shrivatsav.monomail.core.data.auth.UserProfile) {
         _state.value = _state.value.copy(from = account.email, showFromDropdown = false)
     }
 

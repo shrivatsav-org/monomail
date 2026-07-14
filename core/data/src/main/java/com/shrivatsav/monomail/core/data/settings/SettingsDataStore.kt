@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.data.settings
+package com.shrivatsav.monomail.core.data.settings
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*

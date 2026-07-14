@@ -154,7 +154,7 @@ private fun resolveAttachmentMimeType(contentResolver: android.content.ContentRe
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TemplatesModal(
-    templates: List<com.shrivatsav.monomail.data.settings.EmailTemplate>,
+    templates: List<com.shrivatsav.monomail.core.data.settings.EmailTemplate>,
     onDismiss: () -> Unit,
     onApply: (String, String) -> Unit
 ) {
@@ -721,7 +721,7 @@ private fun FromFieldSection(
     state: ComposeUiState,
     onToggleCcBcc: () -> Unit,
     onSelectAlias: (SendAsAlias) -> Unit,
-    onSelectAccount: (com.shrivatsav.monomail.auth.UserProfile) -> Unit,
+    onSelectAccount: (com.shrivatsav.monomail.core.data.auth.UserProfile) -> Unit,
     onToggleFromDropdown: () -> Unit,
     onDismissFromDropdown: () -> Unit
 ) {

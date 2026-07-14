@@ -36,9 +36,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.shrivatsav.monomail.auth.AuthManager
+import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
-import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.feature.auth.ImapSetupScreen
 import com.shrivatsav.monomail.feature.auth.ImapSetupViewModel
 import com.shrivatsav.monomail.feature.auth.SignInScreen

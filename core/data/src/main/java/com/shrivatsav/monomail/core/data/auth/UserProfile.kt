@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.auth
+package com.shrivatsav.monomail.core.data.auth
 data class UserProfile(
     val id: String,
     val displayName: String,

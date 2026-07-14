@@ -25,8 +25,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.offset
-import com.shrivatsav.monomail.auth.UserProfile
-import com.shrivatsav.monomail.data.settings.SwipeAction
+import com.shrivatsav.monomail.core.data.auth.UserProfile
+import com.shrivatsav.monomail.core.data.settings.SwipeAction
 
 data class SearchBarActions(
     val onMarkAllRead: () -> Unit,

@@ -1,7 +1,7 @@
 package com.shrivatsav.monomail.push
 
 import android.util.Log
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 import javax.inject.Inject
 import javax.inject.Singleton
 

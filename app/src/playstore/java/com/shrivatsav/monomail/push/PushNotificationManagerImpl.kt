@@ -3,8 +3,8 @@ package com.shrivatsav.monomail.push
 import android.content.Context
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessaging
-import com.shrivatsav.monomail.auth.AccountManager
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.AccountManager
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.tasks.await
 import javax.inject.Inject

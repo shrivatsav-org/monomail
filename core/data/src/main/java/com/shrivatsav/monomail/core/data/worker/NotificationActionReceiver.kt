@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.worker
+package com.shrivatsav.monomail.core.data.worker
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -10,7 +10,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
-import com.shrivatsav.monomail.auth.AccountManager
+import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.core.data.repository.SendEmailParams
 import dagger.hilt.EntryPoint

@@ -2,7 +2,7 @@ package com.shrivatsav.monomail.feature.inbox.scheduled
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shrivatsav.monomail.auth.AuthManager
+import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.database.local.ScheduledMessageEntity
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import dagger.hilt.android.lifecycle.HiltViewModel

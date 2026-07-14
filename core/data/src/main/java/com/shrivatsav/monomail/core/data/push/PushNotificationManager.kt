@@ -1,6 +1,6 @@
-package com.shrivatsav.monomail.push
+package com.shrivatsav.monomail.core.data.push
 
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 
 interface PushNotificationManager {
     suspend fun registerForPushNotifications(account: UserProfile)

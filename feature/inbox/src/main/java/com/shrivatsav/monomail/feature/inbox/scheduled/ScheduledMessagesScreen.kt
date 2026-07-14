@@ -26,7 +26,7 @@ fun ScheduledMessagesScreen(
     viewModel: ScheduledMessagesViewModel,
     onBack: () -> Unit,
     onCompose: () -> Unit = {},
-    onEdit: (com.shrivatsav.monomail.data.local.ScheduledMessageEntity) -> Unit = {}
+    onEdit: (com.shrivatsav.monomail.core.database.local.ScheduledMessageEntity) -> Unit = {}
 ) {
     val messages by viewModel.messages.collectAsState()
 
@@ -108,7 +108,7 @@ fun ScheduledMessagesScreen(
 
 @Composable
 private fun ScheduledMessageItem(
-    message: com.shrivatsav.monomail.data.local.ScheduledMessageEntity,
+    message: com.shrivatsav.monomail.core.database.local.ScheduledMessageEntity,
     onCancel: () -> Unit,
     onEdit: () -> Unit = {}
 ) {

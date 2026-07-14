@@ -9,7 +9,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.shrivatsav.monomail.auth.AuthManager
+import com.shrivatsav.monomail.core.data.auth.AuthManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

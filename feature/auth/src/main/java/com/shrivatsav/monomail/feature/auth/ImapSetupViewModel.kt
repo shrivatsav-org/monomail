@@ -3,9 +3,9 @@ package com.shrivatsav.monomail.feature.auth
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shrivatsav.monomail.auth.AccountManager
-import com.shrivatsav.monomail.auth.AuthManager
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.AccountManager
+import com.shrivatsav.monomail.core.data.auth.AuthManager
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.core.network.provider.imap.ImapAccountConfig
 import com.shrivatsav.monomail.core.network.provider.imap.ImapProvider
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
@@ -128,7 +128,7 @@ class ImapSetupViewModel @Inject constructor(
 
             try {
                 val provider = ImapProvider(config, _password.value, context)
-                provider.listThreads(com.shrivatsav.monomail.data.provider.EmailFolder.INBOX, 1)
+                provider.listThreads(com.shrivatsav.monomail.core.network.provider.EmailFolder.INBOX, 1)
                 _testState.value = ImapTestState.Syncing
                 
                 saveAccountInternal(config, onSuccess)

@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.worker
+package com.shrivatsav.monomail.core.data.worker
 
 import android.Manifest
 import android.app.NotificationChannel
@@ -20,7 +20,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import com.shrivatsav.monomail.auth.AccountManager
+import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.model.InboxTab
 import dagger.assisted.Assisted
@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit
 class EmailSyncWorker @AssistedInject constructor(
     private val emailRepository: EmailRepository,
     private val accountManager: AccountManager,
-    private val settingsDataStore: com.shrivatsav.monomail.data.settings.SettingsDataStore,
+    private val settingsDataStore: com.shrivatsav.monomail.core.data.settings.SettingsDataStore,
     @Assisted appContext: Context,
     @Assisted workerParams: WorkerParameters
 ) : CoroutineWorker(appContext, workerParams) {
@@ -74,7 +74,7 @@ class EmailSyncWorker @AssistedInject constructor(
         return if (overallHasFailure && !overallHasAuthFailure) Result.retry() else Result.success()
     }
 
-    private suspend fun syncAccount(account: com.shrivatsav.monomail.auth.UserProfile): Pair<Boolean, Boolean> {
+    private suspend fun syncAccount(account: com.shrivatsav.monomail.core.data.auth.UserProfile): Pair<Boolean, Boolean> {
         val accountId = account.id
         val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
         Log.i("EmailSyncWorker", "Starting sync for account $accountId (lastKnownTimestamp: $lastKnownTimestamp)")

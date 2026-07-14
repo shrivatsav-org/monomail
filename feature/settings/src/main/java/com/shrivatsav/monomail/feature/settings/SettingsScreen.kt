@@ -46,7 +46,7 @@ enum class SettingsSection(val icon: ImageVector, val title: String, val subtitl
 @Composable
 fun SettingsScreen(
     viewModel: SettingsViewModel,
-    authManager: com.shrivatsav.monomail.auth.AuthManager,
+    authManager: com.shrivatsav.monomail.core.data.auth.AuthManager,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
     onNavigateToPgpKeys: () -> Unit = {}

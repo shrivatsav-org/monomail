@@ -30,7 +30,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 
 internal data class ProfileCardCallbacks(
     val onSignOut: () -> Unit,

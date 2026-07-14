@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.auth
+package com.shrivatsav.monomail.core.data.auth
 import android.accounts.Account
 import android.content.Context
 import android.content.Intent
@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import com.shrivatsav.monomail.push.PushNotificationManager
+import com.shrivatsav.monomail.core.data.push.PushNotificationManager
 
 data class ReauthInfo(val email: String, val provider: String, val intent: android.content.Intent? = null)
 sealed class SignInResult {
@@ -19,7 +19,7 @@ class AuthManager(
     private val context: Context,
     private val accountManager: AccountManager,
     private val pushNotificationManager: PushNotificationManager,
-    private val database: com.shrivatsav.monomail.data.local.AppDatabase
+    private val database: com.shrivatsav.monomail.core.database.local.AppDatabase
 ) {
     companion object {
         private const val TAG = "AuthManager"

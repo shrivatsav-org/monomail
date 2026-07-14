@@ -11,8 +11,8 @@ import com.shrivatsav.monomail.worker.ScheduledSendWorker
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import com.google.gson.Gson
-import com.shrivatsav.monomail.auth.AccountManager
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.AccountManager
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.core.database.local.*
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailAttachment
@@ -166,7 +166,7 @@ class EmailRepository(
     }
 
     private fun buildThreadEntity(
-        providerThread: com.shrivatsav.monomail.data.provider.ProviderThread,
+        providerThread: com.shrivatsav.monomail.core.network.provider.ProviderThread,
         targetAccountId: String,
         existingSnippets: Map<String, ThreadSnippetProjection>,
         existingThreadReadStatuses: Map<String, Boolean>,
@@ -207,7 +207,7 @@ class EmailRepository(
     }
 
     private fun buildEmailEntities(
-        listResponse: com.shrivatsav.monomail.data.provider.ProviderThreadListResult,
+        listResponse: com.shrivatsav.monomail.core.network.provider.ProviderThreadListResult,
         targetAccountId: String,
         existingEmailReadStatuses: Map<String, Boolean>,
         existingAttachments: Map<String, String>,

@@ -189,7 +189,7 @@ class GmailProvider(
                     val base64 = data.replace("-", "+").replace("_", "/")
                     android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
                 }
-            } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
+            } catch (e: com.shrivatsav.monomail.core.network.remote.RetrofitClient.AuthFailedException) {
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("GmailProvider", "getAttachmentBytes error", e)
@@ -266,7 +266,7 @@ class GmailProvider(
             if (chunk.isEmpty()) return@forEach
             try {
                 api.batchModifyMessages(BatchModifyMessagesRequest(ids = chunk, removeLabelIds = listOf("UNREAD")))
-            } catch (e: com.shrivatsav.monomail.data.remote.RetrofitClient.AuthFailedException) {
+            } catch (e: com.shrivatsav.monomail.core.network.remote.RetrofitClient.AuthFailedException) {
                 throw e
             } catch (e: Exception) {
                 android.util.Log.e("GmailProvider", "batchMarkRead error", e)

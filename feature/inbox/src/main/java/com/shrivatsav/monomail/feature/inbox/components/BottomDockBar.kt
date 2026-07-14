@@ -26,9 +26,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import com.shrivatsav.monomail.data.settings.DockConfig
-import com.shrivatsav.monomail.data.settings.DockTabId
-import com.shrivatsav.monomail.data.settings.AppSettings
+import com.shrivatsav.monomail.core.data.settings.DockConfig
+import com.shrivatsav.monomail.core.data.settings.DockTabId
+import com.shrivatsav.monomail.core.data.settings.AppSettings
 import com.shrivatsav.monomail.ui.theme.MonoTween
 
 @Composable

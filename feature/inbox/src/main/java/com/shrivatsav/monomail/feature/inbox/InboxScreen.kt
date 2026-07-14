@@ -41,7 +41,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.*
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
 
@@ -1040,7 +1040,7 @@ private fun ClearCountdownDialog(
 @Composable
 private fun BottomFabArea(
     immediateTab: InboxTab,
-    appSettings: com.shrivatsav.monomail.data.settings.AppSettings,
+    appSettings: com.shrivatsav.monomail.core.data.settings.AppSettings,
     unifiedInboxEnabled: Boolean,
     navActions: InboxNavActions,
     viewModel: InboxViewModel,
@@ -1082,7 +1082,7 @@ private fun BottomFabArea(
 }
 
 @Composable
-private fun EmptyTrashFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
+private fun EmptyTrashFab(appSettings: com.shrivatsav.monomail.core.data.settings.AppSettings, onClick: () -> Unit) {
     FloatingActionButton(
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -1099,7 +1099,7 @@ private fun EmptyTrashFab(appSettings: com.shrivatsav.monomail.data.settings.App
 }
 
 @Composable
-private fun EmptySpamFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
+private fun EmptySpamFab(appSettings: com.shrivatsav.monomail.core.data.settings.AppSettings, onClick: () -> Unit) {
     FloatingActionButton(
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -1116,7 +1116,7 @@ private fun EmptySpamFab(appSettings: com.shrivatsav.monomail.data.settings.AppS
 }
 
 @Composable
-private fun ComposeFab(appSettings: com.shrivatsav.monomail.data.settings.AppSettings, onClick: () -> Unit) {
+private fun ComposeFab(appSettings: com.shrivatsav.monomail.core.data.settings.AppSettings, onClick: () -> Unit) {
     val fabInteractionSource = remember { MutableInteractionSource() }
     val isFabPressed by fabInteractionSource.collectIsPressedAsState()
     val fabScale by animateFloatAsState(

@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.worker
+package com.shrivatsav.monomail.core.data.worker
 import android.content.Context
 import android.net.Uri
 import androidx.hilt.work.HiltWorker

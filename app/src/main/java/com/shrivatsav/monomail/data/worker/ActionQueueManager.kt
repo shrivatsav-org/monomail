@@ -1,7 +1,7 @@
 package com.shrivatsav.monomail.data.worker
 
 import android.util.Log
-import com.shrivatsav.monomail.auth.AccountManager
+import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.database.local.PendingActionDao
 import com.shrivatsav.monomail.core.database.local.PendingActionEntity
 import com.shrivatsav.monomail.core.database.local.PendingActionStatus
@@ -26,7 +26,7 @@ import javax.inject.Singleton
 class ActionQueueManager @Inject constructor(
     private val pendingActionDao: PendingActionDao,
     private val accountManager: AccountManager,
-    private val providerFactory: (@JvmSuppressWildcards (com.shrivatsav.monomail.auth.UserProfile) -> EmailProvider)
+    private val providerFactory: (@JvmSuppressWildcards (com.shrivatsav.monomail.core.data.auth.UserProfile) -> EmailProvider)
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var job: Job? = null

@@ -4,9 +4,9 @@ import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shrivatsav.monomail.auth.AuthManager
-import com.shrivatsav.monomail.auth.SignInResult
-import com.shrivatsav.monomail.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.AuthManager
+import com.shrivatsav.monomail.core.data.auth.SignInResult
+import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.model.InboxTab
 import dagger.hilt.android.lifecycle.HiltViewModel
