@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -137,7 +137,7 @@ private fun PermissionButton(granted: Boolean, onClick: () -> Unit, grantedLabel
     Button(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(0.9f),
-        shape = RoundedCornerShape(16.dp),
+        shape = cornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(containerColor = if (granted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary)
     ) {
         Icon(imageVector = if (granted) grantedIcon else defaultIcon, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -152,7 +152,7 @@ private fun PagerControls(currentPage: Int, onPrev: () -> Unit, onNext: () -> Un
         if (currentPage > 0) TextButton(onClick = onPrev) { Text("Back") }
         else Spacer(modifier = Modifier.width(64.dp))
 
-        if (currentPage < TOTAL_PAGES - 1) Button(onClick = onNext, shape = RoundedCornerShape(16.dp)) {
+        if (currentPage < TOTAL_PAGES - 1) Button(onClick = onNext, shape = cornerShape(16.dp)) {
             Text("Next", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         } else {
             val transition = rememberInfiniteTransition(label = "pulse_transition")
@@ -168,7 +168,7 @@ private fun PagerControls(currentPage: Int, onPrev: () -> Unit, onNext: () -> Un
             
             Button(
                 onClick = onFinish, 
-                shape = RoundedCornerShape(16.dp), 
+                shape = cornerShape(16.dp), 
                 enabled = enabled, 
                 modifier = Modifier.graphicsLayer { 
                     scaleX = scale 
@@ -364,9 +364,9 @@ private fun OnboardingSupportCard(
 ) {
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(cornerShape(18.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = cornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {

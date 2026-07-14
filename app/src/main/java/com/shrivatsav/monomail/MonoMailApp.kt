@@ -19,6 +19,8 @@ class MonoMailApp : Application(), Configuration.Provider {
 
     override fun onCreate() {
         super.onCreate()
+        CrashHandler.install(this)
+
 
         initializeMailcap()
         actionQueueManager.start()

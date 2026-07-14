@@ -13,7 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -50,7 +50,7 @@ internal fun ProfileCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(0.88f),
-        shape = RoundedCornerShape(28.dp),
+        shape = cornerShape(28.dp),
         color = MaterialTheme.colorScheme.background,
         shadowElevation = 32.dp,
     ) {
@@ -296,7 +296,7 @@ private fun ProfileCardButtons(callbacks: ProfileCardCallbacks) {
         OutlinedButton(
             onClick = callbacks.onSignOut,
             modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(14.dp),
+            shape = cornerShape(14.dp),
             colors = ButtonDefaults.outlinedButtonColors(
                 contentColor = MaterialTheme.colorScheme.onBackground
             ),
@@ -315,7 +315,7 @@ private fun ProfileCardButtons(callbacks: ProfileCardCallbacks) {
         Button(
             onClick = callbacks.onAddAccount,
             modifier = Modifier.weight(1f),
-            shape = RoundedCornerShape(14.dp),
+            shape = cornerShape(14.dp),
             colors = ButtonDefaults.buttonColors(
                 containerColor = MaterialTheme.colorScheme.onBackground,
                 contentColor = MaterialTheme.colorScheme.background
@@ -342,7 +342,7 @@ private fun ProfileMenuItem(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
+            .clip(cornerShape(14.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,

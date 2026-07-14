@@ -49,7 +49,7 @@ import androidx.compose.ui.graphics.toArgb
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -124,6 +124,7 @@ data class EmailDisplayConfig(
     val fontScaleMultiplier: Float = 1f,
     val loadRemoteImages: Boolean = true,
     val emailTheme: EmailTheme = EmailTheme.AUTO,
+    val showInlineImages: Boolean = true,
     val showInlineAttachments: Boolean = true,
     val isDeveloperMode: Boolean = false,
     val currentUserEmail: String = ""
@@ -143,6 +144,7 @@ fun EmailDetailScreen(
     val fontScaleMultiplier by viewModel.fontScaleMultiplier.collectAsState()
     val loadRemoteImages by viewModel.loadRemoteImages.collectAsState()
     val emailTheme by viewModel.emailTheme.collectAsState()
+    val showInlineImages by viewModel.showInlineImages.collectAsState()
     val showInlineAttachments by viewModel.showInlineAttachments.collectAsState()
     val state by viewModel.state.collectAsState()
     val isStarred by viewModel.isStarred.collectAsState()
@@ -226,6 +228,7 @@ fun EmailDetailScreen(
                 fontScaleMultiplier = fontScaleMultiplier,
                 loadRemoteImages = loadRemoteImages,
                 emailTheme = emailTheme,
+                showInlineImages = showInlineImages,
                 showInlineAttachments = showInlineAttachments,
                 isDeveloperMode = isDeveloperMode,
                 currentUserEmail = viewModel.currentUserEmail
@@ -460,7 +463,7 @@ fun ThreadConversationContent(
                         modifier = Modifier
                             .weight(1f)
                             .height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = cornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.onBackground,
                             contentColor = MaterialTheme.colorScheme.background
@@ -479,7 +482,7 @@ fun ThreadConversationContent(
                         modifier = Modifier
                             .weight(1f)
                             .height(52.dp),
-                        shape = RoundedCornerShape(16.dp),
+                        shape = cornerShape(16.dp),
                         border = BorderStroke(
                             1.dp,
                             MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
@@ -652,7 +655,7 @@ private fun CcBccBlock(email: Email) {
                 .padding(start = 8.dp, end = 12.dp, top = 8.dp, bottom = 4.dp)
                 .background(
                     MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f),
-                    RoundedCornerShape(8.dp)
+                    cornerShape(8.dp)
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
@@ -782,7 +785,7 @@ private fun MessageBodyContent(
         safeBodyText,
         config.fontScaleMultiplier,
         showQuotedText,
-        config.showInlineAttachments,
+        config.showInlineImages,
         config.loadRemoteImages,
         showRemoteImages,
         config.emailTheme,
@@ -797,7 +800,7 @@ private fun MessageBodyContent(
                 config.fontScaleMultiplier,
                 HtmlBuildParams(
                     showQuotedText,
-                    config.showInlineAttachments,
+                    config.showInlineImages,
                     config.loadRemoteImages,
                     showRemoteImages,
                     useOverviewScaling,
@@ -836,7 +839,7 @@ private fun EncryptionBadge(decryptedResult: PgpDecryptionResult?) {
     if (decryptedResult == null) return
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
-            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f), cornerShape(8.dp))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1011,7 +1014,7 @@ private fun RemoteImagesBanner(
     if (!loadRemoteImages && !showRemoteImages && bodyIsHtml) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 4.dp)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f), cornerShape(8.dp))
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -1095,7 +1098,7 @@ private fun EmailWebViewCard(
     Column {
         AndroidView(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
-                .clip(RoundedCornerShape(16.dp)).background(cardBgColor, RoundedCornerShape(16.dp)).padding(12.dp)
+                .clip(cornerShape(16.dp)).background(cardBgColor, cornerShape(16.dp)).padding(12.dp)
                 .alpha(alpha),
             factory = { context ->
                 WebView(context).apply {
@@ -1202,7 +1205,7 @@ private fun createWebViewClient(context: android.content.Context, onPageFinished
 }
 
 private data class HtmlBuildParams(
-    val showQuotedText: Boolean, val showInlineAttachments: Boolean, val loadRemoteImages: Boolean,
+    val showQuotedText: Boolean, val showInlineImages: Boolean, val loadRemoteImages: Boolean,
     val showRemoteImages: Boolean, val useOverviewScaling: Boolean, val emailZoomFactor: Float,
     val textColor: String, val linkColor: String
 )
@@ -1211,9 +1214,9 @@ private fun buildEmailHtml(
     email: Email, safeBodyText: String, bodyIsHtml: Boolean, fontScaleMultiplier: Float,
     params: HtmlBuildParams
 ): String {
-    val (showQuotedText, showInlineAttachments, loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor) = params
+    val (showQuotedText, showInlineImages, loadRemoteImages, showRemoteImages, useOverviewScaling, emailZoomFactor, textColor, linkColor) = params
     val displayBody = if (bodyIsHtml) safeBodyText else TextUtils.htmlEncode(safeBodyText).replace("\n", "<br>")
-    val bodyWithCidPlaceholders = if (!showInlineAttachments && email.attachments.isNotEmpty()) {
+    val bodyWithCidPlaceholders = if (!showInlineImages && email.attachments.isNotEmpty()) {
         var b = displayBody
         for (att in email.attachments) {
             if (att.name.isBlank()) continue
@@ -1299,7 +1302,8 @@ private fun formatFileSize(bytes: Long): String {
     return when {
         bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
         bytes >= 1024 -> "${bytes / 1024} KB"
-        else -> "$bytes B"
+        bytes > 0 -> "$bytes B"
+        else -> "Unknown size"
     }
 }
 
@@ -1334,21 +1338,23 @@ private fun AttachmentsSection(
                 val columnWidth = 200.dp
                 val availableWidth = maxWidth
                 val columns = maxOf(1, (availableWidth / columnWidth).toInt())
-                fileAttachments.chunked(columns).forEach { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        rowItems.forEach { attachment ->
-                            FileAttachmentCard(
-                                attachment = attachment,
-                                onFetchAttachment = onFetchAttachment,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        // Fill remaining slots with spacers for consistent sizing
-                        repeat(columns - rowItems.size) {
-                            Spacer(modifier = Modifier.weight(1f))
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    fileAttachments.chunked(columns).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowItems.forEach { attachment ->
+                                FileAttachmentCard(
+                                    attachment = attachment,
+                                    onFetchAttachment = onFetchAttachment,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            // Fill remaining slots with spacers for consistent sizing
+                            repeat(columns - rowItems.size) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }
@@ -1465,7 +1471,7 @@ private fun FileAttachmentCard(
     val ext = attachment.name.substringAfterLast('.', "").uppercase()
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(cornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable {
                 if (!isFetching) {
@@ -1483,7 +1489,7 @@ private fun FileAttachmentCard(
         Box(
             modifier = Modifier
                 .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
+                .clip(cornerShape(10.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh),
             contentAlignment = Alignment.Center
         ) {
@@ -1552,7 +1558,7 @@ private fun AttachmentToggleButton(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(cornerShape(12.dp))
             .clickable(onClick = onClick)
             .background(MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f))
             .padding(horizontal = 16.dp, vertical = 14.dp),
@@ -1625,28 +1631,30 @@ private fun FileAttachmentsGrid(
     BoxWithConstraints {
         val columnWidth = 200.dp
         val columns = maxOf(1, (maxWidth / columnWidth).toInt())
-        fileAttachments.chunked(columns).forEach { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowItems.forEach { (attachment, sender) ->
-                    Column(modifier = Modifier.weight(1f)) {
-                        FileAttachmentCard(
-                            attachment = attachment,
-                            onFetchAttachment = onFetchAttachment,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            text = "from $sender",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
-                            modifier = Modifier.padding(start = 4.dp, top = 2.dp)
-                        )
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            fileAttachments.chunked(columns).forEach { rowItems ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    rowItems.forEach { (attachment, sender) ->
+                        Column(modifier = Modifier.weight(1f)) {
+                            FileAttachmentCard(
+                                attachment = attachment,
+                                onFetchAttachment = onFetchAttachment,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "from $sender",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f),
+                                modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                            )
+                        }
                     }
-                }
-                repeat(columns - rowItems.size) {
-                    Spacer(modifier = Modifier.weight(1f))
+                    repeat(columns - rowItems.size) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
