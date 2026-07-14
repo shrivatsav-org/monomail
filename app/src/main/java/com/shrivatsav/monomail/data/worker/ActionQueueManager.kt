@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.core.data.worker
+package com.shrivatsav.monomail.data.worker
 
 import android.util.Log
 import com.shrivatsav.monomail.auth.AccountManager

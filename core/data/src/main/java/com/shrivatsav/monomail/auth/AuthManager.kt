@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
-import com.shrivatsav.monomail.core.data.push.PushNotificationManager
+import com.shrivatsav.monomail.push.PushNotificationManager
 
 data class ReauthInfo(val email: String, val provider: String, val intent: android.content.Intent? = null)
 sealed class SignInResult {

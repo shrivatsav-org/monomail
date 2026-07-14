@@ -3,7 +3,7 @@ import android.app.Application
 import android.webkit.WebView
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
-import com.shrivatsav.monomail.core.data.worker.ActionQueueManager
+import com.shrivatsav.monomail.data.worker.ActionQueueManager
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 @HiltAndroidApp

@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.core.data.worker
+package com.shrivatsav.monomail.worker
 
 import android.content.Context
 import android.util.Log
@@ -6,7 +6,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.shrivatsav.monomail.auth.AuthManager
-import com.shrivatsav.monomail.core.data.push.PushNotificationManager
+import com.shrivatsav.monomail.push.PushNotificationManager
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 
