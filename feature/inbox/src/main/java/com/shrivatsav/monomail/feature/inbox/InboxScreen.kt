@@ -1,5 +1,17 @@
 package com.shrivatsav.monomail.feature.inbox
 
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
+import com.shrivatsav.monomail.ui.theme.cornerShape
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
 import com.shrivatsav.monomail.feature.inbox.components.*
 
 import com.shrivatsav.monomail.ui.components.AvatarCircle
@@ -34,6 +46,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -96,6 +109,7 @@ fun InboxScreen(
     val currentThreads = (state as? InboxState.Success)?.threads ?: emptyList()
     var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
     val hapticFeedback = LocalHapticFeedback.current
+    val focusManager = LocalFocusManager.current
     var activeModal by remember { mutableStateOf<ModalType?>(null) }
     var showSnoozePicker by remember { mutableStateOf(false) }
     var snoozeThreadId by remember { mutableStateOf<String?>(null) }
@@ -104,7 +118,13 @@ fun InboxScreen(
     val isBulkMode by viewModel.isBulkSelectMode.collectAsState()
     val selectedThreadIds by viewModel.selectedThreadIds.collectAsState()
     val selectedCount by viewModel.selectedCount.collectAsState()
-    if (isBulkMode) {
+    val isSearchActive = searchQuery.isNotEmpty()
+    if (isSearchActive) {
+        BackHandler {
+            searchQuery = ""
+            focusManager.clearFocus()
+        }
+    } else if (isBulkMode) {
         BackHandler { viewModel.exitBulkSelectMode() }
     } else if (immediateTab != InboxTab.INBOX) {
         BackHandler { viewModel.switchTab(InboxTab.INBOX) }
@@ -197,7 +217,6 @@ fun InboxScreen(
                             showMarkAllRead = appSettings.showMarkAllRead
                         ),
                         isRefreshing = isRefreshing,
-                        toastState = toastState,
                         bulkSelection = BulkSelectionState(
                             isBulkMode = isBulkMode,
                             selectedCount = selectedCount,
@@ -639,6 +658,14 @@ fun InboxScreen(
                 unifiedInboxEnabled = unifiedInboxEnabled
             )
         }
+            
+            val toastState by viewModel.toastState.collectAsState()
+            Box {
+                TopAlertBanner(
+                    toastState = toastState,
+                    onUndo = { viewModel.undoAction() }
+                )
+            }
     }
 
     // ── Welcome to Monomail modal ────────────────────────────────────
@@ -648,7 +675,7 @@ fun InboxScreen(
         onDismiss = { viewModel.dismissWelcomePrompt() }
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = cornerShape(28.dp),
             color = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             shadowElevation = 32.dp,
@@ -695,7 +722,7 @@ fun InboxScreen(
 
                 // ── What's New ─────────────────────────────────────────
                 Surface(
-                    shape = RoundedCornerShape(16.dp),
+                    shape = cornerShape(16.dp),
                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -855,7 +882,7 @@ fun InboxScreen(
                 ) {
                     FilledTonalButton(
                         onClick = { viewModel.dismissWelcomePrompt() },
-                        shape = RoundedCornerShape(16.dp)
+                        shape = cornerShape(16.dp)
                     ) {
                         Text(
                             "Get Started",
@@ -905,7 +932,7 @@ fun InboxScreen(
         onDismiss = { threadToDelete = null }
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = cornerShape(28.dp),
             color = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             shadowElevation = 32.dp,
@@ -1007,7 +1034,7 @@ private fun ClearCountdownDialog(
         }
     }
     Surface(
-        shape = RoundedCornerShape(28.dp),
+        shape = cornerShape(28.dp),
         color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         shadowElevation = 32.dp,
@@ -1048,34 +1075,41 @@ private fun BottomFabArea(
     onEmptyBin: (isTrash: Boolean) -> Unit
 ) {
     val tabForDock = immediateTab
-    Row(
-        modifier = Modifier.padding(bottom = navBarHeight + 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.Bottom
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = navBarHeight + 8.dp)
     ) {
         BottomDockBar(
             currentTab = tabForDock,
             dockConfig = appSettings.dockConfig,
             unifiedInboxEnabled = unifiedInboxEnabled,
             appSettings = appSettings,
-            onTabClick = { viewModel.switchTab(it) }
+            onTabClick = { viewModel.switchTab(it) },
+            modifier = Modifier.align(Alignment.BottomCenter)
         )
-        AnimatedContent(
-            targetState = when (immediateTab) {
-                InboxTab.TRASH -> "trash"
-                InboxTab.SPAM -> "spam"
-                else -> "default"
-            },
-            label = "FabIconMorph",
-            transitionSpec = {
-                (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.85f)) togetherWith
-                        (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f))
-            }
-        ) { state ->
-            when (state) {
-                "trash" -> EmptyTrashFab(appSettings) { onEmptyBin(true) }
-                "spam" -> EmptySpamFab(appSettings) { onEmptyBin(false) }
-                "default" -> ComposeFab(appSettings, navActions.onCompose)
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 16.dp)
+        ) {
+            AnimatedContent(
+                targetState = when (immediateTab) {
+                    InboxTab.TRASH -> "trash"
+                    InboxTab.SPAM -> "spam"
+                    else -> "default"
+                },
+                label = "FabIconMorph",
+                transitionSpec = {
+                    (fadeIn(tween(180)) + scaleIn(tween(180), initialScale = 0.85f)) togetherWith
+                            (fadeOut(tween(120)) + scaleOut(tween(120), targetScale = 0.85f))
+                }
+            ) { state ->
+                when (state) {
+                    "trash" -> EmptyTrashFab(appSettings) { onEmptyBin(true) }
+                    "spam" -> EmptySpamFab(appSettings) { onEmptyBin(false) }
+                    "default" -> ComposeFab(appSettings, navActions.onCompose)
+                }
             }
         }
     }
@@ -1168,11 +1202,11 @@ private fun LongPressMenu(
             modifier = Modifier.fillMaxWidth(0.85f),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
+            Surface(shape = cornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
                 EmailItem(thread = thread, onClick = { onDismiss(); actions.onEmailClick() }, onLongClick = {}, modifier = Modifier)
             }
             Spacer(Modifier.height(8.dp))
-            Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
+            Surface(shape = cornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
                 LongPressActionRow(thread, tabForMenu, actions) { onDismiss() }
             }
         }
@@ -1285,7 +1319,7 @@ private fun SnoozePickerDialog(
         onDismiss = onDismiss
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = cornerShape(28.dp),
             color = MaterialTheme.colorScheme.background,
             contentColor = MaterialTheme.colorScheme.onBackground,
             shadowElevation = 32.dp,
@@ -1303,7 +1337,7 @@ private fun SnoozePickerDialog(
                     TextButton(
                         onClick = { onSnooze(opt.timestamp) },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = cornerShape(12.dp)
                     ) {
                         Text(opt.label, modifier = Modifier.fillMaxWidth())
                     }
@@ -1328,9 +1362,9 @@ private fun SupportCard(
 ) {
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(cornerShape(18.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = cornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
@@ -1398,7 +1432,7 @@ private fun LongPressAction(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .clip(RoundedCornerShape(12.dp))
+            .clip(cornerShape(12.dp))
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 10.dp)
     ) {
@@ -1520,7 +1554,7 @@ private fun ShimmerEmailItem() {
                 modifier = Modifier
                     .fillMaxWidth(0.5f)
                     .height(14.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .background(color)
             )
             Spacer(Modifier.height(6.dp))
@@ -1528,7 +1562,7 @@ private fun ShimmerEmailItem() {
                 modifier = Modifier
                     .fillMaxWidth(0.85f)
                     .height(12.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .background(color.copy(alpha = 0.5f))
             )
             Spacer(Modifier.height(4.dp))
@@ -1536,7 +1570,7 @@ private fun ShimmerEmailItem() {
                 modifier = Modifier
                     .fillMaxWidth(0.6f)
                     .height(10.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .background(color.copy(alpha = 0.3f))
             )
         }
@@ -1545,7 +1579,7 @@ private fun ShimmerEmailItem() {
             modifier = Modifier
                 .width(40.dp)
                 .height(12.dp)
-                .clip(RoundedCornerShape(4.dp))
+                .clip(cornerShape(4.dp))
                 .background(color.copy(alpha = 0.3f))
         )
     }
@@ -1563,7 +1597,7 @@ private fun WelcomeActionButton(
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = cornerShape(14.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         colors = ButtonDefaults.outlinedButtonColors(
             contentColor = MaterialTheme.colorScheme.onSurface
@@ -1637,6 +1671,14 @@ private data class ReleaseNotes(
 )
 
 private val allReleaseNotes = listOf(
+    ReleaseNotes(version = "1.7.38", changes = listOf(
+        "Optimized email detail loading with asynchronous parsing and pre-warmed instances",
+        "Completed a major architectural overhaul, modularizing the application",
+        "Abstracted authentication logic to support specific flavor builds",
+        "Fixed a critical crash on launch related to missing HiltWorker processing",
+        "Restored the custom Monomail notification icon",
+        "Settings screen now accurately displays the application version"
+    )),
     ReleaseNotes(version = "1.7.24", changes = listOf(
         "Optimized build times with configuration caching",
         "Fixed MSAL sign-in for release builds",
@@ -1651,3 +1693,63 @@ private val allReleaseNotes = listOf(
         "Enhanced tablet layout support"
     ))
 )
+
+@Composable
+private fun TopAlertBanner(
+    toastState: InboxViewModel.ToastState?,
+    onUndo: () -> Unit
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = toastState != null,
+        enter = fadeIn(tween(220)) + slideInVertically(
+            initialOffsetY = { -it },
+            animationSpec = tween(300, easing = FastOutSlowInEasing)
+        ),
+        exit = fadeOut(tween(180)) + slideOutVertically(
+            targetOffsetY = { -it },
+            animationSpec = tween(250)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 8.dp)
+    ) {
+        if (toastState != null) {
+            Surface(
+                shape = cornerShape(16.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                shadowElevation = 8.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                val icon = when (toastState.actionType) {
+                    InboxViewModel.ActionType.ARCHIVE -> Icons.Rounded.Archive
+                    InboxViewModel.ActionType.DELETE -> Icons.Rounded.Delete
+                    InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Rounded.Delete
+                    InboxViewModel.ActionType.SEND -> Icons.Rounded.Send
+                    InboxViewModel.ActionType.SNOOZE -> Icons.Rounded.Schedule
+                    InboxViewModel.ActionType.UNARCHIVE -> Icons.Rounded.Unarchive
+                    InboxViewModel.ActionType.RESTORE -> Icons.Rounded.Restore
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(icon, null, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        toastState.message, modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    TextButton(
+                        onClick = onUndo,
+                        shape = cornerShape(24.dp),
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+                        contentPadding = PaddingValues(horizontal = 12.dp)
+                    ) { Text("Undo", fontWeight = FontWeight.Bold) }
+                }
+            }
+        }
+    }
+}

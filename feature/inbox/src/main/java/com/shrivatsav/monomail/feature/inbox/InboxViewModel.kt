@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -269,12 +270,11 @@ class InboxViewModel @Inject constructor(
 
     private fun observeSentEvents() {
         viewModelScope.launch {
-            combine(sentEmailEvents, settingsDataStore.settingsFlow) { event, settings ->
-                Pair(event, settings)
-            }.collect { (event, settings) ->
-                val toastId = event.threadId ?: "send_${System.currentTimeMillis()}"
-                if (!settings.undoSendEnabled) return@collect
-                startUndoCountdown(toastId, settings.undoSendWindow.seconds)
+            sentEmailEvents.collect { event ->
+                val settings = settingsDataStore.settingsFlow.first()
+                if (settings.undoSendEnabled) {
+                    startUndoCountdown(event.threadId ?: "send_${System.currentTimeMillis()}", settings.undoSendWindow.seconds)
+                }
             }
         }
     }

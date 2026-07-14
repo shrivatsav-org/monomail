@@ -12,7 +12,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Reply
 import androidx.compose.material.icons.automirrored.rounded.Send
@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.unit.sp
 import com.shrivatsav.monomail.core.data.settings.*
 import com.shrivatsav.monomail.ui.theme.MonoOpacity
@@ -39,7 +41,7 @@ import com.shrivatsav.monomail.ui.theme.MonoSpring
 @Composable
 internal fun SettingsCard(content: @Composable ColumnScope.() -> Unit) {
     Surface(
-        shape = RoundedCornerShape(20.dp),
+        shape = cornerShape(20.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 0.dp,
         modifier = Modifier
@@ -216,7 +218,7 @@ internal fun ThemeSelectorRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(cornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -263,7 +265,7 @@ internal fun EmailColorsRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(cornerShape(14.dp))
                 .background(MaterialTheme.colorScheme.surfaceContainerHigh)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -316,7 +318,7 @@ private fun SelectorItem(
     Box(
         modifier = modifier
             .graphicsLayer(scaleX = scaleAnim, scaleY = scaleAnim)
-            .clip(RoundedCornerShape(10.dp))
+            .clip(cornerShape(10.dp))
             .background(bgColor)
             .clickable { onClick() }
             .padding(vertical = 10.dp),
@@ -375,7 +377,7 @@ internal fun FontSizeRow(
         }
         Spacer(modifier = Modifier.height(10.dp))
         Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = cornerShape(10.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -604,51 +606,77 @@ private fun PickerBottomSheet(
     onSelected: (Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
+    androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 32.dp)
+                .fillMaxSize()
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
-            )
-            HorizontalDivider(
-                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                modifier = Modifier.padding(bottom = 8.dp)
-            )
-            options.forEachIndexed { index, option ->
-                val isSelected = option == currentValue
-                Row(
+            Surface(
+                shape = cornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+                    .clickable(onClick = {})
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onSelected(index) }
-                        .padding(horizontal = 24.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(
-                        text = option,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isSelected) MaterialTheme.colorScheme.onSurface
-                        else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.weight(1f)
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(4.dp)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), androidx.compose.foundation.shape.CircleShape)
                     )
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Rounded.Check,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(20.dp)
-                        )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 8.dp)
+                    )
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    options.forEachIndexed { index, option ->
+                        val isSelected = option == currentValue
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelected(index) }
+                                .padding(horizontal = 24.dp, vertical = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = option,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                color = if (isSelected) MaterialTheme.colorScheme.onSurface
+                                else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (isSelected) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -894,41 +922,91 @@ private fun TemplateEditorDialog(
     onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (state.editingIndex >= 0) "Edit Template" else "New Template", fontWeight = FontWeight.SemiBold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = state.nameInput,
-                    onValueChange = onNameChange,
-                    label = { Text("Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = state.subjectInput,
-                    onValueChange = onSubjectChange,
-                    label = { Text("Subject") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = state.bodyInput,
-                    onValueChange = onBodyChange,
-                    label = { Text("Body") },
-                    minLines = 3,
-                    modifier = Modifier.fillMaxWidth()
-                )
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(onClick = onDismiss),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Surface(
+                shape = cornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
+                shadowElevation = 8.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+                    .padding(bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding())
+                    .clickable(onClick = {})
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(32.dp)
+                            .height(4.dp)
+                            .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f), CircleShape)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = if (state.editingIndex >= 0) "Edit Template" else "New Template",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Column(
+                        modifier = Modifier.padding(horizontal = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = state.nameInput,
+                            onValueChange = onNameChange,
+                            label = { Text("Name") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = state.subjectInput,
+                            onValueChange = onSubjectChange,
+                            label = { Text("Subject") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        OutlinedTextField(
+                            value = state.bodyInput,
+                            onValueChange = onBodyChange,
+                            label = { Text("Body") },
+                            minLines = 3,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(onClick = onDismiss) { Text("Cancel") }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        TextButton(onClick = onSave) { Text("Save") }
+                    }
+                }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = onSave) { Text("Save") }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
         }
-    )
+    }
 }
 
 private data class TemplateEditorState(
@@ -1090,7 +1168,7 @@ internal fun SupportButton(
                 .fillMaxWidth()
                 .height(48.dp)
                 .graphicsLayer(scaleX = btnScale, scaleY = btnScale),
-            shape = RoundedCornerShape(14.dp),
+            shape = cornerShape(14.dp),
             colors = ButtonDefaults.filledTonalButtonColors(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -1108,7 +1186,7 @@ internal fun SupportButton(
                 .fillMaxWidth()
                 .height(48.dp)
                 .graphicsLayer(scaleX = btnScale, scaleY = btnScale),
-            shape = RoundedCornerShape(14.dp),
+            shape = cornerShape(14.dp),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
             colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurface)
         ) {
