@@ -1,7 +1,7 @@
 package com.shrivatsav.monomail.feature.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.shrivatsav.monomail.data.settings.*
+import com.shrivatsav.monomail.core.data.settings.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow

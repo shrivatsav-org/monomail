@@ -1,2 +1,2 @@
 # Consumer rules for core:database
--keep class com.shrivatsav.monomail.data.local.entity.** { *; }
+-keep class com.shrivatsav.monomail.core.database.local.** { *; }

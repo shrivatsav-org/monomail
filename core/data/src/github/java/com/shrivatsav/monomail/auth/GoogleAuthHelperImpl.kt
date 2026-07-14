@@ -1,4 +1,4 @@
-package com.shrivatsav.monomail.auth
+package com.shrivatsav.monomail.core.data.auth
 
 import android.content.Context
 

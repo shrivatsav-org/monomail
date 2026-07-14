@@ -1,8 +1,8 @@
 package com.shrivatsav.monomail
 
-import com.shrivatsav.monomail.data.local.MIGRATION_2_3
-import com.shrivatsav.monomail.data.local.MIGRATION_3_4
-import com.shrivatsav.monomail.data.local.MIGRATION_4_5
+import com.shrivatsav.monomail.core.database.local.MIGRATION_2_3
+import com.shrivatsav.monomail.core.database.local.MIGRATION_3_4
+import com.shrivatsav.monomail.core.database.local.MIGRATION_4_5
 import org.junit.Test
 import org.junit.Assert.*
 

@@ -102,7 +102,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.platform.LocalConfiguration
 import com.shrivatsav.monomail.data.model.EmailAttachmentInfo
 import com.shrivatsav.monomail.data.model.Email
-import com.shrivatsav.monomail.data.settings.EmailTheme
+import com.shrivatsav.monomail.core.data.settings.EmailTheme
 
 import com.shrivatsav.monomail.data.pgp.PgpDecryptionResult
 import com.shrivatsav.monomail.util.normalizeEmailBody

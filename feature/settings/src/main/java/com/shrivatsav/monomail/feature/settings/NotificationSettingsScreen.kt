@@ -11,8 +11,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.shrivatsav.monomail.auth.AuthManager
-import com.shrivatsav.monomail.data.settings.*
+import com.shrivatsav.monomail.core.data.auth.AuthManager
+import com.shrivatsav.monomail.core.data.settings.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

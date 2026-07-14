@@ -1,4 +1,5 @@
 package com.shrivatsav.monomail.push
+import com.shrivatsav.monomail.core.data.push.PushNotificationManager
 
 import android.util.Log
 import androidx.work.Constraints
@@ -10,7 +11,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.shrivatsav.monomail.worker.EmailSyncWorker
+import com.shrivatsav.monomail.core.data.worker.EmailSyncWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

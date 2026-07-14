@@ -53,7 +53,7 @@
         </provider>
 
         <receiver
-            android:name=".worker.NotificationActionReceiver"
+            android:name="com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver"
             android:exported="false" />
 
         <activity
