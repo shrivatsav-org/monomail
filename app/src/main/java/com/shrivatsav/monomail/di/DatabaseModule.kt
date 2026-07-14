@@ -1,11 +1,11 @@
 package com.shrivatsav.monomail.di
 
 import android.content.Context
-import com.shrivatsav.monomail.data.local.AppDatabase
-import com.shrivatsav.monomail.data.local.EmailDao
-import com.shrivatsav.monomail.data.local.PendingActionDao
-import com.shrivatsav.monomail.data.local.ScheduledMessageDao
-import com.shrivatsav.monomail.data.local.ThreadDao
+import com.shrivatsav.monomail.core.database.local.AppDatabase
+import com.shrivatsav.monomail.core.database.local.EmailDao
+import com.shrivatsav.monomail.core.database.local.PendingActionDao
+import com.shrivatsav.monomail.core.database.local.ScheduledMessageDao
+import com.shrivatsav.monomail.core.database.local.ThreadDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn

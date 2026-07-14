@@ -43,6 +43,33 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: bug_type
+    attributes:
+      label: Bug Type
+      description: What kind of bug is this?
+      options:
+        - UI / Visual
+        - Crash / ANR
+        - Sync / Network
+        - Performance
+        - Security
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority Level
+      description: How severely does this affect your usage?
+      options:
+        - Low (Minor annoyance)
+        - Medium (Workaround available)
+        - High (Core feature broken)
+        - Critical (App unusable / Data loss)
+    validations:
+      required: true
   - type: textarea
     id: description
     attributes:

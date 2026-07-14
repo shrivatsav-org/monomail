@@ -1,6 +1,6 @@
 package com.shrivatsav.monomail
 
-import com.shrivatsav.monomail.data.remote.RetrofitClient
+import com.shrivatsav.monomail.core.network.remote.RetrofitClient
 import org.junit.Test
 import org.junit.Assert.*
 import java.io.IOException

@@ -1,8 +1,8 @@
 package com.shrivatsav.monomail
 
-import com.shrivatsav.monomail.data.provider.ProviderMessage
-import com.shrivatsav.monomail.data.provider.imap.ImapRawMessage
-import com.shrivatsav.monomail.data.provider.imap.ImapThreader
+import com.shrivatsav.monomail.core.network.provider.ProviderMessage
+import com.shrivatsav.monomail.core.network.provider.imap.ImapRawMessage
+import com.shrivatsav.monomail.core.network.provider.imap.ImapThreader
 import org.junit.Test
 import org.junit.Assert.*
 

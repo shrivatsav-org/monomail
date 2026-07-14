@@ -4,19 +4,19 @@ import android.accounts.Account
 import android.content.Context
 import com.shrivatsav.monomail.ScheduledEmailEvent
 import com.shrivatsav.monomail.SentEmailEvent
-import com.shrivatsav.monomail.auth.AccountManager
-import com.shrivatsav.monomail.auth.AuthManager
-import com.shrivatsav.monomail.auth.UserProfile
-import com.shrivatsav.monomail.auth.GoogleAuthException
-import com.shrivatsav.monomail.auth.provideGoogleAuthHelper
-import com.shrivatsav.monomail.data.provider.EmailProvider
-import com.shrivatsav.monomail.data.provider.GmailProvider
-import com.shrivatsav.monomail.data.provider.OutlookProvider
-import com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig
-import com.shrivatsav.monomail.data.provider.imap.ImapProvider
-import com.shrivatsav.monomail.data.remote.RetrofitClient
-import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.core.data.auth.AccountManager
+import com.shrivatsav.monomail.core.data.auth.AuthManager
+import com.shrivatsav.monomail.core.data.auth.UserProfile
+import com.shrivatsav.monomail.core.data.auth.GoogleAuthException
+import com.shrivatsav.monomail.core.data.auth.provideGoogleAuthHelper
+import com.shrivatsav.monomail.core.network.provider.EmailProvider
+import com.shrivatsav.monomail.core.network.provider.GmailProvider
+import com.shrivatsav.monomail.core.network.provider.OutlookProvider
+import com.shrivatsav.monomail.core.network.provider.imap.ImapAccountConfig
+import com.shrivatsav.monomail.core.network.provider.imap.ImapProvider
+import com.shrivatsav.monomail.core.network.remote.RetrofitClient
+import com.shrivatsav.monomail.core.data.repository.EmailRepository
+import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.security.SecurityUtil
 import dagger.Module
 import kotlin.jvm.JvmSuppressWildcards
@@ -41,8 +41,8 @@ object AppModule {
     fun provideAuthManager(
         @ApplicationContext context: Context,
         accountManager: AccountManager,
-        pushNotificationManager: com.shrivatsav.monomail.push.PushNotificationManager,
-        database: com.shrivatsav.monomail.data.local.AppDatabase
+        pushNotificationManager: com.shrivatsav.monomail.core.data.push.PushNotificationManager,
+        database: com.shrivatsav.monomail.core.database.local.AppDatabase
     ): AuthManager = AuthManager(context, accountManager, pushNotificationManager, database)
 
     @Provides @Singleton
@@ -156,9 +156,9 @@ object AppModule {
     @Provides @Singleton
     fun provideEmailRepository(
         providerFactory: (@JvmSuppressWildcards (UserProfile) -> EmailProvider),
-        database: com.shrivatsav.monomail.data.local.AppDatabase,
+        database: com.shrivatsav.monomail.core.database.local.AppDatabase,
         @ApplicationContext context: Context,
         accountManager: AccountManager,
-        pendingActionDao: com.shrivatsav.monomail.data.local.PendingActionDao
+        pendingActionDao: com.shrivatsav.monomail.core.database.local.PendingActionDao
     ): EmailRepository = EmailRepository(providerFactory, database, context, accountManager, pendingActionDao)
 }

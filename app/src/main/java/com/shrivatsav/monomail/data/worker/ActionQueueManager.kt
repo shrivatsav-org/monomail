@@ -1,14 +1,14 @@
 package com.shrivatsav.monomail.data.worker
 
 import android.util.Log
-import com.shrivatsav.monomail.auth.AccountManager
-import com.shrivatsav.monomail.data.local.PendingActionDao
-import com.shrivatsav.monomail.data.local.PendingActionEntity
-import com.shrivatsav.monomail.data.local.PendingActionStatus
-import com.shrivatsav.monomail.data.local.PendingActionType
-import com.shrivatsav.monomail.data.provider.EmailProvider
-import com.shrivatsav.monomail.data.provider.ResourceNotFoundException
-import com.shrivatsav.monomail.data.remote.RetrofitClient
+import com.shrivatsav.monomail.core.data.auth.AccountManager
+import com.shrivatsav.monomail.core.database.local.PendingActionDao
+import com.shrivatsav.monomail.core.database.local.PendingActionEntity
+import com.shrivatsav.monomail.core.database.local.PendingActionStatus
+import com.shrivatsav.monomail.core.database.local.PendingActionType
+import com.shrivatsav.monomail.core.network.provider.EmailProvider
+import com.shrivatsav.monomail.core.network.provider.ResourceNotFoundException
+import com.shrivatsav.monomail.core.network.remote.RetrofitClient
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,7 +26,7 @@ import javax.inject.Singleton
 class ActionQueueManager @Inject constructor(
     private val pendingActionDao: PendingActionDao,
     private val accountManager: AccountManager,
-    private val providerFactory: (@JvmSuppressWildcards (com.shrivatsav.monomail.auth.UserProfile) -> EmailProvider)
+    private val providerFactory: (@JvmSuppressWildcards (com.shrivatsav.monomail.core.data.auth.UserProfile) -> EmailProvider)
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private var job: Job? = null

@@ -1,6 +1,6 @@
 package com.shrivatsav.monomail
 
-import com.shrivatsav.monomail.data.provider.ResourceNotFoundException
+import com.shrivatsav.monomail.core.network.provider.ResourceNotFoundException
 import org.junit.Test
 import org.junit.Assert.*
 

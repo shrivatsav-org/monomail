@@ -18,7 +18,7 @@
 -keep class * implements com.google.gson.JsonDeserializer
 
 # Keep Gson serialized/deserialized classes
--keepclassmembers class com.shrivatsav.monomail.auth.UserProfile {
+-keepclassmembers class com.shrivatsav.monomail.core.data.auth.UserProfile {
     <fields>;
 }
 -keepclassmembers class com.shrivatsav.monomail.data.model.** {
@@ -29,13 +29,13 @@
 }
 
 # Keep Gson-serialized data classes in AccountManager
--keepclassmembers class com.shrivatsav.monomail.auth.UserProfile {
+-keepclassmembers class com.shrivatsav.monomail.core.data.auth.UserProfile {
     <fields>;
 }
--keepclassmembers class com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig {
+-keepclassmembers class com.shrivatsav.monomail.core.network.provider.imap.ImapAccountConfig {
     <fields>;
 }
--keepclassmembers class com.shrivatsav.monomail.data.local.ScheduledMessageEntity {
+-keepclassmembers class com.shrivatsav.monomail.core.database.local.ScheduledMessageEntity {
     <fields>;
 }
 -keepclassmembers class com.shrivatsav.monomail.data.model.EmailAttachment {
@@ -46,16 +46,16 @@
 }
 
 # Explicitly keep all Gmail/Outlook API response DTOs (R8 can strip these)
--keep class com.shrivatsav.monomail.data.remote.** { *; }
+-keep class com.shrivatsav.monomail.core.network.remote.** { *; }
 -keep class com.shrivatsav.monomail.data.model.** { *; }
--keep class com.shrivatsav.monomail.data.provider.** { *; }
--keep class com.shrivatsav.monomail.data.local.** { *; }
+-keep class com.shrivatsav.monomail.core.network.provider.** { *; }
+-keep class com.shrivatsav.monomail.core.database.local.** { *; }
 
 # Keep Kotlin data classes that Gson creates via UnsafeAllocator
--keep class com.shrivatsav.monomail.auth.UserProfile {
+-keep class com.shrivatsav.monomail.core.data.auth.UserProfile {
     *;
 }
--keep class com.shrivatsav.monomail.data.settings.** { *; }
+-keep class com.shrivatsav.monomail.core.data.settings.** { *; }
 
 # angus-mail / Jakarta Mail
 -keep class org.eclipse.angus.mail.** { *; }
@@ -67,4 +67,4 @@
 -dontwarn jakarta.activation.**
 
 # ImapAccountConfig is serialized via Gson — keep all fields
--keep class com.shrivatsav.monomail.data.provider.imap.ImapAccountConfig { *; }
+-keep class com.shrivatsav.monomail.core.network.provider.imap.ImapAccountConfig { *; }

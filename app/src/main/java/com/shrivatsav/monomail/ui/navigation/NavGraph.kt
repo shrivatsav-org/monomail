@@ -36,13 +36,13 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.shrivatsav.monomail.auth.AuthManager
-import com.shrivatsav.monomail.data.repository.EmailRepository
-import com.shrivatsav.monomail.data.settings.SettingsDataStore
-import com.shrivatsav.monomail.ui.screens.auth.ImapSetupScreen
-import com.shrivatsav.monomail.ui.screens.auth.ImapSetupViewModel
-import com.shrivatsav.monomail.ui.screens.auth.SignInScreen
-import com.shrivatsav.monomail.ui.screens.auth.SignInViewModel
+import com.shrivatsav.monomail.core.data.auth.AuthManager
+import com.shrivatsav.monomail.core.data.repository.EmailRepository
+import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.feature.auth.ImapSetupScreen
+import com.shrivatsav.monomail.feature.auth.ImapSetupViewModel
+import com.shrivatsav.monomail.feature.auth.SignInScreen
+import com.shrivatsav.monomail.feature.auth.SignInViewModel
 import com.shrivatsav.monomail.feature.compose.ComposeMode
 import com.shrivatsav.monomail.feature.compose.ComposeScreen
 import com.shrivatsav.monomail.feature.compose.ComposeViewModel
@@ -52,9 +52,9 @@ import com.shrivatsav.monomail.feature.detail.EmailDetailViewModel
 import com.shrivatsav.monomail.feature.inbox.InboxScreen
 import com.shrivatsav.monomail.feature.inbox.InboxNavActions
 import com.shrivatsav.monomail.feature.inbox.InboxViewModel
-import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesScreen
-import com.shrivatsav.monomail.ui.screens.scheduled.ScheduledMessagesViewModel
-import com.shrivatsav.monomail.ui.screens.pgp.PgpKeyManagementScreen
+import com.shrivatsav.monomail.feature.inbox.scheduled.ScheduledMessagesScreen
+import com.shrivatsav.monomail.feature.inbox.scheduled.ScheduledMessagesViewModel
+import com.shrivatsav.monomail.feature.settings.pgp.PgpKeyManagementScreen
 import com.shrivatsav.monomail.feature.settings.SettingsScreen
 import com.shrivatsav.monomail.feature.settings.SettingsViewModel
 
@@ -251,7 +251,7 @@ fun NavGraph(
         ) {
             composable(Screen.Onboarding.route) {
                 val onboardingScope = androidx.compose.runtime.rememberCoroutineScope()
-                com.shrivatsav.monomail.ui.screens.auth.OnboardingScreen(
+                com.shrivatsav.monomail.feature.auth.OnboardingScreen(
                     onFinishOnboarding = {
                         onboardingScope.launch {
                             settingsDataStore.setHasSeenWelcomePrompt(true)
