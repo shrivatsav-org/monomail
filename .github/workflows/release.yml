@@ -215,29 +215,32 @@ jobs:
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
           PROMPT=$(cat <<'EOF'
-          Write concise, user-facing GitHub release notes.
-          
-          Group changes under:
+          Write two outputs separated by the delimiter "===PLAYSTORE===".
+
+          Output 1 — Full GitHub release notes:
+          Concise, user-facing Markdown. Group under:
           - Features
           - Bug Fixes
           - Maintenance
-          
-          Omit any empty section.
-          
-          Use ONLY the commits below.
-          Use the previous release notes for tone and continuity.
-          Don't invent features.
-          Output Markdown only.
+          Omit any empty section. Don't invent features.
+
+          Output 2 — Play Store short description (plain text, NO markdown):
+          - max 500 characters
+          - one or two sentences
+          - bullet-style or prose, no headers or formatting
+          - highlight the most user-visible change only
+
+          Use ONLY the commits below. Use the previous release notes for tone and continuity.
           EOF
           )
-          
+
           if [ -n "$PR_TITLE" ]; then
             PROMPT="$PROMPT
-          
+
           PR Title: $PR_TITLE"
             if [ -n "$PR_BODY" ]; then
               PROMPT="$PROMPT
-          
+
           PR Description:
           $PR_BODY"
             fi
@@ -248,38 +251,51 @@ jobs:
               PR_TITLE_FETCHED=$(echo "$LATEST_PR" | jq -r '.title')
               PR_BODY_FETCHED=$(echo "$LATEST_PR" | jq -r '.body // ""')
               PROMPT="$PROMPT
-          
+
           PR Title: $PR_TITLE_FETCHED"
               if [ -n "$PR_BODY_FETCHED" ]; then
                 PROMPT="$PROMPT
-          
+
           PR Description:
           $PR_BODY_FETCHED"
               fi
             fi
           fi
-          
+
           # Include previous release notes for continuity
           PREV_NOTES=$(gh release view "${{ steps.resolved.outputs.PREV_TAG }}" --json body --jq '.body' 2>/dev/null || echo "")
           if [ -n "$PREV_NOTES" ]; then
             PROMPT="$PROMPT
-          
+
           Previous Release Notes:
           $PREV_NOTES"
           fi
-          
+
           PROMPT="$PROMPT
-          
+
           Commits:
-          
+
           $(cat commit_log.txt)"
-          
+
+          mkdir -p distribution/whatsnew
+
           opencode run "$PROMPT" \
             --model opencode/mimo-v2.5-free \
             --print-logs \
-            | tee release_notes.md
+            | tee combined_notes.md
 
-      - name: Fallback release notes
+          # Split on delimiter into full (github) and short (play store)
+          if grep -q '===PLAYSTORE===' combined_notes.md 2>/dev/null; then
+            csplit -s combined_notes.md '/===PLAYSTORE===/' 2>/dev/null
+            head -n -1 xx00 > release_notes.md 2>/dev/null
+            tail -n +2 xx01 > distribution/whatsnew/whatsnew-en-GB 2>/dev/null
+            rm -f xx00 xx01 combined_notes.md
+          else
+            # Fallback: use entire output as full notes
+            mv combined_notes.md release_notes.md
+          fi
+
+      - name: Fallback full release notes
         run: |
           if [ ! -s release_notes.md ]; then
             cat > release_notes.md <<EOF
@@ -297,11 +313,18 @@ jobs:
       - name: Prepare Play Store release notes
         run: |
           mkdir -p distribution/whatsnew
-          # Strip markdown formatting, collapse whitespace
-          PLAIN=$(sed 's/^##.*//; s/^[-*] //; s/\*\*//g; s/\n\+/\n/g' release_notes.md \
-            | sed '/^$/d' | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
-          printf '%s' "$PLAIN" > distribution/whatsnew/whatsnew-en-GB
-          echo "===== PLAY STORE NOTES ====="
+          if [ ! -f distribution/whatsnew/whatsnew-en-GB ] || [ ! -s distribution/whatsnew/whatsnew-en-GB ]; then
+            # Fallback: strip markdown and truncate
+            PLAIN=$(sed 's/^##.*//; s/^[-*] //; s/\*\*//g; s/\n\+/\n/g' release_notes.md \
+              | sed '/^$/d' | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
+            # Truncate at last word boundary under 500 chars
+            TRUNC=$(echo "$PLAIN" | head -c 497 | sed 's/ [^ ]*$//')
+            printf '%s' "$TRUNC" > distribution/whatsnew/whatsnew-en-GB
+          fi
+          # Enforce 500-char cap on whatever we have
+          SHORT=$(cat distribution/whatsnew/whatsnew-en-GB | head -c 497 | sed 's/ [^ ]*$//' | xargs)
+          printf '%s' "$SHORT" > distribution/whatsnew/whatsnew-en-GB
+          echo "===== PLAY STORE NOTES (${#SHORT} chars) ====="
           cat distribution/whatsnew/whatsnew-en-GB
 
       # --------------------------------------------------------------------------
@@ -321,18 +344,18 @@ jobs:
       - name: Upload AAB to Play Store
         uses: r0adkll/upload-google-play@v1
         with:
-          serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_SERVICE_ACCOUNT_JSON }}
           packageName: com.shrivatsav.monomail
           releaseFiles: app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
-          tracks: alpha
-          status: completed
+          track: alpha
           whatsNewDirectory: distribution/whatsnew
+          releaseStatus: draft
 
       # --------------------------------------------------------------------------
-      # Draft GitHub Release
+      # Upload APK to GitHub Release
       # --------------------------------------------------------------------------
 
-      - name: Rename APK and create release
+      - name: Upload to GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -340,14 +363,8 @@ jobs:
              "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk"
 
           if [ "${{ steps.draft.outputs.FOUND }}" = "true" ]; then
-            # Update existing draft: delete old assets, update notes, upload new
-            gh release delete-asset "${{ steps.resolved.outputs.TAG }}" "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" -y 2>/dev/null || true
-
-            gh release edit "${{ steps.resolved.outputs.TAG }}" \
-              --title "${{ steps.resolved.outputs.TAG }}" \
-              --notes-file release_notes.md
-
-            gh release upload "${{ steps.resolved.outputs.TAG }}" \
+            gh release upload \
+              "${{ steps.resolved.outputs.TAG }}" \
               "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
               --clobber
           else
