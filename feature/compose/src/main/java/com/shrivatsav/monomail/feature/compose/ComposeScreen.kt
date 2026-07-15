@@ -29,7 +29,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
+import com.shrivatsav.monomail.ui.components.SlideSheet
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
@@ -77,7 +78,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Snackbar
 import androidx.compose.material3.SnackbarHost
@@ -122,6 +122,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.material.icons.rounded.ArrowDropDown
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.animation.core.Animatable
@@ -151,41 +154,32 @@ private fun resolveAttachmentMimeType(contentResolver: android.content.ContentRe
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun TemplatesModal(
     templates: List<com.shrivatsav.monomail.core.data.settings.EmailTemplate>,
     onDismiss: () -> Unit,
     onApply: (String, String) -> Unit
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surfaceContainer,
-        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp)
-    ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(bottom = 32.dp)) {
-            Text(text = "Templates", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-            if (templates.isEmpty()) {
-                com.shrivatsav.monomail.ui.components.EmptyStateView(
-                    illustration = com.shrivatsav.monomail.ui.components.IllustrationType.SEARCH_EMPTY,
-                    title = "No templates yet",
-                    subtitle = "Add them in Settings",
-                    modifier = Modifier.height(200.dp)
-                )
-            } else {
-                templates.forEach { template ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth()
-                            .clickable { onApply(template.subject, template.body); onDismiss() }
-                            .padding(horizontal = 24.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = template.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                            if (template.subject.isNotEmpty()) {
-                                Text(text = template.subject, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+    SlideSheet(onDismiss = onDismiss, title = "Templates") {
+        if (templates.isEmpty()) {
+            com.shrivatsav.monomail.ui.components.EmptyStateView(
+                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.SEARCH_EMPTY,
+                title = "No templates yet",
+                subtitle = "Add them in Settings",
+                modifier = Modifier.height(200.dp)
+            )
+        } else {
+            templates.forEach { template ->
+                Row(
+                    modifier = Modifier.fillMaxWidth()
+                        .clickable { onApply(template.subject, template.body); onDismiss() }
+                        .padding(horizontal = 24.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = template.name, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
+                        if (template.subject.isNotEmpty()) {
+                            Text(text = template.subject, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -306,6 +300,7 @@ fun ComposeScreen(
     val canSend = state.to.isNotBlank()
     val showSentAnimation = remember { mutableStateOf(false) }
     val contentResolver = context.contentResolver
+    var showAttachmentPicker by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
@@ -337,6 +332,19 @@ fun ComposeScreen(
         }
     }
     ComposeDialogs(state, viewModel)
+    if (showAttachmentPicker) {
+        AttachmentPickerSheet(
+            onDismiss = { showAttachmentPicker = false },
+            onSelectImages = { 
+                showAttachmentPicker = false
+                launcher.launch("image/*") 
+            },
+            onSelectFiles = { 
+                showAttachmentPicker = false
+                launcher.launch("*/*") 
+            }
+        )
+    }
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -376,7 +384,7 @@ fun ComposeScreen(
                 isSending = state.isSending,
                 isSent = state.isSent,
                 canSend = canSend,
-                onAttach = { launcher.launch("*/*") },
+                onAttach = { showAttachmentPicker = true },
                 onSend = { viewModel.send() }
             )
         },
@@ -1009,7 +1017,7 @@ private fun ComposeBottomBar(
             .padding(top = 8.dp, bottom = 28.dp)
     ) {
         Surface(
-            shape = RoundedCornerShape(28.dp),
+            shape = cornerShape(28.dp),
             tonalElevation = 6.dp,
             shadowElevation = 8.dp,
             color = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -1095,7 +1103,7 @@ private fun SlideToSendControl(
         modifier = modifier
             .height(48.dp)
             .onGloballyPositioned { trackWidthPx = it.size.width.toFloat() }
-            .clip(RoundedCornerShape(24.dp))
+            .clip(cornerShape(24.dp))
             .background(
                 if (canSend) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh
@@ -1106,14 +1114,14 @@ private fun SlideToSendControl(
                     MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)
                 else
                     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
-                shape = RoundedCornerShape(24.dp)
+                shape = cornerShape(24.dp)
             )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxHeight()
                 .width(with(density) { (thumbOffset.value + thumbSize.toPx() + thumbPadding.toPx()).toDp() })
-                .clip(RoundedCornerShape(24.dp))
+                .clip(cornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.12f + 0.18f * progress))
         )
 
@@ -1210,7 +1218,7 @@ fun AttachmentPreview(
     Box(
         modifier = Modifier
             .size(100.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .clip(cornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         if (isImage) {
@@ -1258,6 +1266,51 @@ fun AttachmentPreview(
                 modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun AttachmentPickerSheet(
+    onDismiss: () -> Unit,
+    onSelectImages: () -> Unit,
+    onSelectFiles: () -> Unit
+) {
+    SlideSheet(onDismiss = onDismiss) {
+        Spacer(modifier = androidx.compose.ui.Modifier.height(24.dp))
+
+        Row(
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onSelectImages)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = androidx.compose.material.icons.Icons.Rounded.Image,
+                contentDescription = "Gallery",
+                tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                modifier = androidx.compose.ui.Modifier.size(24.dp)
+            )
+            Spacer(modifier = androidx.compose.ui.Modifier.width(16.dp))
+            androidx.compose.material3.Text("Photos & Videos", style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
+        }
+
+        Row(
+            modifier = androidx.compose.ui.Modifier
+                .fillMaxWidth()
+                .clickable(onClick = onSelectFiles)
+                .padding(horizontal = 24.dp, vertical = 16.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+        ) {
+            androidx.compose.material3.Icon(
+                imageVector = androidx.compose.material.icons.Icons.Rounded.Folder,
+                contentDescription = "Files",
+                tint = androidx.compose.material3.MaterialTheme.colorScheme.primary,
+                modifier = androidx.compose.ui.Modifier.size(24.dp)
+            )
+            Spacer(modifier = androidx.compose.ui.Modifier.width(16.dp))
+            androidx.compose.material3.Text("Browse Files", style = androidx.compose.material3.MaterialTheme.typography.bodyLarge)
         }
     }
 }

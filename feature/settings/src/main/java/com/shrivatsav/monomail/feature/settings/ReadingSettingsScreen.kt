@@ -27,6 +27,14 @@ internal fun ReadingSettingsScreen(
             )
             CardDivider()
             SettingsToggleRow(
+                icon = Icons.Rounded.Image,
+                title = "Inline Images",
+                subtitle = "Render inline images embedded in the email body",
+                checked = settings.showInlineImages,
+                onCheckedChange = { viewModel.setShowInlineImages(it) }
+            )
+            CardDivider()
+            SettingsToggleRow(
                 icon = Icons.Rounded.AttachFile,
                 title = "Inline Attachments",
                 subtitle = "Show attachment cards within the email body, or as a collapsible summary above it",

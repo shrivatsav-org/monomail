@@ -26,6 +26,9 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,7 +41,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
+import com.shrivatsav.monomail.ui.components.SlideSheet
 import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -298,30 +302,22 @@ private fun ProviderSheet(
     onMicrosoftSignIn: () -> Unit,
     onImapClick: () -> Unit,
 ) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = MaterialTheme.colorScheme.surface,
-        contentColor = MaterialTheme.colorScheme.onSurface,
+    SlideSheet(
+        onDismiss = onDismiss,
+        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 24.dp),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text(
-                text = "Choose your provider",
-                style = MaterialTheme.typography.titleMedium,
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            ProviderButtons(
-                state = state,
-                onGoogleSignIn = onGoogleSignIn,
-                onMicrosoftSignIn = onMicrosoftSignIn,
-                onImapClick = onImapClick,
-            )
-            Spacer(modifier = Modifier.height(48.dp))
-        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "Choose your provider",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        Spacer(modifier = Modifier.height(24.dp))
+        ProviderButtons(
+            state = state,
+            onGoogleSignIn = onGoogleSignIn,
+            onMicrosoftSignIn = onMicrosoftSignIn,
+            onImapClick = onImapClick,
+        )
     }
 }
 
@@ -364,7 +360,7 @@ fun ProviderSelectionDialog(
 
     Surface(
         modifier = Modifier.fillMaxWidth(0.9f),
-        shape = RoundedCornerShape(28.dp),
+        shape = cornerShape(28.dp),
         color = MaterialTheme.colorScheme.background,
         contentColor = MaterialTheme.colorScheme.onBackground,
         shadowElevation = 32.dp,

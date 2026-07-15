@@ -5,7 +5,6 @@ import com.shrivatsav.monomail.feature.inbox.*
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,6 +16,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -75,7 +75,7 @@ fun AnimatedDockTab(
     ) { active -> if (active) 1.1f else 1f }
 
     Surface(
-        shape = CircleShape,
+        shape = cornerShape(24.dp),
         color = bgColor,
         contentColor = iconColor,
         onClick = onClick,

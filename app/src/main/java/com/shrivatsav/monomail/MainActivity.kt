@@ -51,6 +51,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
+        if (CrashHandler.getLastError(this) != null) {
+            startActivity(android.content.Intent(this, CrashActivity::class.java))
+            finish()
+            return
+        }
         splashScreen.setKeepOnScreenCondition {
             // Keep splash visible until content is ready
             !isContentReady
@@ -74,7 +79,8 @@ class MainActivity : ComponentActivity() {
             ) {
                 MonoMailTheme(
                     themeMode = settings.themeMode.name,
-                    useSystemFont = settings.useSystemFont
+                    useSystemFont = settings.useSystemFont,
+                    cornerStyle = settings.cornerStyle.name
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         NavGraph(

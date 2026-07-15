@@ -11,7 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -59,34 +59,35 @@ internal fun ModalOverlay(
 
     AnimatedVisibility(
         visible = activeModal != null,
-        enter = fadeIn(tween(220)),
-        exit = fadeOut(tween(180)),
+        enter = fadeIn(tween(220)) + slideInVertically(
+            initialOffsetY = { -it },
+            animationSpec = tween(300, easing = FastOutSlowInEasing)
+        ),
+        exit = fadeOut(tween(180)) + slideOutVertically(
+            targetOffsetY = { -it },
+            animationSpec = tween(250)
+        ),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
                 .clickable(
                     indication = null,
                     interactionSource = remember { MutableInteractionSource() }
                 ) { callbacks.onDismiss() },
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.TopCenter
         ) {
             AnimatedContent(
                 targetState = displayed,
                 transitionSpec = {
-                    if (initialState == null) {
-                        EnterTransition.None togetherWith ExitTransition.None
-                    } else {
-                        (scaleIn(
-                            tween(200, easing = FastOutSlowInEasing),
-                            initialScale = 0.85f
-                        ) + fadeIn(tween(200))) togetherWith
-                                (scaleOut(tween(200), targetScale = 0.85f) +
-                                        fadeOut(tween(180)))
-                    }
+                    fadeIn(tween(200)) togetherWith fadeOut(tween(180))
                 },
-                label = "ModalContent"
+                label = "ModalContent",
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + 16.dp)
             ) { modal ->
                 ModalContentBody(
                     modal = modal,

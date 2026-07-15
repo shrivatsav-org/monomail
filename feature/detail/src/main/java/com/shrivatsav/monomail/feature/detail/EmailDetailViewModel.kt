@@ -76,6 +76,9 @@ class EmailDetailViewModel @Inject constructor(
         .map { it.isDeveloperMode }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val showInlineImages: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.showInlineImages }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
     val showInlineAttachments: StateFlow<Boolean> = settingsDataStore.settingsFlow
         .map { it.showInlineAttachments }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)

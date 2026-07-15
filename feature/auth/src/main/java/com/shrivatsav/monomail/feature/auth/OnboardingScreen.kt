@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -25,6 +25,7 @@ import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import com.shrivatsav.monomail.ui.components.IllustrationType
 import com.shrivatsav.monomail.ui.components.MonoIllustration
+import com.shrivatsav.monomail.ui.components.TooltipIconButton
 import com.shrivatsav.monomail.ui.theme.MonoOpacity
 import com.shrivatsav.monomail.ui.theme.MonoSpring
 import androidx.compose.ui.Alignment
@@ -76,7 +77,7 @@ private fun SupportPage(uriHandler: androidx.compose.ui.platform.UriHandler, con
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         Spacer(modifier = Modifier.height(16.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            OnboardingSupportIconAction(
+            TooltipIconButton(
                 icon = Icons.Rounded.Share,
                 contentDescription = "Share Monomail",
                 onClick = {
@@ -87,12 +88,12 @@ private fun SupportPage(uriHandler: androidx.compose.ui.platform.UriHandler, con
                     context.startActivity(Intent.createChooser(intent, "Share Monomail"))
                 }
             )
-            OnboardingSupportIconAction(
+            TooltipIconButton(
                 icon = Icons.Rounded.BugReport,
                 contentDescription = "Report Issue",
                 onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }
             )
-            OnboardingSupportIconAction(
+            TooltipIconButton(
                 icon = Icons.Rounded.AccountBalanceWallet,
                 contentDescription = "Donate Crypto (BASE)",
                 onClick = {
@@ -137,7 +138,7 @@ private fun PermissionButton(granted: Boolean, onClick: () -> Unit, grantedLabel
     Button(
         onClick = onClick,
         modifier = Modifier.fillMaxWidth(0.9f),
-        shape = RoundedCornerShape(16.dp),
+        shape = cornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(containerColor = if (granted) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary)
     ) {
         Icon(imageVector = if (granted) grantedIcon else defaultIcon, contentDescription = null, modifier = Modifier.size(20.dp))
@@ -152,7 +153,7 @@ private fun PagerControls(currentPage: Int, onPrev: () -> Unit, onNext: () -> Un
         if (currentPage > 0) TextButton(onClick = onPrev) { Text("Back") }
         else Spacer(modifier = Modifier.width(64.dp))
 
-        if (currentPage < TOTAL_PAGES - 1) Button(onClick = onNext, shape = RoundedCornerShape(16.dp)) {
+        if (currentPage < TOTAL_PAGES - 1) Button(onClick = onNext, shape = cornerShape(16.dp)) {
             Text("Next", modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
         } else {
             val transition = rememberInfiniteTransition(label = "pulse_transition")
@@ -168,7 +169,7 @@ private fun PagerControls(currentPage: Int, onPrev: () -> Unit, onNext: () -> Un
             
             Button(
                 onClick = onFinish, 
-                shape = RoundedCornerShape(16.dp), 
+                shape = cornerShape(16.dp), 
                 enabled = enabled, 
                 modifier = Modifier.graphicsLayer { 
                     scaleX = scale 
@@ -364,9 +365,9 @@ private fun OnboardingSupportCard(
 ) {
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
+            .clip(cornerShape(18.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = cornerShape(18.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
         contentColor = MaterialTheme.colorScheme.onSurface
     ) {
@@ -389,31 +390,3 @@ private fun OnboardingSupportCard(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun OnboardingSupportIconAction(
-    icon: ImageVector,
-    contentDescription: String,
-    onClick: () -> Unit
-) {
-    TooltipBox(
-        positionProvider = TooltipDefaults.rememberTooltipPositionProvider(TooltipAnchorPosition.Above),
-        tooltip = { PlainTooltip { Text(contentDescription) } },
-        state = rememberTooltipState()
-    ) {
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier
-                .size(44.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}

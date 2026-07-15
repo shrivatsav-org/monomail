@@ -17,7 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -78,7 +78,7 @@ fun EmailItemSkeleton(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .height(16.dp)
                         .weight(0.4f)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(cornerShape(4.dp))
                         .shimmer()
                 )
                 Spacer(modifier = Modifier.weight(0.4f))
@@ -86,7 +86,7 @@ fun EmailItemSkeleton(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .height(14.dp)
                         .weight(0.2f)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(cornerShape(4.dp))
                         .shimmer()
                 )
             }
@@ -98,7 +98,7 @@ fun EmailItemSkeleton(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .height(16.dp)
                     .fillMaxWidth(0.85f)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .shimmer()
             )
             
@@ -109,7 +109,7 @@ fun EmailItemSkeleton(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .height(14.dp)
                     .fillMaxWidth(0.95f)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .shimmer()
             )
         }
@@ -128,7 +128,7 @@ fun DetailSkeleton(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .height(32.dp)
                 .fillMaxWidth(0.9f)
-                .clip(RoundedCornerShape(8.dp))
+                .clip(cornerShape(8.dp))
                 .shimmer()
         )
         
@@ -150,7 +150,7 @@ fun DetailSkeleton(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .height(16.dp)
                         .fillMaxWidth(0.4f)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(cornerShape(4.dp))
                         .shimmer()
                 )
                 Spacer(modifier = Modifier.height(6.dp))
@@ -158,7 +158,7 @@ fun DetailSkeleton(modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .height(14.dp)
                         .fillMaxWidth(0.6f)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(cornerShape(4.dp))
                         .shimmer()
                 )
             }
@@ -172,7 +172,7 @@ fun DetailSkeleton(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .height(16.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .shimmer()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -180,7 +180,7 @@ fun DetailSkeleton(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .height(16.dp)
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .shimmer()
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -188,7 +188,7 @@ fun DetailSkeleton(modifier: Modifier = Modifier) {
                 modifier = Modifier
                     .height(16.dp)
                     .fillMaxWidth(if (i % 2 == 0) 0.8f else 0.6f)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(cornerShape(4.dp))
                     .shimmer()
             )
             Spacer(modifier = Modifier.height(24.dp))

@@ -26,7 +26,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.RadioButtonUnchecked
@@ -186,7 +186,7 @@ private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean) {
                     modifier = Modifier
                         .background(
                             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            shape = RoundedCornerShape(4.dp)
+                            shape = cornerShape(4.dp)
                         )
                         .padding(horizontal = 5.dp, vertical = 1.dp)
                 )

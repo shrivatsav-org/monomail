@@ -3,7 +3,7 @@ package com.shrivatsav.monomail.feature.inbox.scheduled
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
@@ -78,7 +78,7 @@ fun ScheduledMessagesScreen(
                     Spacer(Modifier.height(24.dp))
                     FilledTonalButton(
                         onClick = onCompose,
-                        shape = RoundedCornerShape(20.dp)
+                        shape = cornerShape(20.dp)
                     ) {
                         Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
@@ -117,7 +117,7 @@ private fun ScheduledMessageItem(
 
     Surface(
         onClick = onEdit,
-        shape = RoundedCornerShape(12.dp),
+        shape = cornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 1.dp
     ) {

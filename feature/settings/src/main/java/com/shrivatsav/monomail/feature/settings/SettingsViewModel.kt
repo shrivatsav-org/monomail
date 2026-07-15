@@ -54,8 +54,10 @@ class SettingsViewModel @Inject constructor(
     fun setUndoSendWindow(window: UndoSendWindow) = viewModelScope.launch { settingsDataStore.setUndoSendWindow(window) }
     fun setDockConfig(config: DockConfig) = viewModelScope.launch { settingsDataStore.setDockConfig(config) }
     fun setDeveloperMode(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setDeveloperMode(enabled) }
+    fun setShowInlineImages(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowInlineImages(enabled) }
     fun setShowInlineAttachments(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowInlineAttachments(enabled) }
     fun setShowMarkAllRead(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowMarkAllRead(enabled) }
+    fun setCornerStyle(style: com.shrivatsav.monomail.core.data.settings.CornerStyle) = viewModelScope.launch { settingsDataStore.setCornerStyle(style) }
     fun resetWelcomePrompt() = viewModelScope.launch {
         settingsDataStore.setHasSeenWelcomePrompt(false)
     }

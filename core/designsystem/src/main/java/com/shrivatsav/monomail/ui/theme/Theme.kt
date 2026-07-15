@@ -88,6 +88,7 @@ object MonoMailTheme {
 fun MonoMailTheme(
     themeMode: String = "SYSTEM",
     useSystemFont: Boolean = false,
+    cornerStyle: String = "ROUNDED",
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -98,12 +99,16 @@ fun MonoMailTheme(
     val colorScheme = if (darkTheme) DarkColors else LightColors
     val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
     val typography = if (useSystemFont) SystemTypography else AppTypography
+    val shapes = getMonoMailShapes(cornerStyle)
 
-    CompositionLocalProvider(LocalMonoMailExtendedColors provides extendedColors) {
+    CompositionLocalProvider(
+        LocalMonoMailExtendedColors provides extendedColors,
+        LocalCornerStyle provides cornerStyle
+    ) {
         MaterialExpressiveTheme(
             colorScheme  = colorScheme,
             typography   = typography,
-            shapes       = MonoMailShapes,
+            shapes       = shapes,
             motionScheme = MotionScheme.expressive(),
             content      = content
         )

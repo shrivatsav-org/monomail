@@ -9,7 +9,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
@@ -63,14 +63,13 @@ internal fun InboxSearchBar(
     onServerSearch: (String) -> Unit,
     actions: SearchBarActions,
     isRefreshing: Boolean,
-    toastState: InboxViewModel.ToastState?,
     bulkSelection: BulkSelectionState = BulkSelectionState(),
     unifiedInboxEnabled: Boolean = false,
 ) {
     val containerColor by animateColorAsState(
         targetValue = when {
             bulkSelection.isBulkMode -> MaterialTheme.colorScheme.secondaryContainer
-            toastState != null -> MaterialTheme.colorScheme.secondaryContainer
+            // toastState removed; handled as Top Sheet in InboxScreen
             else -> MaterialTheme.colorScheme.surfaceContainer
         },
         animationSpec = tween(300),
@@ -92,17 +91,8 @@ internal fun InboxSearchBar(
                     if (bulkSelection.isBulkMode) {
                         BulkSelectionContent(bulkSelection)
                     } else {
-                        AnimatedContent(
-                            targetState = toastState,
-                            label = "SearchBarToastMorph",
-                            transitionSpec = { fadeIn(tween(300)) togetherWith fadeOut(tween(200)) }
-                        ) { toast ->
-                            if (toast != null) {
-                                ToastContent(toast, actions)
-                            } else {
-                                SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile))
-                            }
-                        }
+                        // No toast overlay; always show search input
+                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile))
                     }
                 }
             },
@@ -147,13 +137,13 @@ private fun BulkSelectionContent(bulkSelection: BulkSelectionState) {
             if (bulkSelection.selectedCount < bulkSelection.totalCount) {
                 TextButton(
                     onClick = bulkSelection.onSelectAll,
-                    shape = RoundedCornerShape(24.dp),
+                    shape = cornerShape(24.dp),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                 ) { Text("Select all") }
             } else {
                 TextButton(
                     onClick = bulkSelection.onDeselectAll,
-                    shape = RoundedCornerShape(24.dp),
+                    shape = cornerShape(24.dp),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                 ) { Text("Deselect all") }
             }
@@ -165,33 +155,6 @@ private fun BulkSelectionContent(bulkSelection: BulkSelectionState) {
     }
 }
 
-@Composable
-private fun ToastContent(toast: InboxViewModel.ToastState, actions: SearchBarActions) {
-    val icon = when (toast.actionType) {
-        InboxViewModel.ActionType.ARCHIVE -> Icons.Rounded.Archive
-        InboxViewModel.ActionType.DELETE -> Icons.Rounded.Delete
-        InboxViewModel.ActionType.EMPTY_TRASH -> Icons.Rounded.Delete
-        InboxViewModel.ActionType.SEND -> Icons.AutoMirrored.Rounded.Send
-        InboxViewModel.ActionType.SNOOZE -> Icons.Rounded.Schedule
-        InboxViewModel.ActionType.UNARCHIVE -> Icons.Rounded.Unarchive
-        InboxViewModel.ActionType.RESTORE -> Icons.Rounded.Restore
-    }
-    Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-        Spacer(Modifier.width(16.dp))
-        Icon(icon, null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
-        Spacer(Modifier.width(10.dp))
-        Text(
-            toast.message, modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1, overflow = TextOverflow.Ellipsis
-        )
-        TextButton(
-            onClick = actions.onUndo, shape = RoundedCornerShape(24.dp),
-            colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
-        ) { Text("Undo") }
-        Spacer(Modifier.width(12.dp))
-    }
-}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
