@@ -44,6 +44,14 @@ internal fun AppearanceSettingsScreen(
                 onCheckedChange = { viewModel.setUseSystemFont(it) }
             )
             CardDivider()
+            BottomSheetPickerRow(
+                icon = Icons.Rounded.RoundedCorner,
+                title = "Corner Style",
+                currentValue = settings.cornerStyle.name.lowercase().replace("_", " ").replaceFirstChar { it.titlecase() },
+                options = com.shrivatsav.monomail.core.data.settings.CornerStyle.entries.map { it.name.lowercase().replace("_", " ").replaceFirstChar { it.titlecase() } },
+                onSelected = { idx -> viewModel.setCornerStyle(com.shrivatsav.monomail.core.data.settings.CornerStyle.entries[idx]) }
+            )
+            CardDivider()
             EmailColorsRow(
                 currentTheme = settings.emailTheme,
                 onThemeSelected = { viewModel.setEmailTheme(it) }

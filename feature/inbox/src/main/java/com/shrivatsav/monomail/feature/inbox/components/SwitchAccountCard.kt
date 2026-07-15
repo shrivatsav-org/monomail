@@ -8,7 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
@@ -33,7 +33,7 @@ internal fun SwitchAccountCard(
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(0.88f),
-        shape = RoundedCornerShape(28.dp),
+        shape = cornerShape(28.dp),
         color = MaterialTheme.colorScheme.background,
         shadowElevation = 32.dp,
     ) {
@@ -88,7 +88,7 @@ internal fun SwitchAccountCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 8.dp)
-                    .clip(RoundedCornerShape(16.dp))
+                    .clip(cornerShape(16.dp))
                     .clickable(onClick = onAddAccount)
                     .padding(horizontal = 12.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -132,7 +132,7 @@ private fun AccountRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(cornerShape(16.dp))
             .background(
                 if (isCurrent) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.06f)
                 else Color.Transparent

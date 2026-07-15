@@ -50,7 +50,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material3.LinearProgressIndicator
 import com.shrivatsav.monomail.core.network.provider.imap.ImapAccountConfig
 import androidx.compose.material3.Surface
@@ -229,7 +229,7 @@ private fun SyncingOverlay() {
                 Text("Syncing emails...", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                 LinearProgressIndicator(
                     progress = { progress.value },
-                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                    modifier = Modifier.fillMaxWidth().height(6.dp).clip(cornerShape(3.dp)),
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.primaryContainer,
                     strokeCap = StrokeCap.Round

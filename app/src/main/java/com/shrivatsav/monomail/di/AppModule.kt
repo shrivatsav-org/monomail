@@ -51,7 +51,7 @@ object AppModule {
 
     @Provides @Singleton
     fun provideSentEmailEvents(): MutableSharedFlow<SentEmailEvent> =
-        MutableSharedFlow(replay = 1)
+        MutableSharedFlow(replay = 0, extraBufferCapacity = 1, onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
 
     @Provides @Singleton
     fun provideScheduledEmailEvents(): MutableSharedFlow<ScheduledEmailEvent> =

@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "app_settings")
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+enum class CornerStyle { SQUARE, ROUNDED, EXTRA_ROUNDED }
 /**
  * Controls how email HTML bodies are colored when rendered in the detail WebView.
  * - [AUTO]: adapt plain-ish mail to the app theme; render richly-styled mail as-is.
@@ -69,7 +70,9 @@ data class AppSettings(
     val undoSendWindow: UndoSendWindow = UndoSendWindow.SEC_10,
     val dockConfig: DockConfig = DockConfig.defaults(),
     val isDeveloperMode: Boolean = false,
+    val showInlineImages: Boolean = true,
     val showInlineAttachments: Boolean = true,
+    val cornerStyle: CornerStyle = CornerStyle.ROUNDED,
     val showMarkAllRead: Boolean = true
 )
 class SettingsDataStore(private val context: Context) {
@@ -106,8 +109,9 @@ class SettingsDataStore(private val context: Context) {
         val IS_DEVELOPER_MODE = booleanPreferencesKey("is_developer_mode")
         val SHOW_INLINE_ATTACHMENTS = booleanPreferencesKey("show_inline_attachments")
         val SHOW_MARK_ALL_READ = booleanPreferencesKey("show_mark_all_read")
+        val CORNER_STYLE = stringPreferencesKey("corner_style")
+        val SHOW_INLINE_IMAGES = booleanPreferencesKey("show_inline_images")
     }
-
     private fun mapToSettings(prefs: Preferences): AppSettings {
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
         return AppSettings(
@@ -148,7 +152,9 @@ class SettingsDataStore(private val context: Context) {
                 } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults(),
             isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false,
+            showInlineImages = prefs[Keys.SHOW_INLINE_IMAGES] ?: true,
             showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true,
+            cornerStyle = prefs[Keys.CORNER_STYLE]?.let { CornerStyle.valueOf(it) } ?: CornerStyle.ROUNDED,
             showMarkAllRead = prefs[Keys.SHOW_MARK_ALL_READ] ?: true
         )
     }
@@ -236,11 +242,17 @@ class SettingsDataStore(private val context: Context) {
     suspend fun setDeveloperMode(enabled: Boolean) {
         context.dataStore.edit { it[Keys.IS_DEVELOPER_MODE] = enabled }
     }
+    suspend fun setShowInlineImages(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.SHOW_INLINE_IMAGES] = enabled }
+    }
     suspend fun setShowInlineAttachments(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_INLINE_ATTACHMENTS] = enabled }
     }
     suspend fun setShowMarkAllRead(enabled: Boolean) {
         context.dataStore.edit { it[Keys.SHOW_MARK_ALL_READ] = enabled }
+    }
+    suspend fun setCornerStyle(style: CornerStyle) {
+        context.dataStore.edit { it[Keys.CORNER_STYLE] = style.name }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()

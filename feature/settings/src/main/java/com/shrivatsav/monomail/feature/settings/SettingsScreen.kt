@@ -11,10 +11,9 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -146,17 +145,7 @@ private fun SettingsHubScreen(
             bottom = 0.dp
         ),
         topBar = {
-            TopAppBar(
-                title = {
-                    Text("Settings", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onSurface)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
-            )
+            SettingsDetailTopBar(title = "Settings", onNavigateBack = onNavigateBack)
         }
     ) { padding ->
         Column(
@@ -286,6 +275,44 @@ internal fun DeveloperSettingsScreen(
                     modifier = Modifier.size(18.dp)
                 )
             }
+            CardDivider()
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = {
+                        throw RuntimeException("Intentional crash for testing purposes")
+                    })
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Warning,
+                    contentDescription = "Test Crash",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Test App Crash",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Text(
+                        "Intentionally crash the app to verify crash handler",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
         }
     }
 }
@@ -308,7 +335,7 @@ private fun CategoryCard(
     Surface(
         onClick = onClick,
         interactionSource = interactionSource,
-        shape = RoundedCornerShape(16.dp),
+        shape = cornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceContainer,
         tonalElevation = 0.dp,
         modifier = Modifier

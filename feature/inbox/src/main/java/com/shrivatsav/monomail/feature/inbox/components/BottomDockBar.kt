@@ -7,10 +7,8 @@ import com.shrivatsav.monomail.model.InboxTab
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
+import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
@@ -20,12 +18,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.unit.dp
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.core.data.settings.DockConfig
 import com.shrivatsav.monomail.core.data.settings.DockTabId
 import com.shrivatsav.monomail.core.data.settings.AppSettings
@@ -38,6 +35,7 @@ internal fun BottomDockBar(
     unifiedInboxEnabled: Boolean,
     appSettings: AppSettings,
     onTabClick: (InboxTab) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     var showRemainingTabs by remember { mutableStateOf(false) }
     val allTabs = DockTabId.entries.filter { it != DockTabId.UNIFIED }
@@ -47,7 +45,7 @@ internal fun BottomDockBar(
     val density = LocalDensity.current
 
     Box(
-        modifier = Modifier.wrapContentSize()
+        modifier = modifier.wrapContentSize()
     ) {
         AnimatedVisibility(
             visible = showRemainingTabs && remainingIds.isNotEmpty(),
@@ -58,7 +56,7 @@ internal fun BottomDockBar(
                 .padding(bottom = (dockRowHeightPx / density.density).dp + 8.dp)
         ) {
             Surface(
-                shape = RoundedCornerShape(20.dp),
+                shape = cornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shadowElevation = 8.dp,
             ) {
@@ -121,7 +119,7 @@ private fun PrimaryDockRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = CircleShape,
+            shape = cornerShape(24.dp),
             color = MaterialTheme.colorScheme.primaryContainer,
             shadowElevation = 4.dp
         ) {
@@ -153,14 +151,13 @@ private fun MoreTabsButton(
     onClick: () -> Unit,
 ) {
     Surface(
-        shape = CircleShape,
+        shape = cornerShape(24.dp),
         color = if (showRemainingTabs) MaterialTheme.colorScheme.secondaryContainer
                 else MaterialTheme.colorScheme.primaryContainer,
         shadowElevation = 4.dp,
+        onClick = onClick,
         modifier = Modifier
             .size((42 * navScale).dp)
-            .clip(CircleShape)
-            .clickable(onClick = onClick)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -184,7 +181,7 @@ private fun RemainingTabItem(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        shape = RoundedCornerShape(14.dp),
+        shape = cornerShape(14.dp),
         color = if (isActive) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent,
         onClick = onClick,
         modifier = modifier
