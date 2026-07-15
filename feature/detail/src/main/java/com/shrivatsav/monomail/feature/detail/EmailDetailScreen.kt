@@ -137,7 +137,8 @@ fun EmailDetailScreen(
     onBack: () -> Unit,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _, _ -> },
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit = { _, _, _, _ -> },
-    onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
+    onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null },
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> }
 ) {
     // Read settings from ViewModel (consolidated — no direct DataStore collection)
     val isConversationView by viewModel.isConversationView.collectAsState()
@@ -236,7 +237,8 @@ fun EmailDetailScreen(
             decryptedBodies = decryptedBodies,
             onReply = onReply,
             onForward = onForward,
-            onFetchAttachment = onFetchAttachment
+            onFetchAttachment = onFetchAttachment,
+            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
         )
     }
 
@@ -250,7 +252,8 @@ private fun DetailContent(
     decryptedBodies: Map<String, PgpDecryptionResult>,
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit,
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit,
-    onFetchAttachment: suspend (String, String) -> ByteArray?
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit
 ) {
     when (val s = state) {
         is EmailDetailState.Error -> {
@@ -349,7 +352,8 @@ private fun DetailContent(
                                     latestEmail.id
                                 )
                             },
-                            onFetchAttachment = onFetchAttachment
+                            onFetchAttachment = onFetchAttachment,
+                            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
                         )
                     }
                 }
@@ -367,7 +371,8 @@ fun ThreadConversationContent(
     config: EmailDisplayConfig = EmailDisplayConfig(),
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
-    onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null }
+    onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null },
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> }
 ) {
     val expandedMap = remember(emails) {
         if (config.isConversationView) {
@@ -423,7 +428,8 @@ fun ThreadConversationContent(
                     onToggleExpand = { expandedMap[email.id] = !isExpanded },
                     config = config,
                     decryptedBodies = decryptedBodies,
-                    onFetchAttachment = onFetchAttachment
+                    onFetchAttachment = onFetchAttachment,
+                    onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
                 )
             } else {
                 MessageBody(
@@ -431,6 +437,7 @@ fun ThreadConversationContent(
                     decryptedResult = decryptedBodies[email.id],
                     config = config,
                     onFetchAttachment = onFetchAttachment,
+                    onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
                     showSender = true,
                     messageCount = emails.size
                 )
@@ -510,7 +517,8 @@ private fun ConversationEmailItem(
     onToggleExpand: () -> Unit,
     config: EmailDisplayConfig,
     decryptedBodies: Map<String, PgpDecryptionResult>,
-    onFetchAttachment: suspend (String, String) -> ByteArray?
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit
 ) {
     Column {
         Row(
@@ -589,7 +597,8 @@ private fun ConversationEmailItem(
             val perEmailAttachments = email.attachments.map { it to displayName(email.from) }
             ThreadAttachmentsSummary(
                 attachmentsWithSender = perEmailAttachments,
-                onFetchAttachment = onFetchAttachment
+                onFetchAttachment = onFetchAttachment,
+                onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
             )
         }
         AnimatedVisibility(
@@ -597,16 +606,16 @@ private fun ConversationEmailItem(
             enter = fadeIn(tween(200)) + expandVertically(tween(200)),
             exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
         ) {
-            ConversationEmailBody(email, index, config, decryptedBodies, onFetchAttachment)
+            ConversationEmailBody(email, index, config, decryptedBodies, onFetchAttachment, onNavigateToAttachmentViewer)
         }
     }
 }
-
 @Composable
 private fun ConversationEmailBody(
     email: Email, index: Int, config: EmailDisplayConfig,
     decryptedBodies: Map<String, PgpDecryptionResult>,
-    onFetchAttachment: suspend (String, String) -> ByteArray?
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth().background(
@@ -625,6 +634,7 @@ private fun ConversationEmailBody(
                 decryptedResult = decryptedBodies[email.id],
                 config = config,
                 onFetchAttachment = onFetchAttachment,
+                onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -694,6 +704,7 @@ private fun MessageBody(
     decryptedResult: PgpDecryptionResult? = null,
     config: EmailDisplayConfig,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> },
     showSender: Boolean = false,
     messageCount: Int = 0,
     modifier: Modifier = Modifier
@@ -719,7 +730,7 @@ private fun MessageBody(
             }
             return
         }
-        MessageBodyContent(email, safeBodyText, bodyIsHtml, config, showSender, messageCount, onFetchAttachment)
+        MessageBodyContent(email, safeBodyText, bodyIsHtml, config, showSender, messageCount, onFetchAttachment, onNavigateToAttachmentViewer)
     }
 }
 
@@ -727,7 +738,6 @@ private fun isEncryptedBlob(email: Email): Boolean =
     email.body.startsWith("-----BEGIN PGP MESSAGE-----") ||
             email.body.contains("multipart/encrypted;") ||
             email.body.contains("multipart/encrypted\r\n")
-
 @Composable
 private fun MessageBodyContent(
     email: Email,
@@ -736,7 +746,8 @@ private fun MessageBodyContent(
     config: EmailDisplayConfig,
     showSender: Boolean,
     messageCount: Int,
-    onFetchAttachment: suspend (String, String) -> ByteArray?
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit
 ) {
     var showQuotedText by remember { mutableStateOf(false) }
     val hasQuotedText = remember(safeBodyText) { hasQuotedTextBlock(safeBodyText) }
@@ -747,7 +758,8 @@ private fun MessageBodyContent(
         Spacer(modifier = Modifier.height(8.dp))
         ThreadAttachmentsSummary(
             attachmentsWithSender = email.attachments.map { it to displayName(email.from) },
-            onFetchAttachment = onFetchAttachment
+            onFetchAttachment = onFetchAttachment,
+            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
         )
         Spacer(modifier = Modifier.height(8.dp))
     }
@@ -805,7 +817,7 @@ private fun MessageBodyContent(
     }
     if (config.showInlineAttachments && email.attachments.isNotEmpty()) {
         Spacer(modifier = Modifier.height(16.dp))
-        AttachmentsSection(attachments = email.attachments, onFetchAttachment = onFetchAttachment)
+        AttachmentsSection(attachments = email.attachments, onFetchAttachment = onFetchAttachment, onNavigateToAttachmentViewer = onNavigateToAttachmentViewer)
     }
 }
 
@@ -1284,27 +1296,12 @@ private fun openAttachment(context: android.content.Context, attachment: EmailAt
     }
 }
 
-private fun isImageAttachment(attachment: EmailAttachmentInfo): Boolean {
-    val lowerName = attachment.name.lowercase()
-    return attachment.mimeType.startsWith("image/") ||
-            lowerName.endsWith(".png") || lowerName.endsWith(".jpg") ||
-            lowerName.endsWith(".jpeg") || lowerName.endsWith(".gif") ||
-            lowerName.endsWith(".webp")
-}
-
-private fun formatFileSize(bytes: Long): String {
-    return when {
-        bytes >= 1024 * 1024 -> String.format(Locale.getDefault(), "%.1f MB", bytes / (1024.0 * 1024.0))
-        bytes >= 1024 -> "${bytes / 1024} KB"
-        bytes > 0 -> "$bytes B"
-        else -> "Unknown size"
-    }
-}
 
 @Composable
 private fun AttachmentsSection(
     attachments: List<EmailAttachmentInfo>,
-    onFetchAttachment: suspend (String, String) -> ByteArray?
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> }
 ) {
     Column(
         modifier = Modifier
@@ -1319,15 +1316,17 @@ private fun AttachmentsSection(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 4.dp)
         )
-        val (imageAttachments, fileAttachments) = attachments.partition { isImageAttachment(it) }
+        val (imageAttachments, fileAttachments) = attachments.partition {
+            com.shrivatsav.monomail.ui.components.isImageAttachment(it.mimeType, it.name)
+        }
         imageAttachments.forEach { attachment ->
             ImageAttachmentCard(
                 attachment = attachment,
-                onFetchAttachment = onFetchAttachment
+                onFetchAttachment = onFetchAttachment,
+                onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
             )
         }
         if (fileAttachments.isNotEmpty()) {
-            // Responsive column count — each card minimum ~200dp
             BoxWithConstraints {
                 val columnWidth = 200.dp
                 val availableWidth = maxWidth
@@ -1342,10 +1341,10 @@ private fun AttachmentsSection(
                                 FileAttachmentCard(
                                     attachment = attachment,
                                     onFetchAttachment = onFetchAttachment,
+                                    onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
-                            // Fill remaining slots with spacers for consistent sizing
                             repeat(columns - rowItems.size) {
                                 Spacer(modifier = Modifier.weight(1f))
                             }
@@ -1360,9 +1359,9 @@ private fun AttachmentsSection(
 @Composable
 private fun ImageAttachmentCard(
     attachment: EmailAttachmentInfo,
-    onFetchAttachment: suspend (String, String) -> ByteArray?
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> }
 ) {
-    val context = androidx.compose.ui.platform.LocalContext.current
     var imageBytes by remember { androidx.compose.runtime.mutableStateOf<ByteArray?>(null) }
     androidx.compose.runtime.LaunchedEffect(attachment.id) {
         imageBytes = onFetchAttachment(attachment.messageId, attachment.id)
@@ -1374,7 +1373,7 @@ private fun ImageAttachmentCard(
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable {
                 if (imageBytes != null) {
-                    openAttachment(context, attachment, imageBytes)
+                    onNavigateToAttachmentViewer(attachment.messageId, attachment.id, attachment.mimeType, attachment.name)
                 }
             }
     ) {
@@ -1445,7 +1444,7 @@ private fun ImageAttachmentCard(
                 modifier = Modifier.weight(1f)
             )
             Text(
-                text = formatFileSize(attachment.size.toLong()),
+                text = com.shrivatsav.monomail.ui.components.formatFileSize(attachment.size.toLong()),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
@@ -1457,70 +1456,54 @@ private fun ImageAttachmentCard(
 private fun FileAttachmentCard(
     attachment: EmailAttachmentInfo,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var isFetching by remember { androidx.compose.runtime.mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val ext = attachment.name.substringAfterLast('.', "").uppercase()
     Row(
         modifier = modifier
             .clip(cornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerLow)
             .clickable {
                 if (!isFetching) {
-                    isFetching = true
-                    scope.launch {
-                        val bytes = onFetchAttachment(attachment.messageId, attachment.id)
-                        openAttachment(context, attachment, bytes)
-                        isFetching = false
+                    val category = com.shrivatsav.monomail.ui.components.classifyAttachment(attachment.mimeType, attachment.name)
+                    if (com.shrivatsav.monomail.ui.components.isPreviewableInApp(category)) {
+                        onNavigateToAttachmentViewer(attachment.messageId, attachment.id, attachment.mimeType, attachment.name)
+                    } else {
+                        isFetching = true
+                        scope.launch {
+                            val bytes = onFetchAttachment(attachment.messageId, attachment.id)
+                            openAttachment(context, attachment, bytes)
+                            isFetching = false
+                        }
                     }
                 }
             }
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(cornerShape(10.dp))
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(
-                text = if (ext.length in 1..4) ext else "FILE",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
-            )
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = attachment.name,
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = formatFileSize(attachment.size.toLong()),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
-        }
+        com.shrivatsav.monomail.ui.components.AttachmentPreviewCard(
+            name = attachment.name,
+            mimeType = attachment.mimeType,
+            size = attachment.size.toLong(),
+            isFetching = isFetching,
+            mode = com.shrivatsav.monomail.ui.components.PreviewMode.DETAIL,
+            onClick = null
+        )
     }
 }
 
 @Composable
 private fun ThreadAttachmentsSummary(
     attachmentsWithSender: List<Pair<EmailAttachmentInfo, String>>,
-    onFetchAttachment: suspend (String, String) -> ByteArray?
+    onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-    val imageAttachments = attachmentsWithSender.filter { isImageAttachment(it.first) }
-    val fileAttachments = attachmentsWithSender.filter { !isImageAttachment(it.first) }
+    val imageAttachments = attachmentsWithSender.filter { com.shrivatsav.monomail.ui.components.isImageAttachment(it.first.mimeType, it.first.name) }
+    val fileAttachments = attachmentsWithSender.filter { !com.shrivatsav.monomail.ui.components.isImageAttachment(it.first.mimeType, it.first.name) }
     val totalCount = attachmentsWithSender.size
     val imageCount = imageAttachments.size
 
@@ -1536,7 +1519,8 @@ private fun ThreadAttachmentsSummary(
             ExpandedAttachmentList(
                 imageAttachments = imageAttachments,
                 fileAttachments = fileAttachments,
-                onFetchAttachment = onFetchAttachment
+                onFetchAttachment = onFetchAttachment,
+                onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
             )
         }
     }
@@ -1586,6 +1570,7 @@ private fun ExpandedAttachmentList(
     imageAttachments: List<Pair<EmailAttachmentInfo, String>>,
     fileAttachments: List<Pair<EmailAttachmentInfo, String>>,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -1595,7 +1580,8 @@ private fun ExpandedAttachmentList(
             Column {
                 ImageAttachmentCard(
                     attachment = attachment,
-                    onFetchAttachment = onFetchAttachment
+                    onFetchAttachment = onFetchAttachment,
+                    onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
                 )
                 Text(
                     text = "from $sender",
@@ -1609,7 +1595,8 @@ private fun ExpandedAttachmentList(
         if (fileAttachments.isNotEmpty()) {
             FileAttachmentsGrid(
                 fileAttachments = fileAttachments,
-                onFetchAttachment = onFetchAttachment
+                onFetchAttachment = onFetchAttachment,
+                onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
             )
         }
 
@@ -1621,6 +1608,7 @@ private fun ExpandedAttachmentList(
 private fun FileAttachmentsGrid(
     fileAttachments: List<Pair<EmailAttachmentInfo, String>>,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit,
 ) {
     BoxWithConstraints {
         val columnWidth = 200.dp
@@ -1636,6 +1624,7 @@ private fun FileAttachmentsGrid(
                             FileAttachmentCard(
                                 attachment = attachment,
                                 onFetchAttachment = onFetchAttachment,
+                                onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text(

@@ -10,6 +10,11 @@ data class SendEmailOptions(
     val attachments: List<EmailAttachment> = emptyList()
 )
 
+data class SendEmailResult(
+    val messageId: String?,
+    val threadId: String?
+)
+
 interface EmailProvider {
     val providerName: String  
     suspend fun listThreads(
@@ -31,7 +36,7 @@ interface EmailProvider {
     suspend fun sendEmail(
         from: String, to: String, subject: String, body: String,
         options: SendEmailOptions = SendEmailOptions()
-    ): String?
+    ): SendEmailResult?
 
     suspend fun getSendAsAliases(): List<SendAsAlias>
 }

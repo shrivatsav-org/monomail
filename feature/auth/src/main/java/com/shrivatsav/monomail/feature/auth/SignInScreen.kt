@@ -169,7 +169,7 @@ fun SignInScreen(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Snackbar(snackbarData = it)
+            Snackbar(snackbarData = it, shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp))
         }
 
         if (showProviderSheet) {

@@ -48,7 +48,8 @@ fun SettingsScreen(
     authManager: com.shrivatsav.monomail.core.data.auth.AuthManager,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
-    onNavigateToPgpKeys: () -> Unit = {}
+    onNavigateToPgpKeys: () -> Unit = {},
+    onNavigateToSampleCompose: () -> Unit = {}
 ) {
     var currentSection by remember { mutableStateOf<SettingsSection?>(null) }
     BackHandler(currentSection != null) { currentSection = null }
@@ -105,7 +106,8 @@ fun SettingsScreen(
             )
             SettingsSection.DEVELOPER -> DeveloperSettingsScreen(
                 viewModel = viewModel,
-                onBack = { currentSection = null }
+                onBack = { currentSection = null },
+                onNavigateToSampleCompose = onNavigateToSampleCompose
             )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsScreen(
                 authManager = authManager,
@@ -213,7 +215,8 @@ private fun SettingsHubScreen(
 @Composable
 internal fun DeveloperSettingsScreen(
     viewModel: SettingsViewModel,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    onNavigateToSampleCompose: () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsState()
     val context = LocalContext.current
@@ -232,6 +235,43 @@ internal fun DeveloperSettingsScreen(
         }
         Spacer(Modifier.height(8.dp))
         SettingsCard {
+            // Sample Attachments
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onNavigateToSampleCompose)
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.AttachFile,
+                    contentDescription = "Sample Attachments",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Sample Attachments",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        "Open compose with sample attachments for testing",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Rounded.ChevronRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+            CardDivider()
             // Preview Welcome button
             Row(
                 modifier = Modifier

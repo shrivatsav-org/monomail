@@ -280,7 +280,7 @@ class GmailProvider(
         subject: String,
         body: String,
         options: SendEmailOptions
-    ): String? = withContext(Dispatchers.IO) {
+    ): SendEmailResult? = withContext(Dispatchers.IO) {
         try {
             val session = Session.getInstance(Properties())
             val message = MimeMessage(session).apply {
@@ -317,7 +317,7 @@ class GmailProvider(
                 android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
             )
             val response = api.sendMessage(SendMessageRequest(raw = raw, threadId = options.threadId))
-            response.threadId
+            SendEmailResult(messageId = response.id, threadId = response.threadId)
         } catch (e: HttpException) {
             val msg = when (e.code()) {
                 400 -> "Invalid message format"
