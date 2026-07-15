@@ -307,7 +307,7 @@ class OutlookProvider(
         subject: String,
         body: String,
         options: SendEmailOptions
-    ): String? {
+    ): SendEmailResult? {
         val recipients = parseRecipients(to)
         val ccRecipients = options.cc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
         val bccRecipients = options.bcc.takeIf { it.isNotBlank() }?.let { parseRecipients(it) }
@@ -322,7 +322,8 @@ class OutlookProvider(
             attachments = draftAttachments.takeIf { it.isNotEmpty() }
         )
         api.sendMail(OutlookSendMailRequest(msg))
-        return options.threadId ?: UUID.randomUUID().toString()
+        val threadId = options.threadId ?: UUID.randomUUID().toString()
+        return SendEmailResult(messageId = null, threadId = threadId)
     }
 
     private fun parseRecipients(csv: String): List<OutlookRecipient> {

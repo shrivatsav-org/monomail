@@ -311,10 +311,10 @@ class ComposeViewModel @Inject constructor(
                 body = finalBody,
                 params = SendEmailParams(cc = current.cc, bcc = current.bcc, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references, attachments = current.attachments)
             )
-            result.onSuccess { sentThreadId ->
+            result.onSuccess { sendResult ->
                 sentEmailEvents.tryEmit(
                     SentEmailEvent(
-                        threadId = sentThreadId,
+                        threadId = sendResult.threadId ?: "",
                         to = current.to,
                         subject = current.subject
                     )

@@ -32,6 +32,7 @@ googleServices = "4.4.2"
 firebaseMessaging = "24.1.0"
 pgpainless = "2.0.3"
 webkit = "1.12.1"
+media3 = "1.5.1"
 
 [libraries]
 # Core
@@ -88,6 +89,10 @@ androidx-datastore-preferences = { group = "androidx.datastore", name = "datasto
 
 # WebKit
 androidx-webkit = { group = "androidx.webkit", name = "webkit", version.ref = "webkit" }
+
+# Media3
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 
 # Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }

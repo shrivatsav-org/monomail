@@ -10,6 +10,7 @@ import com.shrivatsav.monomail.core.network.provider.SendEmailOptions
 import com.shrivatsav.monomail.core.network.provider.ProviderThread
 import com.shrivatsav.monomail.core.network.provider.ProviderThreadListResult
 import com.shrivatsav.monomail.core.network.provider.SendAsAlias
+import com.shrivatsav.monomail.core.network.provider.SendEmailResult
 import jakarta.mail.Flags
 import jakarta.mail.Folder
 import jakarta.mail.Message
@@ -536,17 +537,16 @@ class ImapProvider(
         subject: String,
         body: String,
         options: SendEmailOptions
-    ): String? = withContext(Dispatchers.IO) {
+    ): SendEmailResult? = withContext(Dispatchers.IO) {
         val props = buildSmtpProps(from)
         val session = Session.getInstance(props, object : jakarta.mail.Authenticator() {
             override fun getPasswordAuthentication() = jakarta.mail.PasswordAuthentication(config.username, password)
         })
 
         val message = buildMimeMessage(session, from, to, subject, body, options)
-
         Transport.send(message)
         saveToSentFolder(message)
-        message.messageID
+        SendEmailResult(messageId = message.messageID, threadId = message.messageID)
     }
 
     private fun buildMimeMessage(

@@ -163,6 +163,7 @@ dependencies {
     implementation(project(":feature:detail"))
     implementation(project(":feature:compose"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:attachment"))
 
     // Networking (now decoupled)
     implementation(project(":core:network"))

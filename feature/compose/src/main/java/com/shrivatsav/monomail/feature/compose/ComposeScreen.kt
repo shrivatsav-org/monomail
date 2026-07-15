@@ -107,6 +107,8 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.graphics.toArgb
+import android.app.Activity
+import android.content.Intent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
@@ -152,6 +154,24 @@ private fun resolveAttachmentMimeType(contentResolver: android.content.ContentRe
         lower.endsWith(".webp") -> "image/webp"
         else -> mimeType
     }
+}
+
+private fun addPickedAttachment(
+    contentResolver: android.content.ContentResolver,
+    uri: Uri,
+    onResult: (name: String, size: Long, mimeType: String) -> Unit
+) {
+    var name = "attachment"
+    var size = 0L
+    contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+            val sizeIdx = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
+            if (nameIdx != -1) name = cursor.getString(nameIdx)
+            if (sizeIdx != -1) size = cursor.getLong(sizeIdx)
+        }
+    }
+    onResult(name, size, resolveAttachmentMimeType(contentResolver, uri, name))
 }
 
 @Composable
@@ -301,22 +321,35 @@ fun ComposeScreen(
     val showSentAnimation = remember { mutableStateOf(false) }
     val contentResolver = context.contentResolver
     var showAttachmentPicker by remember { mutableStateOf(false) }
-    val launcher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents()
-    ) { uris: List<Uri> ->
-        uris.forEach { uri ->
-            var name = "attachment"
-            var size = 0L
-            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                    val sizeIdx = cursor.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                    if (nameIdx != -1) name = cursor.getString(nameIdx)
-                    if (sizeIdx != -1) size = cursor.getLong(sizeIdx)
+    val photoVideoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.let { intentData ->
+                val clipData = intentData.clipData
+                if (clipData != null) {
+                    for (i in 0 until clipData.itemCount) {
+                        val uri = clipData.getItemAt(i).uri
+                        addPickedAttachment(contentResolver, uri) { name, size, mimeType ->
+                            viewModel.addAttachment(EmailAttachment(uri, name, size, mimeType))
+                        }
+                    }
+                } else {
+                    intentData.data?.let { uri ->
+                        addPickedAttachment(contentResolver, uri) { name, size, mimeType ->
+                            viewModel.addAttachment(EmailAttachment(uri, name, size, mimeType))
+                        }
+                    }
                 }
             }
-            viewModel.addAttachment(EmailAttachment(uri, name, size, resolveAttachmentMimeType(contentResolver, uri, name)))
         }
+    }
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenMultipleDocuments()
+    ) { uris: List<Uri> ->
+        uris.forEach { uri -> addPickedAttachment(contentResolver, uri) { name, size, mimeType ->
+            viewModel.addAttachment(EmailAttachment(uri, name, size, mimeType))
+        } }
     }
     LaunchedEffect(state.isSent) {
         if (state.isSent) {
@@ -335,13 +368,19 @@ fun ComposeScreen(
     if (showAttachmentPicker) {
         AttachmentPickerSheet(
             onDismiss = { showAttachmentPicker = false },
-            onSelectImages = { 
+            onSelectImages = {
                 showAttachmentPicker = false
-                launcher.launch("image/*") 
+                val intent = Intent(Intent.ACTION_GET_CONTENT).apply {
+                    addCategory(Intent.CATEGORY_OPENABLE)
+                    type = "image/*"
+                    putExtra(Intent.EXTRA_MIME_TYPES, arrayOf("image/*", "video/*"))
+                    putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                }
+                photoVideoLauncher.launch(intent)
             },
-            onSelectFiles = { 
+            onSelectFiles = {
                 showAttachmentPicker = false
-                launcher.launch("*/*") 
+                filePickerLauncher.launch(arrayOf("*/*"))
             }
         )
     }
@@ -390,7 +429,7 @@ fun ComposeScreen(
         },
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) {
-                Snackbar(snackbarData = it)
+                Snackbar(snackbarData = it, shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp))
             }
         }
     ) { padding ->
@@ -1214,60 +1253,14 @@ fun AttachmentPreview(
     attachment: EmailAttachment,
     onRemove: () -> Unit
 ) {
-    val isImage = attachment.mimeType.startsWith("image/")
-    Box(
-        modifier = Modifier
-            .size(100.dp)
-            .clip(cornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-    ) {
-        if (isImage) {
-            AsyncImage(
-                model = attachment.uri,
-                contentDescription = attachment.name,
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        } else {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(8.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Description,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(32.dp)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = attachment.name,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-        }
-        IconButton(
-            onClick = onRemove,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(4.dp)
-                .size(24.dp)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f), CircleShape)
-        ) {
-            Icon(
-                imageVector = Icons.Rounded.Close,
-                contentDescription = "Remove",
-                modifier = Modifier.size(16.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    com.shrivatsav.monomail.ui.components.AttachmentPreviewCard(
+        name = attachment.name,
+        mimeType = attachment.mimeType,
+        size = attachment.size,
+        thumbnailUri = attachment.uri,
+        onRemove = onRemove,
+        mode = com.shrivatsav.monomail.ui.components.PreviewMode.THUMBNAIL
+    )
 }
 
 @Composable

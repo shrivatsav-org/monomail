@@ -176,7 +176,7 @@ fun InboxScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) },
+        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(snackbarData = it, shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp)) } },
         contentWindowInsets = WindowInsets(
             top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
             bottom = 0.dp
@@ -1087,7 +1087,9 @@ private fun BottomFabArea(
             unifiedInboxEnabled = unifiedInboxEnabled,
             appSettings = appSettings,
             onTabClick = { viewModel.switchTab(it) },
-            modifier = Modifier.align(Alignment.BottomCenter)
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(end = 72.dp)
         )
         Box(
             modifier = Modifier
