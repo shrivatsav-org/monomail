@@ -349,7 +349,7 @@ jobs:
           releaseFiles: app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
           track: alpha
           whatsNewDirectory: distribution/whatsnew
-          releaseStatus: draft
+          status: draft
 
       # --------------------------------------------------------------------------
       # Upload APK to GitHub Release
