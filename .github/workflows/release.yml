@@ -322,7 +322,7 @@ jobs:
             printf '%s' "$TRUNC" > distribution/whatsnew/whatsnew-en-GB
           fi
           # Enforce 500-char cap on whatever we have
-          SHORT=$(cat distribution/whatsnew/whatsnew-en-GB | head -c 497 | sed 's/ [^ ]*$//' | xargs)
+          SHORT=$(cat distribution/whatsnew/whatsnew-en-GB | head -c 497 | sed 's/ [^ ]*$//')
           printf '%s' "$SHORT" > distribution/whatsnew/whatsnew-en-GB
           echo "===== PLAY STORE NOTES (${#SHORT} chars) ====="
           cat distribution/whatsnew/whatsnew-en-GB
