@@ -89,6 +89,21 @@ interface EmailDao {
 
     @Query("SELECT id, body, bodyIsHtml FROM emails WHERE accountId = :accountId")
     suspend fun getEmailBodyForAccount(accountId: String): List<EmailBodyProjection>
+
+    @Query("""
+        SELECT DISTINCT e.threadId FROM emails e
+        INNER JOIN emails_fts fts ON e.rowid = fts.docid
+        WHERE emails_fts MATCH :ftsQuery
+        AND (:dateFrom IS NULL OR e.date >= :dateFrom)
+        AND (:dateTo IS NULL OR e.date <= :dateTo)
+        AND (:hasAttachments = 0 OR e.attachmentsJson != '[]')
+    """)
+    suspend fun searchThreadIds(
+        ftsQuery: String,
+        dateFrom: Long?,
+        dateTo: Long?,
+        hasAttachments: Boolean
+    ): List<String>
 }
 
 data class EmailBodyProjection(

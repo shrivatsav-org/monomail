@@ -105,13 +105,14 @@ fun InboxScreen(
     var isTrashCountdownActive by remember { mutableStateOf(false) }
     var isSpamCountdownActive by remember { mutableStateOf(false) }
     val appSettings by viewModel.appSettingsState.collectAsState()
+    val searchFilters by viewModel.searchFilters.collectAsState()
+    val searchResults by viewModel.searchResults.collectAsState()
 
     val pullToRefreshState = rememberPullToRefreshState()
-    var searchQuery by remember { mutableStateOf("") }
     val currentThreads = (state as? InboxState.Success)?.threads ?: emptyList()
-    var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
     val hapticFeedback = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
+    var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
     var activeModal by remember { mutableStateOf<ModalType?>(null) }
     var showSnoozePicker by remember { mutableStateOf(false) }
     var snoozeThreadId by remember { mutableStateOf<String?>(null) }
@@ -120,10 +121,14 @@ fun InboxScreen(
     val isBulkMode by viewModel.isBulkSelectMode.collectAsState()
     val selectedThreadIds by viewModel.selectedThreadIds.collectAsState()
     val selectedCount by viewModel.selectedCount.collectAsState()
-    val isSearchActive = searchQuery.isNotEmpty()
+    var isSearchFocused by remember { mutableStateOf(false) }
+    val isSearchActive = searchFilters.query.isNotEmpty()
     if (isSearchActive) {
         BackHandler {
-            searchQuery = ""
+            viewModel.clearSearch()
+        }
+    } else if (isSearchFocused) {
+        BackHandler {
             focusManager.clearFocus()
         }
     } else if (isBulkMode) {
@@ -132,14 +137,11 @@ fun InboxScreen(
         BackHandler { viewModel.switchTab(InboxTab.INBOX) }
     }
 
-    val localFilteredThreads by remember(searchQuery, currentThreads) {
-        derivedStateOf {
-            if (searchQuery.isEmpty()) null
-            else currentThreads.filter {
-                it.subject.contains(searchQuery, ignoreCase = true) ||
-                        it.from.contains(searchQuery, ignoreCase = true) ||
-                        it.snippet.contains(searchQuery, ignoreCase = true)
-            }
+    LaunchedEffect(isSearchActive) {
+        if (!isSearchActive) {
+            focusManager.clearFocus()
+            kotlinx.coroutines.delay(100)
+            focusManager.clearFocus()
         }
     }
 
@@ -209,9 +211,10 @@ fun InboxScreen(
                     InboxSearchBar(
                         userProfile = userProfile,
                         accounts = accounts,
-                        query = searchQuery,
-                        onQueryChange = { searchQuery = it },
+                        query = searchFilters.query,
+                        onQueryChange = { viewModel.updateSearch(searchFilters.copy(query = it)) },
                         onServerSearch = { viewModel.searchServer(it) },
+                        onFocusChange = { isSearchFocused = it },
                         actions = SearchBarActions(
                             onMarkAllRead = { viewModel.markAllAsRead() },
                             onScheduledClick = navActions.onScheduledClick,
@@ -224,12 +227,18 @@ fun InboxScreen(
                         bulkSelection = BulkSelectionState(
                             isBulkMode = isBulkMode,
                             selectedCount = selectedCount,
-                            totalCount = localFilteredThreads?.size ?: currentThreads.size,
+                            totalCount = if (isSearchActive) searchResults.size else currentThreads.size,
                             onSelectAll = { viewModel.selectAll() },
                             onDeselectAll = { viewModel.deselectAll() },
                             onDone = { viewModel.exitBulkSelectMode() }
                         ),
                         unifiedInboxEnabled = unifiedInboxEnabled
+                    )
+
+                    SearchFilterBar(
+                        filters = searchFilters,
+                        onFiltersChanged = { viewModel.updateSearch(it) },
+                        visible = isSearchActive
                     )
 
                     val isOnline = rememberConnectivityState()
@@ -285,8 +294,7 @@ fun InboxScreen(
                                     viewModel.saveScrollState(currentTab, index, offset)
                                 }
                             }
-                            val threadsToDisplay = localFilteredThreads ?: s.threads
-                            val isSearchActive = localFilteredThreads != null
+                            val threadsToDisplay = if (isSearchActive) searchResults else s.threads
                             var expandedGroupsList by androidx.compose.runtime.saveable.rememberSaveable {
                                 mutableStateOf(emptyList<String>())
                             }
@@ -340,7 +348,7 @@ fun InboxScreen(
                                         title = "No results found"
                                         subtitle = "Try searching on the server instead."
                                         ctaText = "Search server"
-                                        onCtaClick = { viewModel.searchServer(searchQuery) }
+                                        onCtaClick = { viewModel.searchServer(searchFilters.query) }
                                     } else {
                                         when (currentTab) {
                                             InboxTab.SENT -> {
@@ -567,7 +575,7 @@ fun InboxScreen(
                                                     contentAlignment = Alignment.Center
                                                 ) {
                                                     OutlinedButton(
-                                                        onClick = { viewModel.searchServer(searchQuery) },
+                                                        onClick = { viewModel.searchServer(searchFilters.query) },
                                                         shape = MaterialTheme.shapes.large
                                                     ) { Text("Search server for older emails") }
                                                 }
