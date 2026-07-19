@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import com.shrivatsav.monomail.core.data.settings.ThemeMode
 import androidx.compose.ui.unit.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -26,9 +27,17 @@ internal fun AppearanceSettingsScreen(
         onBack = onBack
     ) {
         SettingsCard {
-            ThemeSelectorRow(
-                currentTheme = settings.themeMode,
-                onThemeSelected = { viewModel.setThemeMode(it) }
+            BottomSheetPickerRow(
+                icon = Icons.Rounded.DarkMode,
+                title = "Theme",
+                currentValue = settings.themeMode.displayName(),
+                options = ThemeMode.entries.map { it.displayName() },
+                onSelected = { idx -> viewModel.setThemeMode(ThemeMode.entries[idx]) }
+            )
+            CardDivider()
+            MonochromeToggleRow(
+                monochrome = settings.monochromeTheme,
+                onToggle = { viewModel.setMonochromeTheme(it) }
             )
             CardDivider()
             FontSizeRow(
@@ -89,7 +98,7 @@ internal fun AppearanceSettingsScreen(
                 onCheckedChange = { viewModel.setShowMarkAllRead(it) }
             )
         }
-    }
+}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

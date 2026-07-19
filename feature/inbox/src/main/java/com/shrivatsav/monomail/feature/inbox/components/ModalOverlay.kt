@@ -57,8 +57,28 @@ internal fun ModalOverlay(
         }
     }
 
+    val isVisible = activeModal != null
+
+    // 1. Scrim layer (fades in)
     AnimatedVisibility(
-        visible = activeModal != null,
+        visible = isVisible,
+        enter = fadeIn(tween(220)),
+        exit = fadeOut(tween(180)),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                .clickable(
+                    indication = null,
+                    interactionSource = remember { MutableInteractionSource() }
+                ) { callbacks.onDismiss() }
+        )
+    }
+
+    // 2. Modal content layer (slides down)
+    AnimatedVisibility(
+        visible = isVisible,
         enter = fadeIn(tween(220)) + slideInVertically(
             initialOffsetY = { -it },
             animationSpec = tween(300, easing = FastOutSlowInEasing)
@@ -69,13 +89,7 @@ internal fun ModalOverlay(
         ),
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) { callbacks.onDismiss() },
+            modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter
         ) {
             AnimatedContent(

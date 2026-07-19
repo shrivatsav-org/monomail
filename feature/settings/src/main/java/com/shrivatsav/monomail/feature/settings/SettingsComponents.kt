@@ -22,6 +22,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -35,8 +36,6 @@ import com.shrivatsav.monomail.core.data.settings.*
 import com.shrivatsav.monomail.ui.components.SlideSheet
 import com.shrivatsav.monomail.ui.theme.MonoOpacity
 import com.shrivatsav.monomail.ui.theme.MonoSpring
-
-// ── Shared UI Primitives ────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -166,26 +165,28 @@ internal fun SettingsActionRow(
     icon: ImageVector,
     title: String,
     subtitle: String,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    enabled: Boolean = true
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .let { if (enabled) it.clickable(onClick = onClick) else it }
+            .alpha(if (enabled) 1f else MonoOpacity.disabled)
             .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = icon,
             contentDescription = title,
-            tint = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.size(24.dp)
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
         )
-        Spacer(Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
-                style = MaterialTheme.typography.bodyLarge,
+                style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -195,7 +196,7 @@ internal fun SettingsActionRow(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(8.dp))
         Icon(
             imageVector = Icons.Rounded.ChevronRight,
             contentDescription = null,
@@ -204,7 +205,6 @@ internal fun SettingsActionRow(
         )
     }
 }
-
 @Composable
 internal fun ThemeSelectorRow(
     currentTheme: ThemeMode,
@@ -235,6 +235,20 @@ internal fun EmailColorsRow(
             SelectorEntry(mode.displayName(), currentTheme == mode) { onThemeSelected(mode) }
         },
         description = currentTheme.description()
+    )
+}
+
+@Composable
+internal fun MonochromeToggleRow(
+    monochrome: Boolean,
+    onToggle: (Boolean) -> Unit
+) {
+    SettingsToggleRow(
+        icon = Icons.Rounded.Palette,
+        title = "Monochrome Colors",
+        subtitle = if (monochrome) "Using black & white palette" else "Using dynamic color scheme",
+        checked = monochrome,
+        onCheckedChange = onToggle
     )
 }
 
