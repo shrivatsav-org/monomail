@@ -112,12 +112,18 @@ class EmailDetailViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            repository.markThreadAsRead(threadId)
-            _isLoading.value = true
-            val result = repository.refreshThread(threadId)
-            _isLoading.value = false
-            result.onFailure {
-                _error.value = it.message ?: "Failed to refresh thread"
+            try {
+                repository.markThreadAsRead(threadId)
+                _isLoading.value = true
+                val result = repository.refreshThread(threadId)
+                _isLoading.value = false
+                result.onFailure {
+                    _error.value = it.message ?: "Failed to refresh thread"
+                }
+            } catch (e: Exception) {
+                _isLoading.value = false
+                _error.value = e.message ?: "Failed to load email"
+                Log.e("EmailDetailVM", "Unexpected error loading thread $threadId", e)
             }
         }
         viewModelScope.launch {

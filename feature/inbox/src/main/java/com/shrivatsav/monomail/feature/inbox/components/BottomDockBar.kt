@@ -8,6 +8,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
@@ -52,15 +54,16 @@ internal fun BottomDockBar(
             enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(MonoTween.fadeIn),
             exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(MonoTween.fadeOut),
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = (dockRowHeightPx / density.density).dp + 8.dp)
+                .align(Alignment.BottomStart)
+                .padding(bottom = androidx.compose.ui.unit.max(0.dp, (dockRowHeightPx / density.density).dp - 12.dp))
         ) {
             Surface(
+                modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 16.dp, bottom = 12.dp),
                 shape = cornerShape(20.dp),
                 color = MaterialTheme.colorScheme.surfaceContainer,
                 shadowElevation = 8.dp,
             ) {
-                Row(modifier = Modifier.padding(4.dp)) {
+                Row(modifier = Modifier.padding(4.dp).horizontalScroll(rememberScrollState())) {
                     remainingIds.forEach { dockTabId ->
                         val tab = dockTabId.toInboxTab()
                         RemainingTabItem(
@@ -80,10 +83,13 @@ internal fun BottomDockBar(
         }
         Row(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.BottomStart)
+                .padding(end = 72.dp)
                 .onGloballyPositioned { coordinates ->
                     dockRowHeightPx = coordinates.size.height.toFloat()
-                },
+                }
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 12.dp, horizontal = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -120,11 +126,11 @@ private fun PrimaryDockRow(
     ) {
         Surface(
             shape = cornerShape(24.dp),
-            color = MaterialTheme.colorScheme.primaryContainer,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             shadowElevation = 4.dp
         ) {
             Row(
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                modifier = Modifier.padding(6.dp),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -153,7 +159,7 @@ private fun MoreTabsButton(
     Surface(
         shape = cornerShape(24.dp),
         color = if (showRemainingTabs) MaterialTheme.colorScheme.secondaryContainer
-                else MaterialTheme.colorScheme.primaryContainer,
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
         shadowElevation = 4.dp,
         onClick = onClick,
         modifier = Modifier
