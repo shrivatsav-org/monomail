@@ -75,6 +75,7 @@ data class AppSettings(
     val cornerStyle: CornerStyle = CornerStyle.ROUNDED,
     val showMarkAllRead: Boolean = true,
     val monochromeTheme: Boolean = true,
+    val swipeThreshold: Float = 0.40f,
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -113,6 +114,7 @@ class SettingsDataStore(private val context: Context) {
         val CORNER_STYLE = stringPreferencesKey("corner_style")
         val SHOW_INLINE_IMAGES = booleanPreferencesKey("show_inline_images")
         val MONOCHROME_THEME = booleanPreferencesKey("monochrome_theme")
+        val SWIPE_THRESHOLD = floatPreferencesKey("swipe_threshold")
     }
     private fun mapToSettings(prefs: Preferences): AppSettings {
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
@@ -158,6 +160,7 @@ class SettingsDataStore(private val context: Context) {
             showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true,
             cornerStyle = prefs[Keys.CORNER_STYLE]?.let { CornerStyle.valueOf(it) } ?: CornerStyle.ROUNDED,
             monochromeTheme = prefs[Keys.MONOCHROME_THEME] ?: true,
+            swipeThreshold = prefs[Keys.SWIPE_THRESHOLD]?.coerceIn(0.20f, 0.60f) ?: 0.40f,
         )
     }
 
@@ -259,6 +262,9 @@ class SettingsDataStore(private val context: Context) {
 
     suspend fun setMonochromeTheme(enabled: Boolean) {
         context.dataStore.edit { it[Keys.MONOCHROME_THEME] = enabled }
+    }
+    suspend fun setSwipeThreshold(threshold: Float) {
+        context.dataStore.edit { it[Keys.SWIPE_THRESHOLD] = threshold.coerceIn(0.20f, 0.60f) }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()

@@ -84,6 +84,8 @@ interface ThreadDao {
     fun getAllSpamThreads(): Flow<List<ThreadEntity>>
     @Query("SELECT * FROM threads WHERE isSnoozed = 1 ORDER BY date DESC LIMIT 500")
     fun getAllSnoozedThreads(): Flow<List<ThreadEntity>>
+    @Query("SELECT * FROM threads WHERE threadId IN (:threadIds) AND accountId = :accountId ORDER BY date DESC")
+    suspend fun getThreadsByIds(threadIds: List<String>, accountId: String): List<ThreadEntity>
 }
 
 data class ThreadReadStatusProjection(

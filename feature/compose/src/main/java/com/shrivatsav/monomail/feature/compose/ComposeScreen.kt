@@ -429,7 +429,13 @@ fun ComposeScreen(
         },
         snackbarHost = {
             SnackbarHost(hostState = snackbarHostState) {
-                Snackbar(snackbarData = it, shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp))
+                Snackbar(
+                    snackbarData = it,
+                    shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp),
+                    containerColor = MaterialTheme.colorScheme.inverseSurface,
+                    contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                    actionContentColor = MaterialTheme.colorScheme.inverseOnSurface
+                )
             }
         }
     ) { padding ->

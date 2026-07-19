@@ -115,6 +115,11 @@ class InboxViewModel @Inject constructor(
     val state: StateFlow<InboxState> = _state.asStateFlow()
     private val _scrollPositions = MutableStateFlow<Map<InboxTab, Pair<Int, Int>>>(emptyMap())
     val scrollPositions: StateFlow<Map<InboxTab, Pair<Int, Int>>> = _scrollPositions.asStateFlow()
+    private val _searchFilters = MutableStateFlow(SearchFilters())
+    val searchFilters: StateFlow<SearchFilters> = _searchFilters.asStateFlow()
+    private val _searchResults = MutableStateFlow<List<EmailThread>>(emptyList())
+    val searchResults: StateFlow<List<EmailThread>> = _searchResults.asStateFlow()
+
 
     fun saveScrollState(tab: InboxTab, index: Int, offset: Int) {
         _scrollPositions.value = _scrollPositions.value + (tab to (index to offset))
@@ -344,6 +349,7 @@ class InboxViewModel @Inject constructor(
         if (_currentTab.value == tab) return
         _currentTab.value = tab
         currentServerQuery = null
+        clearSearch()
         if (_isBulkSelectMode.value) exitBulkSelectMode()
         refresh()
     }
@@ -375,6 +381,29 @@ class InboxViewModel @Inject constructor(
     fun searchServer(query: String) {
         currentServerQuery = query.takeIf { it.isNotBlank() }
         refresh()
+    }
+    fun updateSearch(filters: SearchFilters) {
+        _searchFilters.value = filters
+        if (filters.query.isBlank()) {
+            _searchResults.value = emptyList()
+            return
+        }
+        viewModelScope.launch {
+            val accountId = _activeAccountId.value ?: return@launch
+            val results = repository.searchThreads(
+                query = filters.query,
+                searchField = filters.searchField,
+                dateFrom = filters.dateFrom,
+                dateTo = filters.dateTo,
+                hasAttachments = filters.hasAttachments,
+                accountId = accountId
+            )
+            _searchResults.value = results
+        }
+    }
+    fun clearSearch() {
+        _searchFilters.value = SearchFilters()
+        _searchResults.value = emptyList()
     }
     fun loadMore() {
         val key = getPageTokenKey()

@@ -14,6 +14,7 @@ import com.google.gson.Gson
 import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.core.database.local.*
+import com.shrivatsav.monomail.core.data.repository.SearchField
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
@@ -59,6 +60,35 @@ class EmailRepository(
         return providerFactory(activeAccount)
     }
     fun getDatabase(): AppDatabase = database
+    suspend fun searchThreads(
+        query: String,
+        searchField: SearchField = SearchField.ALL,
+        dateFrom: Long? = null,
+        dateTo: Long? = null,
+        hasAttachments: Boolean = false,
+        accountId: String? = null
+    ): List<EmailThread> {
+        val activeAccountId = accountId ?: getActiveAccountId()
+        val ftsQuery = buildFtsQuery(query, searchField)
+        if (ftsQuery.isBlank()) return emptyList()
+        val threadIds = emailDao.searchThreadIds(ftsQuery, dateFrom, dateTo, hasAttachments)
+        if (threadIds.isEmpty()) return emptyList()
+        return threadDao.getThreadsByIds(threadIds, activeAccountId).map { it.toDomainModel() }
+    }
+
+    private fun buildFtsQuery(query: String, field: SearchField): String {
+        val sanitized = query.replace(Regex("[\"*()^~:]"), " ").trim()
+        if (sanitized.isBlank()) return ""
+        val tokens = sanitized.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val ftsPart = tokens.joinToString(" AND ") { "$it*" }
+        return when (field) {
+            SearchField.ALL -> ftsPart
+            SearchField.SUBJECT -> "subject:($ftsPart)"
+            SearchField.BODY -> "body:($ftsPart)"
+            SearchField.FROM -> "fromEmail:($ftsPart) OR fromName:($ftsPart)"
+            SearchField.TO -> "toEmail:($ftsPart)"
+        }
+    }
     suspend fun getActiveAccountId(): String {
         return accountManager.getActiveAccount()?.id ?: "gmail_unknown"
     }

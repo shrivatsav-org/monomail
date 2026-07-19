@@ -6,6 +6,8 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.FocusInteraction
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -65,6 +67,7 @@ internal fun InboxSearchBar(
     isRefreshing: Boolean,
     bulkSelection: BulkSelectionState = BulkSelectionState(),
     unifiedInboxEnabled: Boolean = false,
+    onFocusChange: ((Boolean) -> Unit)? = null,
 ) {
     val containerColor by animateColorAsState(
         targetValue = when {
@@ -92,7 +95,7 @@ internal fun InboxSearchBar(
                         BulkSelectionContent(bulkSelection)
                     } else {
                         // No toast overlay; always show search input
-                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile))
+                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile), onFocusChange)
                     }
                 }
             },
@@ -154,8 +157,6 @@ private fun BulkSelectionContent(bulkSelection: BulkSelectionState) {
         }
     }
 }
-
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 private fun SearchInputContent(
@@ -163,14 +164,25 @@ private fun SearchInputContent(
     onQueryChange: (String) -> Unit,
     onServerSearch: (String) -> Unit,
     actions: SearchBarActions,
-    display: SearchDisplayState
+    display: SearchDisplayState,
+    onFocusChange: ((Boolean) -> Unit)? = null,
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is FocusInteraction.Focus -> onFocusChange?.invoke(true)
+                is FocusInteraction.Unfocus -> onFocusChange?.invoke(false)
+            }
+        }
+    }
     SearchBarDefaults.InputField(
         query = query,
         onQueryChange = onQueryChange,
         onSearch = { onServerSearch(query) },
         expanded = false,
         onExpandedChange = {},
+        interactionSource = interactionSource,
         placeholder = {
             Text(
                 if (display.isRefreshing) "Syncing..." else if (display.unifiedInboxEnabled) "Search all accounts..." else "Search in mail",

@@ -7,8 +7,8 @@ import androidx.room.TypeConverters
 import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
-    entities = [ThreadEntity::class, EmailEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class],
-    version = 14,
+    entities = [ThreadEntity::class, EmailEntity::class, EmailFtsEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class],
+    version = 15,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -31,7 +31,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
@@ -142,5 +142,24 @@ val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE scheduled_messages ADD COLUMN threadId TEXT DEFAULT NULL")
         db.execSQL("ALTER TABLE scheduled_messages ADD COLUMN messageId TEXT DEFAULT NULL")
+    }
+}
+val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS `emails_fts` USING FTS4(
+                content=`emails`,
+                `subject` TEXT,
+                `body` TEXT,
+                `fromName` TEXT,
+                `fromEmail` TEXT,
+                `toEmail` TEXT,
+                `snippet` TEXT
+            )
+        """)
+        db.execSQL("""
+            INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`)
+            SELECT `rowid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet` FROM `emails`
+        """)
     }
 }

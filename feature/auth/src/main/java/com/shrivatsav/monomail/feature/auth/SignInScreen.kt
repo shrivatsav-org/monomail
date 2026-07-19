@@ -169,7 +169,13 @@ fun SignInScreen(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter),
         ) {
-            Snackbar(snackbarData = it, shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp))
+            Snackbar(
+                snackbarData = it,
+                shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp),
+                containerColor = MaterialTheme.colorScheme.inverseSurface,
+                contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+                actionContentColor = MaterialTheme.colorScheme.inverseOnSurface
+            )
         }
 
         if (showProviderSheet) {

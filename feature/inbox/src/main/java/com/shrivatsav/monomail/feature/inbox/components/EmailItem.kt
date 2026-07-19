@@ -26,6 +26,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.CornerSize
+import androidx.compose.foundation.shape.RoundedCornerShape
 import com.shrivatsav.monomail.ui.theme.cornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
@@ -55,6 +57,9 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 private val displayNameRegex = Regex("""^"?([^"<]+?)"?\s*<""")
 
+/** Where this unread item sits in a consecutive run of unread items. */
+enum class UnreadPosition { SOLO, TOP, MIDDLE, BOTTOM }
+
 data class SelectionState(
     val isSelected: Boolean = false,
     val isBulkMode: Boolean = false,
@@ -71,14 +76,20 @@ fun EmailItem(
     showSnippet: Boolean = true,
     compactMode: Boolean = false,
     selection: SelectionState = SelectionState(),
+    unreadPosition: UnreadPosition = UnreadPosition.SOLO,
     modifier: Modifier = Modifier
 ) {
     val isUnread = !thread.isRead
     val senderInitial = thread.from.firstOrNull()?.uppercase() ?: "?"
-    val backgroundColor = when {
-        isUnread -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = MonoOpacity.subtle)
-        else -> MaterialTheme.colorScheme.background
-    }
+    val unreadShape = if (isUnread) {
+        val r = cornerShape(14.dp)
+        when (unreadPosition) {
+            UnreadPosition.SOLO   -> r
+            UnreadPosition.TOP    -> RoundedCornerShape(r.topStart, r.topEnd, CornerSize(0.dp), CornerSize(0.dp))
+            UnreadPosition.MIDDLE -> RoundedCornerShape(CornerSize(0.dp), CornerSize(0.dp), CornerSize(0.dp), CornerSize(0.dp))
+            UnreadPosition.BOTTOM -> RoundedCornerShape(CornerSize(0.dp), CornerSize(0.dp), r.bottomEnd, r.bottomStart)
+        }
+    } else null
     val verticalPad = if (compactMode) 7.dp else 11.dp
     val hapticFeedback = LocalHapticFeedback.current
     val avatarClickAction = if (selection.isBulkMode) selection.onSelectToggle else onClick
@@ -95,8 +106,25 @@ fun EmailItem(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .padding(
+                start = 8.dp, end = 8.dp,
+                top = if (isUnread) when (unreadPosition) {
+                    UnreadPosition.SOLO, UnreadPosition.TOP -> 8.dp
+                    else -> 0.dp
+                } else 0.dp,
+                bottom = if (isUnread) when (unreadPosition) {
+                    UnreadPosition.SOLO, UnreadPosition.BOTTOM -> 8.dp
+                    else -> 0.dp
+                } else 0.dp
+            )
+            .then(
+                if (unreadShape != null)
+                    Modifier
+                        .clip(unreadShape)
+                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = MonoOpacity.subtle))
+                else Modifier
+            )
             .scale(rowScale)
-            .background(backgroundColor)
             .then(
                 if (selection.isBulkMode) {
                     Modifier.combinedClickable(
@@ -112,7 +140,7 @@ fun EmailItem(
                     )
                 }
             )
-            .padding(horizontal = 20.dp, vertical = verticalPad),
+            .padding(horizontal = 12.dp, vertical = verticalPad),
         verticalAlignment = Alignment.Top
     ) {
         Box {
@@ -129,7 +157,6 @@ fun EmailItem(
                 },
                 modifier = Modifier.padding(top = 2.dp)
             )
-            UnreadDot(isUnread = isUnread, isBulkMode = selection.isBulkMode)
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
@@ -142,18 +169,6 @@ fun EmailItem(
     }
 }
 
-@Composable
-private fun BoxScope.UnreadDot(isUnread: Boolean, isBulkMode: Boolean) {
-    if (isUnread && !isBulkMode) {
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(12.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary)
-        )
-    }
-}
 
 @Composable
 private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean) {
