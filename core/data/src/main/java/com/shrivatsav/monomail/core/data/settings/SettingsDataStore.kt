@@ -73,7 +73,8 @@ data class AppSettings(
     val showInlineImages: Boolean = true,
     val showInlineAttachments: Boolean = true,
     val cornerStyle: CornerStyle = CornerStyle.ROUNDED,
-    val showMarkAllRead: Boolean = true
+    val showMarkAllRead: Boolean = true,
+    val monochromeTheme: Boolean = true,
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -111,6 +112,7 @@ class SettingsDataStore(private val context: Context) {
         val SHOW_MARK_ALL_READ = booleanPreferencesKey("show_mark_all_read")
         val CORNER_STYLE = stringPreferencesKey("corner_style")
         val SHOW_INLINE_IMAGES = booleanPreferencesKey("show_inline_images")
+        val MONOCHROME_THEME = booleanPreferencesKey("monochrome_theme")
     }
     private fun mapToSettings(prefs: Preferences): AppSettings {
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
@@ -155,7 +157,7 @@ class SettingsDataStore(private val context: Context) {
             showInlineImages = prefs[Keys.SHOW_INLINE_IMAGES] ?: true,
             showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true,
             cornerStyle = prefs[Keys.CORNER_STYLE]?.let { CornerStyle.valueOf(it) } ?: CornerStyle.ROUNDED,
-            showMarkAllRead = prefs[Keys.SHOW_MARK_ALL_READ] ?: true
+            monochromeTheme = prefs[Keys.MONOCHROME_THEME] ?: true,
         )
     }
 
@@ -253,6 +255,10 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setCornerStyle(style: CornerStyle) {
         context.dataStore.edit { it[Keys.CORNER_STYLE] = style.name }
+    }
+
+    suspend fun setMonochromeTheme(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.MONOCHROME_THEME] = enabled }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()

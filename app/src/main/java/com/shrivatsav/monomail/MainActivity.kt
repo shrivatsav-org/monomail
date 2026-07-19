@@ -80,7 +80,8 @@ class MainActivity : ComponentActivity() {
                 MonoMailTheme(
                     themeMode = settings.themeMode.name,
                     useSystemFont = settings.useSystemFont,
-                    cornerStyle = settings.cornerStyle.name
+                    cornerStyle = settings.cornerStyle.name,
+                    monochrome = settings.monochromeTheme
                 ) {
                     Box(modifier = Modifier.fillMaxSize()) {
                         NavGraph(

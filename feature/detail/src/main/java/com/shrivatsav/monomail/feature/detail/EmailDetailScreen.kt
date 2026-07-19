@@ -1364,7 +1364,12 @@ private fun ImageAttachmentCard(
 ) {
     var imageBytes by remember { androidx.compose.runtime.mutableStateOf<ByteArray?>(null) }
     androidx.compose.runtime.LaunchedEffect(attachment.id) {
-        imageBytes = onFetchAttachment(attachment.messageId, attachment.id)
+        imageBytes = try {
+            onFetchAttachment(attachment.messageId, attachment.id)
+        } catch (e: Exception) {
+            android.util.Log.e("EmailDetailScreen", "Failed to fetch image attachment ${attachment.id}", e)
+            null
+        }
     }
     Column(
         modifier = Modifier

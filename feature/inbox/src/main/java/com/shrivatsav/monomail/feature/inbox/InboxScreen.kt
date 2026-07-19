@@ -80,6 +80,7 @@ fun InboxScreen(
     val unifiedInboxEnabled by viewModel.unifiedInboxEnabled.collectAsState()
     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
     val scheduledCount by viewModel.scheduledCount.collectAsState()
+    val accounts by viewModel.accounts.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
 
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -177,10 +178,7 @@ fun InboxScreen(
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(snackbarData = it, shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp)) } },
-        contentWindowInsets = WindowInsets(
-            top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding(),
-            bottom = 0.dp
-        )
+        contentWindowInsets = WindowInsets(0.dp)
     ) { padding ->
         Box(
             modifier = Modifier
@@ -199,9 +197,8 @@ fun InboxScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background)
+                        .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding())
                 ) {
-                    val toastState by viewModel.toastState.collectAsState()
-                    val accounts by viewModel.accounts.collectAsState()
 
                     InboxSearchBar(
                         userProfile = userProfile,
@@ -631,7 +628,6 @@ fun InboxScreen(
             }
 
             
-            val accounts by viewModel.accounts.collectAsState()
             ModalOverlay(
                 activeModal = activeModal,
                 userProfile = userProfile,
@@ -1080,6 +1076,7 @@ private fun BottomFabArea(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = navBarHeight + 8.dp)
+            .padding(horizontal = 16.dp)
     ) {
         BottomDockBar(
             currentTab = tabForDock,
@@ -1087,14 +1084,12 @@ private fun BottomFabArea(
             unifiedInboxEnabled = unifiedInboxEnabled,
             appSettings = appSettings,
             onTabClick = { viewModel.switchTab(it) },
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(end = 72.dp)
+            modifier = Modifier.fillMaxWidth()
         )
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 16.dp)
+                .padding(bottom = 12.dp, top = 12.dp)
         ) {
             AnimatedContent(
                 targetState = when (immediateTab) {
