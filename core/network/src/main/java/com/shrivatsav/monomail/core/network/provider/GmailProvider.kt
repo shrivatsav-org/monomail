@@ -189,8 +189,6 @@ class GmailProvider(
                     val base64 = data.replace("-", "+").replace("_", "/")
                     android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
                 }
-            } catch (e: com.shrivatsav.monomail.core.network.remote.RetrofitClient.AuthFailedException) {
-                throw e
             } catch (e: Exception) {
                 android.util.Log.e("GmailProvider", "getAttachmentBytes error", e)
                 null
