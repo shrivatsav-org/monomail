@@ -22,6 +22,11 @@ internal fun NavigationSettingsScreen(
                 onScaleChanged = { viewModel.setNavScale(it) }
             )
             CardDivider()
+            SwipeThresholdRow(
+                threshold = settings.swipeThreshold,
+                onThresholdChanged = { viewModel.setSwipeThreshold(it) }
+            )
+            CardDivider()
             DockBarEditor(
                 dockConfig = settings.dockConfig,
                 maxSlots = DockConfig.MAX_SLOTS,

@@ -177,7 +177,13 @@ fun InboxScreen(
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(snackbarData = it, shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp)) } },
+        snackbarHost = { SnackbarHost(snackbarHostState) { Snackbar(
+            snackbarData = it,
+            shape = com.shrivatsav.monomail.ui.theme.cornerShape(12.dp),
+            containerColor = MaterialTheme.colorScheme.inverseSurface,
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            actionContentColor = MaterialTheme.colorScheme.inverseOnSurface
+        ) } },
         contentWindowInsets = WindowInsets(0.dp)
     ) { padding ->
         Box(
@@ -413,6 +419,7 @@ fun InboxScreen(
                                                 is InboxDisplayItem.DateHeader -> {
                                                     com.shrivatsav.monomail.ui.components.SectionHeader(
                                                         label = displayItem.title,
+                                                        showTopDivider = false,
                                                         modifier = Modifier.animateItem().background(MaterialTheme.colorScheme.background)
                                                     )
                                                 }
@@ -437,8 +444,29 @@ fun InboxScreen(
                                                         }
                                                     )
                                                 }
-
                                                 is InboxDisplayItem.SingleThread -> {
+                                                    val isUnread = !displayItem.thread.isRead
+                                                    val prevIsSingle = index > 0 && displayItems[index - 1] is InboxDisplayItem.SingleThread
+                                                    val nextIsSingle = index < displayItems.lastIndex && displayItems[index + 1] is InboxDisplayItem.SingleThread
+                                                    val groupPos = when {
+                                                        !prevIsSingle && !nextIsSingle -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.SOLO
+                                                        !prevIsSingle -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.TOP
+                                                        !nextIsSingle -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.BOTTOM
+                                                        else -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.MIDDLE
+                                                    }
+                                                    val prevUnread = isUnread && index > 0 && displayItems[index - 1].let {
+                                                        it is InboxDisplayItem.SingleThread && !it.thread.isRead
+                                                    }
+                                                    val nextUnread = isUnread && index < displayItems.lastIndex && displayItems[index + 1].let {
+                                                        it is InboxDisplayItem.SingleThread && !it.thread.isRead
+                                                    }
+                                                    val unreadPos = when {
+                                                        !isUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.SOLO
+                                                        prevUnread && nextUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.MIDDLE
+                                                        prevUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.BOTTOM
+                                                        nextUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.TOP
+                                                        else -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.SOLO
+                                                    }
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
@@ -464,11 +492,35 @@ fun InboxScreen(
                                                             onAvatarLongClick = {
                                                                 viewModel.enterBulkSelectMode(displayItem.thread.threadId)
                                                             }
-                                                        )
+                                                        ),
+                                                        unreadPosition = unreadPos,
+                                                        groupPosition = groupPos
                                                     )
                                                 }
 
                                                 is InboxDisplayItem.NestedThread -> {
+                                                    val isUnread = !displayItem.thread.isRead
+                                                    val prevIsNested = index > 0 && displayItems[index - 1] is InboxDisplayItem.NestedThread
+                                                    val nextIsNested = index < displayItems.lastIndex && displayItems[index + 1] is InboxDisplayItem.NestedThread
+                                                    val groupPos = when {
+                                                        !prevIsNested && !nextIsNested -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.SOLO
+                                                        !prevIsNested -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.TOP
+                                                        !nextIsNested -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.BOTTOM
+                                                        else -> com.shrivatsav.monomail.feature.inbox.components.GroupPosition.MIDDLE
+                                                    }
+                                                    val prevUnread = isUnread && index > 0 && displayItems[index - 1].let {
+                                                        it is InboxDisplayItem.NestedThread && !it.thread.isRead
+                                                    }
+                                                    val nextUnread = isUnread && index < displayItems.lastIndex && displayItems[index + 1].let {
+                                                        it is InboxDisplayItem.NestedThread && !it.thread.isRead
+                                                    }
+                                                    val unreadPos = when {
+                                                        !isUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.SOLO
+                                                        prevUnread && nextUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.MIDDLE
+                                                        prevUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.BOTTOM
+                                                        nextUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.TOP
+                                                        else -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.SOLO
+                                                    }
                                                     SwipeableEmailItem(
                                                         modifier = Modifier.animateItem(),
                                                         thread = displayItem.thread,
@@ -494,7 +546,9 @@ fun InboxScreen(
                                                             onAvatarLongClick = {
                                                                 viewModel.enterBulkSelectMode(displayItem.thread.threadId)
                                                             }
-                                                        )
+                                                        ),
+                                                        unreadPosition = unreadPos,
+                                                        groupPosition = groupPos
                                                     )
                                                 }
                                                 }
