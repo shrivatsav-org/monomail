@@ -7,8 +7,8 @@ import androidx.room.TypeConverters
 import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
-    entities = [ThreadEntity::class, EmailEntity::class, EmailFtsEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class],
-    version = 15,
+    entities = [ThreadEntity::class, EmailEntity::class, EmailFtsEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class, PendingSendEntity::class],
+    version = 17,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -16,7 +16,9 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun threadDao(): ThreadDao
     abstract fun emailDao(): EmailDao
     abstract fun scheduledMessageDao(): ScheduledMessageDao
+    abstract fun pendingSendDao(): PendingSendDao
     abstract fun pendingActionDao(): PendingActionDao
+
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
@@ -31,7 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
@@ -146,6 +148,75 @@ val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
 }
 val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS `emails_fts` USING FTS4(
+                content=`emails`,
+                `subject` TEXT,
+                `body` TEXT,
+                `fromName` TEXT,
+                `fromEmail` TEXT,
+                `toEmail` TEXT,
+                `snippet` TEXT
+            )
+        """)
+        db.execSQL("""
+            INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`)
+            SELECT `rowid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet` FROM `emails`
+        """)
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `pending_sends` (
+                `id` TEXT NOT NULL,
+                `accountId` TEXT NOT NULL,
+                `fromEmail` TEXT NOT NULL,
+                `to` TEXT NOT NULL,
+                `cc` TEXT NOT NULL DEFAULT '',
+                `bcc` TEXT NOT NULL DEFAULT '',
+                `subject` TEXT NOT NULL,
+                `body` TEXT NOT NULL,
+                `attachmentsJson` TEXT NOT NULL DEFAULT '[]',
+                `createdAt` INTEGER NOT NULL,
+                `fromAlias` TEXT DEFAULT NULL,
+                `threadId` TEXT DEFAULT NULL,
+                `messageId` TEXT DEFAULT NULL,
+                `messageReferences` TEXT DEFAULT NULL,
+                PRIMARY KEY(`id`)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pending_sends_accountId` ON `pending_sends`(`accountId`)")
+    }
+}
+
+val MIGRATION_15_16 = object : androidx.room.migration.Migration(15, 16) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        // Identity hash changed between builds at version 15 — reconcile the schema.
+        // The pending_sends table was already created by MIGRATION_14_15; IF NOT EXISTS is idempotent.
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `pending_sends` (
+                `id` TEXT NOT NULL,
+                `accountId` TEXT NOT NULL,
+                `fromEmail` TEXT NOT NULL,
+                `to` TEXT NOT NULL,
+                `cc` TEXT NOT NULL DEFAULT '',
+                `bcc` TEXT NOT NULL DEFAULT '',
+                `subject` TEXT NOT NULL,
+                `body` TEXT NOT NULL,
+                `attachmentsJson` TEXT NOT NULL DEFAULT '[]',
+                `createdAt` INTEGER NOT NULL,
+                `fromAlias` TEXT DEFAULT NULL,
+                `threadId` TEXT DEFAULT NULL,
+                `messageId` TEXT DEFAULT NULL,
+                `messageReferences` TEXT DEFAULT NULL,
+                PRIMARY KEY(`id`)
+            )
+        """)
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_pending_sends_accountId` ON `pending_sends`(`accountId`)")
+    }
+}
+
+val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        // EmailFtsEntity was added — create the FTS virtual table for local search.
+        // IF NOT EXISTS is idempotent for users whose MIGRATION_14_15 (after merge) already created it.
         db.execSQL("""
             CREATE VIRTUAL TABLE IF NOT EXISTS `emails_fts` USING FTS4(
                 content=`emails`,

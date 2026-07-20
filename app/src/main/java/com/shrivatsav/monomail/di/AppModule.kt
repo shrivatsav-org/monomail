@@ -51,7 +51,7 @@ object AppModule {
 
     @Provides @Singleton
     fun provideSentEmailEvents(): MutableSharedFlow<SentEmailEvent> =
-        MutableSharedFlow(replay = 0, extraBufferCapacity = 1, onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
+        MutableSharedFlow(replay = 1, extraBufferCapacity = 1, onBufferOverflow = kotlinx.coroutines.channels.BufferOverflow.DROP_OLDEST)
 
     @Provides @Singleton
     fun provideScheduledEmailEvents(): MutableSharedFlow<ScheduledEmailEvent> =
@@ -159,6 +159,7 @@ object AppModule {
         database: com.shrivatsav.monomail.core.database.local.AppDatabase,
         @ApplicationContext context: Context,
         accountManager: AccountManager,
-        pendingActionDao: com.shrivatsav.monomail.core.database.local.PendingActionDao
-    ): EmailRepository = EmailRepository(providerFactory, database, context, accountManager, pendingActionDao)
+        pendingActionDao: com.shrivatsav.monomail.core.database.local.PendingActionDao,
+        pendingSendDao: com.shrivatsav.monomail.core.database.local.PendingSendDao
+    ): EmailRepository = EmailRepository(providerFactory, database, context, accountManager, pendingActionDao, pendingSendDao)
 }

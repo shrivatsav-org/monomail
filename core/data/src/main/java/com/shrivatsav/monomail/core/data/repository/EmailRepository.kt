@@ -44,7 +44,8 @@ class EmailRepository(
     private val database: AppDatabase,
     private val context: Context,
     private val accountManager: AccountManager,
-    private val pendingActionDao: PendingActionDao
+    private val pendingActionDao: PendingActionDao,
+    private val pendingSendDao: PendingSendDao
 ) {
     private val threadDao = database.threadDao()
     private val emailDao = database.emailDao()
@@ -551,6 +552,84 @@ class EmailRepository(
             Result.failure(e)
         }
     }
+
+    suspend fun stagePendingSend(
+        accountId: String,
+        fromEmail: String,
+        to: String,
+        subject: String,
+        body: String,
+        params: SendEmailParams = SendEmailParams(),
+        fromAlias: String? = null
+    ): String {
+        val id = UUID.randomUUID().toString()
+        val cachedAttachments = if (params.attachments.isNotEmpty()) {
+            copyAttachmentsToCache("pending_$id", params.attachments)
+        } else emptyList()
+        val entity = PendingSendEntity(
+            id = id,
+            accountId = accountId,
+            fromEmail = fromEmail,
+            to = to,
+            cc = params.cc,
+            bcc = params.bcc,
+            subject = subject,
+            body = body,
+            attachmentsJson = gson.toJson(
+                cachedAttachments.map { a ->
+                    val rawPath = a.uri.path ?: a.uri.toString()
+                    mapOf(
+                        "localPath" to rawPath,
+                        "name" to a.name,
+                        "size" to a.size,
+                        "mimeType" to a.mimeType
+                    )
+                }
+            ),
+            fromAlias = fromAlias,
+            threadId = params.threadId,
+            messageId = params.inReplyToMessageId,
+            messageReferences = params.references
+        )
+        pendingSendDao.insert(entity)
+        return id
+    }
+
+    suspend fun completePendingSend(id: String) {
+        val entity = pendingSendDao.getById(id) ?: return
+        val attachments = parseStoredAttachments(entity.attachmentsJson)
+        val result = sendEmail(
+            from = entity.fromEmail,
+            to = entity.to,
+            subject = entity.subject,
+            body = entity.body,
+            params = SendEmailParams(
+                cc = entity.cc,
+                bcc = entity.bcc,
+                attachments = attachments,
+                threadId = entity.threadId,
+                inReplyToMessageId = entity.messageId,
+                references = entity.messageReferences
+            ),
+            explicitAccountId = entity.accountId
+        )
+        pendingSendDao.deleteById(id)
+        cleanupPendingAttachmentFiles(entity.attachmentsJson)
+        if (result.isFailure) {
+            Log.w("EmailRepo", "completePendingSend failed for $id", result.exceptionOrNull())
+        }
+    }
+
+    suspend fun cancelPendingSend(id: String) {
+        val entity = pendingSendDao.getById(id) ?: return
+        pendingSendDao.deleteById(id)
+        cleanupPendingAttachmentFiles(entity.attachmentsJson)
+    }
+
+    suspend fun getAllPendingSends(): List<PendingSendEntity> = pendingSendDao.getAll()
+
+    suspend fun getAllPendingSendsForAccount(accountId: String): List<PendingSendEntity> =
+        pendingSendDao.getAllForAccount(accountId)
     suspend fun scheduleSend(
         accountId: String,
         fromEmail: String,
@@ -636,6 +715,42 @@ class EmailRepository(
                 Log.e("EmailRepo", "Failed to cache attachment ${a.name}", e)
                 null
             }
+        }
+    }
+
+    private fun parseStoredAttachments(json: String): List<EmailAttachment> {
+        if (json.isBlank() || json == "[]") return emptyList()
+        return try {
+            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
+            val list: List<Map<String, Any>> = gson.fromJson(json, type)
+            list.mapNotNull { m ->
+                val path = m["localPath"] as? String ?: return@mapNotNull null
+                val file = File(path)
+                if (!file.exists()) return@mapNotNull null
+                EmailAttachment(
+                    uri = Uri.fromFile(file),
+                    name = (m["name"] as? String) ?: file.name,
+                    size = ((m["size"] as? Double)?.toLong() ?: file.length()),
+                    mimeType = (m["mimeType"] as? String) ?: "application/octet-stream"
+                )
+            }
+        } catch (e: Exception) { emptyList() }
+    }
+    private fun cleanupPendingAttachmentFiles(attachmentsJson: String) {
+        if (attachmentsJson.isBlank() || attachmentsJson == "[]") return
+        try {
+            val type = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
+            val attachments: List<Map<String, Any>> = gson.fromJson(attachmentsJson, type)
+            attachments.forEach { a ->
+                val path = a["localPath"] as? String
+                if (path != null) {
+                    val file = File(path)
+                    if (file.exists()) file.delete()
+                    file.parentFile?.delete()
+                }
+            }
+        } catch (e: Exception) {
+            Log.w("EmailRepo", "Failed to cleanup pending attachment files", e)
         }
     }
     // --- Send-as aliases ---

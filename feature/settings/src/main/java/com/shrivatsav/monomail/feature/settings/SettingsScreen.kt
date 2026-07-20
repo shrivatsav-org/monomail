@@ -132,8 +132,8 @@ private fun SettingsHubScreen(
     onNavigateToLegal: (String) -> Unit
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val buildFlavorName = if (com.shrivatsav.monomail.model.AppConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
-    val buildTypeName = if (com.shrivatsav.monomail.model.AppConfig.DEBUG) "Debug" else "Release"
+    val buildFlavorName = if (com.shrivatsav.monomail.feature.settings.BuildConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
+    val buildTypeName = if (com.shrivatsav.monomail.feature.settings.BuildConfig.DEBUG) "Debug" else "Release"
     val versionName = remember {
         try {
             context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "1.0.0"

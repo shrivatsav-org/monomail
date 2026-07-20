@@ -1,6 +1,7 @@
 package com.shrivatsav.monomail.feature.inbox
 
 import com.shrivatsav.monomail.model.InboxTab
+import com.shrivatsav.monomail.feature.inbox.BuildConfig
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.ScheduledEmailEvent
@@ -75,7 +76,8 @@ class InboxViewModel @Inject constructor(
     data class ToastState(
         val threadId: String,
         val message: String,
-        val actionType: ActionType
+        val actionType: ActionType,
+        val isPendingSend: Boolean = false
     )
     enum class ActionType { ARCHIVE, DELETE, EMPTY_TRASH, SEND, SNOOZE, UNARCHIVE, RESTORE }
     private val _toastState = MutableStateFlow<ToastState?>(null)
@@ -232,7 +234,7 @@ class InboxViewModel @Inject constructor(
                 _appSettings.value = settings
                 _unifiedInboxEnabled.value = settings.unifiedInboxEnabled
                 _organizeByThread.value = settings.organizeByThread
-                val isPlayStoreBuild = !com.shrivatsav.monomail.model.AppConfig.IS_GITHUB_BUILD
+                val isPlayStoreBuild = !BuildConfig.IS_GITHUB_BUILD
                 pollingIntervalMs = if (isPlayStoreBuild) {
                     Long.MAX_VALUE
                 } else {
@@ -263,6 +265,7 @@ class InboxViewModel @Inject constructor(
         }
         startForegroundPolling()
         observeSentEvents()
+        recoverPendingSends()
         viewModelScope.launch {
             authManager.activeAccountFlow.collect { profile ->
                 val accountId = profile?.id ?: return@collect
@@ -276,19 +279,43 @@ class InboxViewModel @Inject constructor(
     private fun observeSentEvents() {
         viewModelScope.launch {
             sentEmailEvents.collect { event ->
-                val settings = settingsDataStore.settingsFlow.first()
-                if (settings.undoSendEnabled) {
-                    startUndoCountdown(event.threadId ?: "send_${System.currentTimeMillis()}", settings.undoSendWindow.seconds)
+                if (event.isPendingSend) {
+                    val settings = settingsDataStore.settingsFlow.first()
+                    startUndoCountdown(
+                        toastId = event.threadId,
+                        totalSec = settings.undoSendWindow.seconds,
+                        isPendingSend = true
+                    )
+                } else {
+                    val settings = settingsDataStore.settingsFlow.first()
+                    if (settings.undoSendEnabled) {
+                        startUndoCountdown(
+                            toastId = event.threadId ?: "send_${System.currentTimeMillis()}",
+                            totalSec = settings.undoSendWindow.seconds,
+                            isPendingSend = false
+                        )
+                    }
                 }
             }
         }
     }
 
-    private fun startUndoCountdown(toastId: String, totalSec: Int) {
+    /** Dispatch any pending sends that survived an app crash (undo window already elapsed). */
+    private fun recoverPendingSends() {
+        viewModelScope.launch {
+            val activeId = authManager.currentUser?.id ?: return@launch
+            val pending = repository.getAllPendingSendsForAccount(activeId)
+            for (send in pending) {
+                repository.completePendingSend(send.id)
+            }
+        }
+    }
+    private fun startUndoCountdown(toastId: String, totalSec: Int, isPendingSend: Boolean = false) {
         _toastState.value = ToastState(
             threadId = toastId,
             message = "Message sent \u00b7 Undo for ${totalSec}s",
-            actionType = ActionType.SEND
+            actionType = ActionType.SEND,
+            isPendingSend = isPendingSend
         )
         pendingActionJobs["send_$toastId"]?.cancel()
         pendingActionJobs["send_$toastId"] = viewModelScope.launch {
@@ -300,9 +327,11 @@ class InboxViewModel @Inject constructor(
                     )
                 }
             }
-            delay(1000)
             if (_toastState.value?.threadId == toastId) {
                 _toastState.value = null
+                if (isPendingSend) {
+                    repository.completePendingSend(toastId)
+                }
             }
         }
     }
@@ -548,7 +577,13 @@ class InboxViewModel @Inject constructor(
                 pendingActionJobs["send_$threadId"]?.cancel()
                 pendingActionJobs.remove("send_$threadId")
                 if (threadId.isNotEmpty()) {
-                    viewModelScope.launch { repository.deleteThread(threadId) }
+                    viewModelScope.launch {
+                        if (currentToast.isPendingSend) {
+                            repository.cancelPendingSend(threadId)
+                        } else {
+                            repository.deleteThread(threadId)
+                        }
+                    }
                 }
                 _toastState.value = null
             }

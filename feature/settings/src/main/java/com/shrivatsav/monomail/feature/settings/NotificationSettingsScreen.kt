@@ -12,6 +12,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.core.data.auth.AuthManager
+import com.shrivatsav.monomail.feature.settings.BuildConfig
 import com.shrivatsav.monomail.core.data.settings.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -24,7 +25,7 @@ internal fun NotificationSettingsScreen(
     val settings by viewModel.settings.collectAsState()
     val accounts by authManager.accountsFlow.collectAsState(initial = emptyList())
     val context = LocalContext.current
-    val isPlayStoreBuild = !com.shrivatsav.monomail.model.AppConfig.IS_GITHUB_BUILD
+    val isPlayStoreBuild = !BuildConfig.IS_GITHUB_BUILD
 
     ScrollableSettingsScaffold(title = "Notifications", onBack = onBack) {
         if (!isPlayStoreBuild) {

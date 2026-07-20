@@ -23,14 +23,14 @@ class PushNotificationManagerImpl @Inject constructor(
             Log.i("PushManager", "Push notifications not supported for provider: ${account.provider}")
             return
         }
-
         try {
             val fcmToken = FirebaseMessaging.getInstance().token.await()
             val result = pushBackendClient.registerDevice(
                 accountId = account.id,
                 email = account.email,
                 fcmToken = fcmToken,
-                provider = account.provider
+                provider = account.provider,
+                accessToken = account.accessToken
             )
             if (result.isSuccess) {
                 Log.i("PushManager", "Successfully registered device for push notifications (${account.email})")
@@ -55,7 +55,8 @@ class PushNotificationManagerImpl @Inject constructor(
                         accountId = account.id,
                         email = account.email,
                         fcmToken = newToken,
-                        provider = account.provider
+                        provider = account.provider,
+                        accessToken = account.accessToken
                     )
                 }
             }

@@ -304,26 +304,56 @@ class ComposeViewModel @Inject constructor(
             val finalBody = if (current.encryptEnabled || current.signEnabled) {
                 applyPgp(current, fullBody) ?: return@launch
             } else fullBody
-            val result = repository.sendEmail(
-                from = current.from,
-                to = current.to,
-                subject = current.subject,
-                body = finalBody,
-                params = SendEmailParams(cc = current.cc, bcc = current.bcc, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references, attachments = current.attachments)
-            )
-            result.onSuccess { sendResult ->
+
+            val settings = settingsDataStore.settingsFlow.first()
+            if (settings.undoSendEnabled) {
+                val pendingId = repository.stagePendingSend(
+                    accountId = accountId,
+                    fromEmail = current.from,
+                    to = current.to,
+                    subject = current.subject,
+                    body = finalBody,
+                    params = SendEmailParams(
+                        cc = current.cc,
+                        bcc = current.bcc,
+                        threadId = current.threadId,
+                        inReplyToMessageId = current.inReplyToMessageId,
+                        references = current.references,
+                        attachments = current.attachments
+                    ),
+                    fromAlias = current.from.takeIf { it != fromEmail }
+                )
                 sentEmailEvents.tryEmit(
                     SentEmailEvent(
-                        threadId = sendResult.threadId ?: "",
+                        threadId = pendingId,
                         to = current.to,
-                        subject = current.subject
+                        subject = current.subject,
+                        isPendingSend = true
                     )
                 )
+                _state.value = current.copy(isSending = false, isSent = true)
+            } else {
+                val result = repository.sendEmail(
+                    from = current.from,
+                    to = current.to,
+                    subject = current.subject,
+                    body = finalBody,
+                    params = SendEmailParams(cc = current.cc, bcc = current.bcc, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references, attachments = current.attachments)
+                )
+                result.onSuccess { sendResult ->
+                    sentEmailEvents.tryEmit(
+                        SentEmailEvent(
+                            threadId = sendResult.threadId ?: "",
+                            to = current.to,
+                            subject = current.subject
+                        )
+                    )
+                }
+                _state.value = result.fold(
+                    onSuccess = { current.copy(isSending = false, isSent = true) },
+                    onFailure = { current.copy(isSending = false, error = it.message ?: "Failed to send") }
+                )
             }
-            _state.value = result.fold(
-                onSuccess = { current.copy(isSending = false, isSent = true) },
-                onFailure = { current.copy(isSending = false, error = it.message ?: "Failed to send") }
-            )
         }
     }
 
