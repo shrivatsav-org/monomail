@@ -8,6 +8,7 @@ import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import kotlinx.coroutines.flow.drop
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -349,14 +350,19 @@ fun ProviderSelectionDialog(
             viewModel.onConsentResult(context)
         }
     }
-
-    LaunchedEffect(state) {
-        when (state) {
-            is SignInState.Success -> onSuccess()
-            is SignInState.NeedsConsent -> {
-                consentLauncher.launch((state as SignInState.NeedsConsent).intent)
+    // Reset any stale state from a previous sign-in (e.g. leftover Success)
+    // to prevent immediate dismissal of this dialog. We collect the raw flow
+    // with drop(1) so the reset emission itself doesn't trigger a reaction.
+    LaunchedEffect(Unit) {
+        viewModel.resetState()
+        viewModel.state.drop(1).collect { s ->
+            when (s) {
+                is SignInState.Success -> onSuccess()
+                is SignInState.NeedsConsent -> {
+                    consentLauncher.launch(s.intent)
+                }
+                else -> {}
             }
-            else -> {}
         }
     }
 

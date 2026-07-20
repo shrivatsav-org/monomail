@@ -29,6 +29,7 @@ class SignInViewModel @Inject constructor(
 ) : ViewModel() {
     private val _state = MutableStateFlow<SignInState>(SignInState.Idle)
     val state: StateFlow<SignInState> = _state.asStateFlow()
+    fun resetState() { _state.value = SignInState.Idle }
     init {
         viewModelScope.launch {
             authManager.microsoftAuthManager.initialize()
