@@ -63,7 +63,6 @@ internal fun BulkActionBar(
             BulkActionDef(Icons.Rounded.StarOutline, "Unstar", callbacks.onToggleStar),
         )
         InboxTab.SPAM -> listOf(
-            BulkActionDef(Icons.Rounded.Report, "Not spam", callbacks.onReportNotSpam),
             BulkActionDef(Icons.Rounded.Delete, "Delete", callbacks.onDelete),
             BulkActionDef(Icons.Rounded.CheckCircle, "Read", callbacks.onMarkRead),
             BulkActionDef(Icons.Rounded.MarkEmailUnread, "Unread", callbacks.onMarkUnread),

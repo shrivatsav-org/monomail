@@ -39,7 +39,7 @@ interface ThreadDao {
     suspend fun markThreadsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM threads WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun deleteThread(threadId: String, accountId: String)
-    @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inSpam = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun moveToTrash(threadId: String, accountId: String)
     @Query("UPDATE threads SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun restoreFromTrash(threadId: String, accountId: String)

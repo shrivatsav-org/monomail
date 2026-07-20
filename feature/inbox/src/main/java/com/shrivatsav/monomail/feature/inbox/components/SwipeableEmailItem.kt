@@ -70,7 +70,7 @@ internal fun SwipeableEmailItem(
         when (action) {
             com.shrivatsav.monomail.core.data.settings.SwipeAction.ARCHIVE -> {
                 if (tabForSwipe == InboxTab.ARCHIVED) viewModel.unarchiveThread(thread.threadId)
-                else if (tabForSwipe == InboxTab.SPAM) viewModel.reportNotSpam(thread.threadId)
+                else if (tabForSwipe == InboxTab.SPAM) viewModel.deleteThread(thread.threadId)
                 else viewModel.archiveThread(thread.threadId)
             }
             com.shrivatsav.monomail.core.data.settings.SwipeAction.STAR -> {

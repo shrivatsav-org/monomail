@@ -100,10 +100,6 @@ fun InboxScreen(
     }
 
     var threadToDelete by remember { mutableStateOf<String?>(null) }
-    var showClearTrashWarning by remember { mutableStateOf(false) }
-    var showClearSpamWarning by remember { mutableStateOf(false) }
-    var isTrashCountdownActive by remember { mutableStateOf(false) }
-    var isSpamCountdownActive by remember { mutableStateOf(false) }
     val appSettings by viewModel.appSettingsState.collectAsState()
     val searchFilters by viewModel.searchFilters.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -117,6 +113,8 @@ fun InboxScreen(
     var showSnoozePicker by remember { mutableStateOf(false) }
     var snoozeThreadId by remember { mutableStateOf<String?>(null) }
     var showPerformanceWarningDialog by remember { mutableStateOf(false) }
+    var showMoveToTrashDialog by remember { mutableStateOf(false) }
+
     val onSnoozeSelected: (String) -> Unit = remember { { id -> snoozeThreadId = id; showSnoozePicker = true } }
     val isBulkMode by viewModel.isBulkSelectMode.collectAsState()
     val selectedThreadIds by viewModel.selectedThreadIds.collectAsState()
@@ -194,7 +192,7 @@ fun InboxScreen(
                 .padding(padding)
         ) {
             val shouldBlur =
-                longPressedThread != null || blurForModal || threadToDelete != null || showWelcomePrompt || showClearTrashWarning || showClearSpamWarning
+                longPressedThread != null || blurForModal || threadToDelete != null || showWelcomePrompt
 
             Box(
                 modifier = Modifier
@@ -626,10 +624,20 @@ fun InboxScreen(
                             navActions = navActions,
                             viewModel = viewModel,
                             navBarHeight = navBarHeight,
-                            onEmptyBin = { isTrash -> if (isTrash) showClearTrashWarning = true else showClearSpamWarning = true }
+                            onMoveSpamToTrash = {
+                            val hasSpamThreads = currentThreads.isNotEmpty()
+                            if (hasSpamThreads) {
+                                showMoveToTrashDialog = true
+                            } else {
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("No spam to move")
+                                }
+                            }
+                        },
                         )
                     }
             }
+
 
             AnimatedVisibility(
                 visible = isBulkMode,
@@ -675,7 +683,7 @@ fun InboxScreen(
                         onStar = { viewModel.toggleStar(thread.threadId) },
                         onArchive = { tab -> when (tab) {
                             InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
-                            InboxTab.SPAM -> viewModel.reportNotSpam(thread.threadId)
+                            InboxTab.SPAM -> viewModel.deleteThread(thread.threadId)
                             else -> viewModel.archiveThread(thread.threadId)
                         } },
                         onToggleRead = {
@@ -985,6 +993,31 @@ fun InboxScreen(
         )
     }
 
+    if (showMoveToTrashDialog) {
+        AlertDialog(
+            onDismissRequest = { showMoveToTrashDialog = false },
+            title = {
+                Text("Move all spam to trash?", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text("All spam messages will be moved to the Trash folder. Undo available.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showMoveToTrashDialog = false
+                    viewModel.moveSpamToTrash()
+                }) {
+                    Text("Move", fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMoveToTrashDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
 
     com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
         visible = threadToDelete != null,
@@ -1030,35 +1063,7 @@ fun InboxScreen(
         }
     }
 
-    com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
-        visible = showClearTrashWarning,
-        onDismiss = { showClearTrashWarning = false; isTrashCountdownActive = false }
-    ) {
-        ClearCountdownDialog(
-            title = "Clear Trash?",
-            message = "Are you sure you want to permanently delete all messages in the trash? This action cannot be undone.",
-            onDismiss = { isTrashCountdownActive = false; showClearTrashWarning = false },
-            onCountdownFinished = { viewModel.emptyTrash(); showClearTrashWarning = false },
-            isActive = showClearTrashWarning,
-            isCountdownActive = isTrashCountdownActive,
-            setCountdownActive = { isTrashCountdownActive = it }
-        )
-    }
 
-    com.shrivatsav.monomail.ui.components.BlurredModalOverlay(
-        visible = showClearSpamWarning,
-        onDismiss = { showClearSpamWarning = false; isSpamCountdownActive = false }
-    ) {
-        ClearCountdownDialog(
-            title = "Clear Spam?",
-            message = "Are you sure you want to permanently delete all messages in spam? This action cannot be undone.",
-            onDismiss = { isSpamCountdownActive = false; showClearSpamWarning = false },
-            onCountdownFinished = { viewModel.emptySpam(); showClearSpamWarning = false },
-            isActive = showClearSpamWarning,
-            isCountdownActive = isSpamCountdownActive,
-            setCountdownActive = { isSpamCountdownActive = it }
-        )
-    }
 
     if (showSnoozePicker && snoozeThreadId != null) {
         SnoozePickerDialog(
@@ -1072,55 +1077,6 @@ fun InboxScreen(
 }
 
 
-@Composable
-private fun ClearCountdownDialog(
-    title: String,
-    message: String,
-    onDismiss: () -> Unit,
-    onCountdownFinished: () -> Unit,
-    isActive: Boolean,
-    isCountdownActive: Boolean, // Kept for compatibility with existing call sites
-    setCountdownActive: (Boolean) -> Unit
-) {
-    var countdown by remember { mutableIntStateOf(5) }
-    LaunchedEffect(isActive) {
-        if (isActive) {
-            countdown = 5
-            while (countdown > 0) {
-                kotlinx.coroutines.delay(1000)
-                countdown--
-            }
-        }
-    }
-    Surface(
-        shape = cornerShape(28.dp),
-        color = MaterialTheme.colorScheme.background,
-        contentColor = MaterialTheme.colorScheme.onBackground,
-        shadowElevation = 32.dp,
-        modifier = Modifier.fillMaxWidth(0.88f)
-    ) {
-        Column(modifier = Modifier.padding(24.dp)) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
-            Spacer(modifier = Modifier.height(12.dp))
-            Text(message, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(modifier = Modifier.height(24.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = { setCountdownActive(false); onDismiss() }) { Text("Cancel") }
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = { onCountdownFinished() },
-                    enabled = countdown == 0,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                ) {
-                    Text(if (countdown > 0) "Delete ($countdown)" else "Delete")
-                }
-            }
-        }
-    }
-}
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -1131,14 +1087,13 @@ private fun BottomFabArea(
     navActions: InboxNavActions,
     viewModel: InboxViewModel,
     navBarHeight: Dp,
-    onEmptyBin: (isTrash: Boolean) -> Unit
+    onMoveSpamToTrash: () -> Unit,
 ) {
     val tabForDock = immediateTab
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = navBarHeight + 8.dp)
-            .padding(horizontal = 16.dp)
     ) {
         BottomDockBar(
             currentTab = tabForDock,
@@ -1155,7 +1110,6 @@ private fun BottomFabArea(
         ) {
             AnimatedContent(
                 targetState = when (immediateTab) {
-                    InboxTab.TRASH -> "trash"
                     InboxTab.SPAM -> "spam"
                     else -> "default"
                 },
@@ -1166,9 +1120,8 @@ private fun BottomFabArea(
                 }
             ) { state ->
                 when (state) {
-                    "trash" -> EmptyTrashFab(appSettings) { onEmptyBin(true) }
-                    "spam" -> EmptySpamFab(appSettings) { onEmptyBin(false) }
-                    "default" -> ComposeFab(appSettings, navActions.onCompose)
+                    "spam" -> MoveToTrashFab(appSettings) { onMoveSpamToTrash() }
+                    else -> ComposeFab(appSettings, navActions.onCompose)
                 }
             }
         }
@@ -1176,7 +1129,7 @@ private fun BottomFabArea(
 }
 
 @Composable
-private fun EmptyTrashFab(appSettings: com.shrivatsav.monomail.core.data.settings.AppSettings, onClick: () -> Unit) {
+private fun MoveToTrashFab(appSettings: com.shrivatsav.monomail.core.data.settings.AppSettings, onClick: () -> Unit) {
     FloatingActionButton(
         onClick = onClick,
         containerColor = MaterialTheme.colorScheme.errorContainer,
@@ -1186,25 +1139,8 @@ private fun EmptyTrashFab(appSettings: com.shrivatsav.monomail.core.data.setting
         modifier = Modifier.height((42 * appSettings.navScale).dp)
     ) {
         Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Rounded.Delete, contentDescription = "Empty Trash", modifier = Modifier.size((22 * appSettings.navScale).dp))
-            Text("Empty", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
-        }
-    }
-}
-
-@Composable
-private fun EmptySpamFab(appSettings: com.shrivatsav.monomail.core.data.settings.AppSettings, onClick: () -> Unit) {
-    FloatingActionButton(
-        onClick = onClick,
-        containerColor = MaterialTheme.colorScheme.errorContainer,
-        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-        shape = CircleShape,
-        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 4.dp),
-        modifier = Modifier.height((42 * appSettings.navScale).dp)
-    ) {
-        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            Icon(Icons.Rounded.Report, contentDescription = "Empty Spam", modifier = Modifier.size((22 * appSettings.navScale).dp))
-            Text("Empty", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
+            Icon(Icons.Rounded.Delete, contentDescription = "Move all to trash", modifier = Modifier.size((22 * appSettings.navScale).dp))
+            Text("Trash", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onErrorContainer)
         }
     }
 }
@@ -1300,7 +1236,7 @@ private fun StarOrUnsnoozeAction(thread: EmailThread, tabForMenu: InboxTab, acti
 private fun ArchiveOrRestoreAction(tabForMenu: InboxTab, actions: LongPressMenuActions, onDismiss: () -> Unit) {
     LongPressAction(
         icon = if (tabForMenu == InboxTab.ARCHIVED) Icons.Rounded.Inbox else Icons.Rounded.Archive,
-        label = when (tabForMenu) { InboxTab.ARCHIVED -> "Unarchive"; InboxTab.SPAM -> "Not spam"; else -> "Archive" },
+        label = when (tabForMenu) { InboxTab.ARCHIVED -> "Unarchive"; InboxTab.SPAM -> "Trash"; else -> "Archive" },
         tint = MaterialTheme.colorScheme.onSurface,
         onClick = { actions.onArchive(tabForMenu); onDismiss() }
     )

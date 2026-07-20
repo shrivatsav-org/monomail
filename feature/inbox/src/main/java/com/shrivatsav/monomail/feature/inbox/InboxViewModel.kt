@@ -513,6 +513,17 @@ class InboxViewModel @Inject constructor(
         val isUnified = _currentTab.value == InboxTab.UNIFIED || _unifiedInboxEnabled.value
         viewModelScope.launch { repository.emptySpam(isUnified) }
     }
+    fun moveSpamToTrash() {
+        val isUnified = _currentTab.value == InboxTab.UNIFIED || _unifiedInboxEnabled.value
+        viewModelScope.launch {
+            try {
+                repository.moveSpamToTrash(isUnified)
+            } catch (e: Exception) {
+                android.util.Log.w(TAG, "moveSpamToTrash failed", e)
+            }
+        }
+    }
+
 
     fun restoreThread(threadId: String) {
         viewModelScope.launch { repository.restoreThread(threadId) }

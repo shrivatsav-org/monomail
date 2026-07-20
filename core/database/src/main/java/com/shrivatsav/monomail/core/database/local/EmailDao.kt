@@ -39,7 +39,7 @@ interface EmailDao {
     @Query("UPDATE emails SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun updateThreadEmailsReadStatus(threadId: String, accountId: String, isRead: Boolean)
 
-    @Query("UPDATE emails SET inInbox = 0, inSent = 0, inArchived = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    @Query("UPDATE emails SET inInbox = 0, inSent = 0, inArchived = 0, inSpam = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun moveThreadEmailsToTrash(threadId: String, accountId: String)
 
     @Query("UPDATE emails SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")

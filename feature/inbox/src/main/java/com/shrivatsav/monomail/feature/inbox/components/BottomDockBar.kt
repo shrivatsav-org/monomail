@@ -43,6 +43,7 @@ internal fun BottomDockBar(
     val allTabs = DockTabId.entries.filter { it != DockTabId.UNIFIED }
     val primaryIds = dockConfig.primaryTabs
     val remainingIds = allTabs.filter { it !in primaryIds }
+    val filteredRemainingIds = remainingIds.filter { it.toInboxTab() != currentTab }
     var dockRowHeightPx by remember { mutableStateOf(0f) }
     val density = LocalDensity.current
 
@@ -50,7 +51,7 @@ internal fun BottomDockBar(
         modifier = modifier.wrapContentSize()
     ) {
         AnimatedVisibility(
-            visible = showRemainingTabs && remainingIds.isNotEmpty(),
+            visible = showRemainingTabs && filteredRemainingIds.isNotEmpty(),
             enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(MonoTween.fadeIn),
             exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(MonoTween.fadeOut),
             modifier = Modifier
@@ -64,7 +65,7 @@ internal fun BottomDockBar(
                 shadowElevation = 8.dp,
             ) {
                 Row(modifier = Modifier.padding(4.dp).horizontalScroll(rememberScrollState())) {
-                    remainingIds.forEach { dockTabId ->
+                    filteredRemainingIds.forEach { dockTabId ->
                         val tab = dockTabId.toInboxTab()
                         RemainingTabItem(
                             icon = dockTabId.icon(unifiedInboxEnabled),
@@ -98,9 +99,12 @@ internal fun BottomDockBar(
                 primaryIds = primaryIds,
                 unifiedInboxEnabled = unifiedInboxEnabled,
                 appSettings = appSettings,
-                onTabClick = onTabClick
+                onTabClick = { tab ->
+                    onTabClick(tab)
+                    showRemainingTabs = false
+                },
             )
-            if (remainingIds.isNotEmpty() && currentTab != InboxTab.TRASH && currentTab != InboxTab.SPAM) {
+            if (filteredRemainingIds.isNotEmpty()) {
                 MoreTabsButton(
                     showRemainingTabs = showRemainingTabs,
                     navScale = appSettings.navScale,

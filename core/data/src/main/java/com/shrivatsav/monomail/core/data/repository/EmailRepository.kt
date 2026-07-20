@@ -430,8 +430,15 @@ class EmailRepository(
 
             if (provider != null) {
                 kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
-                    trashIds.forEach { threadId ->
-                        try { provider.permanentlyDeleteThread(threadId) } catch (e: Exception) { android.util.Log.e("EmailRepo", "permanent delete failed for $threadId", e) }
+                    for (threadId in trashIds) {
+                        try {
+                            provider.permanentlyDeleteThread(threadId)
+                        } catch (e: RetrofitClient.AuthFailedException) {
+                            android.util.Log.w("EmailRepo", "Auth expired, stopping batch delete", e)
+                            break
+                        } catch (e: Exception) {
+                            android.util.Log.e("EmailRepo", "permanent delete failed for $threadId", e)
+                        }
                     }
                 }
             }
@@ -462,6 +469,21 @@ class EmailRepository(
             }
         }
     }
+    suspend fun moveSpamToTrash(isUnified: Boolean = false) {
+        val activeAccountId = getActiveAccountId()
+        val accountsToProcess = if (isUnified) {
+            accountManager.getAccounts().map { it.id }
+        } else {
+            listOf(activeAccountId)
+        }
+        accountsToProcess.forEach { accId ->
+            val spamIds = threadDao.getSpamThreadIds(accId)
+            spamIds.forEach { threadId ->
+                deleteThread(threadId)
+            }
+        }
+    }
+
     suspend fun deleteThread(threadId: String) {
         val accountId = resolveAccountId(threadId)
         insertPendingAction(PendingActionType.DELETE, accountId, threadId)
