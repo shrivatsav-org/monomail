@@ -4,12 +4,12 @@
 [![License](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-26%2B-3ddc84)](https://developer.android.com/about/versions/8.0)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7f52ff)](https://kotlinlang.org)
-[![Discord](https://img.shields.io/discord/1346685203087233035?label=discord&color=5865f2)](https://discord.gg/monomail)
+[![Discord](https://img.shields.io/discord/1346685203087233035?label=discord&color=5865f2)](https://discord.gg/gXp6xPetKU)
 [![Ko-fi](https://img.shields.io/badge/support-Ko--fi-ff5e5b)](https://ko-fi.com/N4N2W53M5)
 
 Monochrome email client for Android — Jetpack Compose, Material 3 Expressive. No colour accents, no noise, just email.
 
-[Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest) · [Discord](https://discord.gg/monomail)
+[Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest) · [Discord](https://discord.gg/gXp6xPetKU)
 
 > [!WARNING]
 > **Gmail API test-user quota (100 users).** The app is not published on the Play Store. If Google shows "This app is blocked", the test-user quota is exhausted. Run from source with your own Google Cloud project, or use an Outlook account (no such limit).
