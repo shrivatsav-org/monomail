@@ -5,6 +5,7 @@ import com.shrivatsav.monomail.core.database.local.AppDatabase
 import com.shrivatsav.monomail.core.database.local.EmailDao
 import com.shrivatsav.monomail.core.database.local.PendingActionDao
 import com.shrivatsav.monomail.core.database.local.ScheduledMessageDao
+import com.shrivatsav.monomail.core.database.local.PendingSendDao
 import com.shrivatsav.monomail.core.database.local.ThreadDao
 import dagger.Module
 import dagger.Provides
@@ -26,4 +27,5 @@ object DatabaseModule {
     @Provides fun provideEmailDao(db: AppDatabase): EmailDao = db.emailDao()
     @Provides fun provideScheduledMessageDao(db: AppDatabase): ScheduledMessageDao = db.scheduledMessageDao()
     @Provides fun providePendingActionDao(db: AppDatabase): PendingActionDao = db.pendingActionDao()
+    @Provides fun providePendingSendDao(db: AppDatabase): PendingSendDao = db.pendingSendDao()
 }

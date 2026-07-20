@@ -25,6 +25,7 @@ import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.core.data.settings.FontScale
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.core.data.settings.SyncFrequency
 import com.shrivatsav.monomail.ui.navigation.NavGraph
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
 import com.shrivatsav.monomail.core.data.worker.EmailSyncWorker
@@ -92,11 +93,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                 }
+            // Re-schedule background sync whenever sync frequency changes
+            LaunchedEffect(settings.syncFrequency) {
+                scheduleBackgroundSync(settings.syncFrequency)
             }
-            // Background sync is triggered from onStop; no permission requests at launch
-            // — permissions are handled during onboarding.
-            LaunchedEffect(Unit) {
-                scheduleBackgroundSync()
             }
         }
     }
@@ -129,9 +129,21 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    private fun scheduleBackgroundSync() {
+    private fun scheduleBackgroundSync(frequency: SyncFrequency) {
+        val intervalMinutes = when (frequency) {
+            SyncFrequency.MIN_15 -> 15L
+            SyncFrequency.MIN_30 -> 30L
+            SyncFrequency.HOUR_1 -> 60L
+            SyncFrequency.MANUAL -> {
+                // Cancel periodic sync when user selects Manual
+                WorkManager.getInstance(this).cancelUniqueWork("EmailSyncWork")
+                // Still schedule push subscription renewal (independent of notification frequency)
+                scheduleRenewalWorker()
+                return
+            }
+        }
         val workRequest = PeriodicWorkRequestBuilder<EmailSyncWorker>(
-            15, TimeUnit.MINUTES
+            intervalMinutes, TimeUnit.MINUTES
         )
             .setConstraints(
                 Constraints.Builder()
@@ -141,10 +153,13 @@ class MainActivity : ComponentActivity() {
             .build()
         WorkManager.getInstance(this).enqueueUniquePeriodicWork(
             "EmailSyncWork",
-            ExistingPeriodicWorkPolicy.KEEP,
+            ExistingPeriodicWorkPolicy.CANCEL_AND_REENQUEUE,
             workRequest
         )
-
+        scheduleRenewalWorker()
+    }
+    
+    private fun scheduleRenewalWorker() {
         val renewalWorkRequest = PeriodicWorkRequestBuilder<GraphSubscriptionRenewalWorker>(
             24, TimeUnit.HOURS
         )

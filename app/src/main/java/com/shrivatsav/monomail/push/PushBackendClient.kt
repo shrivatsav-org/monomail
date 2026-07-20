@@ -19,7 +19,8 @@ class PushBackendClient @Inject constructor() {
         accountId: String,
         email: String,
         fcmToken: String,
-        provider: String
+        provider: String,
+        accessToken: String
     ): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val baseUrl = BuildConfig.PUSH_BACKEND_URL
@@ -32,6 +33,7 @@ class PushBackendClient @Inject constructor() {
                 put("email", email)
                 put("fcmToken", fcmToken)
                 put("provider", provider)
+                put("accessToken", accessToken)
             }
 
             val requestBody = json.toString().toRequestBody("application/json; charset=utf-8".toMediaType())

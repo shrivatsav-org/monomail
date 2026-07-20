@@ -2,6 +2,7 @@ package com.shrivatsav.monomail.core.database.local
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import androidx.room.ColumnInfo
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.data.model.EmailThread
@@ -163,6 +164,27 @@ data class ScheduledMessageEntity(
     val fromAlias: String? = null,
     val threadId: String? = null,
     val messageId: String? = null
+)
+
+@Entity(
+    tableName = "pending_sends",
+    indices = [Index(value = ["accountId"])]
+)
+data class PendingSendEntity(
+    @PrimaryKey val id: String,
+    val accountId: String,
+    val fromEmail: String,
+    val to: String,
+    @ColumnInfo(defaultValue = "''") val cc: String = "",
+    @ColumnInfo(defaultValue = "''") val bcc: String = "",
+    val subject: String,
+    val body: String,
+    @ColumnInfo(defaultValue = "'[]'") val attachmentsJson: String = "[]",
+    val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "NULL") val fromAlias: String? = null,
+    @ColumnInfo(defaultValue = "NULL") val threadId: String? = null,
+    @ColumnInfo(defaultValue = "NULL") val messageId: String? = null,
+    @ColumnInfo(defaultValue = "NULL") val messageReferences: String? = null
 )
 
 enum class PendingActionType {
