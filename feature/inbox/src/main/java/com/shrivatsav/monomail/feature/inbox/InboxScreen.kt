@@ -704,7 +704,7 @@ fun InboxScreen(
                             accounts.size >= 10 -> coroutineScope.launch {
                                 snackbarHostState.showSnackbar("Maximum limit of 10 accounts reached.")
                             }
-                            accounts.size >= 3 -> showPerformanceWarningDialog = true
+                            accounts.size >= 3 && com.shrivatsav.monomail.feature.inbox.BuildConfig.IS_GITHUB_BUILD -> showPerformanceWarningDialog = true
                             else -> activeModal = ModalType.ADD_ACCOUNT
                         }
                     },
@@ -954,7 +954,7 @@ fun InboxScreen(
     }
 
 
-    // Performance warning dialog for adding 4th+ account
+    // Performance warning dialog for adding 4th+ account (github/polling builds only — playstore uses push)
     if (showPerformanceWarningDialog) {
         AlertDialog(
             onDismissRequest = { showPerformanceWarningDialog = false },
