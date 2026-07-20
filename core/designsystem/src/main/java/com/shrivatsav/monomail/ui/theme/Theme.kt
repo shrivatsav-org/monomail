@@ -36,11 +36,21 @@ private val LightColors = lightColorScheme(
     onSurfaceVariant       = Black,
     surfaceContainer       = LightSurfaceContainer,
     surfaceContainerHigh   = LightSurfaceContainerHigh,
+    surfaceContainerHighest= Color(0xFFE0E0E0),
+    surfaceContainerLow    = Color(0xFFF6F6F6),
+    surfaceContainerLowest = Color(0xFFFFFFFF),
+    surfaceBright          = Color(0xFFFFFFFF),
+    surfaceDim             = Color(0xFFE8E8E8),
+    surfaceTint            = Color.Transparent,
     outline                = Black,
     outlineVariant         = LightOutlineVariant,
     inverseSurface         = Black,
     inverseOnSurface       = White,
     scrim                  = Black,
+    error                  = Black,
+    onError                = White,
+    errorContainer         = LightSurfaceContainerHigh,
+    onErrorContainer       = Black,
 )
 
 private val DarkColors = darkColorScheme(
@@ -64,12 +74,23 @@ private val DarkColors = darkColorScheme(
     onSurfaceVariant       = White,
     surfaceContainer       = DarkSurfaceContainer,
     surfaceContainerHigh   = DarkSurfaceContainerHigh,
+    surfaceContainerHighest= Color(0xFF242424),
+    surfaceContainerLow    = Color(0xFF0F0F0F),
+    surfaceContainerLowest = Color(0xFF000000),
+    surfaceBright          = Color(0xFF2A2A2A),
+    surfaceDim             = Color(0xFF0A0A0A),
+    surfaceTint            = Color.Transparent,
     outline                = White,
     outlineVariant         = DarkOutlineVariant,
     inverseSurface         = White,
     inverseOnSurface       = Black,
     scrim                  = Black,
+    error                  = White,
+    onError                = Black,
+    errorContainer         = DarkSurfaceContainerHigh,
+    onErrorContainer       = White,
 )
+
 
 /** Extra tokens Material3's ColorScheme doesn't have a slot for. */
 data class MonoMailExtendedColors(
