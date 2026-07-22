@@ -22,7 +22,7 @@ sealed class InboxDisplayItem {
     data class SingleThread(val thread: EmailThread, val tab: String = "") : InboxDisplayItem() {
         override val key: String get() = "${tab}_${thread.threadId}"
     }
-    data class NestedThread(val thread: EmailThread, val groupName: String, val tab: String = "") : InboxDisplayItem() {
+    data class NestedThread(val thread: EmailThread, val groupName: String, val tab: String = "", val isVisible: Boolean = true) : InboxDisplayItem() {
         override val key: String get() = "${tab}_${groupName}_${thread.threadId}"
     }
 }
@@ -103,10 +103,8 @@ fun flattenDisplayItems(
                 tab = tabPrefix
             )
         )
-        if (isExpanded) {
-            for (thread in group.threads) {
-                displayItems.add(InboxDisplayItem.NestedThread(thread, group.name, tab = tabPrefix))
-            }
+        for (thread in group.threads) {
+            displayItems.add(InboxDisplayItem.NestedThread(thread, group.name, tab = tabPrefix, isVisible = isExpanded))
         }
     }
     var currentHeader = ""
