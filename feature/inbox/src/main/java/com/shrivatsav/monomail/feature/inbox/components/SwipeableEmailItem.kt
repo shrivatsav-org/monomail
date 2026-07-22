@@ -95,7 +95,6 @@ internal fun SwipeableEmailItem(
 
     Column(
         modifier = modifier
-            .let { if (callbacks.isNested) it.padding(start = 32.dp) else it }
             .padding(horizontal = 12.dp)
             .padding(top = topPad, bottom = bottomPad)
             .clip(shape)

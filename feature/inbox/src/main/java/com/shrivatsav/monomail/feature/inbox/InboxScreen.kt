@@ -314,8 +314,39 @@ fun InboxScreen(
                                     }
                                 }
                             }
-                            val displayItems = remember(inboxStructure, expandedGroupsList) {
-                                flattenDisplayItems(inboxStructure, expandedGroupsList.toSet(), tabPrefix = currentTab.name)
+                            val displayItems = remember(inboxStructure, expandedGroupsList, appSettings.demoSmartFolders) {
+                                val items = flattenDisplayItems(inboxStructure, expandedGroupsList.toSet(), tabPrefix = currentTab.name).toMutableList()
+                                if (appSettings.demoSmartFolders) {
+                                    items.add(0, InboxDisplayItem.GroupHeader(
+                                        groupName = "Demo Smart Folder",
+                                        count = 42,
+                                        unreadCount = 5,
+                                        latestDate = System.currentTimeMillis(),
+                                        isExpanded = expandedGroupsList.contains("Demo Smart Folder"),
+                                        avatarUrl = null,
+                                        tab = currentTab.name
+                                    ))
+                                    val isDemoExpanded = expandedGroupsList.contains("Demo Smart Folder")
+                                    items.add(1, InboxDisplayItem.NestedThread(
+                                        thread = com.shrivatsav.monomail.data.model.EmailThread(
+                                            threadId = "demo_thread_1",
+                                            subject = "This is a demo email",
+                                            from = "Demo Sender",
+                                            fromEmail = "demo@example.com",
+                                            snippet = "Just demonstrating the smart folder expansion",
+                                            date = System.currentTimeMillis(),
+                                            messageCount = 1,
+                                            isRead = false,
+                                            isStarred = false,
+                                            latestMessageId = "demo_msg_1",
+                                            participants = listOf("Demo Sender")
+                                        ),
+                                        groupName = "Demo Smart Folder",
+                                        tab = currentTab.name,
+                                        isVisible = isDemoExpanded
+                                    ))
+                                }
+                                items
                             }
                             val orderedThreadIds by remember(displayItems) {
                                 derivedStateOf {
@@ -527,38 +558,46 @@ fun InboxScreen(
                                                         nextUnread -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.TOP
                                                         else -> com.shrivatsav.monomail.feature.inbox.components.UnreadPosition.SOLO
                                                     }
-                                                    SwipeableEmailItem(
-                                                        modifier = Modifier.animateItem(),
-                                                        thread = displayItem.thread,
-                                                        tabForSwipe = currentTab,
-                                                        appSettings = appSettings,
-                                                        viewModel = viewModel,
-                                                        callbacks = SwipeCallbacks(
-                                                            onThreadToDeleteChange = { threadToDelete = it },
-                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
-                                                            onLongClick = {
-                                                                hapticFeedback.performHapticFeedback(
-                                                                    HapticFeedbackType.LongPress
-                                                                )
-                                                                longPressedThread = displayItem.thread
-                                                            },
-                                                            isNested = true
-                                                        ),
-                                                        selection = SelectionState(
-                                                            isSelected = displayItem.thread.threadId in selectedThreadIds,
-                                                            isBulkMode = isBulkMode,
-                                                            onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
-                                                            onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
-                                                            onAvatarLongClick = {
-                                                                viewModel.enterBulkSelectMode(displayItem.thread.threadId)
-                                                            }
-                                                        ),
-                                                        unreadPosition = unreadPos,
-                                                        groupPosition = groupPos
-                                                    )
-                                                }
+                                                    Column {
+                                                        AnimatedVisibility(
+                                                            visible = displayItem.isVisible,
+                                                            enter = expandVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeIn(),
+                                                            exit = shrinkVertically(animationSpec = spring(stiffness = Spring.StiffnessMediumLow)) + fadeOut()
+                                                        ) {
+                                                            SwipeableEmailItem(
+                                                                modifier = Modifier.animateItem(),
+                                                                thread = displayItem.thread,
+                                                                tabForSwipe = currentTab,
+                                                                appSettings = appSettings,
+                                                                viewModel = viewModel,
+                                                                callbacks = SwipeCallbacks(
+                                                                    onThreadToDeleteChange = { threadToDelete = it },
+                                                                    onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
+                                                                    onLongClick = {
+                                                                        hapticFeedback.performHapticFeedback(
+                                                                            HapticFeedbackType.LongPress
+                                                                        )
+                                                                        longPressedThread = displayItem.thread
+                                                                    },
+                                                                    isNested = true
+                                                                ),
+                                                                selection = SelectionState(
+                                                                    isSelected = displayItem.thread.threadId in selectedThreadIds,
+                                                                    isBulkMode = isBulkMode,
+                                                                    onSelectToggle = { viewModel.toggleThreadSelection(displayItem.thread.threadId) },
+                                                                    onRangeSelect = { viewModel.rangeSelectTo(displayItem.thread.threadId, orderedThreadIds) },
+                                                                    onAvatarLongClick = {
+                                                                        viewModel.enterBulkSelectMode(displayItem.thread.threadId)
+                                                                    }
+                                                                ),
+                                                                unreadPosition = unreadPos,
+                                                                groupPosition = groupPos
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
+                                        }
                                         }
 
                                         if (isSearchActive && s.threads.isNotEmpty()) {
