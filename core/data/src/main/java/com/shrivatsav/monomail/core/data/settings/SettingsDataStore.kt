@@ -76,6 +76,7 @@ data class AppSettings(
     val showMarkAllRead: Boolean = true,
     val monochromeTheme: Boolean = true,
     val swipeThreshold: Float = 0.40f,
+    val demoSmartFolders: Boolean = false,
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -112,6 +113,7 @@ class SettingsDataStore(private val context: Context) {
         val SHOW_INLINE_ATTACHMENTS = booleanPreferencesKey("show_inline_attachments")
         val SHOW_MARK_ALL_READ = booleanPreferencesKey("show_mark_all_read")
         val CORNER_STYLE = stringPreferencesKey("corner_style")
+        val DEMO_SMART_FOLDERS = booleanPreferencesKey("demo_smart_folders")
         val SHOW_INLINE_IMAGES = booleanPreferencesKey("show_inline_images")
         val MONOCHROME_THEME = booleanPreferencesKey("monochrome_theme")
         val SWIPE_THRESHOLD = floatPreferencesKey("swipe_threshold")
@@ -156,6 +158,7 @@ class SettingsDataStore(private val context: Context) {
                 } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults(),
             isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false,
+            demoSmartFolders = prefs[Keys.DEMO_SMART_FOLDERS] ?: false,
             showInlineImages = prefs[Keys.SHOW_INLINE_IMAGES] ?: true,
             showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true,
             cornerStyle = prefs[Keys.CORNER_STYLE]?.let { CornerStyle.valueOf(it) } ?: CornerStyle.ROUNDED,
@@ -278,6 +281,9 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[Keys.TEMPLATES] = gson.toJson(templates)
         }
+    }
+    suspend fun setDemoSmartFolders(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DEMO_SMART_FOLDERS] = enabled }
     }
     val templatesFlow: Flow<List<EmailTemplate>> = context.dataStore.data.map { prefs ->
         val json = prefs[Keys.TEMPLATES] ?: return@map emptyList()

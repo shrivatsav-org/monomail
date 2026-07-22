@@ -140,6 +140,8 @@ private fun SettingsHubScreen(
         } catch (_: Exception) { "1.0.0" }
     }
     val uriHandler = androidx.compose.ui.platform.LocalUriHandler.current
+    val settings by viewModel.settings.collectAsState()
+    var devTapCount by remember { mutableIntStateOf(0) }
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(
@@ -160,7 +162,7 @@ private fun SettingsHubScreen(
         ) {
             Spacer(Modifier.height(4.dp))
 
-            SettingsSection.entries.forEach { section ->
+            SettingsSection.entries.filter { it != SettingsSection.DEVELOPER || settings.isDeveloperMode }.forEach { section ->
                 CategoryCard(
                     icon = section.icon,
                     title = section.title,
@@ -173,7 +175,17 @@ private fun SettingsHubScreen(
                 InfoRow(
                     icon = Icons.Rounded.Info,
                     title = "Version",
-                    value = "$versionName ($buildFlavorName $buildTypeName)"
+                    value = "$versionName ($buildFlavorName $buildTypeName)",
+                    onClick = {
+                        if (!settings.isDeveloperMode) {
+                            devTapCount++
+                            if (devTapCount >= 3) {
+                                viewModel.setDeveloperMode(true)
+                                devTapCount = 0
+                                android.widget.Toast.makeText(context, "Developer Mode unlocked!", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
                 )
                 CardDivider()
                 InfoRow(
@@ -231,6 +243,14 @@ internal fun DeveloperSettingsScreen(
                 subtitle = "Enable share options for raw HTML/MD/plain text email body",
                 checked = settings.isDeveloperMode,
                 onCheckedChange = { viewModel.setDeveloperMode(it) }
+            )
+            CardDivider()
+            SettingsToggleRow(
+                icon = Icons.Rounded.FolderSpecial,
+                title = "Demo Smart Folders",
+                subtitle = "Enable smart folders demonstration",
+                checked = settings.demoSmartFolders,
+                onCheckedChange = { viewModel.setDemoSmartFolders(it) }
             )
         }
         Spacer(Modifier.height(8.dp))

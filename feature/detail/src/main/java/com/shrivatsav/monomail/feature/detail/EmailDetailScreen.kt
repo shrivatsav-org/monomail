@@ -1128,7 +1128,14 @@ private fun EmailWebViewCard(
                 if (webView.tag != htmlContent) {
                     webView.tag = htmlContent
                     try {
-                        webView.loadDataWithBaseURL("file:///android_asset/", htmlContent, "text/html", "UTF-8", null)
+                        val overrideStyle = "<style>html, body { height: auto !important; min-height: unset !important; }</style>"
+                        val patchedHtml = if (htmlContent.contains("</head>", ignoreCase = true)) {
+                            val index = htmlContent.indexOf("</head>", ignoreCase = true)
+                            htmlContent.substring(0, index) + overrideStyle + htmlContent.substring(index)
+                        } else {
+                            overrideStyle + htmlContent
+                        }
+                        webView.loadDataWithBaseURL("file:///android_asset/", patchedHtml, "text/html", "UTF-8", null)
                     } catch (e: Exception) {
                         android.util.Log.e("EmailWebView", "Failed to load email HTML content", e)
                     }
