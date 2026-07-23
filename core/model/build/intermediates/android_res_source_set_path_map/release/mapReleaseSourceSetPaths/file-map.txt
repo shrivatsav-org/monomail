@@ -1,9 +1,0 @@
-com.shrivatsav.monomail.core.model-pngs-0 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\build\generated\res\pngs\release
-com.shrivatsav.monomail.core.model-updated_navigation_xml-1 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\build\generated\updated_navigation_xml\release
-com.shrivatsav.monomail.core.model-mergeReleaseResources-2 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\build\intermediates\incremental\release\mergeReleaseResources\merged.dir
-com.shrivatsav.monomail.core.model-mergeReleaseResources-3 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\build\intermediates\incremental\release\mergeReleaseResources\stripped.dir
-com.shrivatsav.monomail.core.model-release-4 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\build\intermediates\merged_res\release\mergeReleaseResources
-com.shrivatsav.monomail.core.model-release-5 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\build\intermediates\packaged_res\release\packageReleaseResources
-com.shrivatsav.monomail.core.model-main-6 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\src\main\res
-com.shrivatsav.monomail.core.model-release-7 C:\Users\Shiro\AndroidStudioProjects\Monomail\core\model\src\release\res
-gradleHome-0 C:\Users\Shiro\.gradle

@@ -54,6 +54,8 @@ import com.shrivatsav.monomail.feature.inbox.InboxNavActions
 import com.shrivatsav.monomail.feature.inbox.InboxViewModel
 import com.shrivatsav.monomail.feature.inbox.scheduled.ScheduledMessagesScreen
 import com.shrivatsav.monomail.feature.inbox.scheduled.ScheduledMessagesViewModel
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Email
 import com.shrivatsav.monomail.feature.settings.pgp.PgpKeyManagementScreen
 import com.shrivatsav.monomail.feature.settings.SettingsScreen
 import com.shrivatsav.monomail.feature.settings.SettingsViewModel
@@ -302,40 +304,137 @@ fun NavGraph(
                 val vm: InboxViewModel = hiltViewModel()
                 val inboxScope = androidx.compose.runtime.rememberCoroutineScope()
                 val activeAccount by authManager.activeAccountFlow.collectAsState(initial = authManager.currentUser)
-                InboxScreen(
-                    viewModel    = vm,
-                    userProfile  = activeAccount,
-                    navActions = InboxNavActions(
-                        onEmailClick = { threadId ->
-                            navController.navigate(Screen.ThreadDetail.createRoute(threadId)) { launchSingleTop = true }
-                        },
-                        onSignOut = {
-                            inboxScope.launch {
-                                authManager.signOutActiveAccount()
-                                val accounts = authManager.getAccounts()
-                                if (accounts.isEmpty()) {
-                                    navController.navigate(Screen.SignIn.route) {
-                                        popUpTo(0) { inclusive = true }
+                val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                val isTablet = configuration.screenWidthDp >= 600
+                var selectedThreadId by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+
+                if (isTablet) {
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(0.4f)) {
+                            InboxScreen(
+                                viewModel = vm,
+                                userProfile = activeAccount,
+                                navActions = InboxNavActions(
+                                    onEmailClick = { threadId -> selectedThreadId = threadId },
+                                    onSignOut = {
+                                        inboxScope.launch {
+                                            authManager.signOutActiveAccount()
+                                            if (authManager.getAccounts().isEmpty()) {
+                                                navController.navigate(Screen.SignIn.route) { popUpTo(0) { inclusive = true } }
+                                                emailRepository.clearLocalData()
+                                            }
+                                        }
+                                    },
+                                    onCompose = {
+                                        val isUnified = vm.currentTab.value == InboxTab.UNIFIED
+                                        navController.navigate(Screen.Compose.createRoute(unified = isUnified)) { launchSingleTop = true }
+                                    },
+                                    onSettings = { navController.navigate(Screen.Settings.route) { launchSingleTop = true } },
+                                    onScheduledClick = { navController.navigate(Screen.Scheduled.route) { launchSingleTop = true } },
+                                    onNavigateToImapSetup = { navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true } }
+                                )
+                            )
+                        }
+                        androidx.compose.material3.VerticalDivider(
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            thickness = 1.dp
+                        )
+                        androidx.compose.foundation.layout.Box(modifier = Modifier.weight(0.6f)) {
+                            if (selectedThreadId != null) {
+                                val detailViewModel: EmailDetailViewModel = hiltViewModel(key = selectedThreadId!!)
+                                androidx.compose.runtime.LaunchedEffect(selectedThreadId) {
+                                    detailViewModel.setThreadId(selectedThreadId!!)
+                                }
+                                EmailDetailScreen(
+                                    viewModel = detailViewModel,
+                                    onBack = { selectedThreadId = null },
+                                    onReply = { to, subject, body, threadId, messageId ->
+                                        navController.navigate(
+                                            Screen.Compose.createRoute(
+                                                mode = ComposeMode.REPLY,
+                                                to = to,
+                                                subject = subject,
+                                                threadId = threadId,
+                                                messageId = messageId
+                                            )
+                                        )
+                                    },
+                                    onForward = { subject, body, threadId, messageId ->
+                                        navController.navigate(
+                                            Screen.Compose.createRoute(
+                                                mode = ComposeMode.FORWARD,
+                                                subject = subject,
+                                                threadId = threadId,
+                                                messageId = messageId
+                                            )
+                                        )
+                                    },
+                                    onFetchAttachment = { msg, att -> detailViewModel.fetchAttachmentBytes(msg, att) },
+                                    onNavigateToAttachmentViewer = { mId, aId, mime, name ->
+                                        navController.navigate(Screen.AttachmentViewer.createRoute(mId, aId, mime, name))
                                     }
-                                    emailRepository.clearLocalData()
+                                )
+                            } else {
+                                androidx.compose.foundation.layout.Box(
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        androidx.compose.material3.Icon(
+                                            imageVector = Icons.Rounded.Email,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(64.dp),
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                        )
+                                        androidx.compose.foundation.layout.Spacer(modifier = Modifier.size(16.dp))
+                                        androidx.compose.material3.Text(
+                                            text = "Select an email to read",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                        )
+                                    }
                                 }
                             }
-                        },
-                        onCompose = {
-                            val isUnified = vm.currentTab.value == InboxTab.UNIFIED
-                            navController.navigate(Screen.Compose.createRoute(unified = isUnified)) { launchSingleTop = true }
-                        },
-                        onSettings = {
-                            navController.navigate(Screen.Settings.route) { launchSingleTop = true }
-                        },
-                        onScheduledClick = {
-                            navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
-                        },
-                        onNavigateToImapSetup = {
-                            navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
                         }
+                    }
+                } else {
+                    InboxScreen(
+                        viewModel    = vm,
+                        userProfile  = activeAccount,
+                        navActions = InboxNavActions(
+                            onEmailClick = { threadId ->
+                                navController.navigate(Screen.ThreadDetail.createRoute(threadId)) { launchSingleTop = true }
+                            },
+                            onSignOut = {
+                                inboxScope.launch {
+                                    authManager.signOutActiveAccount()
+                                    val accounts = authManager.getAccounts()
+                                    if (accounts.isEmpty()) {
+                                        navController.navigate(Screen.SignIn.route) {
+                                            popUpTo(0) { inclusive = true }
+                                        }
+                                        emailRepository.clearLocalData()
+                                    }
+                                }
+                            },
+                            onCompose = {
+                                val isUnified = vm.currentTab.value == InboxTab.UNIFIED
+                                navController.navigate(Screen.Compose.createRoute(unified = isUnified)) { launchSingleTop = true }
+                            },
+                            onSettings = {
+                                navController.navigate(Screen.Settings.route) { launchSingleTop = true }
+                            },
+                            onScheduledClick = {
+                                navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
+                            },
+                            onNavigateToImapSetup = {
+                                navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
+                            }
+                        )
                     )
-                )
+                }
             }
             composable(Screen.Settings.route) {
                 val settingsViewModel: SettingsViewModel = hiltViewModel()

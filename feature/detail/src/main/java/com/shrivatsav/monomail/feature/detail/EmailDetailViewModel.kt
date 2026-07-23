@@ -14,11 +14,15 @@ import com.shrivatsav.monomail.core.data.settings.FontScale
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -33,6 +37,7 @@ sealed class EmailDetailState {
 }
 
 @HiltViewModel
+@OptIn(ExperimentalCoroutinesApi::class)
 class EmailDetailViewModel @Inject constructor(
     private val repository: EmailRepository,
     private val settingsDataStore: SettingsDataStore,
@@ -41,7 +46,14 @@ class EmailDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     val currentUserEmail: String = authManager.currentUser?.email ?: ""
-    private val threadId: String = savedStateHandle.get<String>("threadId") ?: ""
+    private val _threadId = MutableStateFlow(savedStateHandle.get<String>("threadId") ?: "")
+    
+    fun setThreadId(id: String) {
+        if (_threadId.value != id && id.isNotEmpty()) {
+            _threadId.value = id
+        }
+    }
+
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
     private val _error = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
 
@@ -82,48 +94,60 @@ class EmailDetailViewModel @Inject constructor(
     val showInlineAttachments: StateFlow<Boolean> = settingsDataStore.settingsFlow
         .map { it.showInlineAttachments }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
-    val state: StateFlow<EmailDetailState> = kotlinx.coroutines.flow.combine(
-        repository.getThreadEmailsFlow(threadId),
-        _isLoading,
-        _error
-    ) { emails, isLoading, error ->
-        when {
-            emails.isNotEmpty() -> {
-                val needsBodyFetch = emails.any { it.body.isEmpty() }
-                EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
-            }
 
-            error != null -> EmailDetailState.Error(error)
-            !isLoading -> EmailDetailState.Error("Email thread not found.")
-            else -> EmailDetailState.Success(emptyList(), isRefreshing = true)
+    val state: StateFlow<EmailDetailState> = _threadId.flatMapLatest { id ->
+        if (id.isEmpty()) {
+            flowOf(EmailDetailState.Success(emptyList(), isRefreshing = false))
+        } else {
+            combine(
+                repository.getThreadEmailsFlow(id),
+                _isLoading,
+                _error
+            ) { emails, isLoading, error ->
+                when {
+                    emails.isNotEmpty() -> {
+                        val needsBodyFetch = emails.any { it.body.isEmpty() }
+                        EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
+                    }
+                    error != null -> EmailDetailState.Error(error)
+                    !isLoading -> EmailDetailState.Error("Email thread not found.")
+                    else -> EmailDetailState.Success(emptyList(), isRefreshing = true)
+                }
+            }
         }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = EmailDetailState.Success(emptyList(), isRefreshing = true)
     )
-    val isStarred: StateFlow<Boolean> = repository.getThreadEmailsFlow(threadId)
-        .map { emails -> emails.any { it.isStarred } }
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5000),
-            initialValue = false
-        )
+
+    val isStarred: StateFlow<Boolean> = _threadId.flatMapLatest { id ->
+        if (id.isEmpty()) flowOf(false)
+        else repository.getThreadEmailsFlow(id).map { emails -> emails.any { it.isStarred } }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
 
     init {
         viewModelScope.launch {
-            try {
-                repository.markThreadAsRead(threadId)
-                _isLoading.value = true
-                val result = repository.refreshThread(threadId)
-                _isLoading.value = false
-                result.onFailure {
-                    _error.value = it.message ?: "Failed to refresh thread"
+            _threadId.collect { id ->
+                if (id.isNotEmpty()) {
+                    try {
+                        repository.markThreadAsRead(id)
+                        _isLoading.value = true
+                        val result = repository.refreshThread(id)
+                        _isLoading.value = false
+                        result.onFailure {
+                            _error.value = it.message ?: "Failed to refresh thread"
+                        }
+                    } catch (e: Exception) {
+                        _isLoading.value = false
+                        _error.value = e.message ?: "Failed to load email"
+                        Log.e("EmailDetailVM", "Unexpected error loading thread $id", e)
+                    }
                 }
-            } catch (e: Exception) {
-                _isLoading.value = false
-                _error.value = e.message ?: "Failed to load email"
-                Log.e("EmailDetailVM", "Unexpected error loading thread $threadId", e)
             }
         }
         viewModelScope.launch {
@@ -136,12 +160,6 @@ class EmailDetailViewModel @Inject constructor(
                 }
             }
         }
-        // PGP decryption — detect and decrypt encrypted messages.
-        // `state` re-emits on every isRefreshing/read-status/error tick, not just when
-        // bodies actually change, so we key this off (id, body) pairs specifically and
-        // skip the pass entirely when nothing relevant has changed. We also keep results
-        // for emails we've already decrypted instead of throwing the whole map away and
-        // recomputing it on each pass.
         viewModelScope.launch {
             state
                 .map { s -> if (s is EmailDetailState.Success) s.emails.map { it.id to it.body } else emptyList() }
@@ -150,7 +168,7 @@ class EmailDetailViewModel @Inject constructor(
                     val currentIds = idsAndBodies.map { it.first }.toSet()
                     val decrypted = _decryptedBodies.value.filterKeys { it in currentIds }.toMutableMap()
                     for ((id, body) in idsAndBodies) {
-                        if (decrypted.containsKey(id)) continue // already decrypted, body unchanged
+                        if (decrypted.containsKey(id)) continue
                         try {
                             val isPgp = withContext(Dispatchers.Default) { pgpManager.isPgpMessage(body) }
                             if (isPgp) {
@@ -169,29 +187,37 @@ class EmailDetailViewModel @Inject constructor(
     }
 
     fun toggleStar() {
+        val currentId = _threadId.value
+        if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.toggleStar(threadId, isStarred.value)
+            repository.toggleStar(currentId, isStarred.value)
         }
     }
 
     fun markUnread(onComplete: () -> Unit) {
+        val currentId = _threadId.value
+        if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.markThreadAsUnread(threadId)
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
+            repository.markThreadAsUnread(currentId)
+            withContext(Dispatchers.Main) { onComplete() }
         }
     }
 
     fun archiveThread(onComplete: () -> Unit) {
+        val currentId = _threadId.value
+        if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.archiveThread(threadId)
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
+            repository.archiveThread(currentId)
+            withContext(Dispatchers.Main) { onComplete() }
         }
     }
 
     fun trashThread(onComplete: () -> Unit) {
+        val currentId = _threadId.value
+        if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.deleteThread(threadId)
-            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) { onComplete() }
+            repository.deleteThread(currentId)
+            withContext(Dispatchers.Main) { onComplete() }
         }
     }
 
