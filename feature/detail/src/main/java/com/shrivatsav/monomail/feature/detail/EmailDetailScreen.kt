@@ -322,7 +322,7 @@ private fun DetailContent(
                             }
                         }
                     } else {
-                        val latestEmail = emails.last()
+                        val latestEmail = emails.lastOrNull() ?: return@Crossfade
                         val latestBody = decryptedBodies[latestEmail.id]?.decryptedBody ?: latestEmail.body
                         val myEmail = config.currentUserEmail
                         val replyTarget = emails.lastOrNull {

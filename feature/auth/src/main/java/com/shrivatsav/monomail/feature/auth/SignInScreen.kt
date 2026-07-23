@@ -16,7 +16,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.core.tween
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -215,88 +217,130 @@ private fun SignInContent(
     onNavigateToLegal: (String) -> Unit,
     context: Context,
 ) {
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp)
             .scale(scale)
             .alpha(alpha),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
+        contentAlignment = Alignment.Center
     ) {
-        Image(
-            painter = painterResource(com.shrivatsav.monomail.feature.auth.R.drawable.ic_signin_mark),
-            contentDescription = "Monomail",
-            modifier = Modifier.size(96.dp),
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(
-            text = "Mono Mail",
-            style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "Your inbox, distilled.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
-            textAlign = TextAlign.Center,
-        )
-        Spacer(modifier = Modifier.height(64.dp))
-        Button(
-            onClick = onContinueWithEmail,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            shape = MaterialTheme.shapes.large,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-            ),
-        ) {
+        val configuration = LocalConfiguration.current
+        val isTablet = configuration.screenWidthDp >= 600
+
+        val BrandingBlock: @Composable () -> Unit = {
+            Image(
+                painter = painterResource(com.shrivatsav.monomail.feature.auth.R.drawable.ic_signin_mark),
+                contentDescription = "Monomail",
+                modifier = Modifier.size(96.dp),
+            )
+            Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Continue with Email",
-                style = MaterialTheme.typography.labelLarge,
+                text = "Mono Mail",
+                style = MaterialTheme.typography.displaySmall,
+                color = MaterialTheme.colorScheme.onBackground,
+                textAlign = TextAlign.Center,
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Your inbox, distilled.",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.55f),
+                textAlign = TextAlign.Center,
             )
         }
-        Spacer(modifier = Modifier.height(24.dp))
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-        ) {
+
+        val ActionsBlock: @Composable () -> Unit = {
+            Button(
+                onClick = onContinueWithEmail,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = MaterialTheme.shapes.large,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+            ) {
+                Text(
+                    text = "Continue with Email",
+                    style = MaterialTheme.typography.labelLarge,
+                )
+            }
+            Spacer(modifier = Modifier.height(24.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = "Privacy Policy",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onNavigateToLegal("privacy") },
+                )
+                Text(
+                    text = " • ",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                )
+                Text(
+                    text = "Terms of Service",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onNavigateToLegal("tos") },
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Privacy Policy",
+                text = "monomail.millosaurs.me",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { onNavigateToLegal("privacy") },
-            )
-            Text(
-                text = " • ",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
-            )
-            Text(
-                text = "Terms of Service",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable { onNavigateToLegal("tos") },
+                modifier = Modifier.clickable {
+                    try {
+                        context.startActivity(
+                            android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://monomail.millosaurs.me"))
+                        )
+                    } catch (e: Exception) { android.util.Log.w("SignIn", "Failed to open URL", e) }
+                },
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "monomail.millosaurs.me",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.clickable {
-                try {
-                    context.startActivity(
-                        android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse("https://monomail.millosaurs.me"))
-                    )
-                } catch (e: Exception) { android.util.Log.w("SignIn", "Failed to open URL", e) }
-            },
-        )
+
+        if (isTablet) {
+            Row(
+                modifier = Modifier
+                    .widthIn(max = 800.dp)
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp),
+                horizontalArrangement = Arrangement.spacedBy(48.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    BrandingBlock()
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    ActionsBlock()
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 480.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                BrandingBlock()
+                Spacer(modifier = Modifier.height(64.dp))
+                ActionsBlock()
+            }
+        }
     }
 }
 

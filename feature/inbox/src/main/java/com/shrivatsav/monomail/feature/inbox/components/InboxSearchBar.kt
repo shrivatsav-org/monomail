@@ -226,6 +226,7 @@ private fun SearchTrailingIcon(actions: SearchBarActions, display: SearchDisplay
         } else {
             AvatarButton(userProfile = display.userProfile, onClick = actions.onOpenProfile)
         }
+        Spacer(Modifier.width(12.dp))
     }
 }
 
