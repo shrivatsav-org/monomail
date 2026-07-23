@@ -54,27 +54,11 @@ fun SettingsScreen(
     var currentSection by remember { mutableStateOf<SettingsSection?>(null) }
     BackHandler(currentSection != null) { currentSection = null }
 
-    AnimatedContent(
-        targetState = currentSection,
-        transitionSpec = {
-            val isDrill = targetState != null
-            if (isDrill) {
-                (slideInHorizontally { width -> width } + fadeIn(animationSpec = MonoTween.fadeIn))
-                    .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut(animationSpec = MonoTween.fadeOut))
-            } else {
-                (slideInHorizontally { width -> -width / 4 } + fadeIn(animationSpec = MonoTween.fadeIn))
-                    .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = MonoTween.fadeOut))
-            }
-        },
-        label = "settingsNav"
-    ) { section ->
+    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+    val isTablet = configuration.screenWidthDp >= 600
+
+    val DetailScreen: @Composable (SettingsSection) -> Unit = { section ->
         when (section) {
-            null -> SettingsHubScreen(
-                viewModel = viewModel,
-                onSectionClick = { currentSection = it },
-                onNavigateBack = onNavigateBack,
-                onNavigateToLegal = onNavigateToLegal
-            )
             SettingsSection.ACCOUNTS -> AccountsSettingsScreen(
                 authManager = authManager,
                 onBack = { currentSection = null }
@@ -117,6 +101,85 @@ fun SettingsScreen(
             SettingsSection.SUPPORT -> SupportSettingsScreen(
                 onBack = { currentSection = null }
             )
+        }
+    }
+
+    if (isTablet) {
+        androidx.compose.foundation.layout.Row(
+            modifier = androidx.compose.ui.Modifier.fillMaxSize()
+        ) {
+            androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.weight(0.4f)) {
+                SettingsHubScreen(
+                    viewModel = viewModel,
+                    onSectionClick = { currentSection = it },
+                    onNavigateBack = onNavigateBack,
+                    onNavigateToLegal = onNavigateToLegal
+                )
+            }
+            androidx.compose.material3.VerticalDivider(
+                color = androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant,
+                thickness = 1.dp
+            )
+            androidx.compose.foundation.layout.Box(modifier = androidx.compose.ui.Modifier.weight(0.6f)) {
+                AnimatedContent(
+                    targetState = currentSection,
+                    transitionSpec = {
+                        (androidx.compose.animation.fadeIn(animationSpec = androidx.compose.animation.core.tween(220)))
+                            .togetherWith(androidx.compose.animation.fadeOut(animationSpec = androidx.compose.animation.core.tween(180)))
+                    },
+                    label = "settingsTabletDetail"
+                ) { section ->
+                    if (section == null) {
+                        androidx.compose.foundation.layout.Box(
+                            modifier = androidx.compose.ui.Modifier.fillMaxSize(),
+                            contentAlignment = androidx.compose.ui.Alignment.Center
+                        ) {
+                            androidx.compose.foundation.layout.Column(horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                                androidx.compose.material3.Icon(
+                                    imageVector = androidx.compose.material.icons.Icons.Rounded.Settings,
+                                    contentDescription = null,
+                                    modifier = androidx.compose.ui.Modifier.size(64.dp),
+                                    tint = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                                androidx.compose.foundation.layout.Spacer(modifier = androidx.compose.ui.Modifier.size(16.dp))
+                                androidx.compose.material3.Text(
+                                    text = "Select a setting to view",
+                                    style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
+                                    color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                )
+                            }
+                        }
+                    } else {
+                        DetailScreen(section)
+                    }
+                }
+            }
+        }
+    } else {
+        AnimatedContent(
+            targetState = currentSection,
+            transitionSpec = {
+                val isDrill = targetState != null
+                if (isDrill) {
+                    (slideInHorizontally { width -> width } + fadeIn(animationSpec = MonoTween.fadeIn))
+                        .togetherWith(slideOutHorizontally { width -> -width / 4 } + fadeOut(animationSpec = MonoTween.fadeOut))
+                } else {
+                    (slideInHorizontally { width -> -width / 4 } + fadeIn(animationSpec = MonoTween.fadeIn))
+                        .togetherWith(slideOutHorizontally { width -> width } + fadeOut(animationSpec = MonoTween.fadeOut))
+                }
+            },
+            label = "settingsNav"
+        ) { section ->
+            if (section == null) {
+                SettingsHubScreen(
+                    viewModel = viewModel,
+                    onSectionClick = { currentSection = it },
+                    onNavigateBack = onNavigateBack,
+                    onNavigateToLegal = onNavigateToLegal
+                )
+            } else {
+                DetailScreen(section)
+            }
         }
     }
 }

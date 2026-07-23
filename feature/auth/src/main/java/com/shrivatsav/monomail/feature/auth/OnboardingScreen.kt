@@ -9,6 +9,7 @@ import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -235,36 +236,44 @@ fun OnboardingScreen(onFinishOnboarding: () -> Unit) {
     }
 
     Scaffold(modifier = Modifier.fillMaxSize(), containerColor = MaterialTheme.colorScheme.background) { paddingValues ->
-        Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.SpaceBetween
+        Box(
+            modifier = Modifier.fillMaxSize().padding(paddingValues),
+            contentAlignment = Alignment.Center
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 480.dp)
+                    .fillMaxHeight()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
 
-            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) { page ->
-                val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
-                OnboardingPage(
-                    page = page,
-                    uriHandler = uriHandler,
-                    context = context,
-                    kofiIcon = kofiIcon,
-                    permissionsState = PermissionsState(granted = permissionsGranted, batteryOptimizationIgnored = isIgnoringBatteryOptimizations),
-                    onRequestNotifications = { requestNotifications(context, permissionLauncher) { permissionsGranted = true } },
-                    onRequestBatteryOptimization = { requestBatteryOptimization(context, isIgnoringBatteryOptimizations) },
-                    pageOffset = pageOffset
-                )
-            }
+                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().weight(1f)) { page ->
+                    val pageOffset = (pagerState.currentPage - page) + pagerState.currentPageOffsetFraction
+                    OnboardingPage(
+                        page = page,
+                        uriHandler = uriHandler,
+                        context = context,
+                        kofiIcon = kofiIcon,
+                        permissionsState = PermissionsState(granted = permissionsGranted, batteryOptimizationIgnored = isIgnoringBatteryOptimizations),
+                        onRequestNotifications = { requestNotifications(context, permissionLauncher) { permissionsGranted = true } },
+                        onRequestBatteryOptimization = { requestBatteryOptimization(context, isIgnoringBatteryOptimizations) },
+                        pageOffset = pageOffset
+                    )
+                }
 
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                PageIndicatorDots(pagerState.currentPage)
-                PagerControls(
-                    currentPage = pagerState.currentPage,
-                    onPrev = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
-                    onNext = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
-                    onFinish = onFinishOnboarding,
-                    enabled = permissionsGranted
-                )
+                Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    PageIndicatorDots(pagerState.currentPage)
+                    PagerControls(
+                        currentPage = pagerState.currentPage,
+                        onPrev = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage - 1) } },
+                        onNext = { scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) } },
+                        onFinish = onFinishOnboarding,
+                        enabled = permissionsGranted
+                    )
+                }
             }
         }
     }
