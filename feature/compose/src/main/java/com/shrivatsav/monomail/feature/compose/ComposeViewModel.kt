@@ -16,8 +16,8 @@ import com.shrivatsav.monomail.core.data.repository.EmailContact
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.core.data.repository.SendEmailParams
 import com.shrivatsav.monomail.core.data.repository.ScheduleSendParams
-import com.shrivatsav.monomail.core.data.repository.suggestContacts
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.model.InboxTab
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -28,6 +28,8 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -59,7 +61,8 @@ data class ComposeUiState(
     val hasEncryptionKeys: Boolean = false,
     val hasSigningKeys: Boolean = false,
     val unifiedMode: Boolean = false,
-    val allAccounts: List<com.shrivatsav.monomail.core.data.auth.UserProfile> = emptyList()
+    val allAccounts: List<com.shrivatsav.monomail.core.data.auth.UserProfile> = emptyList(),
+    val currentDraftId: String? = null
 )
 
 @HiltViewModel
@@ -107,12 +110,14 @@ class ComposeViewModel @Inject constructor(
         )
     )
     val templatesFlow = settingsDataStore.templatesFlow
+    val drafts: StateFlow<List<com.shrivatsav.monomail.data.model.EmailThread>> = repository.getDraftThreadsFlow(accountId)
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
+
     val state: StateFlow<ComposeUiState> = _state.asStateFlow()
 
     private var confirmBeforeSending = false
 
     init {
-        // Load PGP key availability
         viewModelScope.launch {
             val encKeys = pgpManager.getAvailableEncryptionKeys()
             val sigKeys = pgpManager.getAvailableSigningKeys()
@@ -171,6 +176,9 @@ class ComposeViewModel @Inject constructor(
                 )
             }
         }
+        viewModelScope.launch {
+            repository.refreshInbox(InboxTab.DRAFTS, accountId = accountId)
+        }
     }
 
     private val _suggestions = MutableStateFlow<List<EmailContact>>(emptyList())
@@ -183,7 +191,10 @@ class ComposeViewModel @Inject constructor(
             _toQuery
                 .debounce(200)
                 .distinctUntilChanged()
-                .map { query -> suggestContacts(query) }
+                .map { query -> 
+                    if (query.trim().length >= 3) repository.suggestContacts(query.trim())
+                    else emptyList()
+                }
                 .collect { _suggestions.value = it }
         }
     }
@@ -284,6 +295,52 @@ class ComposeViewModel @Inject constructor(
         )
     }
 
+
+    fun saveDraft() {
+        val current = _state.value
+        // Only save if there's actually content
+        if (current.to.isBlank() && current.subject.isBlank() && current.body.isBlank()) return
+        
+        viewModelScope.launch {
+            val newThreadId = repository.saveDraftLocally(
+                accountId = accountId,
+                to = current.to,
+                cc = current.cc,
+                bcc = current.bcc,
+                subject = current.subject,
+                body = current.body,
+                threadId = current.threadId,
+                draftId = current.currentDraftId
+            )
+            _state.value = current.copy(currentDraftId = newThreadId)
+        }
+    }
+
+    fun deleteDraft(draftId: String) {
+        viewModelScope.launch {
+            repository.deleteThread(draftId)
+            if (_state.value.currentDraftId == draftId) {
+                _state.value = _state.value.copy(currentDraftId = null)
+            }
+        }
+    }
+    fun loadDraft(thread: com.shrivatsav.monomail.data.model.EmailThread) {
+        viewModelScope.launch {
+            val email = repository.getEmailById(thread.latestMessageId)
+            val current = _state.value
+            _state.value = current.copy(
+                currentDraftId = thread.threadId,
+                to = email?.to ?: "",
+                cc = email?.cc ?: "",
+                bcc = email?.bcc ?: "",
+                subject = email?.subject ?: thread.subject,
+                body = email?.body ?: thread.snippet,
+                threadId = thread.threadId
+            )
+        }
+    }
+
+
     private fun executeSend(current: ComposeUiState) {
         viewModelScope.launch {
             val sId = scheduledMessageId
@@ -293,8 +350,12 @@ class ComposeViewModel @Inject constructor(
                 }
             }
             _state.value = current.copy(isSending = true, error = null)
+            val settings = settingsDataStore.settingsFlow.value
             val fullBody = buildString {
                 append(current.body)
+                if (settings.addSignature) {
+                    append("<br><br><p>Sent by <a href=\"https://play.google.com/store/apps/details?id=com.shrivatsav.monomail\">Monomail</a></p>")
+                }
                 if (current.originalBody != null) {
                     append("<br><br><blockquote>")
                     append(current.originalBody)
@@ -305,7 +366,6 @@ class ComposeViewModel @Inject constructor(
                 applyPgp(current, fullBody) ?: return@launch
             } else fullBody
 
-            val settings = settingsDataStore.settingsFlow.first()
             if (settings.undoSendEnabled) {
                 val pendingId = repository.stagePendingSend(
                     accountId = accountId,
@@ -372,9 +432,21 @@ class ComposeViewModel @Inject constructor(
             val sId = scheduledMessageId
             if (!sId.isNullOrEmpty()) repository.cancelScheduledMessage(sId)
 
+            val settings = settingsDataStore.settingsFlow.value
+            val fullBody = buildString {
+                append(current.body)
+                if (settings.addSignature) {
+                    append("<br><br><p>Sent by <a href=\"https://play.google.com/store/apps/details?id=com.shrivatsav.monomail\">Monomail</a></p>")
+                }
+                if (current.originalBody != null) {
+                    append("<br><br><blockquote>")
+                    append(current.originalBody)
+                    append("</blockquote>")
+                }
+            }
             val finalBody = if (current.encryptEnabled || current.signEnabled) {
-                applyPgp(current, current.body) ?: return@launch
-            } else current.body
+                applyPgp(current, fullBody) ?: return@launch
+            } else fullBody
 
             val cachedAttachments = repository.copyAttachmentsToCache(
                 "schedule_${System.currentTimeMillis()}",

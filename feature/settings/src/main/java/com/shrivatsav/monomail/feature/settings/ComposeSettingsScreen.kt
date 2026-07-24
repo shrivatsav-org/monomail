@@ -40,6 +40,14 @@ internal fun ComposeSettingsScreen(
             )
             CardDivider()
             SettingsToggleRow(
+                icon = Icons.Rounded.EditNote,
+                title = "Sent by Monomail signature",
+                subtitle = "Append signature to outgoing emails",
+                checked = settings.addSignature,
+                onCheckedChange = { viewModel.setAddSignature(it) }
+            )
+            CardDivider()
+            SettingsToggleRow(
                 icon = Icons.Rounded.HistoryToggleOff,
                 title = "Undo Send",
                 subtitle = "Hold email for ${settings.undoSendWindow.seconds}s before sending",

@@ -92,7 +92,12 @@ class EmailSyncWorker @AssistedInject constructor(
 
         val newTimestamp = newestThread.date
         Log.i("EmailSyncWorker", "Latest thread for $accountId: subject='${newestThread.subject}', date=$newTimestamp")
-        if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp) {
+        
+        // Check if the latest message is a draft to avoid false notifications
+        val latestEmail = emailRepository.getEmailEntityById(newestThread.latestMessageId, accountId)
+        val isLatestDraft = latestEmail?.inDrafts == true
+
+        if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp && !isLatestDraft) {
             val disabledAccounts = settingsDataStore.settingsFlow.value.disabledNotificationAccounts
             if (disabledAccounts.contains(accountId)) {
                 Log.i("EmailSyncWorker", "New email detected for $accountId, but notifications are disabled for this account. Skipping notification banner.")
@@ -100,6 +105,8 @@ class EmailSyncWorker @AssistedInject constructor(
                 Log.i("EmailSyncWorker", "New email detected for $accountId! Showing notification...")
                 showNotification(accountId, newestThread, accountId.hashCode())
             }
+        } else if (isLatestDraft) {
+            Log.i("EmailSyncWorker", "Newest message is a draft. Skipping notification banner.")
         } else if (lastKnownTimestamp == null) {
             Log.i("EmailSyncWorker", "lastKnownTimestamp was null (first sync baseline). Skipping notification banner.")
         } else {

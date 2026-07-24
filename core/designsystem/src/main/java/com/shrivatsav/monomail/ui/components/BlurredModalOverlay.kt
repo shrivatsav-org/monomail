@@ -29,34 +29,58 @@ fun BlurredModalOverlay(
     onDismiss: () -> Unit,
     content: @Composable () -> Unit
 ) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(220)),
-        exit = fadeOut(tween(180))
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
-                .clickable(
-                    indication = null,
-                    interactionSource = remember { MutableInteractionSource() }
-                ) { onDismiss() },
-            contentAlignment = Alignment.Center
+    var showDialog by remember { mutableStateOf(visible) }
+    var animateIn by remember { mutableStateOf(false) }
+
+    LaunchedEffect(visible) {
+        if (visible) {
+            showDialog = true
+            kotlinx.coroutines.delay(10)
+            animateIn = true
+        } else {
+            animateIn = false
+            kotlinx.coroutines.delay(180)
+            showDialog = false
+        }
+    }
+
+    if (showDialog) {
+        Dialog(
+            onDismissRequest = {
+                onDismiss()
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)
         ) {
-            Box(
-                modifier = Modifier
-                    .clickable(
-                        indication = null,
-                        interactionSource = remember { MutableInteractionSource() }
-                    ) {}
-                    .animateEnterExit(
-                        enter = scaleIn(tween(200, easing = androidx.compose.animation.core.FastOutSlowInEasing), initialScale = 0.8f),
-                        exit = scaleOut(tween(200), targetScale = 0.8f)
-                    ),
-                contentAlignment = Alignment.Center
+            AnimatedVisibility(
+                visible = animateIn,
+                enter = fadeIn(tween(220)),
+                exit = fadeOut(tween(180))
             ) {
-                content()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background.copy(alpha = 0.5f))
+                        .clickable(
+                            indication = null,
+                            interactionSource = remember { MutableInteractionSource() }
+                        ) { onDismiss() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { MutableInteractionSource() }
+                            ) {}
+                            .animateEnterExit(
+                                enter = scaleIn(tween(200, easing = androidx.compose.animation.core.FastOutSlowInEasing), initialScale = 0.8f),
+                                exit = scaleOut(tween(200), targetScale = 0.8f)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        content()
+                    }
+                }
             }
         }
     }

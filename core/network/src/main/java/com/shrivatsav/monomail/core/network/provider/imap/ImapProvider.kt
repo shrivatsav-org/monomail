@@ -99,6 +99,7 @@ class ImapProvider(
             EmailFolder.ARCHIVE -> "Archive"
             EmailFolder.TRASH -> "Trash"
             EmailFolder.SPAM -> "Spam"
+            EmailFolder.DRAFT -> "Drafts"
             else -> null
         }
     }
@@ -297,6 +298,8 @@ class ImapProvider(
         val isRead = msg.isSet(Flags.Flag.SEEN)
         val isStarred = msg.isSet(Flags.Flag.FLAGGED)
         if (isStarred) folderSet.add(EmailFolder.STARRED)
+        val isDraft = msg.isSet(Flags.Flag.DRAFT)
+        if (isDraft) folderSet.add(EmailFolder.DRAFT)
 
         val state = BodyParseState(messageId = messageId)
         processPart(msg, state)
@@ -599,6 +602,7 @@ class ImapProvider(
         lower.contains("archive") || lower == "all mail" -> EmailFolder.ARCHIVE
         lower.contains("trash") || lower == "deleted messages" || lower == "deleted items" || lower == "bin" -> EmailFolder.TRASH
         lower.contains("spam") || lower == "junk" -> EmailFolder.SPAM
+        lower.contains("draft") -> EmailFolder.DRAFT
         else -> null
     }
 

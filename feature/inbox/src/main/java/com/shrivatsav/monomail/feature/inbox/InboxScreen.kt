@@ -727,6 +727,7 @@ fun InboxScreen(
                             InboxTab.SPAM -> viewModel.deleteThread(thread.threadId)
                             else -> viewModel.archiveThread(thread.threadId)
                         } },
+                        onRestore = { viewModel.restoreThread(thread.threadId) },
                         onToggleRead = {
                             if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId)
                             else viewModel.markThreadAsRead(thread.threadId)
@@ -809,9 +810,9 @@ fun InboxScreen(
             val matchedNotes = remember(versionName) {
                 allReleaseNotes.firstOrNull { it.version == versionName }
             }
+            androidx.compose.foundation.layout.BoxWithConstraints {
+                val isWide = maxWidth >= 500.dp
 
-            val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-            val isTablet = configuration.screenWidthDp >= 600
 
             val HeaderBlock: @Composable () -> Unit = {
                 Text(
@@ -993,36 +994,37 @@ fun InboxScreen(
                 }
             }
 
-            Column(
-                modifier = Modifier
-                    .padding(26.dp)
-                    .verticalScroll(rememberScrollState())
-            ) {
-                if (isTablet) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            HeaderBlock()
-                            Spacer(Modifier.height(24.dp))
-                            WhatsNewBlock()
+                Column(
+                    modifier = Modifier
+                        .padding(26.dp)
+                        .verticalScroll(rememberScrollState())
+                ) {
+                    if (isWide) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                HeaderBlock()
+                                Spacer(Modifier.height(24.dp))
+                                WhatsNewBlock()
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                SupportBlock()
+                                Spacer(Modifier.height(18.dp))
+                                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                                Spacer(Modifier.height(12.dp))
+                                ActionsBlock()
+                            }
                         }
-                        Column(modifier = Modifier.weight(1f)) {
-                            SupportBlock()
-                            Spacer(Modifier.height(18.dp))
-                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                            Spacer(Modifier.height(12.dp))
-                            ActionsBlock()
-                        }
+                    } else {
+                        HeaderBlock()
+                        Spacer(Modifier.height(24.dp))
+                        WhatsNewBlock()
+                        Spacer(Modifier.height(20.dp))
+                        SupportBlock()
+                        Spacer(Modifier.height(18.dp))
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+                        Spacer(Modifier.height(12.dp))
+                        ActionsBlock()
                     }
-                } else {
-                    HeaderBlock()
-                    Spacer(Modifier.height(24.dp))
-                    WhatsNewBlock()
-                    Spacer(Modifier.height(20.dp))
-                    SupportBlock()
-                    Spacer(Modifier.height(18.dp))
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-                    Spacer(Modifier.height(12.dp))
-                    ActionsBlock()
                 }
             }
         }
@@ -1238,6 +1240,7 @@ private data class LongPressMenuActions(
     val onEmailClick: () -> Unit,
     val onStar: () -> Unit,
     val onArchive: (InboxTab) -> Unit,
+    val onRestore: () -> Unit,
     val onToggleRead: () -> Unit,
     val onDelete: () -> Unit,
     val onSnooze: () -> Unit,
@@ -1320,7 +1323,7 @@ private fun DeleteOrRestoreAction(tabForMenu: InboxTab, actions: LongPressMenuAc
         icon = if (tabForMenu == InboxTab.TRASH) Icons.Rounded.Restore else Icons.Rounded.Delete,
         label = if (tabForMenu == InboxTab.TRASH) "Restore" else "Delete",
         tint = if (tabForMenu == InboxTab.TRASH) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
-        onClick = { if (tabForMenu == InboxTab.TRASH) { actions.onArchive(tabForMenu) } else { actions.onDelete() }; onDismiss() }
+        onClick = { if (tabForMenu == InboxTab.TRASH) { actions.onRestore() } else { actions.onDelete() }; onDismiss() }
     )
 }
 
