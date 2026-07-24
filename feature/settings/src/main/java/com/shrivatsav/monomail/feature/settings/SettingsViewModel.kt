@@ -30,6 +30,7 @@ class SettingsViewModel @Inject constructor(
     fun setSwipeLeftAction(action: SwipeAction) = viewModelScope.launch { settingsDataStore.setSwipeLeftAction(action) }
     fun setSwipeRightAction(action: SwipeAction) = viewModelScope.launch { settingsDataStore.setSwipeRightAction(action) }
     fun setConfirmBeforeSending(confirm: Boolean) = viewModelScope.launch { settingsDataStore.setConfirmBeforeSending(confirm) }
+    fun setAddSignature(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setAddSignature(enabled) }
     fun setDefaultReply(reply: DefaultReply) = viewModelScope.launch { settingsDataStore.setDefaultReply(reply) }
     fun setDisabledNotificationAccounts(accounts: Set<String>) = viewModelScope.launch { settingsDataStore.setDisabledNotificationAccounts(accounts) }
     fun setSyncFrequency(freq: SyncFrequency) = viewModelScope.launch { settingsDataStore.setSyncFrequency(freq) }
