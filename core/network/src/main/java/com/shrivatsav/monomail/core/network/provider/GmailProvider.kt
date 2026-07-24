@@ -41,6 +41,7 @@ class GmailProvider(
             folder == EmailFolder.STARRED -> "STARRED"
             folder == EmailFolder.TRASH -> "TRASH"
             folder == EmailFolder.SPAM -> "SPAM"
+            folder == EmailFolder.DRAFT -> "DRAFT"
             folder == EmailFolder.ARCHIVE -> null
             else -> "INBOX"
         }
@@ -177,7 +178,8 @@ class GmailProvider(
         if ("STARRED" in labels) folders.add(EmailFolder.STARRED)
         if ("TRASH" in labels) folders.add(EmailFolder.TRASH)
         if ("SPAM" in labels) folders.add(EmailFolder.SPAM)
-        val known = setOf("INBOX", "TRASH", "SENT", "SPAM")
+        if ("DRAFT" in labels) folders.add(EmailFolder.DRAFT)
+        val known = setOf("INBOX", "TRASH", "SENT", "SPAM", "DRAFT")
         if (labels.none { it in known }) folders.add(EmailFolder.ARCHIVE)
         return folders
     }

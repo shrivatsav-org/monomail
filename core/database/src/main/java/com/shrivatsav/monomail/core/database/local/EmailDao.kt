@@ -4,10 +4,15 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
+data class ContactResult(val name: String, val email: String)
+
 @Dao
 interface EmailDao {
     @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId ORDER BY date ASC")
     fun getEmailsForThread(threadId: String, accountId: String): Flow<List<EmailEntity>>
+    
+    @Query("SELECT DISTINCT fromName as name, fromEmail as email FROM emails WHERE fromName LIKE '%' || :query || '%' OR fromEmail LIKE '%' || :query || '%' LIMIT 15")
+    suspend fun searchContacts(query: String): List<ContactResult>
     @Query("SELECT * FROM emails WHERE id = :id AND accountId = :accountId LIMIT 1")
     suspend fun getEmailById(id: String, accountId: String): EmailEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE)

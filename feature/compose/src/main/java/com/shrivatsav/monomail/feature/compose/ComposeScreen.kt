@@ -1,6 +1,5 @@
 package com.shrivatsav.monomail.feature.compose
 
-import com.shrivatsav.monomail.core.data.repository.suggestContacts
 import com.shrivatsav.monomail.core.network.provider.SendAsAlias
 import com.shrivatsav.monomail.core.data.repository.EmailContact
 import androidx.compose.animation.AnimatedVisibility
@@ -9,6 +8,13 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.material.icons.rounded.Drafts
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
@@ -208,6 +214,105 @@ private fun TemplatesModal(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun DraftsModal(
+    drafts: List<com.shrivatsav.monomail.data.model.EmailThread>,
+    onDismiss: () -> Unit,
+    onSelect: (com.shrivatsav.monomail.data.model.EmailThread) -> Unit,
+    onQuickSend: (com.shrivatsav.monomail.data.model.EmailThread) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    var showMenuForDraft by remember { mutableStateOf<String?>(null) }
+    SlideSheet(onDismiss = onDismiss, title = "Drafts") {
+        if (drafts.isEmpty()) {
+            com.shrivatsav.monomail.ui.components.EmptyStateView(
+                illustration = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO,
+                title = "No drafts",
+                subtitle = "Emails you save will appear here",
+                modifier = Modifier.height(200.dp)
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                contentPadding = PaddingValues(bottom = 16.dp)
+            ) {
+                items(drafts) { draft ->
+                    Box {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .combinedClickable(
+                                    onClick = { onSelect(draft); onDismiss() },
+                                    onLongClick = { showMenuForDraft = draft.threadId }
+                                )
+                                .padding(horizontal = 24.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = draft.subject.ifBlank { "(No subject)" },
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = android.text.format.DateUtils.getRelativeTimeSpanString(draft.date).toString(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = draft.snippet.ifBlank { "(No body)" },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(16.dp))
+                            IconButton(
+                                onClick = { onQuickSend(draft); onDismiss() },
+                                modifier = Modifier.size(40.dp).background(MaterialTheme.colorScheme.secondaryContainer, CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Rounded.Send,
+                                    contentDescription = "Send",
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = showMenuForDraft == draft.threadId,
+                            onDismissRequest = { showMenuForDraft = null }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Edit Draft") },
+                                onClick = { showMenuForDraft = null; onSelect(draft); onDismiss() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Change Address") },
+                                onClick = { showMenuForDraft = null; onSelect(draft); onDismiss() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete Draft", color = MaterialTheme.colorScheme.error) },
+                                onClick = { showMenuForDraft = null; onDelete(draft.threadId) }
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
 @Composable
 private fun ComposeDialogs(state: ComposeUiState, viewModel: ComposeViewModel) {
     if (state.showConfirmSendDialog) {
@@ -319,6 +424,19 @@ fun ComposeScreen(
     val context = LocalContext.current
     val canSend = state.to.isNotBlank()
     val showSentAnimation = remember { mutableStateOf(false) }
+    var showDrafts by remember { mutableStateOf(false) }
+    val drafts by viewModel.drafts.collectAsState()
+
+    val handleBack = {
+        if (!state.isSending && !state.isSent) {
+            viewModel.saveDraft()
+            if (state.to.isNotBlank() || state.subject.isNotBlank() || state.body.isNotBlank()) {
+                android.widget.Toast.makeText(context, "Draft saved", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+        onBack()
+    }
+    BackHandler(onBack = handleBack)
     val contentResolver = context.contentResolver
     var showAttachmentPicker by remember { mutableStateOf(false) }
     val photoVideoLauncher = rememberLauncherForActivityResult(
@@ -365,6 +483,20 @@ fun ComposeScreen(
         }
     }
     ComposeDialogs(state, viewModel)
+    if (showDrafts) {
+        DraftsModal(
+            drafts = drafts,
+            onDismiss = { showDrafts = false },
+            onSelect = { draft ->
+                viewModel.loadDraft(draft)
+            },
+            onQuickSend = { draft ->
+                viewModel.loadDraft(draft)
+                viewModel.send()
+            },
+            onDelete = { draftId -> viewModel.deleteDraft(draftId) }
+        )
+    }
     if (showAttachmentPicker) {
         AttachmentPickerSheet(
             onDismiss = { showAttachmentPicker = false },
@@ -404,7 +536,7 @@ fun ComposeScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = handleBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "Back",
@@ -424,6 +556,7 @@ fun ComposeScreen(
                 isSent = state.isSent,
                 canSend = canSend,
                 onAttach = { showAttachmentPicker = true },
+                onDraftsClick = { showDrafts = true },
                 onSend = { viewModel.send() }
             )
         },
@@ -1053,6 +1186,7 @@ private fun ComposeBottomBar(
     isSent: Boolean,
     canSend: Boolean,
     onAttach: () -> Unit,
+    onDraftsClick: () -> Unit,
     onSend: () -> Unit
 ) {
     Box(
@@ -1073,6 +1207,14 @@ private fun ComposeBottomBar(
                     .padding(start = 4.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                IconButton(onClick = onDraftsClick, enabled = !isSending && !isSent) {
+                    Icon(
+                        imageVector = Icons.Rounded.Drafts,
+                        contentDescription = "Drafts",
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
                 IconButton(onClick = onAttach, enabled = !isSending && !isSent) {
                     Icon(
                         imageVector = Icons.Rounded.AttachFile,

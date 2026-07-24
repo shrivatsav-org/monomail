@@ -39,6 +39,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
+data class EmailContact(
+    val name: String,
+    val email: String
+)
+
 class EmailRepository(
     private val providerFactory: (UserProfile) -> EmailProvider,
     private val database: AppDatabase,
@@ -141,6 +146,10 @@ class EmailRepository(
         threadDao.getAllSentThreads().map { list -> list.map { it.toDomainModel() } }
     fun getAllArchivedThreadsFlow(): Flow<List<EmailThread>> =
         threadDao.getAllArchivedThreads().map { list -> list.map { it.toDomainModel() } }
+    fun getDraftThreadsFlow(accountId: String): Flow<List<EmailThread>> =
+        threadDao.getDraftThreads(accountId).map { list -> list.map { it.toDomainModel() } }
+    fun getAllDraftThreadsFlow(): Flow<List<EmailThread>> =
+        threadDao.getAllDraftThreads().map { list -> list.map { it.toDomainModel() } }
     fun getAllStarredThreadsFlow(): Flow<List<EmailThread>> =
         threadDao.getAllStarredThreads().map { list -> list.map { it.toDomainModel() } }
     fun getAllTrashThreadsFlow(): Flow<List<EmailThread>> =
@@ -181,9 +190,16 @@ class EmailRepository(
         val activeAccountId = accountId ?: getActiveAccountId()
         return emailDao.getEmailById(id, activeAccountId)?.toDomainModel()
     }
+    suspend fun getEmailEntityById(id: String, accountId: String): com.shrivatsav.monomail.core.database.local.EmailEntity? {
+        return emailDao.getEmailById(id, accountId)
+    }
     fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> = flow {
         val accountId = resolveAccountId(threadId)
         emitAll(emailDao.getEmailsForThread(threadId, accountId).map { list -> list.map { it.toDomainModel() } })
+    }
+
+    suspend fun suggestContacts(query: String): List<EmailContact> {
+        return emailDao.searchContacts(query).map { EmailContact(it.name, it.email) }
     }
 
     private fun resolveFolder(tab: InboxTab): EmailFolder = when (tab) {
@@ -195,6 +211,7 @@ class EmailRepository(
         InboxTab.SPAM -> EmailFolder.SPAM
         InboxTab.UNIFIED -> EmailFolder.INBOX
         InboxTab.SNOOZED -> EmailFolder.INBOX
+        InboxTab.DRAFTS -> EmailFolder.DRAFT
     }
 
     private fun buildThreadEntity(
@@ -234,7 +251,8 @@ class EmailRepository(
             inSent = EmailFolder.SENT in allFolders,
             inArchived = EmailFolder.ARCHIVE in allFolders,
             inTrash = EmailFolder.TRASH in allFolders,
-            inSpam = EmailFolder.SPAM in allFolders
+            inSpam = EmailFolder.SPAM in allFolders,
+            inDrafts = EmailFolder.DRAFT in allFolders
         )
     }
 
@@ -443,6 +461,50 @@ class EmailRepository(
                 }
             }
         }
+    }
+
+    suspend fun saveDraftLocally(accountId: String, to: String, cc: String, bcc: String, subject: String, body: String, threadId: String?, draftId: String?): String {
+        val actualThreadId = threadId ?: draftId ?: java.util.UUID.randomUUID().toString()
+        val actualMsgId = draftId ?: java.util.UUID.randomUUID().toString()
+        val now = System.currentTimeMillis()
+        
+        val domainThread = EmailThread(
+            threadId = actualThreadId,
+            subject = subject.takeIf { it.isNotBlank() } ?: "(No subject)",
+            from = "Me",
+            fromEmail = accountManager.getAccounts().find { it.id == accountId }?.email ?: "",
+            snippet = body.take(100),
+            date = now,
+            messageCount = 1,
+            isRead = true,
+            isStarred = false,
+            latestMessageId = actualMsgId,
+            participants = listOf(to).filter { it.isNotBlank() }
+        )
+        val domainEmail = com.shrivatsav.monomail.data.model.Email(
+            id = actualMsgId,
+            threadId = actualThreadId,
+            subject = subject,
+            from = "Me",
+            fromEmail = accountManager.getAccounts().find { it.id == accountId }?.email ?: "",
+            to = to,
+            cc = cc,
+            bcc = bcc,
+            snippet = body.take(100),
+            body = body,
+            bodyIsHtml = false,
+            date = now,
+            isRead = true,
+            isStarred = false,
+            labels = listOf(com.shrivatsav.monomail.core.network.provider.EmailFolder.DRAFT.name),
+            attachments = emptyList()
+        )
+        
+        database.withTransaction {
+            threadDao.insertThreads(listOf(domainThread.toEntity(accountId, inInbox = false, inSent = false, inArchived = false, inTrash = false, inSpam = false, inDrafts = true)))
+            emailDao.insertEmails(listOf(domainEmail.toEntity(accountId)))
+        }
+        return actualThreadId
     }
 
     suspend fun emptySpam(isUnified: Boolean = false) {

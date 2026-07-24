@@ -40,4 +40,4 @@ interface EmailProvider {
 
     suspend fun getSendAsAliases(): List<SendAsAlias>
 }
-enum class EmailFolder { INBOX, SENT, ARCHIVE, STARRED, TRASH, SPAM }
+enum class EmailFolder { INBOX, SENT, ARCHIVE, STARRED, TRASH, SPAM, DRAFT }

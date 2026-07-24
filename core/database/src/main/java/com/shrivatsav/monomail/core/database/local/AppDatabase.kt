@@ -8,7 +8,7 @@ import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
     entities = [ThreadEntity::class, EmailEntity::class, EmailFtsEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class, PendingSendEntity::class],
-    version = 17,
+    version = 18,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -33,7 +33,7 @@ abstract class AppDatabase : RoomDatabase() {
                     "monomail_database"
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance
@@ -232,5 +232,12 @@ val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
             INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`)
             SELECT `rowid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet` FROM `emails`
         """)
+    }
+}
+
+val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE threads ADD COLUMN inDrafts INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE emails ADD COLUMN inDrafts INTEGER NOT NULL DEFAULT 0")
     }
 }

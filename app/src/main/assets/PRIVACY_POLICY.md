@@ -14,11 +14,11 @@ This scope is necessary for the core functionality of the application, which inc
 - Organizing emails (e.g., archiving, deleting, marking as read).
 - Sending emails on your behalf.
 
-## 2. Data Storage and Processing
-**Monomail operates entirely locally on your device.** 
+## 2. Data Storage, Processing, and Protection
+**Monomail operates entirely locally on your device and employs strict data protection mechanisms for sensitive data.** 
 - **No Third-Party Servers:** We do not own, operate, or use any third-party servers to process, store, or transmit your email data. 
-- **Local Storage:** All email data, access tokens, and user preferences are stored securely on your local device using Android's Credential Manager and Encrypted DataStore.
-- **Direct Communication:** The app communicates directly between your device and Google's Gmail API servers.
+- **Data Protection for Sensitive Data:** All sensitive data, including OAuth 2.0 access tokens, refresh tokens, and cached email content, is encrypted at rest. We utilize the **Android Keystore System** and **Encrypted DataStore/SharedPreferences** to ensure that your sensitive authentication credentials and personal emails are cryptographically protected from unauthorized access on your device.
+- **Direct Communication:** The app communicates directly and securely (via HTTPS) between your device and Google's Gmail API servers.
 
 ## 3. Data Sharing and Disclosure
 Because Monomail does not collect or transmit your data to any external servers (other than Google's own API), we do not and cannot share, sell, or disclose your personal information or email data to any third parties.

@@ -77,6 +77,7 @@ data class AppSettings(
     val monochromeTheme: Boolean = true,
     val swipeThreshold: Float = 0.40f,
     val demoSmartFolders: Boolean = false,
+    val addSignature: Boolean = true,
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -117,6 +118,7 @@ class SettingsDataStore(private val context: Context) {
         val SHOW_INLINE_IMAGES = booleanPreferencesKey("show_inline_images")
         val MONOCHROME_THEME = booleanPreferencesKey("monochrome_theme")
         val SWIPE_THRESHOLD = floatPreferencesKey("swipe_threshold")
+        val ADD_SIGNATURE = booleanPreferencesKey("add_signature")
     }
     private fun mapToSettings(prefs: Preferences): AppSettings {
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
@@ -164,6 +166,7 @@ class SettingsDataStore(private val context: Context) {
             cornerStyle = prefs[Keys.CORNER_STYLE]?.let { CornerStyle.valueOf(it) } ?: CornerStyle.ROUNDED,
             monochromeTheme = prefs[Keys.MONOCHROME_THEME] ?: true,
             swipeThreshold = prefs[Keys.SWIPE_THRESHOLD]?.coerceIn(0.20f, 0.60f) ?: 0.40f,
+            addSignature = prefs[Keys.ADD_SIGNATURE] ?: true,
         )
     }
 
@@ -201,6 +204,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setConfirmBeforeSending(confirm: Boolean) {
         context.dataStore.edit { it[Keys.CONFIRM_SEND] = confirm }
+    }
+    suspend fun setAddSignature(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ADD_SIGNATURE] = enabled }
     }
     suspend fun setDefaultReply(reply: DefaultReply) {
         context.dataStore.edit { it[Keys.DEFAULT_REPLY] = reply.name }

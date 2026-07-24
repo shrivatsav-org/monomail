@@ -149,6 +149,7 @@ class InboxViewModel @Inject constructor(
                                     InboxTab.TRASH -> repository.getAllTrashThreadsFlow()
                                     InboxTab.SNOOZED -> repository.getAllSnoozedThreadsFlow()
                                     InboxTab.SPAM -> repository.getAllSpamThreadsFlow()
+                                    InboxTab.DRAFTS -> repository.getAllDraftThreadsFlow()
                                 }
                             }
                             else -> {
@@ -175,6 +176,7 @@ class InboxViewModel @Inject constructor(
                                     InboxTab.TRASH -> repository.getAllTrashEmailsFlow()
                                     InboxTab.SNOOZED -> repository.getInboxEmailsFlow(InboxTab.INBOX, accountId)
                                     InboxTab.SPAM -> repository.getAllSpamEmailsFlow()
+                                    InboxTab.DRAFTS -> repository.getAllInboxEmailsFlow()
                                 }
                             }
                             else -> {
@@ -186,6 +188,7 @@ class InboxViewModel @Inject constructor(
                                     InboxTab.TRASH -> repository.getTrashEmailsFlow(accountId)
                                     InboxTab.SNOOZED -> repository.getInboxEmailsFlow(InboxTab.INBOX, accountId)
                                     InboxTab.SPAM -> repository.getSpamEmailsFlow(accountId)
+                                    InboxTab.DRAFTS -> repository.getInboxEmailsFlow(InboxTab.INBOX, accountId)
                                 }
                             }
                         }.map { emails ->

@@ -35,7 +35,8 @@ class OutlookProvider(
         EmailFolder.SENT to "sentitems",
         EmailFolder.ARCHIVE to "archive",
         EmailFolder.TRASH to "deleteditems",
-        EmailFolder.SPAM to "junkemail"
+        EmailFolder.SPAM to "junkemail",
+        EmailFolder.DRAFT to "drafts"
     )
 
     private fun parseDate(dateStr: String?): Long {

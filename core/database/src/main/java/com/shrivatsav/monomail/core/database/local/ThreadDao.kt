@@ -20,6 +20,9 @@ interface ThreadDao {
     fun getStarredThreads(accountId: String): Flow<List<ThreadEntity>>
     @Query("SELECT * FROM threads WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC LIMIT 500")
     fun getTrashThreads(accountId: String): Flow<List<ThreadEntity>>
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inDrafts = 1 AND inTrash = 0 ORDER BY date DESC LIMIT 500")
+    fun getDraftThreads(accountId: String): Flow<List<ThreadEntity>>
+
     @Query("SELECT threadId FROM threads WHERE accountId = :accountId AND inTrash = 1")
     suspend fun getTrashThreadIds(accountId: String): List<String>
 
@@ -39,7 +42,7 @@ interface ThreadDao {
     suspend fun markThreadsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM threads WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun deleteThread(threadId: String, accountId: String)
-    @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inSpam = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
+    @Query("UPDATE threads SET inInbox = 0, inSent = 0, inArchived = 0, inSpam = 0, inDrafts = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun moveToTrash(threadId: String, accountId: String)
     @Query("UPDATE threads SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun restoreFromTrash(threadId: String, accountId: String)
@@ -84,6 +87,9 @@ interface ThreadDao {
     fun getAllSpamThreads(): Flow<List<ThreadEntity>>
     @Query("SELECT * FROM threads WHERE isSnoozed = 1 ORDER BY date DESC LIMIT 500")
     fun getAllSnoozedThreads(): Flow<List<ThreadEntity>>
+    @Query("SELECT * FROM threads WHERE inDrafts = 1 AND inTrash = 0 ORDER BY date DESC LIMIT 500")
+    fun getAllDraftThreads(): Flow<List<ThreadEntity>>
+
     @Query("SELECT * FROM threads WHERE threadId IN (:threadIds) AND accountId = :accountId ORDER BY date DESC")
     suspend fun getThreadsByIds(threadIds: List<String>, accountId: String): List<ThreadEntity>
 }

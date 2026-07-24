@@ -26,7 +26,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.input.ImeAction
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.core.data.settings.SwipeAction
 
@@ -82,7 +86,8 @@ internal fun InboxSearchBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         SearchBar(
             inputField = {
@@ -90,6 +95,7 @@ internal fun InboxSearchBar(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
+                        .padding(horizontal = 4.dp)
                 ) {
                     if (bulkSelection.isBulkMode) {
                         BulkSelectionContent(bulkSelection)
@@ -192,9 +198,9 @@ private fun SearchInputContent(
         },
         leadingIcon = {
             if (display.isRefreshing) {
-                LoadingIndicator(modifier = Modifier.padding(start = 8.dp).size(40.dp), color = MaterialTheme.colorScheme.onSurface)
+                LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
             } else {
-                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(start = 8.dp))
+                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
         },
         trailingIcon = { SearchTrailingIcon(actions, display) }
@@ -203,7 +209,7 @@ private fun SearchInputContent(
 
 @Composable
 private fun SearchTrailingIcon(actions: SearchBarActions, display: SearchDisplayState) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 4.dp)) {
         if (actions.scheduledCount > 0) {
             BadgedBox(badge = {
                 Badge(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError) {
@@ -220,13 +226,11 @@ private fun SearchTrailingIcon(actions: SearchBarActions, display: SearchDisplay
                 Icon(Icons.Rounded.CheckCircle, contentDescription = "Mark all as read", tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f), modifier = Modifier.size(25.dp))
             }
         }
-        Spacer(Modifier.width(4.dp))
         if (display.unifiedInboxEnabled && display.accounts.size > 1) {
             StackedAccountAvatars(accounts = display.accounts, onClick = actions.onOpenProfile)
         } else {
             AvatarButton(userProfile = display.userProfile, onClick = actions.onOpenProfile)
         }
-        Spacer(Modifier.width(12.dp))
     }
 }
 
