@@ -10,7 +10,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inInbox = 1 AND e.inInbox = 1
+        WHERE t.accountId = :accountId AND t.inInbox = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getInboxThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -18,7 +18,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inInbox = 1 AND e.inInbox = 1
+        WHERE t.inInbox = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllInboxThreads(): Flow<List<ThreadEntity>>
@@ -28,7 +28,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inSent = 1 AND e.inSent = 1
+        WHERE t.accountId = :accountId AND t.inSent = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getSentThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -36,7 +36,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inArchived = 1 AND e.inArchived = 1
+        WHERE t.accountId = :accountId AND t.inArchived = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getArchivedThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -44,7 +44,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.isStarred = 1 AND e.isStarred = 1
+        WHERE t.accountId = :accountId AND t.isStarred = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getStarredThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -52,7 +52,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inTrash = 1 AND e.inTrash = 1
+        WHERE t.accountId = :accountId AND t.inTrash = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getTrashThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -60,7 +60,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inDrafts = 1 AND e.inDrafts = 1 AND t.inTrash = 0
+        WHERE t.accountId = :accountId AND t.inDrafts = 1 AND t.inTrash = 0
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getDraftThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -99,7 +99,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inSpam = 1 AND e.inSpam = 1
+        WHERE t.accountId = :accountId AND t.inSpam = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getSpamThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -107,7 +107,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.isSnoozed = 1 AND e.isSnoozed = 1
+        WHERE t.accountId = :accountId AND t.isSnoozed = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getSnoozedThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -135,7 +135,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inArchived = 1 AND e.inArchived = 1
+        WHERE t.inArchived = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllArchivedThreads(): Flow<List<ThreadEntity>>
@@ -143,7 +143,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.isStarred = 1 AND e.isStarred = 1
+        WHERE t.isStarred = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllStarredThreads(): Flow<List<ThreadEntity>>
@@ -151,7 +151,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inTrash = 1 AND e.inTrash = 1
+        WHERE t.inTrash = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllTrashThreads(): Flow<List<ThreadEntity>>
@@ -159,7 +159,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inSent = 1 AND e.inSent = 1
+        WHERE t.inSent = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllSentThreads(): Flow<List<ThreadEntity>>
@@ -167,7 +167,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inSpam = 1 AND e.inSpam = 1
+        WHERE t.inSpam = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllSpamThreads(): Flow<List<ThreadEntity>>
@@ -175,7 +175,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.isSnoozed = 1 AND e.isSnoozed = 1
+        WHERE t.isSnoozed = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllSnoozedThreads(): Flow<List<ThreadEntity>>
@@ -183,7 +183,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, COUNT(DISTINCT e.id) as messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inDrafts = 1 AND e.inDrafts = 1 AND t.inTrash = 0
+        WHERE t.inDrafts = 1 AND t.inTrash = 0
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllDraftThreads(): Flow<List<ThreadEntity>>
