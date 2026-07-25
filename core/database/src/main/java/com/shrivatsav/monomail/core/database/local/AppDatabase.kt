@@ -27,10 +27,15 @@ abstract class AppDatabase : RoomDatabase() {
             val defaultDb = context.getDatabasePath(dbName)
             val cacheDb = java.io.File(context.cacheDir, dbName)
             if (defaultDb.exists() && !cacheDb.exists()) {
-                defaultDb.renameTo(cacheDb)
+                if (!defaultDb.renameTo(cacheDb)) {
+                    android.util.Log.w("AppDatabase", "Failed to migrate database to cacheDir; keeping existing location")
+                    return
+                }
                 for (suffix in listOf("-shm", "-wal", "-journal")) {
                     val src = java.io.File(defaultDb.path + suffix)
-                    if (src.exists()) src.renameTo(java.io.File(cacheDb.path + suffix))
+                    if (src.exists() && !src.renameTo(java.io.File(cacheDb.path + suffix))) {
+                        android.util.Log.w("AppDatabase", "Failed to migrate '$suffix' sidecar file to cacheDir")
+                    }
                 }
             }
         }
