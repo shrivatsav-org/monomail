@@ -106,8 +106,18 @@ class EmailDetailViewModel @Inject constructor(
             ) { emails, isLoading, error ->
                 when {
                     emails.isNotEmpty() -> {
-                        val needsBodyFetch = emails.any { it.body.isEmpty() }
-                        EmailDetailState.Success(emails, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
+                        val deduplicated = emails.fold(mutableListOf<Email>()) { acc, email ->
+                            val isDuplicate = acc.any { existing -> 
+                                existing.fromEmail == email.fromEmail && 
+                                existing.snippet == email.snippet &&
+                                existing.body == email.body &&
+                                Math.abs(existing.date - email.date) < 60000 
+                            }
+                            if (!isDuplicate) acc.add(email)
+                            acc
+                        }
+                        val needsBodyFetch = deduplicated.any { it.body.isEmpty() }
+                        EmailDetailState.Success(deduplicated, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
                     }
                     error != null -> EmailDetailState.Error(error)
                     !isLoading -> EmailDetailState.Error("Email thread not found.")
