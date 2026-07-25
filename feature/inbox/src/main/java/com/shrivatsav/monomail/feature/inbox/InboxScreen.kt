@@ -62,7 +62,7 @@ import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
 
 data class InboxNavActions(
-    val onEmailClick: (String) -> Unit,
+    val onEmailClick: (String, String?) -> Unit,
     val onSignOut: () -> Unit,
     val onCompose: () -> Unit = {},
     val onSettings: () -> Unit = {},
@@ -514,7 +514,7 @@ fun InboxScreen(
                                                         viewModel = viewModel,
                                                         callbacks = SwipeCallbacks(
                                                             onThreadToDeleteChange = { threadToDelete = it },
-                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
+                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId, displayItem.thread.latestMessageId) },
                                                             onLongClick = {
                                                                 hapticFeedback.performHapticFeedback(
                                                                     HapticFeedbackType.LongPress
@@ -574,7 +574,7 @@ fun InboxScreen(
                                                                 viewModel = viewModel,
                                                                 callbacks = SwipeCallbacks(
                                                                     onThreadToDeleteChange = { threadToDelete = it },
-                                                                    onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId) },
+                                                                    onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId, displayItem.thread.latestMessageId) },
                                                                     onLongClick = {
                                                                         hapticFeedback.performHapticFeedback(
                                                                             HapticFeedbackType.LongPress
@@ -720,7 +720,7 @@ fun InboxScreen(
                     state = state,
                     onDismiss = { longPressedThread = null },
                     actions = LongPressMenuActions(
-                        onEmailClick = { navActions.onEmailClick(thread.threadId) },
+                        onEmailClick = { navActions.onEmailClick(thread.threadId, thread.latestMessageId) },
                         onStar = { viewModel.toggleStar(thread.threadId) },
                         onArchive = { tab -> when (tab) {
                             InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)

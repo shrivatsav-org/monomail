@@ -29,8 +29,13 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
+sealed interface ThreadListItem {
+    data class Message(val email: Email, val isFocused: Boolean, val isExpanded: Boolean) : ThreadListItem
+    data class CollapsedGroup(val count: Int, val hiddenEmailIds: List<String>) : ThreadListItem
+}
+
 sealed class EmailDetailState {
-    data class Success(val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) :
+    data class Success(val items: List<ThreadListItem>, val emails: List<Email>, val isRefreshing: Boolean = false, val refreshError: String? = null) :
         EmailDetailState()
 
     data class Error(val message: String) : EmailDetailState()
@@ -47,6 +52,20 @@ class EmailDetailViewModel @Inject constructor(
 ) : ViewModel() {
     val currentUserEmail: String = authManager.currentUser?.email ?: ""
     private val _threadId = MutableStateFlow(savedStateHandle.get<String>("threadId") ?: "")
+    private val focusedEmailId = savedStateHandle.get<String>("focusedId")
+    private val _expandedEmailIds = MutableStateFlow<Set<String>>(emptySet())
+
+    fun expandEmails(ids: List<String>) {
+        _expandedEmailIds.value = _expandedEmailIds.value + ids
+    }
+    fun toggleEmailExpansion(id: String) {
+        val current = _expandedEmailIds.value
+        if (current.contains(id)) {
+            _expandedEmailIds.value = current - id
+        } else {
+            _expandedEmailIds.value = current + id
+        }
+    }
     
     fun setThreadId(id: String) {
         if (_threadId.value != id && id.isNotEmpty()) {
@@ -97,13 +116,14 @@ class EmailDetailViewModel @Inject constructor(
 
     val state: StateFlow<EmailDetailState> = _threadId.flatMapLatest { id ->
         if (id.isEmpty()) {
-            flowOf(EmailDetailState.Success(emptyList(), isRefreshing = false))
+            flowOf(EmailDetailState.Success(emptyList(), emptyList(), isRefreshing = false))
         } else {
             combine(
                 repository.getThreadEmailsFlow(id),
                 _isLoading,
-                _error
-            ) { emails, isLoading, error ->
+                _error,
+                _expandedEmailIds
+            ) { emails, isLoading, error, expandedIds ->
                 when {
                     emails.isNotEmpty() -> {
                         val deduplicated = emails.fold(mutableListOf<Email>()) { acc, email ->
@@ -117,18 +137,51 @@ class EmailDetailViewModel @Inject constructor(
                             acc
                         }
                         val needsBodyFetch = deduplicated.any { it.body.isEmpty() }
-                        EmailDetailState.Success(deduplicated, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
+                        val items = mutableListOf<ThreadListItem>()
+                        
+                        val targetIndex = deduplicated.indexOfFirst { it.id == focusedEmailId }.takeIf { it >= 0 }
+                            ?: deduplicated.indexOfLast { !it.isRead }.takeIf { it >= 0 }
+                            ?: (deduplicated.size - 1)
+                            
+                        var i = 0
+                        while (i < deduplicated.size) {
+                            val email = deduplicated[i]
+                            val isFirst = i == 0
+                            val isTarget = i == targetIndex
+                            val isBeforeTarget = i == targetIndex - 1
+                            val isAfterTarget = i == targetIndex + 1
+                            val isExpandedByUser = expandedIds.contains(email.id)
+                            
+                            if (isFirst || isTarget || isBeforeTarget || isAfterTarget || isExpandedByUser) {
+                                items.add(ThreadListItem.Message(email, isFocused = isTarget, isExpanded = true))
+                                i++
+                            } else {
+                                var j = i + 1
+                                while (j < deduplicated.size) {
+                                    val nextEmail = deduplicated[j]
+                                    val nextIsTarget = j == targetIndex
+                                    val nextIsBeforeTarget = j == targetIndex - 1
+                                    val nextIsExpanded = expandedIds.contains(nextEmail.id)
+                                    if (nextIsTarget || nextIsBeforeTarget || nextIsExpanded) break
+                                    j++
+                                }
+                                val hiddenIds = deduplicated.subList(i, j).map { it.id }
+                                items.add(ThreadListItem.CollapsedGroup(hiddenIds.size, hiddenIds))
+                                i = j
+                            }
+                        }
+                        EmailDetailState.Success(items, deduplicated, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
                     }
                     error != null -> EmailDetailState.Error(error)
                     !isLoading -> EmailDetailState.Error("Email thread not found.")
-                    else -> EmailDetailState.Success(emptyList(), isRefreshing = true)
+                    else -> EmailDetailState.Success(emptyList(), emptyList(), isRefreshing = true)
                 }
             }
         }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = EmailDetailState.Success(emptyList(), isRefreshing = true)
+        initialValue = EmailDetailState.Success(emptyList(), emptyList(), isRefreshing = true)
     )
 
     val isStarred: StateFlow<Boolean> = _threadId.flatMapLatest { id ->

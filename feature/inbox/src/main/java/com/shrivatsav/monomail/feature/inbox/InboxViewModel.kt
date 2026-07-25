@@ -192,20 +192,19 @@ class InboxViewModel @Inject constructor(
                                 }
                             }
                         }.map { emails ->
-                            emails.groupBy { it.threadId }.map { (_, threadEmails) ->
-                                val latest = threadEmails.maxBy { it.date }
+                            emails.map { email ->
                                 EmailThread(
-                                    threadId = latest.threadId,
-                                    subject = latest.subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), ""),
-                                    from = latest.from,
-                                    fromEmail = latest.fromEmail,
-                                    snippet = latest.snippet,
-                                    date = latest.date,
-                                    messageCount = threadEmails.size,
-                                    isRead = threadEmails.all { it.isRead },
-                                    isStarred = threadEmails.any { it.isStarred },
-                                    latestMessageId = latest.id,
-                                    participants = threadEmails.map { it.from }.distinct()
+                                    threadId = email.threadId,
+                                    subject = email.subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), ""),
+                                    from = email.from,
+                                    fromEmail = email.fromEmail,
+                                    snippet = email.snippet,
+                                    date = email.date,
+                                    messageCount = 1,
+                                    isRead = email.isRead,
+                                    isStarred = email.isStarred,
+                                    latestMessageId = email.id,
+                                    participants = listOf(email.fromEmail)
                                 )
                             }
                         }

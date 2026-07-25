@@ -24,6 +24,9 @@ class OutlookProvider(
     private val api: OutlookApi,
     private val context: Context
 ) : EmailProvider {
+    override suspend fun archiveMessage(messageId: String) {}
+    override suspend fun trashMessage(messageId: String) {}
+    override suspend fun toggleMessageStar(messageId: String, starred: Boolean) {}
     companion object {
         private const val STAR_CATEGORY = "Yellow category"
         private const val RECEIVED_DATE_ORDER = "receivedDateTime DESC"

@@ -66,8 +66,8 @@ sealed class Screen(val route: String) {
     object SignIn       : Screen("sign_in")
     object ImapSetup    : Screen("imap_setup")
     object Inbox        : Screen("inbox")
-    object ThreadDetail : Screen("thread/{threadId}") {
-        fun createRoute(threadId: String) = "thread/$threadId"
+    object ThreadDetail : Screen("thread/{threadId}?focusedId={focusedId}") {
+        fun createRoute(threadId: String, focusedId: String? = null) = if (focusedId != null) "thread/$threadId?focusedId=$focusedId" else "thread/$threadId"
     }
     object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}&unified={unified}") {
         fun createRoute(
@@ -317,7 +317,7 @@ fun NavGraph(
                                 viewModel = vm,
                                 userProfile = activeAccount,
                                 navActions = InboxNavActions(
-                                    onEmailClick = { threadId -> selectedThreadId = threadId },
+                                    onEmailClick = { threadId, _ -> selectedThreadId = threadId },
                                     onSignOut = {
                                         inboxScope.launch {
                                             authManager.signOutActiveAccount()
@@ -404,8 +404,8 @@ fun NavGraph(
                         viewModel    = vm,
                         userProfile  = activeAccount,
                         navActions = InboxNavActions(
-                            onEmailClick = { threadId ->
-                                navController.navigate(Screen.ThreadDetail.createRoute(threadId)) { launchSingleTop = true }
+                            onEmailClick = { threadId, focusedId ->
+                                navController.navigate(Screen.ThreadDetail.createRoute(threadId, focusedId)) { launchSingleTop = true }
                             },
                             onSignOut = {
                                 inboxScope.launch {
@@ -469,7 +469,10 @@ fun NavGraph(
             }
             composable(
                 route = Screen.ThreadDetail.route,
-                arguments = listOf(navArgument("threadId") { type = NavType.StringType })
+                arguments = listOf(
+                    navArgument("threadId") { type = NavType.StringType },
+                    navArgument("focusedId") { type = NavType.StringType; nullable = true; defaultValue = null }
+                )
             ) { _ ->
                 val vm: EmailDetailViewModel = hiltViewModel()
                 EmailDetailScreen(
