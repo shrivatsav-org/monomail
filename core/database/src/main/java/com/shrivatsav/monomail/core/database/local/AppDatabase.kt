@@ -22,15 +22,30 @@ abstract class AppDatabase : RoomDatabase() {
     companion object {
         @Volatile
         private var INSTANCE: AppDatabase? = null
+        private fun migrateDbToCache(context: Context) {
+            val dbName = "monomail_database"
+            val defaultDb = context.getDatabasePath(dbName)
+            val cacheDb = java.io.File(context.cacheDir, dbName)
+            if (defaultDb.exists() && !cacheDb.exists()) {
+                defaultDb.renameTo(cacheDb)
+                for (suffix in listOf("-shm", "-wal", "-journal")) {
+                    val src = java.io.File(defaultDb.path + suffix)
+                    if (src.exists()) src.renameTo(java.io.File(cacheDb.path + suffix))
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             System.loadLibrary("sqlcipher")
             return INSTANCE ?: synchronized(this) {
+                migrateDbToCache(context.applicationContext)
                 val passphrase = String(SecurityUtil.getDatabasePassphrase(context)).toByteArray()
                 val factory = SupportOpenHelperFactory(passphrase)
+                val dbFile = java.io.File(context.applicationContext.cacheDir, "monomail_database")
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "monomail_database"
+                    dbFile.absolutePath
                 )
                 .openHelperFactory(factory)
                 .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
