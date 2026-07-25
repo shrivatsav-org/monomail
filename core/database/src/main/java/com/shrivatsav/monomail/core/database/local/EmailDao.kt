@@ -8,7 +8,7 @@ data class ContactResult(val name: String, val email: String)
 
 @Dao
 interface EmailDao {
-    @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId ORDER BY date ASC")
+    @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId AND inTrash = 0 ORDER BY date ASC")
     fun getEmailsForThread(threadId: String, accountId: String): Flow<List<EmailEntity>>
     
     @Query("SELECT DISTINCT fromName as name, fromEmail as email FROM emails WHERE fromName LIKE '%' || :query || '%' OR fromEmail LIKE '%' || :query || '%' LIMIT 15")
@@ -53,6 +53,14 @@ interface EmailDao {
 
     @Query("UPDATE emails SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun restoreThreadEmailsFromTrash(threadId: String, accountId: String)
+    @Query("UPDATE emails SET inInbox = 0, inArchived = 1 WHERE id = :emailId AND accountId = :accountId")
+    suspend fun archiveEmail(emailId: String, accountId: String)
+    @Query("UPDATE emails SET inInbox = 0, inSent = 0, inArchived = 0, inSpam = 0, inTrash = 1 WHERE id = :emailId AND accountId = :accountId")
+    suspend fun moveEmailToTrash(emailId: String, accountId: String)
+    @Query("UPDATE emails SET isStarred = :isStarred WHERE id = :emailId AND accountId = :accountId")
+    suspend fun updateEmailStarred(emailId: String, accountId: String, isStarred: Boolean)
+    @Query("UPDATE emails SET isRead = :isRead WHERE id = :emailId AND accountId = :accountId")
+    suspend fun updateEmailReadStatus(emailId: String, accountId: String, isRead: Boolean)
     @Query("UPDATE emails SET inSpam = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun reportThreadEmailsNotSpam(threadId: String, accountId: String)
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 500")

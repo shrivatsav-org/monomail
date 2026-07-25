@@ -92,6 +92,19 @@ class ActionQueueManager @Inject constructor(
                 PendingActionType.UNARCHIVE -> provider.unarchiveThread(action.threadId)
                 PendingActionType.DELETE -> provider.trashThread(action.threadId)
                 PendingActionType.RESTORE -> provider.restoreThread(action.threadId)
+                PendingActionType.MESSAGE_TOGGLE_STAR -> {
+                    val starred = action.payload.toBoolean()
+                    val messageId = action.emailIdsJson.takeIf { it.isNotBlank() } ?: action.threadId
+                    provider.toggleMessageStar(messageId, starred)
+                }
+                PendingActionType.MESSAGE_ARCHIVE -> {
+                    val messageId = action.emailIdsJson.takeIf { it.isNotBlank() } ?: action.threadId
+                    provider.archiveMessage(messageId)
+                }
+                PendingActionType.MESSAGE_DELETE -> {
+                    val messageId = action.emailIdsJson.takeIf { it.isNotBlank() } ?: action.threadId
+                    provider.trashMessage(messageId)
+                }
                 PendingActionType.SNOOZE -> {
                     // Provider-level snooze is not yet supported; the pending action
                     // keeps the thread excluded during sync cycles so the local
