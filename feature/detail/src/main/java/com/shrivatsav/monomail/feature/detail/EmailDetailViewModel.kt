@@ -140,37 +140,45 @@ class EmailDetailViewModel @Inject constructor(
                         val needsBodyFetch = deduplicated.any { it.body.isEmpty() }
                         val items = mutableListOf<ThreadListItem>()
                         
-                        val targetIndex = deduplicated.indexOfFirst { it.id == focusedEmailId }.takeIf { it >= 0 }
-                            ?: deduplicated.indexOfLast { !it.isRead }.takeIf { it >= 0 }
-                            ?: -1
-                            
-                        var i = 0
-                        while (i < deduplicated.size) {
-                            val email = deduplicated[i]
-                            val isFirst = i == 0
-                            val isLast = i == deduplicated.lastIndex
-                            val isTarget = i == targetIndex
-                            val isBeforeTarget = i == targetIndex - 1
-                            val isAfterTarget = i == targetIndex + 1
-                            val isExpandedByUser = expandedIds.contains(email.id)
-                            
-                            if (isFirst || isLast || isTarget || isBeforeTarget || isAfterTarget || isExpandedByUser) {
-                                items.add(ThreadListItem.Message(email, isFocused = isTarget, isExpanded = true))
-                                i++
-                            } else {
-                                var j = i + 1
-                                while (j < deduplicated.size) {
-                                    val nextEmail = deduplicated[j]
-                                    val nextIsLast = j == deduplicated.lastIndex
-                                    val nextIsTarget = j == targetIndex
-                                    val nextIsBeforeTarget = j == targetIndex - 1
-                                    val nextIsExpanded = expandedIds.contains(nextEmail.id)
-                                    if (nextIsLast || nextIsTarget || nextIsBeforeTarget || nextIsExpanded) break
-                                    j++
+                        if (focusedEmailId != null) {
+                            // Collapsing: show focused email + neighbors, collapse the rest
+                            val targetIndex = deduplicated.indexOfFirst { it.id == focusedEmailId }.takeIf { it >= 0 }
+                                ?: deduplicated.indexOfLast { !it.isRead }.takeIf { it >= 0 }
+                                ?: -1
+                                
+                            var i = 0
+                            while (i < deduplicated.size) {
+                                val email = deduplicated[i]
+                                val isFirst = i == 0
+                                val isLast = i == deduplicated.lastIndex
+                                val isTarget = i == targetIndex
+                                val isBeforeTarget = i == targetIndex - 1
+                                val isAfterTarget = i == targetIndex + 1
+                                val isExpandedByUser = expandedIds.contains(email.id)
+                                
+                                if (isFirst || isLast || isTarget || isBeforeTarget || isAfterTarget || isExpandedByUser) {
+                                    items.add(ThreadListItem.Message(email, isFocused = isTarget, isExpanded = true))
+                                    i++
+                                } else {
+                                    var j = i + 1
+                                    while (j < deduplicated.size) {
+                                        val nextEmail = deduplicated[j]
+                                        val nextIsLast = j == deduplicated.lastIndex
+                                        val nextIsTarget = j == targetIndex
+                                        val nextIsBeforeTarget = j == targetIndex - 1
+                                        val nextIsExpanded = expandedIds.contains(nextEmail.id)
+                                        if (nextIsLast || nextIsTarget || nextIsBeforeTarget || nextIsExpanded) break
+                                        j++
+                                    }
+                                    val hiddenIds = deduplicated.subList(i, j).map { it.id }
+                                    items.add(ThreadListItem.CollapsedGroup(hiddenIds.size, hiddenIds))
+                                    i = j
                                 }
-                                val hiddenIds = deduplicated.subList(i, j).map { it.id }
-                                items.add(ThreadListItem.CollapsedGroup(hiddenIds.size, hiddenIds))
-                                i = j
+                            }
+                        } else {
+                            // No focused email: show all emails
+                            for (email in deduplicated) {
+                                items.add(ThreadListItem.Message(email, isFocused = false, isExpanded = true))
                             }
                         }
                         EmailDetailState.Success(items, deduplicated, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
