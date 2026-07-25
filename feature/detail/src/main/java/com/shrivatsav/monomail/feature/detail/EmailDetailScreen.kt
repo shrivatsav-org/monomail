@@ -43,6 +43,8 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -66,6 +68,9 @@ import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material.icons.rounded.Warning
+import androidx.compose.material.icons.rounded.Archive
+import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material3.Surface
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -238,7 +243,21 @@ fun EmailDetailScreen(
             onReply = onReply,
             onForward = onForward,
             onFetchAttachment = onFetchAttachment,
-            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
+            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
+            onToggleGroup = { viewModel.expandEmails(it) },
+            onStarMessage = { id, starred -> viewModel.toggleEmailStar(id, starred) },
+            onArchiveMessage = { id -> 
+                val threadId = (state as? EmailDetailState.Success)?.emails?.firstOrNull()?.threadId
+                if (threadId != null) {
+                    viewModel.archiveEmail(id, viewModel.accountId, threadId)
+                }
+            },
+            onDeleteMessage = { id -> 
+                val threadId = (state as? EmailDetailState.Success)?.emails?.firstOrNull()?.threadId
+                if (threadId != null) {
+                    viewModel.trashEmail(id, viewModel.accountId, threadId)
+                }
+            }
         )
     }
 
@@ -253,7 +272,11 @@ private fun DetailContent(
     onReply: (to: String, subject: String, body: String, threadId: String, messageId: String) -> Unit,
     onForward: (subject: String, body: String, threadId: String, messageId: String) -> Unit,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
-    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> },
+    onToggleGroup: (List<String>) -> Unit = {},
+    onStarMessage: (String, Boolean) -> Unit = { _, _ -> },
+    onArchiveMessage: (String) -> Unit = {},
+    onDeleteMessage: (String) -> Unit = {}
 ) {
     when (val s = state) {
         is EmailDetailState.Error -> {
@@ -267,6 +290,7 @@ private fun DetailContent(
 
         is EmailDetailState.Success -> {
             val emails = s.emails
+            val items = s.items
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
                 if (s.isRefreshing) {
                     LinearProgressIndicator(
@@ -331,6 +355,7 @@ private fun DetailContent(
                             it.isNotBlank() && !it.equals(myEmail, ignoreCase = true)
                         }.joinToString(", ").ifEmpty { latestEmail.to }
                         ThreadConversationContent(
+                            items = items,
                             emails = emails,
                             decryptedBodies = decryptedBodies,
                             modifier = Modifier.fillMaxSize(),
@@ -353,7 +378,11 @@ private fun DetailContent(
                                 )
                             },
                             onFetchAttachment = onFetchAttachment,
-                            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
+                            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
+                            onToggleGroup = onToggleGroup,
+                            onStarMessage = onStarMessage,
+                            onArchiveMessage = onArchiveMessage,
+                            onDeleteMessage = onDeleteMessage
                         )
                     }
                 }
@@ -365,6 +394,7 @@ private fun DetailContent(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThreadConversationContent(
+    items: List<ThreadListItem>,
     emails: List<Email>,
     decryptedBodies: Map<String, PgpDecryptionResult> = emptyMap(),
     modifier: Modifier = Modifier,
@@ -372,7 +402,11 @@ fun ThreadConversationContent(
     onReply: () -> Unit = {},
     onForward: () -> Unit = {},
     onFetchAttachment: suspend (String, String) -> ByteArray? = { _, _ -> null },
-    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> }
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit = { _, _, _, _ -> },
+    onToggleGroup: (List<String>) -> Unit = {},
+    onStarMessage: (String, Boolean) -> Unit = { _, _ -> },
+    onArchiveMessage: (String) -> Unit = {},
+    onDeleteMessage: (String) -> Unit = {}
 ) {
     val expandedMap = remember(emails) {
         if (config.isConversationView) {
@@ -418,31 +452,50 @@ fun ThreadConversationContent(
             }
         }
 
-        itemsIndexed(emails, key = { _, email -> email.id }) { index, email ->
-            val isExpanded = expandedMap[email.id] ?: true
-            if (config.isConversationView) {
-                ConversationEmailItem(
-                    email = email,
-                    index = index,
-                    isExpanded = isExpanded,
-                    onToggleExpand = { expandedMap[email.id] = !isExpanded },
-                    config = config,
-                    decryptedBodies = decryptedBodies,
-                    onFetchAttachment = onFetchAttachment,
-                    onNavigateToAttachmentViewer = onNavigateToAttachmentViewer
-                )
-            } else {
-                MessageBody(
-                    email = email,
-                    decryptedResult = decryptedBodies[email.id],
-                    config = config,
-                    onFetchAttachment = onFetchAttachment,
-                    onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
-                    showSender = true,
-                    messageCount = emails.size
-                )
+        itemsIndexed(items, key = { index, item -> 
+            when (item) {
+                is ThreadListItem.Message -> item.email.id
+                is ThreadListItem.CollapsedGroup -> "group_${item.hiddenEmailIds.firstOrNull()}_$index"
             }
-            if (index < emails.lastIndex) {
+        }) { index, item ->
+            when (item) {
+                is ThreadListItem.Message -> {
+                    val email = item.email
+                    val isExpanded = expandedMap[email.id] ?: item.isExpanded
+                    if (config.isConversationView) {
+                        ConversationEmailItem(
+                            email = email,
+                            index = emails.indexOf(email),
+                            isExpanded = isExpanded,
+                            onToggleExpand = { expandedMap[email.id] = !isExpanded },
+                            config = config,
+                            decryptedBodies = decryptedBodies,
+                            onFetchAttachment = onFetchAttachment,
+                            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
+                            onStar = { onStarMessage(email.id, email.isStarred) },
+                            onArchive = { onArchiveMessage(email.id) },
+                            onDelete = { onDeleteMessage(email.id) }
+                        )
+                    } else {
+                        MessageBody(
+                            email = email,
+                            decryptedResult = decryptedBodies[email.id],
+                            config = config,
+                            onFetchAttachment = onFetchAttachment,
+                            onNavigateToAttachmentViewer = onNavigateToAttachmentViewer,
+                            showSender = true,
+                            messageCount = emails.size
+                        )
+                    }
+                }
+                is ThreadListItem.CollapsedGroup -> {
+                    CollapsedGroupItem(
+                        count = item.count,
+                        onClick = { onToggleGroup(item.hiddenEmailIds) }
+                    )
+                }
+            }
+            if (index < items.lastIndex) {
                 HorizontalDivider(
                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -518,8 +571,12 @@ private fun ConversationEmailItem(
     config: EmailDisplayConfig,
     decryptedBodies: Map<String, PgpDecryptionResult>,
     onFetchAttachment: suspend (String, String) -> ByteArray?,
-    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit
+    onNavigateToAttachmentViewer: (messageId: String, attachmentId: String, mimeType: String, name: String) -> Unit,
+    onStar: () -> Unit,
+    onArchive: () -> Unit,
+    onDelete: () -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     Column {
         Row(
             modifier = Modifier
@@ -565,6 +622,38 @@ private fun ConversationEmailItem(
                         tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
                         modifier = Modifier.size(20.dp)
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Box {
+                        IconButton(onClick = { showMenu = true }, modifier = Modifier.size(24.dp)) {
+                            Icon(
+                                imageVector = Icons.Rounded.MoreVert,
+                                contentDescription = "Message options",
+                                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = showMenu,
+                            onDismissRequest = { showMenu = false },
+                            shape = MaterialTheme.shapes.extraSmall
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(if (email.isStarred) "Unstar" else "Star") },
+                                onClick = { showMenu = false; onStar() },
+                                leadingIcon = { Icon(if (email.isStarred) Icons.Rounded.Star else Icons.Rounded.StarBorder, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Archive") },
+                                onClick = { showMenu = false; onArchive() },
+                                leadingIcon = { Icon(Icons.Rounded.Archive, null) }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Delete") },
+                                onClick = { showMenu = false; onDelete() },
+                                leadingIcon = { Icon(Icons.Rounded.Delete, null) }
+                            )
+                        }
+                    }
                 }
                 Text(
                     text = email.fromEmail,
@@ -1737,4 +1826,31 @@ private val FIXED_WIDTH_STYLE = Regex("""(?:width|min-width)\s*:\s*(5[4-9]\d|[6-
 private fun formatDetailDate(epochMillis: Long): String {
     if (epochMillis == 0L) return ""
     return detailDateFormat.format(Date(epochMillis))
+}
+
+@Composable
+fun CollapsedGroupItem(count: Int, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        Surface(
+            shape = androidx.compose.foundation.shape.CircleShape,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp).size(28.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Text(
+                    text = count.toString(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+    }
 }
