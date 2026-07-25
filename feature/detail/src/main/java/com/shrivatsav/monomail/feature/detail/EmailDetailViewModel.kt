@@ -51,6 +51,7 @@ class EmailDetailViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
     val currentUserEmail: String = authManager.currentUser?.email ?: ""
+    val accountId: String = authManager.currentUser?.id ?: ""
     private val _threadId = MutableStateFlow(savedStateHandle.get<String>("threadId") ?: "")
     private val focusedEmailId = savedStateHandle.get<String>("focusedId")
     private val _expandedEmailIds = MutableStateFlow<Set<String>>(emptySet())
@@ -141,28 +142,30 @@ class EmailDetailViewModel @Inject constructor(
                         
                         val targetIndex = deduplicated.indexOfFirst { it.id == focusedEmailId }.takeIf { it >= 0 }
                             ?: deduplicated.indexOfLast { !it.isRead }.takeIf { it >= 0 }
-                            ?: (deduplicated.size - 1)
+                            ?: -1
                             
                         var i = 0
                         while (i < deduplicated.size) {
                             val email = deduplicated[i]
                             val isFirst = i == 0
+                            val isLast = i == deduplicated.lastIndex
                             val isTarget = i == targetIndex
                             val isBeforeTarget = i == targetIndex - 1
                             val isAfterTarget = i == targetIndex + 1
                             val isExpandedByUser = expandedIds.contains(email.id)
                             
-                            if (isFirst || isTarget || isBeforeTarget || isAfterTarget || isExpandedByUser) {
+                            if (isFirst || isLast || isTarget || isBeforeTarget || isAfterTarget || isExpandedByUser) {
                                 items.add(ThreadListItem.Message(email, isFocused = isTarget, isExpanded = true))
                                 i++
                             } else {
                                 var j = i + 1
                                 while (j < deduplicated.size) {
                                     val nextEmail = deduplicated[j]
+                                    val nextIsLast = j == deduplicated.lastIndex
                                     val nextIsTarget = j == targetIndex
                                     val nextIsBeforeTarget = j == targetIndex - 1
                                     val nextIsExpanded = expandedIds.contains(nextEmail.id)
-                                    if (nextIsTarget || nextIsBeforeTarget || nextIsExpanded) break
+                                    if (nextIsLast || nextIsTarget || nextIsBeforeTarget || nextIsExpanded) break
                                     j++
                                 }
                                 val hiddenIds = deduplicated.subList(i, j).map { it.id }
@@ -281,6 +284,26 @@ class EmailDetailViewModel @Inject constructor(
         viewModelScope.launch {
             repository.deleteThread(currentId)
             withContext(Dispatchers.Main) { onComplete() }
+        }
+    }
+
+    fun toggleEmailStar(emailId: String, isStarred: Boolean) {
+        val currentId = _threadId.value
+        if (currentId.isEmpty()) return
+        viewModelScope.launch {
+            repository.toggleEmailStar(emailId, isStarred, accountId, currentId)
+        }
+    }
+
+    fun archiveEmail(emailId: String, accountId: String, threadId: String) {
+        viewModelScope.launch {
+            repository.archiveEmail(emailId, accountId, threadId)
+        }
+    }
+
+    fun trashEmail(emailId: String, accountId: String, threadId: String) {
+        viewModelScope.launch {
+            repository.trashEmail(emailId, accountId, threadId)
         }
     }
 
