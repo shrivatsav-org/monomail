@@ -359,7 +359,16 @@ class EmailRepository(
                     attachments = msg.attachments
                 )
             }
-            emailDao.insertEmails(emails.map { it.toEntity(accountId) })
+            val serverEmailIds = emails.map { it.id }
+            database.withTransaction {
+                if (serverEmailIds.isNotEmpty()) {
+                    emailDao.deleteOrphanedEmails(threadId, accountId, serverEmailIds)
+                } else {
+                    emailDao.deleteThreadEmails(threadId, accountId)
+                }
+                emailDao.insertEmails(emails.map { it.toEntity(accountId) })
+                threadDao.updateMessageCount(threadId, accountId, emails.size)
+            }
             Result.success(Unit)
         } catch (e: ResourceNotFoundException) {
             Log.w("EmailRepo", "Thread $threadId not found on server — removing stale local data")
@@ -504,9 +513,8 @@ class EmailRepository(
             threadDao.insertThreads(listOf(domainThread.toEntity(accountId, inInbox = false, inSent = false, inArchived = false, inTrash = false, inSpam = false, inDrafts = true)))
             emailDao.insertEmails(listOf(domainEmail.toEntity(accountId)))
         }
-        return actualThreadId
+        return actualMsgId
     }
-
     suspend fun emptySpam(isUnified: Boolean = false) {
         val activeAccountId = getActiveAccountId()
         val accountsToProcess = if (isUnified) {
@@ -551,6 +559,9 @@ class EmailRepository(
         insertPendingAction(PendingActionType.DELETE, accountId, threadId)
         threadDao.moveToTrash(threadId, accountId)
         emailDao.moveThreadEmailsToTrash(threadId, accountId)
+    }
+    suspend fun deleteDraft(draftId: String) {
+        emailDao.deleteDraftEmail(draftId)
     }
     suspend fun restoreThread(threadId: String) {
         val accountId = resolveAccountId(threadId)

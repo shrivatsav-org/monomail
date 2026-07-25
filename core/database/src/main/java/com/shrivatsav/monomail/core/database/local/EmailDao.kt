@@ -27,6 +27,10 @@ interface EmailDao {
     suspend fun markThreadEmailsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun deleteThreadEmails(threadId: String, accountId: String)
+    @Query("DELETE FROM emails WHERE id = :emailId")
+    suspend fun deleteDraftEmail(emailId: String)
+    @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId AND id NOT IN (:keepIds)")
+    suspend fun deleteOrphanedEmails(threadId: String, accountId: String, keepIds: List<String>)
     @Query("DELETE FROM emails WHERE accountId = :accountId")
     suspend fun clearForAccount(accountId: String)
 

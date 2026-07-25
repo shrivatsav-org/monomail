@@ -318,7 +318,7 @@ class ComposeViewModel @Inject constructor(
 
     fun deleteDraft(draftId: String) {
         viewModelScope.launch {
-            repository.deleteThread(draftId)
+            repository.deleteDraft(draftId)
             if (_state.value.currentDraftId == draftId) {
                 _state.value = _state.value.copy(currentDraftId = null)
             }
@@ -391,7 +391,8 @@ class ComposeViewModel @Inject constructor(
                         isPendingSend = true
                     )
                 )
-                _state.value = current.copy(isSending = false, isSent = true)
+                current.currentDraftId?.let { repository.deleteDraft(it) }
+                _state.value = current.copy(isSending = false, isSent = true, currentDraftId = null)
             } else {
                 val result = repository.sendEmail(
                     from = current.from,
@@ -410,7 +411,10 @@ class ComposeViewModel @Inject constructor(
                     )
                 }
                 _state.value = result.fold(
-                    onSuccess = { current.copy(isSending = false, isSent = true) },
+                    onSuccess = { 
+                        current.currentDraftId?.let { repository.deleteDraft(it) }
+                        current.copy(isSending = false, isSent = true, currentDraftId = null) 
+                    },
                     onFailure = { current.copy(isSending = false, error = it.message ?: "Failed to send") }
                 )
             }
@@ -469,7 +473,8 @@ class ComposeViewModel @Inject constructor(
                     scheduledAt = scheduledAt
                 )
             )
-            _state.value = _state.value.copy(isSent = true)
+            current.currentDraftId?.let { repository.deleteDraft(it) }
+            _state.value = _state.value.copy(isSent = true, currentDraftId = null)
         }
     }
 
