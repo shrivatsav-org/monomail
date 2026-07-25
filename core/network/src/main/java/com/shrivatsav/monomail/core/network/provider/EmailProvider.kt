@@ -31,6 +31,9 @@ interface EmailProvider {
     suspend fun restoreThread(threadId: String)
     suspend fun permanentlyDeleteThread(threadId: String)
     suspend fun toggleStar(threadId: String, starred: Boolean)
+    suspend fun archiveMessage(messageId: String)
+    suspend fun trashMessage(messageId: String)
+    suspend fun toggleMessageStar(messageId: String, starred: Boolean)
     suspend fun markRead(threadId: String, read: Boolean)
     suspend fun batchMarkRead(messageIds: List<String>)
     suspend fun sendEmail(
