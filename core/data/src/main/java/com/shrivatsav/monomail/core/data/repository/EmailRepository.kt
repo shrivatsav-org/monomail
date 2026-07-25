@@ -368,7 +368,17 @@ class EmailRepository(
                     emailDao.deleteThreadEmails(threadId, accountId)
                 }
                 emailDao.insertEmails(emails.map { it.toEntity(accountId) })
-                threadDao.updateMessageCount(threadId, accountId, emails.size)
+                val deduplicated = emails.fold(mutableListOf<com.shrivatsav.monomail.data.model.Email>()) { acc, email ->
+                    val isDuplicate = acc.any { existing ->
+                        existing.fromEmail == email.fromEmail &&
+                        existing.snippet == email.snippet &&
+                        existing.body == email.body &&
+                        Math.abs(existing.date - email.date) < 60000
+                    }
+                    if (!isDuplicate) acc.add(email)
+                    acc
+                }
+                threadDao.updateMessageCount(threadId, accountId, deduplicated.size)
             }
             Result.success(Unit)
         } catch (e: ResourceNotFoundException) {
