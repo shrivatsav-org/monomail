@@ -441,7 +441,7 @@ fun InboxScreen(
                                         onCtaClick = onCtaClick
                                     )
                                 } else {
-                                    val itemKeyFn = remember(currentTab) { { it: InboxDisplayItem -> "${currentTab.name}_${it.key}" } }
+                                    val itemKeyFn = { it: InboxDisplayItem -> it.key }
                                     LazyColumn(
                                         state = listState,
                                         modifier = Modifier
