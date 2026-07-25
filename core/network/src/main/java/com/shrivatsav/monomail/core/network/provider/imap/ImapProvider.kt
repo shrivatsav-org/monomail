@@ -34,6 +34,9 @@ class ImapProvider(
     private val password: String,
     private val context: Context
 ) : EmailProvider {
+    override suspend fun archiveMessage(messageId: String) {}
+    override suspend fun trashMessage(messageId: String) {}
+    override suspend fun toggleMessageStar(messageId: String, starred: Boolean) {}
 
     companion object {
         private const val HEADER_MESSAGE_ID = "Message-ID"

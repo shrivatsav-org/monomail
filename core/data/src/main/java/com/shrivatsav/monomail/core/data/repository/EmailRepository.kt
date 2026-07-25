@@ -223,6 +223,7 @@ class EmailRepository(
     ): ThreadEntity {
         val messages = providerThread.messages
         val latest = messages.maxByOrNull { it.date }
+        val first = messages.minByOrNull { it.date }
         val allFolders = messages.flatMap { it.folders }.toSet()
         val participants = messages.map { it.from }.distinct()
         val serverIsRead = messages.all { it.isRead }
@@ -234,7 +235,7 @@ class EmailRepository(
         }
         val domainThread = EmailThread(
             threadId = providerThread.threadId,
-            subject = (latest?.subject?.ifBlank { null } ?: "(no subject)").cleanSubject(),
+            subject = (first?.subject?.ifBlank { null } ?: "(no subject)").cleanSubject(),
             from = latest?.from ?: "",
             fromEmail = latest?.fromEmail ?: "",
             snippet = finalSnippet,
@@ -379,6 +380,11 @@ class EmailRepository(
             Result.failure(e)
         }
     }
+    suspend fun toggleEmailStar(emailId: String, currentStarred: Boolean, accountId: String, threadId: String) {
+        val newStarred = !currentStarred
+        insertPendingAction(PendingActionType.MESSAGE_TOGGLE_STAR, accountId, threadId, payload = newStarred.toString(), emailIdsJson = emailId)
+        emailDao.updateEmailStarred(emailId, accountId, newStarred)
+    }
     suspend fun toggleStar(threadId: String, currentStarred: Boolean) {
         val newStarred = !currentStarred
         val accountId = resolveAccountId(threadId)
@@ -433,6 +439,10 @@ class EmailRepository(
         insertPendingAction(PendingActionType.ARCHIVE, activeAccountId, threadId)
         threadDao.archiveThread(threadId, activeAccountId)
         emailDao.archiveThreadEmails(threadId, activeAccountId)
+    }
+    suspend fun archiveEmail(emailId: String, accountId: String, threadId: String) {
+        insertPendingAction(PendingActionType.MESSAGE_ARCHIVE, accountId, threadId, emailIdsJson = emailId)
+        emailDao.archiveEmail(emailId, accountId)
     }
     suspend fun unarchiveThread(threadId: String, explicitAccountId: String? = null) {
         val activeAccountId = explicitAccountId ?: resolveAccountId(threadId)
@@ -559,6 +569,10 @@ class EmailRepository(
         insertPendingAction(PendingActionType.DELETE, accountId, threadId)
         threadDao.moveToTrash(threadId, accountId)
         emailDao.moveThreadEmailsToTrash(threadId, accountId)
+    }
+    suspend fun trashEmail(emailId: String, accountId: String, threadId: String) {
+        insertPendingAction(PendingActionType.MESSAGE_DELETE, accountId, threadId, emailIdsJson = emailId)
+        emailDao.moveEmailToTrash(emailId, accountId)
     }
     suspend fun deleteDraft(draftId: String) {
         emailDao.deleteDraftEmail(draftId)

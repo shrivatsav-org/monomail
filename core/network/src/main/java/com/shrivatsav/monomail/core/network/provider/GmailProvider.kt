@@ -249,6 +249,34 @@ class GmailProvider(
             throw e
         }
     }
+    override suspend fun archiveMessage(messageId: String) {
+        try {
+            api.modifyMessage(messageId, com.shrivatsav.monomail.core.network.remote.ModifyMessageRequest(removeLabelIds = listOf("INBOX")))
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Message $messageId not found", e)
+            throw e
+        }
+    }
+    override suspend fun trashMessage(messageId: String) {
+        try {
+            api.trashMessage(messageId)
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Message $messageId not found", e)
+            throw e
+        }
+    }
+    override suspend fun toggleMessageStar(messageId: String, starred: Boolean) {
+        try {
+            if (starred) {
+                api.modifyMessage(messageId, com.shrivatsav.monomail.core.network.remote.ModifyMessageRequest(addLabelIds = listOf("STARRED")))
+            } else {
+                api.modifyMessage(messageId, com.shrivatsav.monomail.core.network.remote.ModifyMessageRequest(removeLabelIds = listOf("STARRED")))
+            }
+        } catch (e: HttpException) {
+            if (e.code() in setOf(404, 410)) throw ResourceNotFoundException("Message $messageId not found", e)
+            throw e
+        }
+    }
     override suspend fun markRead(threadId: String, read: Boolean) {
         try {
             if (read) {

@@ -18,6 +18,15 @@ interface GmailApi {
         @Path("id") id: String,
         @Query("format") format: String = "full"
     ): GmailMessage
+    @POST("users/me/messages/{id}/modify")
+    suspend fun modifyMessage(
+        @Path("id") id: String,
+        @Body request: ModifyMessageRequest
+    ): GmailMessage
+    @POST("users/me/messages/{id}/trash")
+    suspend fun trashMessage(
+        @Path("id") id: String
+    ): GmailMessage
     @GET("users/me/messages/{messageId}/attachments/{id}")
     suspend fun getAttachment(
         @Path("messageId") messageId: String,

@@ -54,6 +54,10 @@ data class ModifyThreadRequest(
     @SerializedName("addLabelIds") val addLabelIds: List<String> = emptyList(),
     @SerializedName("removeLabelIds") val removeLabelIds: List<String> = emptyList()
 )
+data class ModifyMessageRequest(
+    @SerializedName("addLabelIds") val addLabelIds: List<String> = emptyList(),
+    @SerializedName("removeLabelIds") val removeLabelIds: List<String> = emptyList()
+)
 data class SendMessageRequest(
     @SerializedName("raw") val raw: String,
     @SerializedName("threadId") val threadId: String? = null
