@@ -38,6 +38,8 @@ interface ThreadDao {
     suspend fun unarchiveThread(threadId: String, accountId: String)
     @Query("UPDATE threads SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun updateThreadReadStatus(threadId: String, accountId: String, isRead: Boolean)
+    @Query("UPDATE threads SET messageCount = :count WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun updateMessageCount(threadId: String, accountId: String, count: Int)
     @Query("UPDATE threads SET isRead = 1 WHERE accountId = :accountId AND threadId IN (:threadIds)")
     suspend fun markThreadsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM threads WHERE threadId = :threadId AND accountId = :accountId")

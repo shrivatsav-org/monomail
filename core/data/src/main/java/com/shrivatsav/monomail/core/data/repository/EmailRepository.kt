@@ -359,7 +359,16 @@ class EmailRepository(
                     attachments = msg.attachments
                 )
             }
-            emailDao.insertEmails(emails.map { it.toEntity(accountId) })
+            val serverEmailIds = emails.map { it.id }
+            database.withTransaction {
+                if (serverEmailIds.isNotEmpty()) {
+                    emailDao.deleteOrphanedEmails(threadId, accountId, serverEmailIds)
+                } else {
+                    emailDao.deleteThreadEmails(threadId, accountId)
+                }
+                emailDao.insertEmails(emails.map { it.toEntity(accountId) })
+                threadDao.updateMessageCount(threadId, accountId, emails.size)
+            }
             Result.success(Unit)
         } catch (e: ResourceNotFoundException) {
             Log.w("EmailRepo", "Thread $threadId not found on server — removing stale local data")
