@@ -176,9 +176,14 @@ class EmailDetailViewModel @Inject constructor(
                                 }
                             }
                         } else {
-                            // No focused email: show all emails
-                            for (email in deduplicated) {
-                                items.add(ThreadListItem.Message(email, isFocused = false, isExpanded = true))
+                            // No focused email: first + last visible, middle collapsed
+                            items.add(ThreadListItem.Message(deduplicated.first(), isFocused = false, isExpanded = true))
+                            if (deduplicated.size > 2) {
+                                val hiddenIds = deduplicated.subList(1, deduplicated.lastIndex).map { it.id }
+                                items.add(ThreadListItem.CollapsedGroup(hiddenIds.size, hiddenIds))
+                            }
+                            if (deduplicated.size > 1) {
+                                items.add(ThreadListItem.Message(deduplicated.last(), isFocused = false, isExpanded = true))
                             }
                         }
                         EmailDetailState.Success(items, deduplicated, isRefreshing = isLoading && needsBodyFetch, refreshError = error)
