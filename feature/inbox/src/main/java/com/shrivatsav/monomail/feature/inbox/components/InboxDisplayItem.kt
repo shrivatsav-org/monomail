@@ -45,8 +45,9 @@ fun computeInboxStructure(
     recentOnly: Boolean
 ): InboxStructure {
     if (threads.isEmpty()) return InboxStructure(emptyList(), emptyList())
+    val deduplicated = threads.distinctBy { it.threadId }
     if (!useGrouping) {
-        val sortedSingles = threads.sortedByDescending { it.date }.map { TempItem.Single(it) }
+        val sortedSingles = deduplicated.sortedByDescending { it.date }.map { TempItem.Single(it) }
         return InboxStructure(emptyList(), sortedSingles)
     }
     val minGroupSize = 3
@@ -55,7 +56,7 @@ fun computeInboxStructure(
     val threeDaysMillis = 3L * oneDayMillis
     val groupedThreadsMap = mutableMapOf<String, MutableList<EmailThread>>()
     val remainingThreads = mutableListOf<EmailThread>()
-    for (thread in threads) {
+    for (thread in deduplicated) {
         val isWithin24Hrs = thread.date >= (now - oneDayMillis)
         val isWithin3Days = thread.date >= (now - threeDaysMillis)
         val canGroup = if (recentOnly) isWithin24Hrs else isWithin3Days
