@@ -513,9 +513,8 @@ class EmailRepository(
             threadDao.insertThreads(listOf(domainThread.toEntity(accountId, inInbox = false, inSent = false, inArchived = false, inTrash = false, inSpam = false, inDrafts = true)))
             emailDao.insertEmails(listOf(domainEmail.toEntity(accountId)))
         }
-        return actualThreadId
+        return actualMsgId
     }
-
     suspend fun emptySpam(isUnified: Boolean = false) {
         val activeAccountId = getActiveAccountId()
         val accountsToProcess = if (isUnified) {
@@ -560,6 +559,9 @@ class EmailRepository(
         insertPendingAction(PendingActionType.DELETE, accountId, threadId)
         threadDao.moveToTrash(threadId, accountId)
         emailDao.moveThreadEmailsToTrash(threadId, accountId)
+    }
+    suspend fun deleteDraft(draftId: String) {
+        emailDao.deleteDraftEmail(draftId)
     }
     suspend fun restoreThread(threadId: String) {
         val accountId = resolveAccountId(threadId)
