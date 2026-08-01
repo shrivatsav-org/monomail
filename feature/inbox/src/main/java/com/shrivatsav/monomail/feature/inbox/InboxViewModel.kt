@@ -166,6 +166,7 @@ class InboxViewModel @Inject constructor(
                                     InboxTab.TRASH -> repository.getTrashThreadsFlow(accountId)
                                     InboxTab.SNOOZED -> repository.getSnoozedThreadsFlow(accountId)
                                     InboxTab.SPAM -> repository.getSpamThreadsFlow(accountId)
+                                    InboxTab.DRAFTS -> repository.getDraftThreadsFlow(accountId)
                                     else -> repository.getInboxThreadsFlow(tab, accountId)
                                 }
                             }

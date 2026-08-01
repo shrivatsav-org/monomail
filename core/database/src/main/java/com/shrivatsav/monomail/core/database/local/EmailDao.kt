@@ -111,6 +111,20 @@ interface EmailDao {
     suspend fun getEmailBodyForAccount(accountId: String): List<EmailBodyProjection>
     @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId")
     suspend fun getLatestEmailDate(accountId: String): Long?
+    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inInbox = 1")
+    suspend fun getLatestInboxEmailDate(accountId: String): Long?
+    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inSent = 1")
+    suspend fun getLatestSentEmailDate(accountId: String): Long?
+    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inArchived = 1")
+    suspend fun getLatestArchivedEmailDate(accountId: String): Long?
+    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inTrash = 1")
+    suspend fun getLatestTrashEmailDate(accountId: String): Long?
+    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inSpam = 1")
+    suspend fun getLatestSpamEmailDate(accountId: String): Long?
+    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inDrafts = 1")
+    suspend fun getLatestDraftEmailDate(accountId: String): Long?
+    @Query("SELECT id, labels FROM emails WHERE accountId = :accountId")
+    suspend fun getLabelsForAccount(accountId: String): List<EmailLabelsProjection>
     @Query("SELECT id, threadId, body, bodyIsHtml, snippet, labels FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '') ORDER BY date DESC LIMIT :limit")
     suspend fun getEmailsMissingBody(accountId: String, limit: Int = 500): List<EmailBodySlimProjection>
     @Query("UPDATE emails SET body = :body, bodyIsHtml = :bodyIsHtml, snippet = :snippet WHERE id = :emailId AND accountId = :accountId")
@@ -164,5 +178,10 @@ data class EmailBodySlimProjection(
     val body: String?,
     val bodyIsHtml: Boolean,
     val snippet: String,
+    val labels: List<String>
+)
+
+data class EmailLabelsProjection(
+    val id: String,
     val labels: List<String>
 )

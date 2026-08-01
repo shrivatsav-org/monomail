@@ -231,12 +231,26 @@ class EmailRepository(
         targetAccountId: String,
         existingSnippets: Map<String, ThreadSnippetProjection>,
         existingThreadReadStatuses: Map<String, Boolean>,
-        existingEmailIdSet: Set<String>
+        existingEmailIdSet: Set<String>,
+        existingThreadFlags: Map<String, ThreadFolderFlagsProjection>
     ): ThreadEntity {
         val messages = providerThread.messages
         val latest = messages.maxByOrNull { it.date }
         val first = messages.minByOrNull { it.date }
         val allFolders = messages.flatMap { it.folders }.toSet()
+        val existing = existingThreadFlags[providerThread.threadId]
+        // Gmail's All Mail contains INBOX + SENT messages too. Union with the
+        // flags the thread already has so a folder pass never wipes membership
+        // discovered by an earlier pass (INBOX → sent → All Mail order).
+        val inInbox = EmailFolder.INBOX in allFolders || existing?.inInbox == true
+        val inSent = EmailFolder.SENT in allFolders || existing?.inSent == true
+        val inTrash = EmailFolder.TRASH in allFolders || existing?.inTrash == true
+        val inSpam = EmailFolder.SPAM in allFolders || existing?.inSpam == true
+        val inDrafts = EmailFolder.DRAFT in allFolders || existing?.inDrafts == true
+        // Archived mirrors the email-level heuristic: in All Mail but not in any
+        // primary folder. INBOX/SENT/TRASH/SPAM/DRAFT threads never count as archived.
+        val inArchived = (EmailFolder.ARCHIVE in allFolders || existing?.inArchived == true) &&
+            !inInbox && !inSent && !inTrash && !inSpam && !inDrafts
         val participants = messages.map { it.from }.distinct()
         val serverIsRead = messages.all { it.isRead }
         val hasNewMessages = messages.any { it.id !in existingEmailIdSet }
@@ -260,12 +274,12 @@ class EmailRepository(
         )
         return domainThread.toEntity(
             accountId = targetAccountId,
-            inInbox = EmailFolder.INBOX in allFolders,
-            inSent = EmailFolder.SENT in allFolders,
-            inArchived = EmailFolder.ARCHIVE in allFolders,
-            inTrash = EmailFolder.TRASH in allFolders,
-            inSpam = EmailFolder.SPAM in allFolders,
-            inDrafts = EmailFolder.DRAFT in allFolders
+            inInbox = inInbox,
+            inSent = inSent,
+            inArchived = inArchived,
+            inTrash = inTrash,
+            inSpam = inSpam,
+            inDrafts = inDrafts
         )
     }
 
@@ -275,17 +289,22 @@ class EmailRepository(
         existingEmailReadStatuses: Map<String, Boolean>,
         existingAttachments: Map<String, String>,
         existingBodies: Map<String, EmailBodyProjection>,
-        pendingThreadIds: Set<String>
+        pendingThreadIds: Set<String>,
+        existingLabels: Map<String, List<String>>
     ): List<EmailEntity> {
         return listResponse.threads.filter { it.threadId !in pendingThreadIds }.flatMap { providerThread ->
             providerThread.messages.map { msg ->
+                // Gmail's All Mail contains INBOX + SENT messages too. Union with the
+                // labels already stored so a folder pass never wipes membership
+                // discovered by an earlier pass (INBOX → sent → All Mail order).
+                val mergedLabels = (msg.folders.map { it.name } + existingLabels[msg.id].orEmpty()).distinct()
                 var entity = Email(
                     id = msg.id, threadId = msg.threadId, subject = msg.subject,
                     from = msg.from, fromEmail = msg.fromEmail, to = msg.to, cc = msg.cc,
                     bcc = msg.bcc, snippet = msg.snippet, body = msg.body,
                     bodyIsHtml = msg.bodyIsHtml, date = msg.date,
                     isRead = existingEmailReadStatuses[msg.id] == true || msg.isRead,
-                    isStarred = msg.isStarred, labels = msg.folders.map { it.name },
+                    isStarred = msg.isStarred, labels = mergedLabels,
                     attachments = msg.attachments
                 ).toEntity(targetAccountId)
                 val existingJson = existingAttachments[entity.id]
@@ -322,9 +341,18 @@ class EmailRepository(
             val resolvedAccountId = accountId ?: getActiveAccountId()
             if (tab == InboxTab.SNOOZED) return Result.success(null)
             val folder = resolveFolder(tab)
-            // For periodic/pull-to-refresh syncs, only fetch threads newer than the latest known email.
-            // Initial deep sync passes sinceDate=null for full historical fetch.
-            val sinceDate = emailDao.getLatestEmailDate(resolvedAccountId)
+            // Per-tab incremental cutoff: each folder only re-fetches emails newer
+            // than its own newest row. The old global cutoff made Sent/Archive/Spam
+            // tabs return empty — those emails are older than the newest INBOX mail.
+            // Null when the tab is empty → full folder fetch on first open.
+            val sinceDate = when (tab) {
+                InboxTab.SENT -> emailDao.getLatestSentEmailDate(resolvedAccountId)
+                InboxTab.ARCHIVED -> emailDao.getLatestArchivedEmailDate(resolvedAccountId)
+                InboxTab.TRASH -> emailDao.getLatestTrashEmailDate(resolvedAccountId)
+                InboxTab.SPAM -> emailDao.getLatestSpamEmailDate(resolvedAccountId)
+                InboxTab.DRAFTS -> emailDao.getLatestDraftEmailDate(resolvedAccountId)
+                else -> emailDao.getLatestInboxEmailDate(resolvedAccountId)
+            }
             val listResponse = provider.listThreads(
                 folder = folder,
                 bodyFetchLimitMs = getBodyFetchLimitMs(),
@@ -342,13 +370,17 @@ class EmailRepository(
             val existingThreadReadStatuses = threadDao.getReadStatuses(resolvedAccountId).associate { it.threadId to it.isRead }
             val existingEmailReadStatuses = emailDao.getEmailReadStatuses(resolvedAccountId).associate { it.id to it.isRead }
 
+            val existingThreadFlags = threadDao.getThreadFolderFlags(resolvedAccountId).associateBy { it.threadId }
+            val existingLabels = emailDao.getLabelsForAccount(resolvedAccountId).associate { it.id to it.labels }
+
             val entities = listResponse.threads.filter { it.threadId !in pendingThreadIds }.map { pt ->
-                buildThreadEntity(pt, resolvedAccountId, existingSnippets, existingThreadReadStatuses, existingEmailReadStatuses.keys)
+                buildThreadEntity(pt, resolvedAccountId, existingSnippets, existingThreadReadStatuses, existingEmailReadStatuses.keys, existingThreadFlags)
             }
             val allEmails = buildEmailEntities(listResponse, resolvedAccountId, existingEmailReadStatuses,
                 emailDao.getAttachmentJsonForAccount(resolvedAccountId).associate { it.id to it.attachmentsJson },
                 emailDao.getEmailBodyForAccount(resolvedAccountId).associate { it.id to it },
-                pendingThreadIds
+                pendingThreadIds,
+                existingLabels
             )
             val existingSnoozed = threadDao.getSnoozeStateForThreads(entities.map { it.threadId }, resolvedAccountId)
                 .filter { it.isSnoozed }.associateBy { it.threadId }
@@ -377,11 +409,16 @@ class EmailRepository(
         _syncProgress.value = 0f
         val bodyFetchLimit = getBodyFetchLimitMs()
         try {
-            // INBOX first (most relevant), then Sent so a fresh setup also covers
-            // sent mail — the user never sees a second "Downloading email content"
-            // sweep restart when they first open the Sent tab.
+            // Sync every folder the provider exposes, INBOX first (most relevant)
+            // then Sent/Archive/Spam/Trash/Drafts. Gmail's All Mail contains INBOX
+            // + SENT messages too, so folder passes must UNION membership (done in
+            // buildThreadEntity/buildEmailEntities) instead of replacing it.
             deepSyncFolderPages(provider, EmailFolder.INBOX, sinceDate, accountId, bodyFetchLimit)
             deepSyncFolderPages(provider, EmailFolder.SENT, sinceDate, accountId, bodyFetchLimit)
+            deepSyncFolderPages(provider, EmailFolder.ARCHIVE, sinceDate, accountId, bodyFetchLimit)
+            deepSyncFolderPages(provider, EmailFolder.SPAM, sinceDate, accountId, bodyFetchLimit)
+            deepSyncFolderPages(provider, EmailFolder.TRASH, sinceDate, accountId, bodyFetchLimit)
+            deepSyncFolderPages(provider, EmailFolder.DRAFT, sinceDate, accountId, bodyFetchLimit)
             _syncProgress.value = 1f
         } catch (e: Exception) {
             android.util.Log.w("EmailRepo", "Background deep sync failed: ${e.message}")
@@ -425,13 +462,16 @@ class EmailRepository(
             val pendingThreadIds = pendingActionDao.getPendingForAccount(accountId).map { it.threadId }.toSet()
             val existingThreadReadStatuses = threadDao.getReadStatuses(accountId).associate { it.threadId to it.isRead }
             val existingEmailReadStatuses = emailDao.getEmailReadStatuses(accountId).associate { it.id to it.isRead }
+            val existingThreadFlags = threadDao.getThreadFolderFlags(accountId).associateBy { it.threadId }
+            val existingLabels = emailDao.getLabelsForAccount(accountId).associate { it.id to it.labels }
             val entities = listResponse.threads.filter { it.threadId !in pendingThreadIds }.map { pt ->
-                buildThreadEntity(pt, accountId, existingSnippets, existingThreadReadStatuses, existingEmailReadStatuses.keys)
+                buildThreadEntity(pt, accountId, existingSnippets, existingThreadReadStatuses, existingEmailReadStatuses.keys, existingThreadFlags)
             }
             val allEmails = buildEmailEntities(listResponse, accountId, existingEmailReadStatuses,
                 emailDao.getAttachmentJsonForAccount(accountId).associate { it.id to it.attachmentsJson },
                 emailDao.getEmailBodyForAccount(accountId).associate { it.id to it },
-                pendingThreadIds
+                pendingThreadIds,
+                existingLabels
             )
             database.withTransaction {
                 threadDao.insertThreads(entities)

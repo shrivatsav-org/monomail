@@ -190,6 +190,8 @@ interface ThreadDao {
 
     @Query("SELECT * FROM threads WHERE threadId IN (:threadIds) AND accountId = :accountId ORDER BY date DESC")
     suspend fun getThreadsByIds(threadIds: List<String>, accountId: String): List<ThreadEntity>
+    @Query("SELECT threadId, inInbox, inSent, inArchived, inTrash, inSpam, inDrafts FROM threads WHERE accountId = :accountId")
+    suspend fun getThreadFolderFlags(accountId: String): List<ThreadFolderFlagsProjection>
 }
 
 data class ThreadReadStatusProjection(
@@ -206,4 +208,14 @@ data class ThreadSnoozeProjection(
     val threadId: String,
     val isSnoozed: Boolean,
     val snoozedUntil: Long
+)
+
+data class ThreadFolderFlagsProjection(
+    val threadId: String,
+    val inInbox: Boolean,
+    val inSent: Boolean,
+    val inArchived: Boolean,
+    val inTrash: Boolean,
+    val inSpam: Boolean,
+    val inDrafts: Boolean
 )
