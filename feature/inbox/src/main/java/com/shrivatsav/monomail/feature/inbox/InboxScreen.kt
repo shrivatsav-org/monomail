@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.*
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
+import com.shrivatsav.monomail.core.data.repository.BodyBackfillState
 
 data class InboxNavActions(
     val onEmailClick: (String, String?) -> Unit,
@@ -68,7 +69,7 @@ data class InboxNavActions(
     val onSettings: () -> Unit = {},
     val onAddAccount: () -> Unit = {},
     val onScheduledClick: () -> Unit = {},
-    val onNavigateToImapSetup: () -> Unit = {}
+    val onNavigateToImapSetup: (String?, String?) -> Unit = { _, _ -> }
 )
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
@@ -83,6 +84,9 @@ fun InboxScreen(
     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
     val scheduledCount by viewModel.scheduledCount.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
+    val bodyBackfillProgress by viewModel.bodyBackfillProgress.collectAsState()
+    val bodyBackfillError by viewModel.bodyBackfillError.collectAsState()
+    val isBodyBackfilling by viewModel.isBodyBackfilling.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
 
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -248,6 +252,20 @@ fun InboxScreen(
                         exit = shrinkVertically() + fadeOut()
                     ) {
                         OfflineBanner()
+                    }
+                    AnimatedVisibility(
+                        visible = bodyBackfillError != null,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        BackfillErrorBanner(errorMessage = bodyBackfillError ?: "")
+                    }
+                    AnimatedVisibility(
+                        visible = isBodyBackfilling && bodyBackfillError == null,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        BackfillProgressBanner(progress = bodyBackfillProgress)
                     }
                     when (val s = state) {
                         is InboxState.Loading -> {
@@ -1690,6 +1708,74 @@ private fun OfflineBanner() {
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onErrorContainer
+        )
+    }
+}
+@Composable
+private fun BackfillProgressBanner(progress: BodyBackfillState?) {
+    val pct = if (progress != null && progress.total > 0) (progress.completed.toFloat() / progress.total * 100).toInt() else 0
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.tertiaryContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.weight(1f)
+        ) {
+            Icon(
+                Icons.Rounded.Download,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = MaterialTheme.colorScheme.onTertiaryContainer
+            )
+            Spacer(Modifier.width(8.dp))
+            Column {
+                Text(
+                    "Downloading email content",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer
+                )
+                Text(
+                    "$pct% — ${progress?.completed ?: 0} of ${progress?.total ?: 0}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                )
+            }
+        }
+        LinearProgressIndicator(
+            progress = { if (progress != null && progress.total > 0) progress.completed.toFloat() / progress.total else 0f },
+            modifier = Modifier.width(120.dp).height(6.dp),
+            color = MaterialTheme.colorScheme.tertiary,
+            trackColor = MaterialTheme.colorScheme.tertiaryContainer,
+        )
+    }
+}
+
+@Composable
+private fun BackfillErrorBanner(errorMessage: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.errorContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            Icons.Rounded.CloudOff,
+            contentDescription = null,
+            modifier = Modifier.size(16.dp),
+            tint = MaterialTheme.colorScheme.onErrorContainer
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            errorMessage,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            modifier = Modifier.weight(1f)
         )
     }
 }

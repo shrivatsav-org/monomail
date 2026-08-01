@@ -1,6 +1,7 @@
 package com.shrivatsav.monomail
 
 import android.os.Bundle
+import android.os.Build
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -49,6 +50,14 @@ class MainActivity : ComponentActivity() {
     var isContentReady: Boolean = false
         private set
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            android.util.Log.d("MainActivity", "Notification permission granted")
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
@@ -56,6 +65,12 @@ class MainActivity : ComponentActivity() {
             startActivity(android.content.Intent(this, CrashActivity::class.java))
             finish()
             return
+        }
+        // Request notification permission on Android 13+ for body backfill and sync progress
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
         splashScreen.setKeepOnScreenCondition {
             // Keep splash visible until content is ready

@@ -31,7 +31,7 @@ internal data class ModalCallbacks(
     val onBackToProfile: () -> Unit,
     val onCycleAccount: (String) -> Unit,
     val onSettings: () -> Unit,
-    val onNavigateToImapSetup: () -> Unit,
+    val onNavigateToImapSetup: (String?, String?) -> Unit = { _, _ -> },
     val onToggleUnified: (Boolean) -> Unit = {},
 )
 

@@ -43,6 +43,8 @@ import com.shrivatsav.monomail.feature.auth.ImapSetupScreen
 import com.shrivatsav.monomail.feature.auth.ImapSetupViewModel
 import com.shrivatsav.monomail.feature.auth.SignInScreen
 import com.shrivatsav.monomail.feature.auth.SignInViewModel
+import com.shrivatsav.monomail.feature.auth.LicenseKeyScreen
+import com.shrivatsav.monomail.feature.auth.LicenseKeyViewModel
 import com.shrivatsav.monomail.feature.compose.ComposeMode
 import com.shrivatsav.monomail.feature.compose.ComposeScreen
 import com.shrivatsav.monomail.feature.compose.ComposeViewModel
@@ -64,7 +66,15 @@ import com.shrivatsav.monomail.feature.attachment.AttachmentViewerScreen
 sealed class Screen(val route: String) {
     object Onboarding   : Screen("onboarding")
     object SignIn       : Screen("sign_in")
-    object ImapSetup    : Screen("imap_setup")
+    object ImapSetup    : Screen("imap_setup?prefillEmail={prefillEmail}&provider={provider}") {
+        fun createRoute(prefillEmail: String? = null, provider: String? = null): String {
+            val emailPart = if (prefillEmail != null) "imap_setup?prefillEmail=$prefillEmail" else "imap_setup"
+            return if (provider != null) {
+                val prefix = if (prefillEmail != null) "&" else "?"
+                "$emailPart${prefix}provider=$provider"
+            } else emailPart
+        }
+    }
     object Inbox        : Screen("inbox")
     object ThreadDetail : Screen("thread/{threadId}?focusedId={focusedId}") {
         fun createRoute(threadId: String, focusedId: String? = null) = if (focusedId != null) "thread/$threadId?focusedId=$focusedId" else "thread/$threadId"
@@ -96,6 +106,9 @@ sealed class Screen(val route: String) {
         }
     }
     object SampleCompose : Screen("sample-compose")
+    object LicenseGate  : Screen("license_gate")
+    object LicenseKey   : Screen("license_key")
+    object Licensing  : Screen("licensing")
 }
 
 private fun openLegalUrl(context: android.content.Context, type: String) {
@@ -239,9 +252,9 @@ fun NavGraph(
     }
     val startDestination = when {
         isAuthenticated -> Screen.Inbox.route
-        BuildConfig.DEBUG -> Screen.SignIn.route
+        BuildConfig.DEBUG -> Screen.LicenseGate.route
         !hasSeenWelcomePrompt -> Screen.Onboarding.route
-        else -> Screen.SignIn.route
+        else -> Screen.LicenseGate.route
     }
 
     Box(
@@ -272,6 +285,24 @@ fun NavGraph(
                     }
                 )
             }
+            composable(Screen.LicenseGate.route) {
+                val vm: com.shrivatsav.monomail.core.data.licensing.LicenseManager = com.shrivatsav.monomail.core.data.licensing.LicenseManager(LocalContext.current)
+                com.shrivatsav.monomail.feature.auth.LicenseGateScreen(
+                    licenseManager = vm,
+                    onLicensed = {
+                        navController.navigate(Screen.SignIn.route) {
+                            popUpTo(Screen.LicenseGate.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    },
+                    onSkip = {
+                        navController.navigate(Screen.SignIn.route) {
+                            popUpTo(Screen.LicenseGate.route) { inclusive = true }
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
             composable(Screen.SignIn.route) {
                 val vm: SignInViewModel = hiltViewModel()
                 val ctx = LocalContext.current
@@ -283,19 +314,40 @@ fun NavGraph(
                         }
                     },
                     onNavigateToLegal = { type -> openLegalUrl(ctx, type) },
-                    onNavigateToImapSetup = {
-                        navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
-                    }
+                    onNavigateToImapSetup = { email, provider ->
+                        val route = Screen.ImapSetup.createRoute(email, provider)
+                        navController.navigate(route) { launchSingleTop = true }
+                    },
+                    onNavigateToLicenseGate = {
+                        navController.navigate(Screen.LicenseGate.route) { launchSingleTop = true }
+                    },
                 )
             }
             composable(Screen.ImapSetup.route) {
                 val vm: ImapSetupViewModel = hiltViewModel()
+                val prefillEmail = it.arguments?.getString("prefillEmail")
+                val prefillProvider = it.arguments?.getString("provider")
                 ImapSetupScreen(
                     viewModel = vm,
+                    prefillEmail = prefillEmail,
+                    prefillProvider = prefillProvider,
                     onSetupComplete = {
                         navController.navigate(Screen.Inbox.route) {
                             popUpTo(Screen.SignIn.route) { inclusive = true }
                         }
+                    },
+                    onBack = { navController.popBackStack() }
+                )
+            }
+            composable(Screen.LicenseKey.route) {
+                val vm: LicenseKeyViewModel = hiltViewModel()
+                LicenseKeyScreen(
+                    licenseManager = vm.licenseManager,
+                    onKeyValidated = {
+                        navController.popBackStack()
+                    },
+                    onLicenseActivated = {
+                        navController.popBackStack()
                     },
                     onBack = { navController.popBackStack() }
                 )
@@ -333,7 +385,9 @@ fun NavGraph(
                                     },
                                     onSettings = { navController.navigate(Screen.Settings.route) { launchSingleTop = true } },
                                     onScheduledClick = { navController.navigate(Screen.Scheduled.route) { launchSingleTop = true } },
-                                    onNavigateToImapSetup = { navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true } }
+                                    onNavigateToImapSetup = { _, _ ->
+                                        navController.navigate(Screen.ImapSetup.createRoute()) { launchSingleTop = true }
+                                    },
                                 )
                             )
                         }
@@ -429,9 +483,9 @@ fun NavGraph(
                             onScheduledClick = {
                                 navController.navigate(Screen.Scheduled.route) { launchSingleTop = true }
                             },
-                            onNavigateToImapSetup = {
-                                navController.navigate(Screen.ImapSetup.route) { launchSingleTop = true }
-                            }
+                            onNavigateToImapSetup = { _, _ ->
+                                navController.navigate(Screen.ImapSetup.createRoute()) { launchSingleTop = true }
+                            },
                         )
                     )
                 }
@@ -449,7 +503,16 @@ fun NavGraph(
                     },
                     onNavigateToSampleCompose = {
                         navController.navigate(Screen.SampleCompose.route) { launchSingleTop = true }
+                    },
+                    onNavigateToLicensing = {
+                        navController.navigate(Screen.Licensing.route) { launchSingleTop = true }
                     }
+                )
+            }
+
+            composable(Screen.Licensing.route) {
+                com.shrivatsav.monomail.feature.settings.LicensingScreen(
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
             composable(Screen.PgpKeys.route) {

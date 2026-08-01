@@ -48,8 +48,9 @@ fun SettingsScreen(
     authManager: com.shrivatsav.monomail.core.data.auth.AuthManager,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
+    onNavigateToLicensing: () -> Unit = {},
     onNavigateToPgpKeys: () -> Unit = {},
-    onNavigateToSampleCompose: () -> Unit = {}
+    onNavigateToSampleCompose: () -> Unit = {},
 ) {
     var currentSection by remember { mutableStateOf<SettingsSection?>(null) }
     BackHandler(currentSection != null) { currentSection = null }
@@ -113,7 +114,8 @@ fun SettingsScreen(
                     viewModel = viewModel,
                     onSectionClick = { currentSection = it },
                     onNavigateBack = onNavigateBack,
-                    onNavigateToLegal = onNavigateToLegal
+                    onNavigateToLegal = onNavigateToLegal,
+                    onNavigateToLicensing = onNavigateToLicensing,
                 )
             }
             androidx.compose.material3.VerticalDivider(
@@ -175,7 +177,8 @@ fun SettingsScreen(
                     viewModel = viewModel,
                     onSectionClick = { currentSection = it },
                     onNavigateBack = onNavigateBack,
-                    onNavigateToLegal = onNavigateToLegal
+                    onNavigateToLegal = onNavigateToLegal,
+                    onNavigateToLicensing = onNavigateToLicensing,
                 )
             } else {
                 DetailScreen(section)
@@ -192,7 +195,8 @@ private fun SettingsHubScreen(
     viewModel: SettingsViewModel,
     onSectionClick: (SettingsSection) -> Unit,
     onNavigateBack: () -> Unit,
-    onNavigateToLegal: (String) -> Unit
+    onNavigateToLegal: (String) -> Unit,
+    onNavigateToLicensing: () -> Unit = {},
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val buildFlavorName = if (com.shrivatsav.monomail.feature.settings.BuildConfig.IS_GITHUB_BUILD) "GitHub" else "Play Store"
@@ -252,6 +256,13 @@ private fun SettingsHubScreen(
                 )
                 CardDivider()
                 InfoRow(
+                    icon = Icons.Rounded.Key,
+                    title = "Licensing",
+                    value = "License status & key",
+                    onClick = onNavigateToLicensing
+                )
+                CardDivider()
+                InfoRow(
                     icon = Icons.Rounded.Language,
                     title = "Website",
                     value = "",
@@ -276,7 +287,7 @@ private fun SettingsHubScreen(
 
             Box(modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    "Made with ❤️",
+                    "Made with \u2764\uFE0F",
                     style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -285,7 +296,6 @@ private fun SettingsHubScreen(
         }
     }
 }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DeveloperSettingsScreen(

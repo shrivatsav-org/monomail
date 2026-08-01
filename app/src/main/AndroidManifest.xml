@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_PROMOTED_NOTIFICATIONS" />
 
     <application
         android:name=".MonoMailApp"
@@ -60,6 +63,14 @@
 
         <receiver
             android:name="com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver"
+            android:exported="false" />
+        <service
+            android:name="com.shrivatsav.monomail.core.data.worker.BodyBackfillService"
+            android:foregroundServiceType="dataSync"
+            android:exported="false" />
+        <service
+            android:name="com.shrivatsav.monomail.core.data.worker.DeepSyncService"
+            android:foregroundServiceType="dataSync"
             android:exported="false" />
 
         <activity

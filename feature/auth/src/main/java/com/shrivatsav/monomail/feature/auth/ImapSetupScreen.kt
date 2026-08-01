@@ -1,6 +1,9 @@
 package com.shrivatsav.monomail.feature.auth
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,9 +19,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.ExpandLess
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.automirrored.rounded.Outbound
 import androidx.compose.material.icons.rounded.MoveToInbox
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.OpenInNew
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
@@ -27,7 +35,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -35,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -43,10 +51,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.animation.fadeIn
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -62,109 +72,85 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
-private const val CUSTOM_CONFIG = "Custom Configuration"
+private val PROVIDERS = listOf("Gmail", "Outlook", "Yahoo", "Zoho", "Custom")
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AccountSettingsSection(
-    displayName: String,
-    onDisplayNameChange: (String) -> Unit,
-    username: String,
-    onUsernameChange: (String) -> Unit,
-    password: String,
-    onPasswordChange: (String) -> Unit,
-    onApplyPreset: (ImapAccountConfig) -> Unit
+private fun ProviderDropdown(
+    selectedProvider: String,
+    onProviderSelected: (String) -> Unit
 ) {
-    var expandedProvider by remember { mutableStateOf(false) }
-    var selectedProvider by remember { mutableStateOf(CUSTOM_CONFIG) }
+    var expanded by remember { mutableStateOf(false) }
 
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Icon(Icons.Rounded.Person, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-        Spacer(Modifier.width(8.dp))
-        Text("Account Settings", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
-    }
-
-    androidx.compose.material3.ExposedDropdownMenuBox(
-        expanded = expandedProvider,
-        onExpandedChange = { expandedProvider = !expandedProvider }
-    ) {
-        OutlinedTextField(
-            value = selectedProvider,
-            onValueChange = {},
-            readOnly = true,
-            label = { Text("Provider Setup") },
-            trailingIcon = { androidx.compose.material3.ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedProvider) },
-            colors = androidx.compose.material3.ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-            modifier = Modifier.fillMaxWidth().menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+    Column {
+        Text(
+            "Provider",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        ExposedDropdownMenu(
-            expanded = expandedProvider,
-            onDismissRequest = { expandedProvider = false }
+        Spacer(Modifier.height(4.dp))
+        Surface(
+            modifier = Modifier.fillMaxWidth().clickable { expanded = true },
+            shape = cornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
         ) {
-            listOf("Gmail", "Outlook", "Yahoo", "Zoho", CUSTOM_CONFIG).forEach { provider ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(selectedProvider, style = MaterialTheme.typography.bodyLarge)
+                Icon(
+                    if (expanded) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            PROVIDERS.forEach { provider ->
                 DropdownMenuItem(
                     text = { Text(provider) },
                     onClick = {
-                        selectedProvider = provider
-                        expandedProvider = false
-                        if (provider != CUSTOM_CONFIG) onApplyPreset(ImapAccountConfig.presetForHost(provider)!!)
+                        onProviderSelected(provider)
+                        expanded = false
                     }
                 )
             }
         }
     }
-
-    OutlinedTextField(
-        value = displayName,
-        onValueChange = onDisplayNameChange,
-        label = { Text("Name (Optional)") },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = true
-    )
-
-    OutlinedTextField(
-        value = username,
-        onValueChange = onUsernameChange,
-        label = { Text("Email Address") },
-        modifier = Modifier.fillMaxWidth(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-        singleLine = true
-    )
-
-    OutlinedTextField(
-        value = password,
-        onValueChange = onPasswordChange,
-        label = { Text("App Password / Password") },
-        modifier = Modifier.fillMaxWidth(),
-        visualTransformation = PasswordVisualTransformation(),
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
-        singleLine = true
-    )
 }
 
 private enum class TlsMode { NONE, SSL, STARTTLS }
-private data class ServerConfig(val host: String = "", val port: String = "", val tlsMode: TlsMode = TlsMode.NONE)
 
 @Composable
 private fun ServerSection(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
-    config: ServerConfig,
+    host: String,
+    port: String,
+    ssl: Boolean,
+    startTls: Boolean,
     onHostChange: (String) -> Unit,
     onPortChange: (String) -> Unit,
-    onTlsModeChange: (TlsMode) -> Unit,
+    onSslChange: (Boolean) -> Unit,
+    onStartTlsChange: (Boolean) -> Unit,
     portImeAction: ImeAction
 ) {
     Spacer(modifier = Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
         Spacer(Modifier.width(8.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Text(title, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
     }
 
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
-            value = config.host,
+            value = host,
             onValueChange = onHostChange,
             label = { Text("Host") },
             modifier = Modifier.weight(0.7f),
@@ -172,7 +158,7 @@ private fun ServerSection(
             singleLine = true
         )
         OutlinedTextField(
-            value = config.port,
+            value = port,
             onValueChange = onPortChange,
             label = { Text("Port") },
             modifier = Modifier.weight(0.3f),
@@ -184,17 +170,17 @@ private fun ServerSection(
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text("Use SSL")
         Switch(
-            checked = config.tlsMode == TlsMode.SSL,
-            onCheckedChange = { onTlsModeChange(if (it) TlsMode.SSL else TlsMode.NONE) }
+            checked = ssl,
+            onCheckedChange = { onSslChange(it) }
         )
     }
 
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
         Text("Use STARTTLS")
         Switch(
-            checked = config.tlsMode == TlsMode.STARTTLS,
-            onCheckedChange = { onTlsModeChange(if (it) TlsMode.STARTTLS else TlsMode.NONE) },
-            enabled = config.tlsMode != TlsMode.SSL
+            checked = startTls,
+            onCheckedChange = { onStartTlsChange(it) },
+            enabled = !ssl
         )
     }
 }
@@ -240,24 +226,6 @@ private fun SyncingOverlay() {
     }
 }
 
-private fun applyImapTlsChange(
-    mode: TlsMode,
-    setSsl: (Boolean) -> Unit,
-    setStartTls: (Boolean) -> Unit
-) {
-    when (mode) {
-        TlsMode.SSL -> { setSsl(true); setStartTls(false) }
-        TlsMode.STARTTLS -> { setStartTls(true); setSsl(false) }
-        TlsMode.NONE -> { setSsl(false); setStartTls(false) }
-    }
-}
-
-private fun tlsModeFor(ssl: Boolean, startTls: Boolean): TlsMode = when {
-    ssl -> TlsMode.SSL
-    startTls -> TlsMode.STARTTLS
-    else -> TlsMode.NONE
-}
-
 @Composable
 private fun ImapSetupForm(
     viewModel: ImapSetupViewModel,
@@ -278,6 +246,12 @@ private fun ImapSetupForm(
     val username by viewModel.username.collectAsState()
     val password by viewModel.password.collectAsState()
     val displayName by viewModel.displayName.collectAsState()
+    val isGmailMode by viewModel.isGmailMode.collectAsState()
+    val selectedProvider by viewModel.selectedProvider.collectAsState()
+
+    var showPassword by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    var showAdvanced by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -286,37 +260,133 @@ private fun ImapSetupForm(
             .padding(horizontal = 24.dp, vertical = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        AccountSettingsSection(
-            displayName = displayName,
-            onDisplayNameChange = { viewModel.setDisplayName(it) },
-            username = username,
-            onUsernameChange = { viewModel.setUsername(it) },
-            password = password,
-            onPasswordChange = { viewModel.setPassword(it) },
-            onApplyPreset = { viewModel.applySuggestion(it) }
+        // Provider dropdown
+        ProviderDropdown(
+            selectedProvider = selectedProvider,
+            onProviderSelected = { viewModel.selectProvider(it) }
         )
 
-        ServerSection(
-            title = "Incoming Server (IMAP)",
-            icon = Icons.Rounded.MoveToInbox,
-            config = ServerConfig(host = imapHost, port = imapPort, tlsMode = tlsModeFor(imapSsl, imapStartTls)),
-            onHostChange = { viewModel.setImapHost(it) },
-            onPortChange = { viewModel.setImapPort(it) },
-            onTlsModeChange = { applyImapTlsChange(it, viewModel::setImapSsl, viewModel::setImapStartTls) },
-            portImeAction = ImeAction.Next
+        // Email
+        OutlinedTextField(
+            value = username,
+            onValueChange = { viewModel.setUsername(it) },
+            label = { Text("Email Address") },
+            modifier = Modifier.fillMaxWidth(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+            singleLine = true
         )
 
-        ServerSection(
-            title = "Outgoing Server (SMTP)",
-            icon = Icons.AutoMirrored.Rounded.Outbound,
-            config = ServerConfig(host = smtpHost, port = smtpPort, tlsMode = tlsModeFor(smtpSsl, smtpStartTls)),
-            onHostChange = { viewModel.setSmtpHost(it) },
-            onPortChange = { viewModel.setSmtpPort(it) },
-            onTlsModeChange = { applyImapTlsChange(it, viewModel::setSmtpSsl, viewModel::setSmtpStartTls) },
-            portImeAction = ImeAction.Done
+        // Password / App Password
+        OutlinedTextField(
+            value = password,
+            onValueChange = { viewModel.setPassword(it) },
+            label = { Text(if (isGmailMode) "Gmail App Password" else "Password") },
+            modifier = Modifier.fillMaxWidth(),
+            visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
+            singleLine = true,
+            trailingIcon = {
+                IconButton(onClick = { showPassword = !showPassword }) {
+                    Icon(
+                        imageVector = if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                        contentDescription = if (showPassword) "Hide password" else "Show password"
+                    )
+                }
+            },
+            supportingText = if (isGmailMode) {
+                { Text("16-character app password from myaccount.google.com/apppasswords") }
+            } else null
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        // Gmail App Password help link
+        if (isGmailMode) {
+            TextButton(
+                onClick = { uriHandler.openUri("https://myaccount.google.com/apppasswords") },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(
+                    Icons.Rounded.OpenInNew,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "Generate Gmail App Password",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
+
+        // Advanced Settings accordion
+        Surface(
+            modifier = Modifier.fillMaxWidth().clickable { showAdvanced = !showAdvanced },
+            shape = cornerShape(12.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Advanced Settings",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Icon(
+                    if (showAdvanced) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showAdvanced,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = displayName,
+                    onValueChange = { viewModel.setDisplayName(it) },
+                    label = { Text("Display Name (Optional)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                ServerSection(
+                    title = "Incoming Server (IMAP)",
+                    icon = Icons.Rounded.MoveToInbox,
+                    host = imapHost,
+                    port = imapPort,
+                    ssl = imapSsl,
+                    startTls = imapStartTls,
+                    onHostChange = { viewModel.setImapHost(it) },
+                    onPortChange = { viewModel.setImapPort(it) },
+                    onSslChange = { viewModel.setImapSsl(it) },
+                    onStartTlsChange = { viewModel.setImapStartTls(it) },
+                    portImeAction = ImeAction.Next
+                )
+
+                ServerSection(
+                    title = "Outgoing Server (SMTP)",
+                    icon = Icons.AutoMirrored.Rounded.Outbound,
+                    host = smtpHost,
+                    port = smtpPort,
+                    ssl = smtpSsl,
+                    startTls = smtpStartTls,
+                    onHostChange = { viewModel.setSmtpHost(it) },
+                    onPortChange = { viewModel.setSmtpPort(it) },
+                    onSslChange = { viewModel.setSmtpSsl(it) },
+                    onStartTlsChange = { viewModel.setSmtpStartTls(it) },
+                    portImeAction = ImeAction.Done
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
 
         SignInButton(isBusy = isBusy, testState = testState, onClick = onSignIn)
 
@@ -360,6 +430,8 @@ private fun ErrorText(message: String) {
 @Composable
 fun ImapSetupScreen(
     viewModel: ImapSetupViewModel,
+    prefillEmail: String? = null,
+    prefillProvider: String? = null,
     onSetupComplete: () -> Unit,
     onBack: () -> Unit
 ) {
@@ -367,12 +439,26 @@ fun ImapSetupScreen(
     val context = LocalContext.current
     val isBusy = testState is ImapTestState.Testing || testState is ImapTestState.Syncing
 
+    // Pre-fill for Gmail if email was passed via navigation
+    LaunchedEffect(prefillEmail) {
+        if (!prefillEmail.isNullOrBlank()) {
+            viewModel.prefillForGmail(prefillEmail)
+        }
+    }
+
+    // Pre-select a provider if passed via navigation
+    LaunchedEffect(prefillProvider) {
+        if (!prefillProvider.isNullOrBlank()) {
+            viewModel.selectProvider(prefillProvider)
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.blur(if (testState is ImapTestState.Syncing) 10.dp else 0.dp),
             topBar = {
                 TopAppBar(
-                    title = { Text("Add IMAP Account") },
+                    title = { Text("Add Account") },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
                             Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
@@ -389,6 +475,13 @@ fun ImapSetupScreen(
                     onSignIn = { viewModel.testAndSaveAccount(context, onSetupComplete) }
                 )
             }
+        }
+
+        if (testState is ImapTestState.ShowSyncPrompt) {
+            SyncWindowDialog(
+                onConfirm = { days -> viewModel.startInitialSync(days, onSetupComplete) },
+                onDismiss = { viewModel.startInitialSync(7, onSetupComplete) }
+            )
         }
 
         AnimatedVisibility(

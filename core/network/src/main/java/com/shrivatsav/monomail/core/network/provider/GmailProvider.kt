@@ -32,7 +32,10 @@ class GmailProvider(
         folder: EmailFolder,
         maxResults: Int,
         pageToken: String?,
-        query: String?
+        query: String?,
+        bodyFetchLimitMs: Long?,
+        sinceDate: Long?,
+        onProgress: ((Float) -> Unit)?
     ): ProviderThreadListResult {
         val labelIds = when {
             !query.isNullOrEmpty() -> null

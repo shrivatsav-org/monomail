@@ -10,6 +10,7 @@ import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
+import com.shrivatsav.monomail.core.data.repository.BodyBackfillState
 import com.shrivatsav.monomail.core.data.settings.AppSettings
 import com.shrivatsav.monomail.core.data.settings.SyncFrequency
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
@@ -103,6 +104,10 @@ class InboxViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     private val _lastSelectedThreadId = MutableStateFlow<String?>(null)
     val lastSelectedThreadId: StateFlow<String?> = _lastSelectedThreadId.asStateFlow()
+    val bodyBackfillProgress: StateFlow<BodyBackfillState?> = repository.bodyBackfillProgress
+    val bodyBackfillError: StateFlow<String?> = repository.bodyBackfillError
+    val isBodyBackfilling: StateFlow<Boolean> = repository.bodyBackfillProgress.map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
     val animatedItemsTracker = mutableSetOf<String>()
     private val _appSettings = MutableStateFlow(AppSettings())
     val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()
@@ -388,13 +393,21 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch {
             if (showLoader) _isRefreshing.value = true
             val query = currentServerQuery
+            val accountId = _activeAccountId.value
             val result = if (_currentTab.value == InboxTab.UNIFIED) {
-                repository.refreshInbox(InboxTab.INBOX)
+                repository.refreshInbox(InboxTab.INBOX, accountId = accountId)
             } else {
-                repository.refreshInbox(_currentTab.value, query = query)
+                repository.refreshInbox(_currentTab.value, query = query, accountId = accountId)
             }
-            result.onSuccess { token -> updatePageToken(token) }
-                .onFailure { e -> _uiError.emit(e.message ?: "Failed to refresh emails") }
+            result.onSuccess { token ->
+                updatePageToken(token)
+                // Trigger body backfill for any new emails missing body content
+                if (accountId != null) {
+                    repository.triggerBodyBackfill(accountId)
+                }
+            }.onFailure { e ->
+                _uiError.emit(e.message ?: "Failed to refresh emails")
+            }
             if (showLoader) _isRefreshing.value = false
         }
     }

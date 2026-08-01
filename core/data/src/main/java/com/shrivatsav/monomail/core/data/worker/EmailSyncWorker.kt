@@ -85,6 +85,9 @@ class EmailSyncWorker @AssistedInject constructor(
             return handleSyncFailure(accountId, refreshResult.exceptionOrNull())
         }
 
+        // Trigger body backfill for any emails that synced without body content
+        emailRepository.triggerBodyBackfill(accountId)
+
         val newestThread = emailRepository.getLatestInboxThread(accountId) ?: run {
             Log.w("EmailSyncWorker", "getLatestInboxThread returned null for $accountId")
             return Pair(false, false)
@@ -93,11 +96,12 @@ class EmailSyncWorker @AssistedInject constructor(
         val newTimestamp = newestThread.date
         Log.i("EmailSyncWorker", "Latest thread for $accountId: subject='${newestThread.subject}', date=$newTimestamp")
         
-        // Check if the latest message is a draft to avoid false notifications
+        // Check if the latest message is a draft or was sent by this account to avoid false notifications
         val latestEmail = emailRepository.getEmailEntityById(newestThread.latestMessageId, accountId)
         val isLatestDraft = latestEmail?.inDrafts == true
+        val isSelfSent = latestEmail?.fromEmail?.equals(account.email, ignoreCase = true) == true
 
-        if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp && !isLatestDraft) {
+        if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp && !isLatestDraft && !isSelfSent) {
             val disabledAccounts = settingsDataStore.settingsFlow.value.disabledNotificationAccounts
             if (disabledAccounts.contains(accountId)) {
                 Log.i("EmailSyncWorker", "New email detected for $accountId, but notifications are disabled for this account. Skipping notification banner.")
@@ -107,6 +111,8 @@ class EmailSyncWorker @AssistedInject constructor(
             }
         } else if (isLatestDraft) {
             Log.i("EmailSyncWorker", "Newest message is a draft. Skipping notification banner.")
+        } else if (isSelfSent) {
+            Log.i("EmailSyncWorker", "Newest message was sent by this account. Skipping notification banner.")
         } else if (lastKnownTimestamp == null) {
             Log.i("EmailSyncWorker", "lastKnownTimestamp was null (first sync baseline). Skipping notification banner.")
         } else {

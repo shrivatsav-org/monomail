@@ -104,8 +104,17 @@ interface EmailDao {
     @Query("SELECT id, attachmentsJson FROM emails WHERE accountId = :accountId")
     suspend fun getAttachmentJsonForAccount(accountId: String): List<AttachmentJsonProjection>
 
-    @Query("SELECT id, body, bodyIsHtml FROM emails WHERE accountId = :accountId")
+
+    @Query("SELECT id, inInbox, inArchived, inSent, inTrash, inSpam FROM emails WHERE threadId = :threadId AND accountId = :accountId")
+    suspend fun getEmailsByThreadId(threadId: String, accountId: String): List<EmailLabelProjection>
+    @Query("SELECT id, body, bodyIsHtml, snippet FROM emails WHERE accountId = :accountId")
     suspend fun getEmailBodyForAccount(accountId: String): List<EmailBodyProjection>
+    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId")
+    suspend fun getLatestEmailDate(accountId: String): Long?
+    @Query("SELECT id, threadId, body, bodyIsHtml, snippet, labels FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '') ORDER BY date DESC LIMIT :limit")
+    suspend fun getEmailsMissingBody(accountId: String, limit: Int = 500): List<EmailBodySlimProjection>
+    @Query("UPDATE emails SET body = :body, bodyIsHtml = :bodyIsHtml, snippet = :snippet WHERE id = :emailId AND accountId = :accountId")
+    suspend fun updateEmailBody(emailId: String, accountId: String, body: String, bodyIsHtml: Boolean, snippet: String)
 
     @Query("""
         SELECT DISTINCT e.threadId FROM emails e
@@ -126,7 +135,8 @@ interface EmailDao {
 data class EmailBodyProjection(
     val id: String,
     val body: String,
-    val bodyIsHtml: Boolean
+    val bodyIsHtml: Boolean,
+    val snippet: String
 )
 
 data class EmailReadStatusProjection(
@@ -137,4 +147,22 @@ data class EmailReadStatusProjection(
 data class AttachmentJsonProjection(
     val id: String,
     val attachmentsJson: String
+)
+
+data class EmailLabelProjection(
+    val id: String,
+    val inInbox: Boolean,
+    val inArchived: Boolean,
+    val inSent: Boolean,
+    val inTrash: Boolean,
+    val inSpam: Boolean
+)
+
+data class EmailBodySlimProjection(
+    val id: String,
+    val threadId: String,
+    val body: String?,
+    val bodyIsHtml: Boolean,
+    val snippet: String,
+    val labels: List<String>
 )

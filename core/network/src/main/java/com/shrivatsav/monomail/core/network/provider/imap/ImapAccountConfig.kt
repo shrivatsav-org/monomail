@@ -1,7 +1,17 @@
 package com.shrivatsav.monomail.core.network.provider.imap
 
+
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
+
+/**
+ * Authentication method for IMAP/SMTP connections.
+ * PASSWORD: Standard password auth (most providers)
+ * APP_PASSWORD: App-specific password (Gmail, Yahoo)
+ * XOAUTH2: OAuth2 token auth (Gmail API invite-only)
+ */
+enum class AuthMethod { PASSWORD, APP_PASSWORD, XOAUTH2 }
+
 
 /**
  * Data model for IMAP/SMTP server configuration.
@@ -18,9 +28,18 @@ data class ImapAccountConfig(
     @SerializedName("smtpSsl") val smtpSsl: Boolean,
     @SerializedName("smtpStartTls") val smtpStartTls: Boolean,
     
-    @SerializedName("username") val username: String
+    @SerializedName("username") val username: String,
+    
+    @SerializedName("authMethod") val authMethod: AuthMethod = AuthMethod.PASSWORD,
+    @SerializedName("displayName") val displayName: String = ""
 ) {
     fun toJson(): String = Gson().toJson(this)
+    
+    /** Returns true if this is a Gmail/Googlemail account */
+    fun isGmail(): Boolean = 
+        imapHost.contains("gmail", ignoreCase = true) || 
+        smtpHost.contains("gmail", ignoreCase = true) ||
+        imapHost.contains("googlemail", ignoreCase = true)
     
     companion object {
         fun fromJson(json: String): ImapAccountConfig = Gson().fromJson(json, ImapAccountConfig::class.java)

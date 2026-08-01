@@ -2,7 +2,7 @@ package com.shrivatsav.monomail.core.network.provider.imap
 
 import com.shrivatsav.monomail.core.network.provider.ProviderMessage
 
-internal data class ImapRawMessage(
+data class ImapRawMessage(
     val messageId: String,
     val references: String,
     val inReplyTo: String,
@@ -15,7 +15,7 @@ object ImapThreader {
      * Groups raw IMAP messages into threads based on Message-ID, In-Reply-To, and References headers.
      * Returns a map of Thread ID -> List of ProviderMessage (sorted chronologically).
      */
-    internal fun groupByReferences(messages: List<ImapRawMessage>): Map<String, List<ProviderMessage>> {
+    fun groupByReferences(messages: List<ImapRawMessage>): Map<String, List<ProviderMessage>> {
         val rootMap = mutableMapOf<String, String>() // Maps a Message-ID to its Thread's Root Message-ID
 
         // 1. First pass: establish parent-child relationships

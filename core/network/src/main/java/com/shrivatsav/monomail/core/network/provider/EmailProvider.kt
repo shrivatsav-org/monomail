@@ -19,9 +19,12 @@ interface EmailProvider {
     val providerName: String  
     suspend fun listThreads(
         folder: EmailFolder,
-        maxResults: Int = 20,
+        maxResults: Int,
         pageToken: String? = null,
-        query: String? = null
+        query: String? = null,
+        bodyFetchLimitMs: Long? = null,
+        sinceDate: Long? = null,
+        onProgress: ((Float) -> Unit)? = null
     ): ProviderThreadListResult
     suspend fun getThread(threadId: String, folderHints: List<String> = emptyList()): ProviderThread
     suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray?

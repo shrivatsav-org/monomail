@@ -114,7 +114,7 @@ fun MonoMailTheme(
     themeMode: String = "SYSTEM",
     useSystemFont: Boolean = false,
     cornerStyle: String = "ROUNDED",
-    monochrome: Boolean = true,
+    monochrome: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {

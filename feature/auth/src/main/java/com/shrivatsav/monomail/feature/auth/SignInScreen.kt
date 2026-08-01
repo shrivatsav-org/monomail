@@ -55,6 +55,7 @@ import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Web
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -107,13 +108,16 @@ fun SignInScreen(
     viewModel: SignInViewModel,
     onSignInSuccess: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
-    onNavigateToImapSetup: () -> Unit,
+    onNavigateToImapSetup: (String?, String?) -> Unit,
+    onNavigateToLicenseGate: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var showProviderSheet by remember { mutableStateOf(false) }
     var showVerificationModal by remember { mutableStateOf(false) }
+    val licenseManager = remember { com.shrivatsav.monomail.core.data.licensing.LicenseManager(context) }
+    val isLicensed by licenseManager.isLicensed.collectAsState()
 
     val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -165,6 +169,7 @@ fun SignInScreen(
             alpha = alpha.value,
             onContinueWithEmail = { showProviderSheet = true },
             onNavigateToLegal = onNavigateToLegal,
+            onNavigateToLicenseGate = onNavigateToLicenseGate,
             context = context,
         )
 
@@ -180,14 +185,28 @@ fun SignInScreen(
                 actionContentColor = MaterialTheme.colorScheme.inverseOnSurface
             )
         }
+        if (state is SignInState.ShowSyncPrompt) {
+            SyncWindowDialog(
+                onConfirm = { days -> viewModel.startInitialSync(days) },
+                onDismiss = { viewModel.startInitialSync(7) } // default
+            )
+        }
+
 
         if (showProviderSheet) {
             ProviderSheet(
                 state = state,
                 onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
-                onGoogleSignIn = { handleGoogleSignIn(onGithub = { showProviderSheet = false; showVerificationModal = true }, onOther = { viewModel.signIn(context) }) },
+                onGoogleSignIn = {
+                    showProviderSheet = false
+                    if (isLicensed) {
+                        viewModel.signIn(context)
+                    } else {
+                        onNavigateToImapSetup(null, "Gmail")
+                    }
+                },
                 onMicrosoftSignIn = { handleMicrosoftSignIn(context) { activity -> viewModel.signInMicrosoft(activity) } },
-                onImapClick = onNavigateToImapSetup,
+                onImapClick = { email -> onNavigateToImapSetup(email, null) },
             )
         }
     }
@@ -215,6 +234,7 @@ private fun SignInContent(
     alpha: Float,
     onContinueWithEmail: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
+    onNavigateToLicenseGate: () -> Unit,
     context: Context,
 ) {
     Box(
@@ -302,6 +322,13 @@ private fun SignInContent(
                     } catch (e: Exception) { android.util.Log.w("SignIn", "Failed to open URL", e) }
                 },
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "I have a licence",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onNavigateToLicenseGate() },
+            )
         }
 
         if (isTablet) {
@@ -349,9 +376,9 @@ private fun SignInContent(
 private fun ProviderSheet(
     state: SignInState,
     onDismiss: () -> Unit,
-    onGoogleSignIn: () -> Unit,
+    onGoogleSignIn: (String?) -> Unit,
     onMicrosoftSignIn: () -> Unit,
-    onImapClick: () -> Unit,
+    onImapClick: (String?) -> Unit,
 ) {
     SlideSheet(
         onDismiss = onDismiss,
@@ -381,7 +408,8 @@ private fun ProviderSheet(
 fun ProviderSelectionDialog(
     viewModel: SignInViewModel,
     onSuccess: () -> Unit,
-    onNavigateToImapSetup: () -> Unit,
+    onNavigateToImapSetup: (String?, String?) -> Unit,
+    isLicensed: Boolean = true,
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -442,17 +470,18 @@ fun ProviderSelectionDialog(
             ProviderButtons(
                 state = state,
                 onGoogleSignIn = {
-                    handleGoogleSignIn(
-                        onGithub = { showVerificationModal = true },
-                        onOther = { viewModel.signIn(context) }
-                    )
+                    if (isLicensed) {
+                        viewModel.signIn(context)
+                    } else {
+                        onNavigateToImapSetup(null, "Gmail")
+                    }
                 },
                 onMicrosoftSignIn = {
                     context.findActivity()?.let { activity ->
                         viewModel.signInMicrosoft(activity)
                     } ?: Toast.makeText(context, "Activity not found", Toast.LENGTH_SHORT).show()
                 },
-                onImapClick = onNavigateToImapSetup
+                onImapClick = { email -> onNavigateToImapSetup(email, null) }
             )
             if (state is SignInState.Error) {
                 Spacer(modifier = Modifier.height(16.dp))
@@ -507,13 +536,13 @@ private fun VerificationModal(onDismiss: () -> Unit) {
 @Composable
 private fun ProviderButtons(
     state: SignInState,
-    onGoogleSignIn: () -> Unit,
+    onGoogleSignIn: (String?) -> Unit,
     onMicrosoftSignIn: () -> Unit,
-    onImapClick: () -> Unit,
+    onImapClick: (String?) -> Unit,
 ) {
     val isLoading = state is SignInState.Loading
     Button(
-        onClick = onGoogleSignIn,
+        onClick = { onGoogleSignIn(null) },
         enabled = !isLoading,
         modifier = Modifier
             .fillMaxWidth()
@@ -531,7 +560,7 @@ private fun ProviderButtons(
             )
         } else {
             Text(
-                text = "Sign in with Google",
+                text = "Sign in with Gmail",
                 style = MaterialTheme.typography.labelLarge,
             )
         }
@@ -563,7 +592,7 @@ private fun ProviderButtons(
     }
     Spacer(modifier = Modifier.height(12.dp))
     Button(
-        onClick = onImapClick,
+        onClick = { onImapClick(null) },
         enabled = !isLoading,
         modifier = Modifier
             .fillMaxWidth()
@@ -592,3 +621,43 @@ fun Context.findActivity(): Activity? = when (this) {
 }
 
 // =============================================================================
+
+@Composable
+fun SyncWindowDialog(onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { androidx.compose.material3.Text("Initial Sync") },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onConfirm(7) }) {
+                androidx.compose.material3.Text("Skip & Use Default (7 days)")
+            }
+        },
+        dismissButton = {},
+        text = {
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.material3.Text("How many days of recent emails would you like to download for offline access?", modifier = Modifier.padding(bottom = 16.dp))
+                var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                var selectedDays by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(30) }
+                
+                androidx.compose.foundation.layout.Box {
+                    androidx.compose.material3.OutlinedButton(onClick = { expanded = true }) {
+                        androidx.compose.material3.Text("Last $selectedDays days")
+                        androidx.compose.material3.Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
+                    }
+                    androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                        listOf(7, 14, 30).forEach { days ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { androidx.compose.material3.Text("Last $days days") },
+                                onClick = { 
+                                    selectedDays = days
+                                    expanded = false
+                                    onConfirm(days)
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    )
+}

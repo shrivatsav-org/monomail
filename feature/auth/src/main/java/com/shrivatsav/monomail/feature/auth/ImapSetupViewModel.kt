@@ -1,14 +1,17 @@
 package com.shrivatsav.monomail.feature.auth
 
 import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.core.network.provider.imap.ImapAccountConfig
+import com.shrivatsav.monomail.core.network.provider.imap.AuthMethod
 import com.shrivatsav.monomail.core.network.provider.imap.ImapProvider
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
+import com.shrivatsav.monomail.core.data.util.BatteryOptimization
 import com.shrivatsav.monomail.security.SecurityUtil
 import com.shrivatsav.monomail.model.InboxTab
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -29,13 +32,15 @@ sealed class ImapTestState {
     object Syncing : ImapTestState()
     object Success : ImapTestState()
     data class Error(val message: String) : ImapTestState()
+    data class ShowSyncPrompt(val profile: com.shrivatsav.monomail.core.data.auth.UserProfile) : ImapTestState()
 }
 
 @HiltViewModel
 class ImapSetupViewModel @Inject constructor(
     private val accountManager: AccountManager,
     private val authManager: AuthManager,
-    private val emailRepository: EmailRepository
+    private val emailRepository: EmailRepository,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
 
     private val _imapHost = MutableStateFlow("")
@@ -87,6 +92,22 @@ class ImapSetupViewModel @Inject constructor(
 
     private val _suggestedConfig = MutableStateFlow<ImapAccountConfig?>(null)
     val suggestedConfig = _suggestedConfig.asStateFlow()
+    private val _isGmailMode = MutableStateFlow(false)
+    val isGmailMode: StateFlow<Boolean> = _isGmailMode.asStateFlow()
+    private val _selectedProvider = MutableStateFlow("Custom")
+    val selectedProvider: StateFlow<String> = _selectedProvider.asStateFlow()
+
+    fun selectProvider(name: String) {
+        _selectedProvider.value = name
+        if (name == "Custom") {
+            _isGmailMode.value = false
+            return
+        }
+        val preset = ImapAccountConfig.presetForHost(name) ?: return
+        applySuggestion(preset)
+        _isGmailMode.value = name == "Gmail"
+    }
+
 
     init {
         @OptIn(FlowPreview::class)
@@ -114,6 +135,18 @@ class ImapSetupViewModel @Inject constructor(
         setSmtpStartTls(config.smtpStartTls)
         
         _suggestedConfig.value = null
+    }
+    
+    /**
+     * Pre-fill for Gmail accounts using app password.
+     * Sets Gmail server config and marks as Gmail mode for UI.
+     */
+    fun prefillForGmail(email: String) {
+        val preset = ImapAccountConfig.presetForHost(email) ?: return
+        applySuggestion(preset)
+        setUsername(email)
+        _isGmailMode.value = true
+        _selectedProvider.value = "Gmail"
     }
 
     fun testAndSaveAccount(context: Context, onSuccess: () -> Unit) {
@@ -149,7 +182,9 @@ class ImapSetupViewModel @Inject constructor(
 
     private fun saveAccountInternal(config: ImapAccountConfig, onSuccess: () -> Unit) {
         val pass = _password.value
-        val name = _displayName.value.ifBlank { "IMAP User" }
+        val name = _displayName.value.ifBlank { 
+            if (config.isGmail()) "Gmail" else "IMAP User" 
+        }
         
         viewModelScope.launch {
             val encryptedConfig = SecurityUtil.encryptString(config.toJson())
@@ -167,7 +202,15 @@ class ImapSetupViewModel @Inject constructor(
             
             authManager.addAccount(profile)
             authManager.switchAccount(profile.id)
-            emailRepository.refreshInbox(InboxTab.INBOX)
+            _testState.value = ImapTestState.ShowSyncPrompt(profile)
+        }
+    }
+    fun startInitialSync(days: Int, onSuccess: () -> Unit) {
+        val currentState = _testState.value
+        if (currentState is ImapTestState.ShowSyncPrompt) {
+            _testState.value = ImapTestState.Syncing
+            BatteryOptimization.requestExemptionIfNeeded(context)
+            com.shrivatsav.monomail.core.data.worker.DeepSyncService.start(context, currentState.profile.id, days)
             onSuccess()
         }
     }
@@ -176,6 +219,13 @@ class ImapSetupViewModel @Inject constructor(
         val iPort = _imapPort.value.toIntOrNull() ?: return null
         val sPort = _smtpPort.value.toIntOrNull() ?: return null
 
+        // Determine auth method based on Gmail mode
+        val authMethod = if (_isGmailMode.value) {
+            AuthMethod.APP_PASSWORD
+        } else {
+            AuthMethod.PASSWORD
+        }
+        
         return ImapAccountConfig(
             imapHost = _imapHost.value,
             imapPort = iPort,
@@ -185,7 +235,8 @@ class ImapSetupViewModel @Inject constructor(
             smtpPort = sPort,
             smtpSsl = _smtpSsl.value,
             smtpStartTls = _smtpStartTls.value,
-            username = _username.value
+            username = _username.value,
+            authMethod = authMethod
         )
     }
 }

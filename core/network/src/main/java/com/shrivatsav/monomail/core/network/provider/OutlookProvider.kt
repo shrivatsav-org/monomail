@@ -100,7 +100,10 @@ class OutlookProvider(
         folder: EmailFolder,
         maxResults: Int,
         pageToken: String?,
-        query: String?
+        query: String?,
+        bodyFetchLimitMs: Long?,
+        sinceDate: Long?,
+        onProgress: ((Float) -> Unit)?
     ): ProviderThreadListResult {
         val skip = pageToken?.toIntOrNull() ?: 0
         ensureFolderIdCache()
