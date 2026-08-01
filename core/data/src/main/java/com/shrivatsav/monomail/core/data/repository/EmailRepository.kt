@@ -569,8 +569,14 @@ class EmailRepository(
             _bodyBackfillProgress.value = BodyBackfillState(total, 0, accountId)
             notifier.showProgress(_bodyBackfillProgress.value!!)
 
-            // Process thread by thread, newest first
-            val sortedThreadIds = threadGrouped.sortedByDescending { it.id }
+            // Process threads folder by folder (Inbox -> Sent -> Archived ->
+            // Spam -> Trash -> Drafts, matching deep-sync order), newest first
+            // within each folder. Starred messages live in Inbox, so they sort
+            // under it; threads with no known folder go last.
+            val sortedThreadIds = threadGrouped.sortedWith(
+                compareBy<EmailBodySlimProjection>({ folderRank(it.labels) })
+                    .thenByDescending { it.date }
+            )
             for (threadMeta in sortedThreadIds) {
                 val threadId = threadMeta.threadId
                 val threadEmails = missing.filter { it.threadId == threadId }
@@ -615,12 +621,14 @@ class EmailRepository(
                 // Progress advances per thread regardless of outcome, so a slow or
                 // failing thread never freezes the banner at 0%.
                 completed += threadEmails.size
-                // Labels are EmailFolder enum names; pick the first known one so the
-                // notification shows which tab is being downloaded (a thread can
-                // carry several, e.g. INBOX + ARCHIVE after the All Mail union).
-                val currentFolder = folderHints.firstNotNullOfOrNull { label ->
-                    EmailFolder.entries.firstOrNull { it.name == label }?.displayName
-                }
+                // Labels are EmailFolder enum names; pick the rank-first one so
+                // the notification shows the folder this thread is downloaded
+                // under (a thread can carry several, e.g. INBOX + ARCHIVE after
+                // the All Mail union).
+                val currentFolder = threadEmails
+                    .flatMap { it.labels }
+                    .minByOrNull { folderRank(listOf(it)) }
+                    ?.let { label -> EmailFolder.entries.firstOrNull { it.name == label }?.displayName }
                 _bodyBackfillProgress.value = BodyBackfillState(total, completed, accountId, currentFolder)
                 notifier.showProgress(_bodyBackfillProgress.value!!)
             }
@@ -636,6 +644,24 @@ class EmailRepository(
             backfillMutex.unlock()
         }
     }
+
+    /**
+     * Backfill order for a thread's labels: Inbox (incl. Starred) -> Sent ->
+     * Archived -> Spam -> Trash -> Drafts, matching the deep-sync pass order.
+     * Unknown labels rank last. A thread carrying several labels takes the
+     * lowest rank so it downloads with the newest folder it belongs to.
+     */
+    private fun folderRank(labels: List<String>): Int = labels.minOfOrNull { label ->
+        when (EmailFolder.entries.firstOrNull { it.name == label }) {
+            EmailFolder.INBOX, EmailFolder.STARRED -> 0
+            EmailFolder.SENT -> 1
+            EmailFolder.ARCHIVE -> 2
+            EmailFolder.SPAM -> 3
+            EmailFolder.TRASH -> 4
+            EmailFolder.DRAFT -> 5
+            null -> Int.MAX_VALUE
+        }
+    } ?: Int.MAX_VALUE
     suspend fun refreshThread(threadId: String): Result<Unit> {
         val accountId = resolveAccountId(threadId)
         return try {

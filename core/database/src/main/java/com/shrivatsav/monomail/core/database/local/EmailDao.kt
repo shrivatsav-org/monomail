@@ -125,7 +125,7 @@ interface EmailDao {
     suspend fun getLatestDraftEmailDate(accountId: String): Long?
     @Query("SELECT id, labels FROM emails WHERE accountId = :accountId")
     suspend fun getLabelsForAccount(accountId: String): List<EmailLabelsProjection>
-    @Query("SELECT id, threadId, body, bodyIsHtml, snippet, labels FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '') ORDER BY date DESC LIMIT :limit")
+    @Query("SELECT id, threadId, date, body, bodyIsHtml, snippet, labels FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '') ORDER BY date DESC LIMIT :limit")
     suspend fun getEmailsMissingBody(accountId: String, limit: Int = 500): List<EmailBodySlimProjection>
     @Query("UPDATE emails SET body = :body, bodyIsHtml = :bodyIsHtml, snippet = :snippet WHERE id = :emailId AND accountId = :accountId")
     suspend fun updateEmailBody(emailId: String, accountId: String, body: String, bodyIsHtml: Boolean, snippet: String)
@@ -175,6 +175,7 @@ data class EmailLabelProjection(
 data class EmailBodySlimProjection(
     val id: String,
     val threadId: String,
+    val date: Long,
     val body: String?,
     val bodyIsHtml: Boolean,
     val snippet: String,
