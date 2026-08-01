@@ -309,6 +309,10 @@ class EmailRepository(
     private val refreshMutex = Mutex()
     /** Single-flight guard for body backfill sweeps (service + inline fallback). */
     private val backfillMutex = Mutex()
+    /** Cooldown: ignore re-triggers for 5 min after a sweep finishes to prevent
+     *  the 70→94→76 restart loop caused by new headers appearing between sweeps. */
+    @Volatile private var lastBackfillFinished = 0L
+    private val backfillCooldownMs = 5L * 60 * 1000
 
     suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> = refreshMutex.withLock {
         return try {
@@ -454,6 +458,13 @@ class EmailRepository(
     val bodyBackfillError: StateFlow<String?> = _bodyBackfillError.asStateFlow()
 
     suspend fun triggerBodyBackfill(accountId: String) {
+        // Cooldown: skip if a sweep finished recently — prevents the restart loop
+        // where new headers (Sent folder, thread members) inflate the count between sweeps.
+        val elapsed = System.currentTimeMillis() - lastBackfillFinished
+        if (elapsed < backfillCooldownMs && lastBackfillFinished > 0) {
+            android.util.Log.d("EmailRepo", "Body backfill: cooldown active (${elapsed / 1000}s / ${backfillCooldownMs / 1000}s), skipping")
+            return
+        }
         val account = accountManager.getAccounts().find { it.id == accountId }
         if (account == null) {
             android.util.Log.w("EmailRepo", "Body backfill: no account found for $accountId")
@@ -566,6 +577,7 @@ class EmailRepository(
         } finally {
             try { notifier.dismiss() } catch (_: Exception) {}
             _bodyBackfillProgress.value = null
+            lastBackfillFinished = System.currentTimeMillis()
             backfillMutex.unlock()
         }
     }

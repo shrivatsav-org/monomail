@@ -59,7 +59,11 @@ class DeepSyncService : Service() {
             try {
                 emailRepository.startBackgroundDeepSync(days, accountId)
                 showDoneNotification()
-                emailRepository.triggerBodyBackfill(accountId)
+                // Run body backfill directly in this FGS scope — no need to start
+                // a second service.  startBodyBackfill is safe to call from here
+                // because DeepSyncService IS a foreground service, and the cooldown
+                // is reset to 0 for the very first sweep after a deep sync.
+                emailRepository.startBodyBackfill(accountId)
             } catch (e: Exception) {
                 android.util.Log.e("DeepSyncSvc", "Deep sync failed", e)
                 showErrorNotification(e.message ?: "Unknown error")

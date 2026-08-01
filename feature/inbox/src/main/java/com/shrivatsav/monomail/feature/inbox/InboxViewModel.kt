@@ -401,10 +401,9 @@ class InboxViewModel @Inject constructor(
             }
             result.onSuccess { token ->
                 updatePageToken(token)
-                // Trigger body backfill for any new emails missing body content
-                if (accountId != null) {
-                    repository.triggerBodyBackfill(accountId)
-                }
+                // Body backfill is handled by DeepSyncService (initial sync) and
+                // EmailSyncWorker (periodic). Triggering here on every pull-to-refresh
+                // caused the banner to restart with a new total (70→94→76).
             }.onFailure { e ->
                 _uiError.emit(e.message ?: "Failed to refresh emails")
             }

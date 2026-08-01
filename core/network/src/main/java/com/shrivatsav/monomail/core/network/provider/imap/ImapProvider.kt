@@ -237,35 +237,7 @@ class ImapProvider(
         if (isDraft) folderSet.add(EmailFolder.DRAFT)
 
         // Headers-only listing: body content is fetched by the body backfill
-        // (newest-first) or on-demand when a thread is opened. Fetching it here
-        // cost ~1 network round trip per message per sync page while holding the
-        // pool operation mutex, starving the backfill and slowing email opens.
-        val state = BodyParseState(messageId = messageId)
-        val preCleanHtml = state.htmlBody
-            .replace(HTML_STYLE_REGEX, " ")
-            .replace(HTML_SCRIPT_REGEX, " ")
-            
-        val cleanHtml = try {
-            @Suppress("DEPRECATION")
-            android.text.Html.fromHtml(preCleanHtml).toString()
-        } catch (e: Exception) {
-            preCleanHtml.replace(Regex("<[^>]+>"), " ")
-        }
-
-
-
-        var plainClean = state.plainBody
-            .replace(Regex("=+\\s*"), " ")
-            .replace(Regex("\\s+"), " ")
-            .trim()
-            
-        // If plain text is empty or just contains CSS artifacts (common in badly formed emails), fallback to cleaned HTML
-        if (plainClean.isEmpty() || plainClean.contains("@media") || plainClean.contains("{") || plainClean.contains("@import") || plainClean.contains("<!--")) {
-            plainClean = cleanHtml.replace(Regex("\\s+"), " ").trim()
-        }
-
-        val body = state.htmlBody.ifEmpty { plainClean.replace("\n", "<br>") }
-        val snippet = plainClean.take(150)
+        // (newest-first) or on-demand when a thread is opened.
 
         val providerMsg = ProviderMessage(
             id = messageId, threadId = messageId,
@@ -274,9 +246,9 @@ class ImapProvider(
             fromEmail = fromAddrs.firstOrNull()?.address ?: "",
             to = toAddrs.joinToString(", ") { it.address },
             cc = ccAddrs.joinToString(", ") { it.address },
-            bcc = "", snippet = snippet, body = body, bodyIsHtml = state.bodyIsHtml,
+            bcc = "", snippet = "", body = "", bodyIsHtml = false,
             date = date, isRead = isRead, isStarred = isStarred,
-            folders = folderSet, attachments = state.attachments
+            folders = folderSet, attachments = emptyList()
         )
         return ImapRawMessage(messageId, references, inReplyTo, date, providerMsg)
     }
@@ -355,16 +327,13 @@ class ImapProvider(
         if (isDraft) folderSet.add(EmailFolder.DRAFT)
 
         val state = BodyParseState(messageId = messageId)
-        // Pre-fetch entire message content in one FETCH, then parse locally
+        // Lazy part access: JavaMail fetches only the MIME parts we touch
+        // (text/plain, text/html) via individual IMAP FETCH commands — no need
+        // to download the entire raw message.  The old readBodyCapped approach
+        // truncated at 256 KB which cut through base64 attachments and broke
+        // HTML decoding for large messages.
         try {
-            val rawBytes = msg.inputStream?.use { readBodyCapped(it) } ?: ByteArray(0)
-            if (rawBytes.isNotEmpty()) {
-                val localMsg = jakarta.mail.internet.MimeMessage(
-                    jakarta.mail.Session.getInstance(java.util.Properties()),
-                    java.io.ByteArrayInputStream(rawBytes)
-                )
-                processPart(localMsg, state)
-            }
+            processPart(msg, state)
         } catch (e: Exception) {
             android.util.Log.w("ImapProvider", "Body fetch/parse failed for thread msg $messageId: ${e.message}")
         }
@@ -383,8 +352,9 @@ class ImapProvider(
 
 
         var plainClean = state.plainBody
-            .replace(Regex("=+\\s*"), " ")
-            .replace(Regex("\\s+"), " ")
+            .replace(Regex("=+[ \t]*"), " ")
+            .replace(Regex("[ \t]+"), " ")          // collapse horizontal whitespace only
+            .replace(Regex("(\\r?\\n){3,}"), "\n\n") // cap runs of blank lines at 2
             .trim()
             
         if (plainClean.isEmpty() || plainClean.contains("@media") || plainClean.contains("{") || plainClean.contains("@import") || plainClean.contains("<!--")) {
@@ -392,7 +362,7 @@ class ImapProvider(
         }
 
         val body = state.htmlBody.ifEmpty { plainClean.replace("\n", "<br>") }
-        val snippet = plainClean.take(150)
+        val snippet = plainClean.replace(Regex("\\s+"), " ").trim().take(150)
 
         val providerMsg = ProviderMessage(
             id = messageId, threadId = threadId,
@@ -700,11 +670,16 @@ class ImapProvider(
                 state.attachments.add(EmailAttachmentInfo(id = name, messageId = state.messageId, mimeType = mimeType, name = name, size = part.size))
             }
             part.isMimeType(MIME_TEXT_PLAIN) && state.plainBody.isEmpty() -> {
-                state.plainBody = part.getBodyText() ?: ""
+                // Skip enormous text parts (> 512 KB) to avoid stalling the connection
+                if (part.size in 1..(512 * 1024) || part.size == -1) {
+                    state.plainBody = part.getBodyText() ?: ""
+                }
             }
             part.isMimeType(MIME_TEXT_HTML) && state.htmlBody.isEmpty() -> {
-                state.htmlBody = part.getBodyText() ?: ""
-                state.bodyIsHtml = true
+                if (part.size in 1..(512 * 1024) || part.size == -1) {
+                    state.htmlBody = part.getBodyText() ?: ""
+                    state.bodyIsHtml = true
+                }
             }
             part.isMimeType(MIME_MULTIPART) -> {
                 try {
@@ -871,20 +846,3 @@ private fun String.charsetOrUtf8(): String =
     Regex("charset=[\"']?([\\w-]+)[\"']?", RegexOption.IGNORE_CASE)
         .find(this)?.groupValues?.get(1) ?: "UTF-8"
 
-/**
- * Read at most [maxBytes] from [stream], then stop. Body preview/backfill never
- * needs more than 256KB — without this cap, [jakarta.mail.Message.inputStream]
- * streams the ENTIRE raw message (attachments included) over the network, which
- * held the pool operation mutex for minutes per thread and froze the backfill
- * banner at 0%.
- */
-private fun readBodyCapped(stream: java.io.InputStream, maxBytes: Int = 256 * 1024): ByteArray {
-    val buffer = ByteArray(maxBytes)
-    var total = 0
-    while (total < maxBytes) {
-        val n = stream.read(buffer, total, maxBytes - total)
-        if (n == -1) break
-        total += n
-    }
-    return buffer.copyOf(total)
-}
