@@ -46,4 +46,18 @@ interface EmailProvider {
 
     suspend fun getSendAsAliases(): List<SendAsAlias>
 }
-enum class EmailFolder { INBOX, SENT, ARCHIVE, STARRED, TRASH, SPAM, DRAFT }
+enum class EmailFolder {
+    INBOX, SENT, ARCHIVE, STARRED, TRASH, SPAM, DRAFT;
+
+    /** User-facing tab name, e.g. "Archived" or "Drafts", for progress UI. */
+    val displayName: String
+        get() = when (this) {
+            INBOX -> "Inbox"
+            SENT -> "Sent"
+            ARCHIVE -> "Archived"
+            STARRED -> "Starred"
+            TRASH -> "Trash"
+            SPAM -> "Spam"
+            DRAFT -> "Drafts"
+        }
+}

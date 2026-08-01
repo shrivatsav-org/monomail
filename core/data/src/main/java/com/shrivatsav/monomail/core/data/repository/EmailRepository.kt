@@ -60,8 +60,11 @@ class EmailRepository(
     private val emailDao = database.emailDao()
     private val scheduledMessageDao = database.scheduledMessageDao()
     private val gson = Gson()
-    private val _syncProgress = MutableStateFlow<Float?>(null)
-    val syncProgress: StateFlow<Float?> = _syncProgress.asStateFlow()
+    private val _syncProgress = MutableStateFlow<DeepSyncProgress?>(null)
+    val syncProgress: StateFlow<DeepSyncProgress?> = _syncProgress.asStateFlow()
+    /** Progress snapshot for the deep sync foreground notification:
+     *  overall fraction [0..1] plus the folder (tab) currently being synced. */
+    data class DeepSyncProgress(val fraction: Float, val folder: String)
 
     companion object {
         private const val NO_ACTIVE_PROVIDER = "No active provider"
@@ -406,7 +409,7 @@ class EmailRepository(
     suspend fun startBackgroundDeepSync(days: Int, accountId: String) {
         val provider = getProviderForAccount(accountId) ?: return
         val sinceDate = System.currentTimeMillis() - (days.toLong() * 24L * 60L * 60L * 1000L)
-        _syncProgress.value = 0f
+        _syncProgress.value = DeepSyncProgress(0f, EmailFolder.INBOX.displayName)
         val bodyFetchLimit = getBodyFetchLimitMs()
         try {
             // Sync every folder the provider exposes, INBOX first (most relevant)
@@ -419,10 +422,10 @@ class EmailRepository(
             deepSyncFolderPages(provider, EmailFolder.SPAM, sinceDate, accountId, bodyFetchLimit)
             deepSyncFolderPages(provider, EmailFolder.TRASH, sinceDate, accountId, bodyFetchLimit)
             deepSyncFolderPages(provider, EmailFolder.DRAFT, sinceDate, accountId, bodyFetchLimit)
-            _syncProgress.value = 1f
+            _syncProgress.value = DeepSyncProgress(1f, EmailFolder.DRAFT.displayName)
         } catch (e: Exception) {
             android.util.Log.w("EmailRepo", "Background deep sync failed: ${e.message}")
-            _syncProgress.value = 1f
+            _syncProgress.value = DeepSyncProgress(1f, EmailFolder.DRAFT.displayName)
         } finally {
             kotlinx.coroutines.delay(1000)
             _syncProgress.value = null
@@ -452,7 +455,10 @@ class EmailRepository(
                 onProgress = { pageProgress ->
                     val p = pageIndex.toFloat()
                     val interpolated = p * 0.10f + pageProgress * 0.10f
-                    _syncProgress.value = maxOf(_syncProgress.value ?: 0f, interpolated.coerceIn(p * 0.10f, (p + 1f) * 0.10f))
+                    _syncProgress.value = DeepSyncProgress(
+                        maxOf(_syncProgress.value?.fraction ?: 0f, interpolated.coerceIn(p * 0.10f, (p + 1f) * 0.10f)),
+                        folder.displayName
+                    )
                 }
             )
             if (listResponse.threads.isEmpty()) break
@@ -480,7 +486,10 @@ class EmailRepository(
             pageToken = listResponse.nextPageToken
             pageIndex++
             val timeBased = pageIndex.toFloat() * 0.10f
-            _syncProgress.value = maxOf(_syncProgress.value ?: 0f, timeBased)
+            _syncProgress.value = DeepSyncProgress(
+                maxOf(_syncProgress.value?.fraction ?: 0f, timeBased),
+                folder.displayName
+            )
         } while (pageToken != null)
     }
 

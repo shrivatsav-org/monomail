@@ -51,8 +51,8 @@ class DeepSyncService : Service() {
             // Observe sync progress and update notification
             val progressJob = launch {
                 emailRepository.syncProgress.collect { progress ->
-                    val pct = ((progress ?: 0f) * 100).toInt().coerceIn(0, 100)
-                    updateNotification(pct)
+                    val pct = ((progress?.fraction ?: 0f) * 100).toInt().coerceIn(0, 100)
+                    updateNotification(pct, progress?.folder)
                 }
             }
 
@@ -99,20 +99,26 @@ class DeepSyncService : Service() {
         }
     }
 
-    private fun buildNotification(progress: Int, indeterminate: Boolean): Notification {
+    private fun buildNotification(progress: Int, indeterminate: Boolean, folder: String? = null): Notification {
         return NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle("Syncing your inbox")
-            .setContentText(if (indeterminate) "Starting..." else "$progress%")
+            .setContentTitle(if (folder != null) "Syncing $folder" else "Syncing your inbox")
+            .setContentText(
+                when {
+                    indeterminate -> "Starting..."
+                    folder != null -> "$folder · $progress%"
+                    else -> "$progress%"
+                }
+            )
             .setProgress(100, progress, indeterminate)
             .setOngoing(true)
             .setSilent(true)
             .build()
     }
 
-    private fun updateNotification(progress: Int) {
+    private fun updateNotification(progress: Int, folder: String? = null) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(notificationId, buildNotification(progress, false))
+        nm.notify(notificationId, buildNotification(progress, false, folder))
     }
 
     private fun showDoneNotification() {
