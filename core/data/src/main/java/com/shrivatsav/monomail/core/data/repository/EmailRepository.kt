@@ -615,7 +615,13 @@ class EmailRepository(
                 // Progress advances per thread regardless of outcome, so a slow or
                 // failing thread never freezes the banner at 0%.
                 completed += threadEmails.size
-                _bodyBackfillProgress.value = BodyBackfillState(total, completed, accountId)
+                // Labels are EmailFolder enum names; pick the first known one so the
+                // notification shows which tab is being downloaded (a thread can
+                // carry several, e.g. INBOX + ARCHIVE after the All Mail union).
+                val currentFolder = folderHints.firstNotNullOfOrNull { label ->
+                    EmailFolder.entries.firstOrNull { it.name == label }?.displayName
+                }
+                _bodyBackfillProgress.value = BodyBackfillState(total, completed, accountId, currentFolder)
                 notifier.showProgress(_bodyBackfillProgress.value!!)
             }
         } catch (e: Exception) {

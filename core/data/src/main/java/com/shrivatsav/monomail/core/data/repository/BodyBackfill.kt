@@ -16,7 +16,9 @@ import android.os.Build
 data class BodyBackfillState(
     val total: Int,
     val completed: Int,
-    val accountEmail: String
+    val accountEmail: String,
+    /** Display name of the folder (tab) whose content is currently downloading. */
+    val folder: String? = null
 ) {
     val progress: Float get() = if (total > 0) completed.toFloat() / total else 0f
     val finished: Boolean get() = completed >= total
@@ -53,10 +55,10 @@ internal fun ensureBodyBackfillChannel(context: Context) {
  * levels. (ProgressStyle segments were tried on 37 but its setProgress()
  * semantics filled the bar regardless of the counter — dropped for correctness.)
  */
-internal fun buildBodyBackfillNotification(context: Context, completed: Int, total: Int): Notification {
+internal fun buildBodyBackfillNotification(context: Context, completed: Int, total: Int, folder: String? = null): Notification {
     val builder = Notification.Builder(context, BODY_BACKFILL_CHANNEL_ID)
         .setSmallIcon(android.R.drawable.stat_sys_download)
-        .setContentTitle("Downloading email content")
+        .setContentTitle(if (folder != null) "Downloading $folder content" else "Downloading email content")
         .setContentText(if (total > 0) "$completed of $total" else "Starting...")
         .setOngoing(true)
         .setCategory(Notification.CATEGORY_PROGRESS)
@@ -82,7 +84,7 @@ internal class BodyBackfillNotificationHelper(private val context: Context) {
     }
 
     fun showProgress(state: BodyBackfillState) {
-        nm.notify(BODY_BACKFILL_NOTIFICATION_ID, buildBodyBackfillNotification(context, state.completed, state.total))
+        nm.notify(BODY_BACKFILL_NOTIFICATION_ID, buildBodyBackfillNotification(context, state.completed, state.total, state.folder))
     }
 
     fun dismiss() {
