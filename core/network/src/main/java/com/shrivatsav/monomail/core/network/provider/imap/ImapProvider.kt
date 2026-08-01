@@ -43,6 +43,7 @@ class ImapProvider(
         private const val HEADER_MESSAGE_ID = "Message-ID"
         private const val HEADER_IN_REPLY_TO = "In-Reply-To"
         private const val HEADER_REFERENCES = "References"
+        private const val HEADER_X_GM_LABELS = "X-GM-LABELS"
         private const val MIME_MULTIPART = "multipart/*"
         const val MIME_TEXT_PLAIN = "text/plain"
         const val MIME_TEXT_HTML = "text/html"
@@ -140,6 +141,7 @@ class ImapProvider(
                     add(HEADER_MESSAGE_ID)
                     add(HEADER_REFERENCES)
                     add(HEADER_IN_REPLY_TO)
+                    add(HEADER_X_GM_LABELS)
                 }
                 imapFolder.fetch(batch.toTypedArray(), profile)
 
@@ -213,6 +215,7 @@ class ImapProvider(
             add(HEADER_MESSAGE_ID)
             add(HEADER_REFERENCES)
             add(HEADER_IN_REPLY_TO)
+            add(HEADER_X_GM_LABELS)
         }
         folder.fetch(messages.toTypedArray(), profile)
 
@@ -229,7 +232,11 @@ class ImapProvider(
         val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
         val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
 
-        val folderSet = mutableSetOf(folder)
+        // Gmail's All Mail contains messages from every folder. Labeling a
+        // message with only the searched folder would surface new INBOX mail on
+        // the Archived tab (and vice versa). X-GM-LABELS carries the true
+        // membership (e.g. "\Inbox \All"); non-Gmail servers don't send it.
+        val folderSet = resolveFolderMembership(msg, folder)
         val isRead = msg.isSet(Flags.Flag.SEEN)
         val isStarred = msg.isSet(Flags.Flag.FLAGGED)
         if (isStarred) folderSet.add(EmailFolder.STARRED)
@@ -251,6 +258,39 @@ class ImapProvider(
             folders = folderSet, attachments = emptyList()
         )
         return ImapRawMessage(messageId, references, inReplyTo, date, providerMsg)
+    }
+
+    /**
+     * Resolves the real folder membership of a listed message.
+     *
+     * Gmail's All Mail contains messages from every folder, so a message seen
+     * there must not be labeled ARCHIVE-only — a new INBOX mail pulled on the
+     * Archived tab would surface as archived instead of landing in the Inbox
+     * tab. Gmail exposes the true membership via the X-GM-LABELS pseudo-header
+     * (e.g. "\Inbox \All"); parse it when present. Non-Gmail servers don't
+     * send it — fall back to the searched folder, plus INBOX for STARRED
+     * listings (which search the INBOX folder with a FLAGGED term).
+     */
+    private fun resolveFolderMembership(msg: jakarta.mail.Message, searchedFolder: EmailFolder): MutableSet<EmailFolder> {
+        val folderSet = mutableSetOf(searchedFolder)
+        val gmLabels = msg.getHeader(HEADER_X_GM_LABELS)?.firstOrNull()
+        if (!gmLabels.isNullOrBlank()) {
+            gmLabels.split(' ').forEach { label ->
+                when (label) {
+                    "\\Inbox" -> folderSet.add(EmailFolder.INBOX)
+                    "\\Sent" -> folderSet.add(EmailFolder.SENT)
+                    "\\Draft" -> folderSet.add(EmailFolder.DRAFT)
+                    "\\Trash" -> folderSet.add(EmailFolder.TRASH)
+                    "\\Spam" -> folderSet.add(EmailFolder.SPAM)
+                    "\\Starred" -> folderSet.add(EmailFolder.STARRED)
+                    "\\All" -> folderSet.add(EmailFolder.ARCHIVE)
+                    // Custom labels and \Important etc. map to no tab.
+                }
+            }
+        } else if (searchedFolder == EmailFolder.STARRED) {
+            folderSet.add(EmailFolder.INBOX)
+        }
+        return folderSet
     }
 
     override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withStore { store ->
