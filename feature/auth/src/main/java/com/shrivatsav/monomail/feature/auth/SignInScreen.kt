@@ -55,7 +55,6 @@ import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Web
-import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -635,26 +634,18 @@ fun SyncWindowDialog(onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
         dismissButton = {},
         text = {
             androidx.compose.foundation.layout.Column {
-                androidx.compose.material3.Text("How many days of recent emails would you like to download for offline access?", modifier = Modifier.padding(bottom = 16.dp))
-                var expanded by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-                var selectedDays by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(30) }
-                
-                androidx.compose.foundation.layout.Box {
-                    androidx.compose.material3.OutlinedButton(onClick = { expanded = true }) {
-                        androidx.compose.material3.Text("Last $selectedDays days")
-                        androidx.compose.material3.Icon(Icons.Rounded.ArrowDropDown, contentDescription = null)
-                    }
-                    androidx.compose.material3.DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                        listOf(7, 14, 30).forEach { days ->
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { androidx.compose.material3.Text("Last $days days") },
-                                onClick = { 
-                                    selectedDays = days
-                                    expanded = false
-                                    onConfirm(days)
-                                }
-                            )
-                        }
+                androidx.compose.material3.Text(
+                    "How many days of recent emails would you like to download for offline access?",
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                // One full-width button per sync-window option — tapping one
+                // confirms that window and dismisses the dialog.
+                listOf(7, 14, 30).forEach { days ->
+                    androidx.compose.material3.FilledTonalButton(
+                        onClick = { onConfirm(days) },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                    ) {
+                        androidx.compose.material3.Text("Last $days days")
                     }
                 }
             }
