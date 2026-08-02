@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.feature.settings.BuildConfig
 import com.shrivatsav.monomail.core.data.settings.*
+import com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,6 +115,19 @@ internal fun NotificationSettingsScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+            )
+            CardDivider()
+            SettingsActionRow(
+                icon = Icons.Rounded.NotificationsActive,
+                title = "Send test notification",
+                subtitle = "Preview the actions above",
+                onClick = {
+                    context.sendBroadcast(
+                        Intent(context, NotificationActionReceiver::class.java).apply {
+                            action = NotificationActionReceiver.ACTION_TEST_NOTIFICATION
+                        }
+                    )
+                }
             )
         }
         Spacer(Modifier.height(16.dp))

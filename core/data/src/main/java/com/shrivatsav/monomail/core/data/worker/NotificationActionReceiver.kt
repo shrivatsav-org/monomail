@@ -7,6 +7,11 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.os.Build
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
+import com.shrivatsav.monomail.data.model.EmailThread
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
@@ -34,6 +39,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val ACTION_CANCEL_BACKFILL = "com.shrivatsav.monomail.CANCEL_BACKFILL"
         const val ACTION_CANCEL_DEEP_SYNC = "com.shrivatsav.monomail.CANCEL_DEEP_SYNC"
         const val ACTION_UNDO_SNOOZE = "com.shrivatsav.monomail.UNDO_SNOOZE"
+        const val ACTION_TEST_NOTIFICATION = "com.shrivatsav.monomail.TEST_NOTIFICATION"
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val REPLY_STATUS_CHANNEL = "monomail_reply_status"
         const val ARCHIVE_CONFIRM_CHANNEL = "monomail_archive_confirm"
@@ -141,6 +147,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
         interface AppDependenciesEntryPoint {
             fun accountManager(): AccountManager
             fun emailRepository(): EmailRepository
+            fun settingsDataStore(): com.shrivatsav.monomail.core.data.settings.SettingsDataStore
         }
     }
 
@@ -177,6 +184,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
                         // coroutine and the FGS notification is removed on destroy.
                         context.stopService(Intent(context, DeepSyncService::class.java))
                     }
+                    ACTION_TEST_NOTIFICATION -> handleTestNotification(context)
                 }
             } finally {
                 pendingResult.finish()
@@ -403,4 +411,40 @@ class NotificationActionReceiver : BroadcastReceiver() {
             nm.createNotificationChannel(channel)
         }
     }
+    private suspend fun handleTestNotification(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            Log.w("NotificationActionReceiver", "POST_NOTIFICATIONS not granted; cannot show test notification")
+            return
+        }
+        val deps = getDependencies(context)
+        val account = deps.accountManager().getAccounts().firstOrNull()
+        if (account == null) {
+            Log.w("NotificationActionReceiver", "No accounts; cannot show test notification")
+            return
+        }
+        val thread = EmailThread(
+            threadId = "test-notification-${System.currentTimeMillis()}",
+            subject = "Test notification",
+            from = "Monomail",
+            fromEmail = account.email,
+            snippet = "This is a test notification. Tap an action below to try it.",
+            date = System.currentTimeMillis(),
+            messageCount = 1,
+            isRead = false,
+            isStarred = false,
+            latestMessageId = "test-notification",
+            participants = listOf(account.email)
+        )
+        showNewEmailNotification(
+            context = context,
+            accountId = account.id,
+            thread = thread,
+            notificationId = 7000 + account.id.hashCode(),
+            quickActions = deps.settingsDataStore().settingsFlow.value.notificationQuickActions
+        )
+    }
 }
+
