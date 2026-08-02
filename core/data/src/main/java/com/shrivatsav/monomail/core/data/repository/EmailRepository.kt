@@ -45,6 +45,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.Job
 
 data class EmailContact(
     val name: String,
@@ -334,6 +335,9 @@ class EmailRepository(
     private val refreshMutex = Mutex()
     /** Single-flight guard for body backfill sweeps (service + inline fallback). */
     private val backfillMutex = Mutex()
+    /** Job of the sweep currently holding [backfillMutex]; lets callers join
+     *  an in-flight sweep instead of racing it. */
+    @Volatile private var activeBackfillJob: Job? = null
     /** Cooldown: ignore re-triggers for 5 min after a sweep finishes to prevent
      *  the 70→94→76 restart loop caused by new headers appearing between sweeps. */
     @Volatile private var lastBackfillFinished = 0L
@@ -548,13 +552,29 @@ class EmailRepository(
     }
 
     suspend fun startBodyBackfill(accountId: String, maxEmails: Int = 500) {
-        // Single-flight: ignore triggers while a sweep is running. Concurrent
-        // sweeps each compute their own "missing" total and fight over the same
-        // notification, making the banner flip between ranges (e.g. 70 vs 447).
+        // Single-flight: concurrent sweeps each compute their own "missing"
+        // total and fight over the same notification, making the banner flip
+        // between ranges (e.g. 70 vs 447).
         if (!backfillMutex.tryLock()) {
-            android.util.Log.d("EmailRepo", "Body backfill: sweep already running, ignoring trigger")
+            // A sweep is already running elsewhere (periodic worker, inline
+            // fallback, or a previous trigger). Join it instead of giving up
+            // so callers can rely on "returned" meaning "the backfill is
+            // done" — DeepSyncService must not announce completion while
+            // email content is still downloading.
+            android.util.Log.d("EmailRepo", "Body backfill: sweep already running, joining it")
+            activeBackfillJob?.join()
             return
         }
+        try {
+            activeBackfillJob = kotlin.coroutines.coroutineContext[Job]
+            runBodyBackfillSweep(accountId, maxEmails)
+        } finally {
+            activeBackfillJob = null
+            backfillMutex.unlock()
+        }
+    }
+
+    private suspend fun runBodyBackfillSweep(accountId: String, maxEmails: Int) {
         val notifier = BodyBackfillNotificationHelper(context)
         try {
             val provider = getProviderForAccount(accountId)
@@ -670,7 +690,6 @@ class EmailRepository(
             try { notifier.dismiss() } catch (_: Exception) {}
             _bodyBackfillProgress.value = null
             lastBackfillFinished = System.currentTimeMillis()
-            backfillMutex.unlock()
         }
     }
 

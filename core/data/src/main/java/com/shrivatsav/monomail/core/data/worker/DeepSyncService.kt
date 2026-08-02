@@ -22,7 +22,8 @@ import javax.inject.Inject
 /**
  * Foreground service that runs the initial deep sync for a new account.
  * Shows a progress notification that survives app minimize or close.
- * Starts [BodyBackfillService] when header sync completes.
+ * Runs the body backfill inline once header sync completes, then posts the
+ * completion notification only after both have finished.
  */
 @AndroidEntryPoint
 class DeepSyncService : Service() {
@@ -58,12 +59,14 @@ class DeepSyncService : Service() {
 
             try {
                 emailRepository.startBackgroundDeepSync(days, accountId)
-                showDoneNotification()
                 // Run body backfill directly in this FGS scope — no need to start
                 // a second service.  startBodyBackfill is safe to call from here
                 // because DeepSyncService IS a foreground service, and the cooldown
                 // is reset to 0 for the very first sweep after a deep sync.
                 emailRepository.startBodyBackfill(accountId)
+                // Only announce completion once BOTH the header sync and the
+                // email content download have finished.
+                showDoneNotification()
             } catch (e: Exception) {
                 android.util.Log.e("DeepSyncSvc", "Deep sync failed", e)
                 showErrorNotification(e.message ?: "Unknown error")

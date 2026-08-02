@@ -28,20 +28,20 @@ internal const val BODY_BACKFILL_CHANNEL_ID = "body_backfill"
 internal const val BODY_BACKFILL_NOTIFICATION_ID = 0xBB
 
 /**
- * Creates the body-backfill channel. Audible (IMPORTANCE_DEFAULT) so the user
- * hears the download start; progress updates on the same notification do not
- * re-alert. Recreates the channel once if it exists with an older importance,
- * because channel importance is immutable after creation.
+ * Creates the body-backfill channel. Silent (IMPORTANCE_LOW) so the long
+ * download never alerts: no sound on start, on folder switches, or on
+ * progress updates. Recreates the channel once if it exists with an older
+ * importance, because channel importance is immutable after creation.
  */
 internal fun ensureBodyBackfillChannel(context: Context) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
     val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-    if (nm.getNotificationChannel(BODY_BACKFILL_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_DEFAULT) return
+    if (nm.getNotificationChannel(BODY_BACKFILL_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_LOW) return
     nm.deleteNotificationChannel(BODY_BACKFILL_CHANNEL_ID)
     val channel = NotificationChannel(
         BODY_BACKFILL_CHANNEL_ID,
         "Email content download",
-        NotificationManager.IMPORTANCE_DEFAULT
+        NotificationManager.IMPORTANCE_LOW
     ).apply {
         description = "Shows progress while email body content downloads in the background"
     }
@@ -62,7 +62,8 @@ internal fun buildBodyBackfillNotification(context: Context, completed: Int, tot
         .setContentText(if (total > 0) "$completed of $total" else "Starting...")
         .setOngoing(true)
         .setCategory(Notification.CATEGORY_PROGRESS)
-        // Sound once on the first post; silent on progress updates (x+1, X).
+        // Fully silent: the channel is IMPORTANCE_LOW, so no sound on the
+        // first post or on any progress update.
         .setOnlyAlertOnce(true)
 
     // Live Updates opt-in (Android 16+): promotes the ongoing notification to
