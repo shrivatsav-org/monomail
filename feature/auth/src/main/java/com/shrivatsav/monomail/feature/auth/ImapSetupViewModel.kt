@@ -29,6 +29,8 @@ import javax.inject.Inject
 sealed class ImapTestState {
     object Idle : ImapTestState()
     object Testing : ImapTestState()
+    /** Credentials verified against the server; account still NOT created. */
+    object Verified : ImapTestState()
     object Syncing : ImapTestState()
     object Success : ImapTestState()
     data class Error(val message: String) : ImapTestState()
@@ -148,8 +150,10 @@ class ImapSetupViewModel @Inject constructor(
         _isGmailMode.value = true
         _selectedProvider.value = "Gmail"
     }
+    private var pendingProfile: com.shrivatsav.monomail.core.data.auth.UserProfile? = null
 
-    fun testAndSaveAccount(context: Context, onSuccess: () -> Unit) {
+    /** Verifies the credentials against the server without creating an account. */
+    fun testCredentials(context: Context) {
         viewModelScope.launch {
             _testState.value = ImapTestState.Testing
 
@@ -162,9 +166,8 @@ class ImapSetupViewModel @Inject constructor(
             try {
                 val provider = ImapProvider(config, _password.value, context)
                 provider.listThreads(com.shrivatsav.monomail.core.network.provider.EmailFolder.INBOX, 1)
-                _testState.value = ImapTestState.Syncing
-                
-                saveAccountInternal(config, onSuccess)
+                pendingProfile = buildProfile(config)
+                _testState.value = ImapTestState.Verified
             } catch (e: AuthenticationFailedException) {
                 _testState.value = ImapTestState.Error("Wrong username or password")
             } catch (e: MessagingException) {
@@ -180,38 +183,55 @@ class ImapSetupViewModel @Inject constructor(
         }
     }
 
-    private fun saveAccountInternal(config: ImapAccountConfig, onSuccess: () -> Unit) {
-        val pass = _password.value
-        val name = _displayName.value.ifBlank { 
-            if (config.isGmail()) "Gmail" else "IMAP User" 
-        }
-        
-        viewModelScope.launch {
-            val encryptedConfig = SecurityUtil.encryptString(config.toJson())
-            val encryptedPassword = SecurityUtil.encryptString(pass)
-            
-            val profile = UserProfile(
-                id = "imap_${config.username}",
-                displayName = name,
-                email = config.username,
-                photoUrl = null,
-                accessToken = encryptedConfig,
-                provider = "imap",
-                refreshToken = encryptedPassword
-            )
-            
-            authManager.addAccount(profile)
-            authManager.switchAccount(profile.id)
+    /** Second step: opens the sync-window prompt. Still does NOT persist the
+     *  account — that only happens on the final sync confirmation. */
+    fun proceedToSignIn() {
+        val profile = pendingProfile
+        if (_testState.value is ImapTestState.Verified && profile != null) {
             _testState.value = ImapTestState.ShowSyncPrompt(profile)
         }
     }
+
+    private fun buildProfile(config: ImapAccountConfig): com.shrivatsav.monomail.core.data.auth.UserProfile {
+        val pass = _password.value
+        val name = _displayName.value.ifBlank {
+            if (config.isGmail()) "Gmail" else "IMAP User"
+        }
+
+        val encryptedConfig = SecurityUtil.encryptString(config.toJson())
+        val encryptedPassword = SecurityUtil.encryptString(pass)
+
+        return com.shrivatsav.monomail.core.data.auth.UserProfile(
+            id = "imap_${config.username}",
+            displayName = name,
+            email = config.username,
+            photoUrl = null,
+            accessToken = encryptedConfig,
+            provider = "imap",
+            refreshToken = encryptedPassword
+        )
+    }
+
     fun startInitialSync(days: Int, onSuccess: () -> Unit) {
         val currentState = _testState.value
         if (currentState is ImapTestState.ShowSyncPrompt) {
             _testState.value = ImapTestState.Syncing
-            BatteryOptimization.requestExemptionIfNeeded(context)
-            com.shrivatsav.monomail.core.data.worker.DeepSyncService.start(context, currentState.profile.id, days)
-            onSuccess()
+            viewModelScope.launch {
+                // The account is persisted only at this final confirmation —
+                // backing out anywhere earlier leaves nothing behind.
+                val profile = currentState.profile
+                try {
+                    authManager.addAccount(profile)
+                    authManager.switchAccount(profile.id)
+                } catch (e: Exception) {
+                    android.util.Log.w("ImapSetup", "Failed to save account", e)
+                    _testState.value = ImapTestState.Error("Could not save account: ${e.message?.take(80)}")
+                    return@launch
+                }
+                BatteryOptimization.requestExemptionIfNeeded(context)
+                com.shrivatsav.monomail.core.data.worker.DeepSyncService.start(context, profile.id, days)
+                onSuccess()
+            }
         }
     }
 

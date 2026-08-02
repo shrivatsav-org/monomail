@@ -27,9 +27,11 @@ import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -212,7 +214,7 @@ private fun SyncingOverlay() {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                Text("Syncing emails...", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+                Text("Signing in...", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                 LinearProgressIndicator(
                     progress = { progress.value },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(cornerShape(3.dp)),
@@ -231,7 +233,8 @@ private fun ImapSetupForm(
     viewModel: ImapSetupViewModel,
     isBusy: Boolean,
     testState: ImapTestState,
-    onSignIn: () -> Unit
+    onTestCredentials: () -> Unit,
+    onProceed: () -> Unit
 ) {
     val imapHost by viewModel.imapHost.collectAsState()
     val imapPort by viewModel.imapPort.collectAsState()
@@ -388,7 +391,44 @@ private fun ImapSetupForm(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        SignInButton(isBusy = isBusy, testState = testState, onClick = onSignIn)
+        OutlinedButton(
+            onClick = onTestCredentials,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            enabled = !isBusy
+        ) {
+            if (testState is ImapTestState.Testing) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                Spacer(Modifier.width(8.dp))
+                Text("Testing...")
+            } else {
+                Text("Test Credentials")
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = onProceed,
+            modifier = Modifier.fillMaxWidth().height(50.dp),
+            enabled = testState is ImapTestState.Verified && !isBusy
+        ) {
+            Text("Proceed")
+        }
+
+        if (testState is ImapTestState.Verified) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Rounded.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    "Credentials verified — proceed to sign in",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        }
 
         if (testState is ImapTestState.Error) {
             ErrorText(message = testState.message)
@@ -398,22 +438,6 @@ private fun ImapSetupForm(
     }
 }
 
-@Composable
-private fun SignInButton(isBusy: Boolean, testState: ImapTestState, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth().height(50.dp),
-        enabled = !isBusy
-    ) {
-        if (isBusy) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(if (testState is ImapTestState.Testing) "Signing In..." else "Syncing Emails...")
-        } else {
-            Text("Sign In")
-        }
-    }
-}
 
 @Composable
 private fun ErrorText(message: String) {
@@ -472,7 +496,8 @@ fun ImapSetupScreen(
                     viewModel = viewModel,
                     isBusy = isBusy,
                     testState = testState,
-                    onSignIn = { viewModel.testAndSaveAccount(context, onSetupComplete) }
+                    onTestCredentials = { viewModel.testCredentials(context) },
+                    onProceed = { viewModel.proceedToSignIn() }
                 )
             }
         }
