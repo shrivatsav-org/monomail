@@ -129,7 +129,6 @@ class DeepSyncService : Service() {
                 }
             )
             .setProgress(100, progress, indeterminate)
-            .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(0, "Cancel", NotificationActionReceiver.createCancelDeepSyncPendingIntent(this))
             .build()
