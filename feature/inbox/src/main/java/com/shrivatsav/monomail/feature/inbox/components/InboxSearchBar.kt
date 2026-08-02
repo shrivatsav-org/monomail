@@ -219,10 +219,9 @@ private fun SearchInputContent(
                     )
                 }
                 display.isApiProvider -> Icon(
-                    painter = painterResource(com.shrivatsav.monomail.feature.auth.R.drawable.ic_signin_mark),
+                    painter = painterResource(com.shrivatsav.monomail.feature.inbox.R.drawable.ic_monomail_mark),
                     contentDescription = "Monomail",
-                    modifier = Modifier.size(26.dp),
-                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
                 else -> Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
