@@ -90,14 +90,18 @@ class DeepSyncService : Service() {
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            // Recreate once if it exists with an older importance, because
+            // channel importance is immutable after creation.
+            if (nm.getNotificationChannel(channelId)?.importance == NotificationManager.IMPORTANCE_DEFAULT) return
+            nm.deleteNotificationChannel(channelId)
             val channel = NotificationChannel(
                 channelId,
                 "Inbox sync",
-                NotificationManager.IMPORTANCE_LOW
+                NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
                 description = "Shows progress while your inbox is being synced"
             }
-            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             nm.createNotificationChannel(channel)
         }
     }
@@ -116,7 +120,7 @@ class DeepSyncService : Service() {
             )
             .setProgress(100, progress, indeterminate)
             .setOngoing(true)
-            .setSilent(true)
+            .setOnlyAlertOnce(true)
             .build()
     }
 
