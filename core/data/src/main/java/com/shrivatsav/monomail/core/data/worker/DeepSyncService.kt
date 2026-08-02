@@ -123,7 +123,7 @@ class DeepSyncService : Service() {
             .setContentText(
                 when {
                     indeterminate && folder != null -> "Searching $folder…"
-                    indeterminate -> "Starting..."
+                    indeterminate -> "Working..."
                     folder != null -> "$folder · $progress%"
                     else -> "$progress%"
                 }
