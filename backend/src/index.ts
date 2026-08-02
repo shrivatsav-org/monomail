@@ -92,10 +92,28 @@ export default {
     return new Response('Not found', { status: 404 });
   }
 };
+/** Simple KV-backed rate limiter: max [limit] requests per [windowSec] seconds per key. */
+async function checkRateLimit(
+  kv: KVNamespace,
+  key: string,
+  limit: number,
+  windowSec: number
+): Promise<boolean> {
+  const rlKey = `rl:${key}`;
+  const current = parseInt((await kv.get(rlKey)) ?? '0', 10);
+  if (current >= limit) return false;
+  await kv.put(rlKey, String(current + 1), { expirationTtl: windowSec });
+  return true;
+}
+
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
   if (!verifyApiKey(request, env)) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
+  const clientIp = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+  if (!(await checkRateLimit(env.FCM_TOKENS, `register:${clientIp}`, 10, 60))) {
+    return new Response(JSON.stringify({ error: 'Rate limit exceeded' }), { status: 429 });
   }
   try {
     const body: unknown = await request.json();
