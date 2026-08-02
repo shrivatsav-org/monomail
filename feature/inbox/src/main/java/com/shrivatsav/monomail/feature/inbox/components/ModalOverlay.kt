@@ -47,6 +47,14 @@ internal fun ModalOverlay(
     var displayed by remember { mutableStateOf<ModalType?>(null) }
     displayed = activeModal ?: displayed
 
+    // License state for the add-account flow: Gmail API (Google account
+    // picker) must stay behind a valid license, like the sign-in screen.
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val licenseManager = remember {
+        com.shrivatsav.monomail.core.data.licensing.LicenseManager(context)
+    }
+    val isLicensed by licenseManager.isLicensed.collectAsState()
+
     if (activeModal != null) {
         BackHandler {
             when (activeModal) {
@@ -108,7 +116,8 @@ internal fun ModalOverlay(
                     userProfile = userProfile,
                     accounts = accounts,
                     callbacks = callbacks,
-                    unifiedInboxEnabled = unifiedInboxEnabled
+                    unifiedInboxEnabled = unifiedInboxEnabled,
+                    isLicensed = isLicensed
                 )
             }
         }
@@ -122,6 +131,7 @@ private fun ModalContentBody(
     accounts: List<UserProfile>,
     callbacks: ModalCallbacks,
     unifiedInboxEnabled: Boolean,
+    isLicensed: Boolean,
 ) {
     Box(
         modifier = Modifier.clickable(
@@ -136,7 +146,8 @@ private fun ModalContentBody(
                 com.shrivatsav.monomail.feature.auth.ProviderSelectionDialog(
                     viewModel = vm,
                     onSuccess = { callbacks.onDismiss() },
-                    onNavigateToImapSetup = callbacks.onNavigateToImapSetup
+                    onNavigateToImapSetup = callbacks.onNavigateToImapSetup,
+                    isLicensed = isLicensed
                 )
             }
             ModalType.PROFILE -> {

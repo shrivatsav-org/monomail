@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
 import com.google.gson.Gson
 import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.auth.UserProfile
+import com.shrivatsav.monomail.core.data.licensing.LicenseManager
 import com.shrivatsav.monomail.core.database.local.*
 import com.shrivatsav.monomail.core.data.repository.SearchField
 import com.shrivatsav.monomail.data.model.Email
@@ -67,6 +68,7 @@ class EmailRepository(
     private val scheduledMessageDao = database.scheduledMessageDao()
     private val gson = Gson()
     private val _syncProgress = MutableStateFlow<DeepSyncProgress?>(null)
+    private val licenseManager = LicenseManager(context)
     val syncProgress: StateFlow<DeepSyncProgress?> = _syncProgress.asStateFlow()
     /** Progress snapshot for the deep sync foreground notification:
      *  overall fraction [0..1] plus the folder (tab) currently being synced. */
@@ -84,7 +86,17 @@ class EmailRepository(
 
     suspend fun getActiveProvider(): EmailProvider? {
         val activeAccount = accountManager.getActiveAccount() ?: return null
+        if (!isGmailApiAllowed(activeAccount)) return null
         return providerFactory(activeAccount)
+    }
+    /** License gate: Gmail API accounts only resolve a provider while a valid
+     *  license is cached. Revoked/expired licenses stop all sync/refresh for
+     *  the account (IMAP and Outlook are unaffected). */
+    private fun isGmailApiAllowed(account: UserProfile): Boolean {
+        if (account.provider != "gmail") return true
+        if (licenseManager.isLicensed.value) return true
+        Log.w("EmailRepo", "Gmail API blocked for ${account.email}: license required")
+        return false
     }
     fun getDatabase(): AppDatabase = database
     suspend fun searchThreads(
@@ -127,6 +139,7 @@ class EmailRepository(
     }
     suspend fun getProviderForAccount(accountId: String): EmailProvider? {
         val account = accountManager.getAccounts().find { it.id == accountId } ?: return null
+        if (!isGmailApiAllowed(account)) return null
         return providerFactory(account)
     }
 

@@ -31,6 +31,7 @@ import com.shrivatsav.monomail.core.data.settings.SyncFrequency
 import com.shrivatsav.monomail.ui.navigation.NavGraph
 import com.shrivatsav.monomail.ui.theme.MonoMailTheme
 import com.shrivatsav.monomail.core.data.worker.EmailSyncWorker
+import com.shrivatsav.monomail.core.data.licensing.LicenseManager
 import com.shrivatsav.monomail.worker.GraphSubscriptionRenewalWorker
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
@@ -45,6 +46,9 @@ class MainActivity : ComponentActivity() {
     @Inject lateinit var emailRepository: EmailRepository
     @Inject lateinit var settingsDataStore: SettingsDataStore
     @Inject lateinit var accountManager: AccountManager
+
+    /** One notice per app session when a Gmail API account is blocked. */
+    private var gmailBlockNoticeShown = false
 
     /** Tracks whether content is ready for the SplashScreen transition. */
     @Volatile
@@ -120,10 +124,62 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         dismissSyncCompletionNotifications(this)
+        checkGmailLicense()
         CoroutineScope(Dispatchers.IO).launch {
             accountManager.setLastActiveTime(System.currentTimeMillis())
         }
     }
+
+    /** Re-validates the cached license when a Gmail API account exists and
+     *  notifies once when it is blocked (the repository refuses to resolve a
+     *  provider for unlicensed Gmail accounts, so sync silently stops). */
+    private fun checkGmailLicense() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val hasGmailApiAccount = accountManager.getAccounts().any { it.provider == "gmail" }
+                if (!hasGmailApiAccount) return@launch
+                val licenseManager = LicenseManager(applicationContext)
+                val licensed = licenseManager.checkLicense()
+                if (!licensed && !gmailBlockNoticeShown) {
+                    gmailBlockNoticeShown = true
+                    notifyGmailApiBlocked()
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("MainActivity", "License check failed", e)
+            }
+        }
+    }
+
+    private fun notifyGmailApiBlocked() {
+        try {
+            val nm = getSystemService(android.app.NotificationManager::class.java)
+            val channelId = "license_required"
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                nm.createNotificationChannel(
+                    android.app.NotificationChannel(
+                        channelId,
+                        "License required",
+                        android.app.NotificationManager.IMPORTANCE_DEFAULT
+                    )
+                )
+            }
+            val intent = android.content.Intent(this, MainActivity::class.java)
+            val pi = android.app.PendingIntent.getActivity(
+                this, 0, intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val notification = androidx.core.app.NotificationCompat.Builder(this, channelId)
+                .setSmallIcon(com.shrivatsav.monomail.core.data.R.drawable.ic_notification_leaf)
+                .setContentTitle("Gmail sync paused")
+                .setContentText("A Gmail API account needs a valid license. Add a license or use IMAP.")
+                .setContentIntent(pi)
+                .setAutoCancel(true)
+                .build()
+            nm.notify(0xCF, notification)
+        } catch (e: Exception) {
+            android.util.Log.w("MainActivity", "Gmail license notice failed", e)
+        }
+     }
 
     override fun onStop() {
         super.onStop()
