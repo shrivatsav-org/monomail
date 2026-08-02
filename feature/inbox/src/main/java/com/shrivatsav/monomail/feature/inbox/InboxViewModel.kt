@@ -108,6 +108,9 @@ class InboxViewModel @Inject constructor(
     val bodyBackfillError: StateFlow<String?> = repository.bodyBackfillError
     val isBodyBackfilling: StateFlow<Boolean> = repository.bodyBackfillProgress.map { it != null }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+    /** Live header deep-sync progress (folder + fraction) — drives the
+     *  "tab is syncing" empty state and the banner. */
+    val syncProgress: StateFlow<EmailRepository.DeepSyncProgress?> = repository.syncProgress
     val animatedItemsTracker = mutableSetOf<String>()
     private val _appSettings = MutableStateFlow(AppSettings())
     val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()

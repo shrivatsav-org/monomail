@@ -87,6 +87,7 @@ fun InboxScreen(
     val bodyBackfillProgress by viewModel.bodyBackfillProgress.collectAsState()
     val bodyBackfillError by viewModel.bodyBackfillError.collectAsState()
     val isBodyBackfilling by viewModel.isBodyBackfilling.collectAsState()
+    val syncProgress by viewModel.syncProgress.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
 
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
@@ -387,18 +388,57 @@ fun InboxScreen(
                                 indicator = {}
                             ) {
                                 if (threadsToDisplay.isEmpty()) {
-                                    val illustration: com.shrivatsav.monomail.ui.components.IllustrationType
-                                    val title: String
-                                    val subtitle: String
-                                    val ctaText: String?
-                                    val onCtaClick: (() -> Unit)?
+                                    var illustration: com.shrivatsav.monomail.ui.components.IllustrationType = com.shrivatsav.monomail.ui.components.IllustrationType.INBOX_ZERO
+                                    var title = ""
+                                    var subtitle = ""
+                                    var ctaText: String? = null
+                                    var onCtaClick: (() -> Unit)? = null
                                     if (isSearchActive) {
                                         illustration = com.shrivatsav.monomail.ui.components.IllustrationType.SEARCH_EMPTY
                                         title = "No results found"
                                         subtitle = "Try searching on the server instead."
                                         ctaText = "Search server"
-                                        onCtaClick = { viewModel.searchServer(searchFilters.query) }
                                     } else {
+                                        // During an active sync an empty tab is
+                                        // usually just "not synced yet" — show a
+                                        // cloud + "tab is syncing" instead of the
+                                        // misleading "You're all caught up".
+                                        val tabFolderName = when (currentTab) {
+                                            InboxTab.INBOX -> "Inbox"
+                                            InboxTab.SENT -> "Sent"
+                                            InboxTab.ARCHIVED -> "Archived"
+                                            InboxTab.SPAM -> "Spam"
+                                            InboxTab.TRASH -> "Trash"
+                                            InboxTab.DRAFTS -> "Drafts"
+                                            else -> null
+                                        }
+                                        val tabIsSyncing = when (currentTab) {
+                                            // Aggregate tabs cover every folder's sync.
+                                            InboxTab.UNIFIED, InboxTab.STARRED, InboxTab.SNOOZED ->
+                                                syncProgress != null || isBodyBackfilling
+                                            else -> tabFolderName != null && (
+                                                syncProgress?.folder == tabFolderName ||
+                                                    bodyBackfillProgress?.folder == tabFolderName
+                                                )
+                                        }
+                                        if (tabIsSyncing) {
+                                            val tabLabel = when (currentTab) {
+                                                InboxTab.INBOX -> "Inbox"
+                                                InboxTab.SENT -> "Sent"
+                                                InboxTab.ARCHIVED -> "Archived"
+                                                InboxTab.SPAM -> "Spam"
+                                                InboxTab.TRASH -> "Trash"
+                                                InboxTab.DRAFTS -> "Drafts"
+                                                InboxTab.STARRED -> "Starred"
+                                                InboxTab.SNOOZED -> "Snoozed"
+                                                InboxTab.UNIFIED -> "Unified inbox"
+                                            }
+                                            illustration = com.shrivatsav.monomail.ui.components.IllustrationType.CLOUD_SYNC
+                                            title = "$tabLabel tab is syncing"
+                                            subtitle = "Please wait until it completes."
+                                            ctaText = null
+                                            onCtaClick = null
+                                        } else {
                                         when (currentTab) {
                                             InboxTab.SENT -> {
                                                 illustration = com.shrivatsav.monomail.ui.components.IllustrationType.PAPER_PLANE
@@ -450,6 +490,7 @@ fun InboxScreen(
                                                 onCtaClick = null
                                             }
                                         }
+                                    }
                                     }
                                     com.shrivatsav.monomail.ui.components.EmptyStateView(
                                         illustration = illustration,

@@ -33,7 +33,8 @@ enum class IllustrationType {
     SHIELD,
     PAPER_PLANE,
     CONNECTION,
-    ERROR_CLOUD
+    ERROR_CLOUD,
+    CLOUD_SYNC
 }
 
 /**
@@ -200,6 +201,76 @@ fun MonoIllustration(
                         path = cloudPath,
                         color = primaryColor.copy(alpha = alpha)
                     )
+                }
+                IllustrationType.CLOUD_SYNC -> {
+                    // Cloud silhouette (same shape as ERROR_CLOUD, nudged up)
+                    // with a circular sync/refresh pair of arrows underneath.
+                    val cloudPath = Path().apply {
+                        moveTo(width * 0.25f, height * 0.42f)
+                        cubicTo(width * 0.1f, height * 0.42f, width * 0.1f, height * 0.62f, width * 0.25f, height * 0.62f)
+                        lineTo(width * 0.75f, height * 0.62f)
+                        cubicTo(width * 0.9f, height * 0.62f, width * 0.9f, height * 0.42f, width * 0.75f, height * 0.42f)
+                        cubicTo(width * 0.75f, height * 0.24f, width * 0.5f, height * 0.14f, width * 0.45f, height * 0.32f)
+                        cubicTo(width * 0.35f, height * 0.22f, width * 0.2f, height * 0.27f, width * 0.25f, height * 0.42f)
+                        close()
+                    }
+                    drawPath(
+                        path = cloudPath,
+                        color = primaryColor.copy(alpha = alpha)
+                    )
+                    // Two 270-degree arcs with arrowheads at top-left and
+                    // bottom-right — the classic circular refresh/sync glyph.
+                    val arrowColor = primaryColor.copy(alpha = alpha)
+                    val arrowRadius = width * 0.12f
+                    val cx = width * 0.5f
+                    val cy = height * 0.84f
+                    val arrowStroke = Stroke(
+                        width = 9f,
+                        cap = androidx.compose.ui.graphics.StrokeCap.Round
+                    )
+                    val arcTopLeft = Offset(cx - arrowRadius, cy - arrowRadius)
+                    val arcSize = Size(arrowRadius * 2f, arrowRadius * 2f)
+                    // Arc 1: top-right -> clockwise -> top-left (gap at top).
+                    drawArc(
+                        color = arrowColor,
+                        startAngle = -45f,
+                        sweepAngle = 270f,
+                        useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcSize,
+                        style = arrowStroke
+                    )
+                    // Arc 2: bottom-left -> clockwise -> bottom-right (gap at bottom).
+                    drawArc(
+                        color = arrowColor,
+                        startAngle = 135f,
+                        sweepAngle = 270f,
+                        useCenter = false,
+                        topLeft = arcTopLeft,
+                        size = arcSize,
+                        style = arrowStroke
+                    )
+                    fun arrowhead(deg: Float) {
+                        val rad = Math.toRadians(deg.toDouble())
+                        val cos = kotlin.math.cos(rad)
+                        val sin = kotlin.math.sin(rad)
+                        val tip = Offset(
+                            cx + (arrowRadius * 1.22f * cos).toFloat(),
+                            cy + (arrowRadius * 1.22f * sin).toFloat()
+                        )
+                        val w1 = Offset(
+                            cx + (arrowRadius * 0.92f * kotlin.math.cos(rad + 2.6)).toFloat(),
+                            cy + (arrowRadius * 0.92f * kotlin.math.sin(rad + 2.6)).toFloat()
+                        )
+                        val w2 = Offset(
+                            cx + (arrowRadius * 0.92f * kotlin.math.cos(rad - 2.6)).toFloat(),
+                            cy + (arrowRadius * 0.92f * kotlin.math.sin(rad - 2.6)).toFloat()
+                        )
+                        drawLine(arrowColor, tip, w1, strokeWidth = 9f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                        drawLine(arrowColor, tip, w2, strokeWidth = 9f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+                    }
+                    arrowhead(225f) // top-left
+                    arrowhead(45f)  // bottom-right
                 }
             }
         }
