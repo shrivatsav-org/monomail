@@ -483,13 +483,14 @@ fun ImapSetupScreen(
             if (days == null) {
                 SyncWindowDialog(
                     onConfirm = { pendingDays = it },
-                    onDismiss = { viewModel.startInitialSync(7, onSetupComplete) }
+                    onCancel = { viewModel.cancelInitialSync() }
                 )
             } else {
                 SyncWarningDialog(
                     days = days,
                     onProceed = { viewModel.startInitialSync(it, onSetupComplete) },
-                    onBack = { pendingDays = null }
+                    onBack = { pendingDays = null },
+                    onCancel = { viewModel.cancelInitialSync() }
                 )
             }
         }

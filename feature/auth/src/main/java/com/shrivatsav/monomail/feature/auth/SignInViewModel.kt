@@ -112,6 +112,13 @@ class SignInViewModel @Inject constructor(
         }
     }
 
+    /** User cancelled the initial-sync prompt — back to the sign-in screen, no sync started. */
+    fun cancelInitialSync() {
+        if (_state.value is SignInState.ShowSyncPrompt) {
+            _state.value = SignInState.Idle
+        }
+    }
+
     fun getCustomGoogleClientId(context: Context): String {
         return com.shrivatsav.monomail.security.SecurityUtil.getGoogleClientId(context)
     }

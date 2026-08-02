@@ -191,13 +191,14 @@ fun SignInScreen(
             if (days == null) {
                 SyncWindowDialog(
                     onConfirm = { pendingDays = it },
-                    onDismiss = { viewModel.startInitialSync(7) } // default
+                    onCancel = { viewModel.cancelInitialSync() }
                 )
             } else {
                 SyncWarningDialog(
                     days = days,
                     onProceed = { viewModel.startInitialSync(it) },
-                    onBack = { pendingDays = null }
+                    onBack = { pendingDays = null },
+                    onCancel = { viewModel.cancelInitialSync() }
                 )
             }
         }
@@ -639,10 +640,10 @@ fun Context.findActivity(): Activity? = when (this) {
 // =============================================================================
 
 @Composable
-fun SyncWindowDialog(onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+fun SyncWindowDialog(onConfirm: (Int) -> Unit, onCancel: () -> Unit) {
     var selectedDays by remember { mutableStateOf<Int?>(null) }
     androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = onCancel,
         title = { androidx.compose.material3.Text("Initial Sync") },
         confirmButton = {
             androidx.compose.material3.TextButton(
@@ -652,7 +653,11 @@ fun SyncWindowDialog(onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
                 androidx.compose.material3.Text("Next")
             }
         },
-        dismissButton = {},
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onCancel) {
+                androidx.compose.material3.Text("Cancel")
+            }
+        },
         text = {
             androidx.compose.foundation.layout.Column {
                 androidx.compose.material3.Text(
@@ -684,9 +689,10 @@ fun SyncWindowDialog(onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
 /**
  * Second step of the initial-sync flow: one-time warning about download time,
  * shown after the user picks a sync window and taps "Next".
+ * Back returns to the window dialog; Cancel aborts the whole flow.
  */
 @Composable
-fun SyncWarningDialog(days: Int, onProceed: (Int) -> Unit, onBack: () -> Unit) {
+fun SyncWarningDialog(days: Int, onProceed: (Int) -> Unit, onBack: () -> Unit, onCancel: () -> Unit) {
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onBack,
         title = { androidx.compose.material3.Text("Heads up") },
@@ -696,8 +702,13 @@ fun SyncWarningDialog(days: Int, onProceed: (Int) -> Unit, onBack: () -> Unit) {
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onBack) {
-                androidx.compose.material3.Text("Back")
+            androidx.compose.foundation.layout.Row {
+                androidx.compose.material3.TextButton(onClick = onBack) {
+                    androidx.compose.material3.Text("Back")
+                }
+                androidx.compose.material3.TextButton(onClick = onCancel) {
+                    androidx.compose.material3.Text("Cancel")
+                }
             }
         },
         text = {

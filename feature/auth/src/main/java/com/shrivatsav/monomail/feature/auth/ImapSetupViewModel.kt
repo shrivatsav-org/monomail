@@ -215,6 +215,13 @@ class ImapSetupViewModel @Inject constructor(
         }
     }
 
+    /** User cancelled the initial-sync prompt — back to the setup form, no sync started. */
+    fun cancelInitialSync() {
+        if (_testState.value is ImapTestState.ShowSyncPrompt) {
+            _testState.value = ImapTestState.Idle
+        }
+    }
+
     private fun buildConfig(): ImapAccountConfig? {
         val iPort = _imapPort.value.toIntOrNull() ?: return null
         val sPort = _smtpPort.value.toIntOrNull() ?: return null
