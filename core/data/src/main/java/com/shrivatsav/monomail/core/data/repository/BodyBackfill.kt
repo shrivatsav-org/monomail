@@ -39,6 +39,7 @@ internal const val BODY_BACKFILL_CHANNEL_ID = "body_backfill"
 internal const val BODY_BACKFILL_NOTIFICATION_ID = 0xBB
 /** Completion toast — separate id so it never collides with the live
  *  progress notification (0xBB) or the deep-sync one (0xDE). */
+internal const val DEEP_SYNC_NOTIFICATION_ID = 0xDE
 internal const val BODY_BACKFILL_DONE_NOTIFICATION_ID = 0xBC
 internal const val BODY_BACKFILL_DONE_CHANNEL_ID = "body_backfill_done"
 /**
@@ -155,4 +156,17 @@ internal class BodyBackfillNotificationHelper(private val context: Context) {
         ensureBodyBackfillDoneChannel(context)
         nm.notify(BODY_BACKFILL_DONE_NOTIFICATION_ID, buildBodyBackfillDoneNotification(context))
     }
+}
+
+/**
+ * Dismisses Monomail's sync/completion notifications ("All synced",
+ * "Email content downloaded") — called when the app opens, since seeing
+ * the inbox means the state has been seen. In-flight progress
+ * notifications are untouched: they are foreground-service-owned and
+ * keep running until their job finishes.
+ */
+fun dismissSyncCompletionNotifications(context: Context) {
+    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    nm.cancel(BODY_BACKFILL_DONE_NOTIFICATION_ID)
+    nm.cancel(DEEP_SYNC_NOTIFICATION_ID)
 }

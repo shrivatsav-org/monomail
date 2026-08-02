@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
+import com.shrivatsav.monomail.core.data.repository.DEEP_SYNC_NOTIFICATION_ID
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -33,7 +34,7 @@ class DeepSyncService : Service() {
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     private val channelId = "deep_sync"
-    private val notificationId = 0xDE
+    private val notificationId = DEEP_SYNC_NOTIFICATION_ID
 
     override fun onCreate() {
         super.onCreate()

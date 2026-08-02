@@ -24,6 +24,7 @@ import androidx.work.WorkManager
 import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
+import com.shrivatsav.monomail.core.data.repository.dismissSyncCompletionNotifications
 import com.shrivatsav.monomail.core.data.settings.FontScale
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
 import com.shrivatsav.monomail.core.data.settings.SyncFrequency
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        dismissSyncCompletionNotifications(this)
         CoroutineScope(Dispatchers.IO).launch {
             accountManager.setLastActiveTime(System.currentTimeMillis())
         }
