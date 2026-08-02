@@ -1242,11 +1242,11 @@ private fun configureWebView(webView: WebView) {
     webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
     webView.settings.loadsImagesAutomatically = true
     try {
-        WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(webView, true)
+        WebView::class.java.getMethod("setAllowFileAccess", Boolean::class.java).invoke(webView, false)
     } catch (_: Exception) {
     }
     try {
-        WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(webView, true)
+        WebView::class.java.getMethod("setAllowContentAccess", Boolean::class.java).invoke(webView, false)
     } catch (_: Exception) {
     }
     webView.setBackgroundColor(android.graphics.Color.TRANSPARENT)

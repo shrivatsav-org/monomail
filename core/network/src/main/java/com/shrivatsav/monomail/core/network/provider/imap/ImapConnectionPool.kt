@@ -162,6 +162,10 @@ class ImapConnectionPool(
             props["mail.$protocol.starttls.enable"] = "true"
         }
         props["mail.$protocol.ssl.protocols"] = "TLSv1.2 TLSv1.3"
+        props["mail.$protocol.ssl.checkserveridentity"] = "true"
+        if (config.imapStartTls) {
+            props["mail.$protocol.starttls.required"] = "true"
+        }
 
         // MIME handling
         props["mail.mime.multipart.ignoreexistingboundaryparameter"] = "true"
