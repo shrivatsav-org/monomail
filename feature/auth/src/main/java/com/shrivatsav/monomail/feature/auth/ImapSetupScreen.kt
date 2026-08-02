@@ -478,10 +478,20 @@ fun ImapSetupScreen(
         }
 
         if (testState is ImapTestState.ShowSyncPrompt) {
-            SyncWindowDialog(
-                onConfirm = { days -> viewModel.startInitialSync(days, onSetupComplete) },
-                onDismiss = { viewModel.startInitialSync(7, onSetupComplete) }
-            )
+            var pendingDays by remember { mutableStateOf<Int?>(null) }
+            val days = pendingDays
+            if (days == null) {
+                SyncWindowDialog(
+                    onConfirm = { pendingDays = it },
+                    onDismiss = { viewModel.startInitialSync(7, onSetupComplete) }
+                )
+            } else {
+                SyncWarningDialog(
+                    days = days,
+                    onProceed = { viewModel.startInitialSync(it, onSetupComplete) },
+                    onBack = { pendingDays = null }
+                )
+            }
         }
 
         AnimatedVisibility(

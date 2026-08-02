@@ -186,10 +186,20 @@ fun SignInScreen(
             )
         }
         if (state is SignInState.ShowSyncPrompt) {
-            SyncWindowDialog(
-                onConfirm = { days -> viewModel.startInitialSync(days) },
-                onDismiss = { viewModel.startInitialSync(7) } // default
-            )
+            var pendingDays by remember { mutableStateOf<Int?>(null) }
+            val days = pendingDays
+            if (days == null) {
+                SyncWindowDialog(
+                    onConfirm = { pendingDays = it },
+                    onDismiss = { viewModel.startInitialSync(7) } // default
+                )
+            } else {
+                SyncWarningDialog(
+                    days = days,
+                    onProceed = { viewModel.startInitialSync(it) },
+                    onBack = { pendingDays = null }
+                )
+            }
         }
 
 
@@ -630,12 +640,16 @@ fun Context.findActivity(): Activity? = when (this) {
 
 @Composable
 fun SyncWindowDialog(onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
+    var selectedDays by remember { mutableStateOf<Int?>(null) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { androidx.compose.material3.Text("Initial Sync") },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { onConfirm(7) }) {
-                androidx.compose.material3.Text("Skip & Use Default (7 days)")
+            androidx.compose.material3.TextButton(
+                onClick = { selectedDays?.let(onConfirm) },
+                enabled = selectedDays != null
+            ) {
+                androidx.compose.material3.Text("Next")
             }
         },
         dismissButton = {},
@@ -645,17 +659,53 @@ fun SyncWindowDialog(onConfirm: (Int) -> Unit, onDismiss: () -> Unit) {
                     "How many days of recent emails would you like to download for offline access?",
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
-                // One full-width button per sync-window option — tapping one
-                // confirms that window and dismisses the dialog.
+                // Tap an option to select it, then "Next" to continue.
                 listOf(7, 14, 30).forEach { days ->
                     androidx.compose.material3.FilledTonalButton(
-                        onClick = { onConfirm(days) },
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        onClick = { selectedDays = days },
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        colors = if (selectedDays == days) {
+                            androidx.compose.material3.ButtonDefaults.filledTonalButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                contentColor = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            androidx.compose.material3.ButtonDefaults.filledTonalButtonColors()
+                        }
                     ) {
                         androidx.compose.material3.Text("Last $days days")
                     }
                 }
             }
+        }
+    )
+}
+
+/**
+ * Second step of the initial-sync flow: one-time warning about download time,
+ * shown after the user picks a sync window and taps "Next".
+ */
+@Composable
+fun SyncWarningDialog(days: Int, onProceed: (Int) -> Unit, onBack: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onBack,
+        title = { androidx.compose.material3.Text("Heads up") },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = { onProceed(days) }) {
+                androidx.compose.material3.Text("Proceed")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onBack) {
+                androidx.compose.material3.Text("Back")
+            }
+        },
+        text = {
+            androidx.compose.material3.Text(
+                "If you have too many emails or threads during the last $days days, " +
+                    "it may take longer to sync and download the contents. " +
+                    "This will be one time, and next syncs will be faster."
+            )
         }
     )
 }
