@@ -157,7 +157,7 @@ class DeepSyncService : Service() {
             )
         }
         val done = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setSmallIcon(com.shrivatsav.monomail.core.data.R.drawable.ic_notification_leaf)
             .setContentTitle("All synced")
             .setContentText("Inbox is ready")
             .setContentIntent(contentIntent)
