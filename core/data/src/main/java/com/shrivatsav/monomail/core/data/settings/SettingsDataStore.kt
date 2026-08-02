@@ -63,7 +63,7 @@ data class AppSettings(
     val smartGroupingEnabled: Boolean = true,
     val smartGroupingRecentOnly: Boolean = true,
     val organizeByThread: Boolean = true,
-    val loadRemoteImages: Boolean = true,
+    val loadRemoteImages: Boolean = false,
     val renderMarkdown: Boolean = false,
     val emailTheme: EmailTheme = EmailTheme.AUTO,
     val navScale: Float = 1f,

@@ -98,7 +98,7 @@ class EmailDetailViewModel @Inject constructor(
 
     val loadRemoteImages: StateFlow<Boolean> = settingsDataStore.settingsFlow
         .map { it.loadRemoteImages }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val emailTheme: StateFlow<EmailTheme> = settingsDataStore.settingsFlow
         .map { it.emailTheme }
