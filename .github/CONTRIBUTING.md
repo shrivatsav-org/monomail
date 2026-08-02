@@ -45,4 +45,4 @@ Types: `fix`, `feat`, `refactor`, `chore`, `docs`, `test`, `style`. Keep `scope`
 
 ## Questions
 
-Open a [Discussion](https://github.com/shrivatsav-0/monomail/discussions) for questions or ideas before writing code. Avoids wasted effort.
+Open a [Discussion](https://github.com/shrivatsav-org/monomail/discussions) for questions or ideas before writing code. Avoids wasted effort.

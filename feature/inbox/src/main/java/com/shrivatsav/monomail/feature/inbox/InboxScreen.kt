@@ -981,7 +981,7 @@ fun InboxScreen(
                     SupportCard(
                         modifier = Modifier.weight(1f),
                         label = "Star on GitHub",
-                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }
+                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-org/monomail") }
                     ) {
                         Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(22.dp))
                     }
@@ -1028,7 +1028,7 @@ fun InboxScreen(
                                 type = "text/plain"
                                 putExtra(
                                     android.content.Intent.EXTRA_TEXT,
-                                    "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-0/monomail"
+                                    "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-org/monomail"
                                 )
                             }
                             context.startActivity(android.content.Intent.createChooser(intent, "Share Monomail"))
@@ -1037,7 +1037,7 @@ fun InboxScreen(
                     TooltipIconButton(
                         icon = Icons.Rounded.BugReport,
                         contentDescription = "Report Issue",
-                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }
+                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-org/monomail/issues") }
                     )
                     TooltipIconButton(
                         icon = Icons.Rounded.AccountBalanceWallet,

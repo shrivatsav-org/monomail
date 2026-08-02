@@ -60,7 +60,7 @@ internal fun SupportSettingsScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     IconButton(
-                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") },
+                        onClick = { uriHandler.openUri("https://github.com/shrivatsav-org/monomail") },
                         modifier = Modifier.weight(1f).height(48.dp),
                         colors = IconButtonDefaults.iconButtonColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
@@ -81,7 +81,7 @@ internal fun SupportSettingsScreen(
                         onClick = {
                             val intent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
                                 type = "text/plain"
-                                putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail — a private, open-source email client: https://github.com/shrivatsav-0/monomail")
+                                putExtra(android.content.Intent.EXTRA_TEXT, "Check out Monomail — a private, open-source email client: https://github.com/shrivatsav-org/monomail")
                             }
                             context.startActivity(android.content.Intent.createChooser(intent, "Share via"))
                         },

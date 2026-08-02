@@ -67,7 +67,7 @@ private fun SupportPage(uriHandler: androidx.compose.ui.platform.UriHandler, con
         }
         Spacer(modifier = Modifier.height(10.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OnboardingSupportCard(modifier = Modifier.weight(1f), label = "Star on GitHub", onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail") }) {
+            OnboardingSupportCard(modifier = Modifier.weight(1f), label = "Star on GitHub", onClick = { uriHandler.openUri("https://github.com/shrivatsav-org/monomail") }) {
                 Icon(Icons.Rounded.Star, contentDescription = null, modifier = Modifier.size(22.dp))
             }
             OnboardingSupportCard(modifier = Modifier.weight(1f), label = "Join Discord", onClick = { uriHandler.openUri("https://discord.gg/tZgpycdm") }) {
@@ -84,7 +84,7 @@ private fun SupportPage(uriHandler: androidx.compose.ui.platform.UriHandler, con
                 onClick = {
                     val intent = Intent(Intent.ACTION_SEND).apply {
                         type = "text/plain"
-                        putExtra(Intent.EXTRA_TEXT, "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-0/monomail")
+                        putExtra(Intent.EXTRA_TEXT, "Check out Monomail - a private, open-source email client: https://github.com/shrivatsav-org/monomail")
                     }
                     context.startActivity(Intent.createChooser(intent, "Share Monomail"))
                 }
@@ -92,7 +92,7 @@ private fun SupportPage(uriHandler: androidx.compose.ui.platform.UriHandler, con
             TooltipIconButton(
                 icon = Icons.Rounded.BugReport,
                 contentDescription = "Report Issue",
-                onClick = { uriHandler.openUri("https://github.com/shrivatsav-0/monomail/issues") }
+                onClick = { uriHandler.openUri("https://github.com/shrivatsav-org/monomail/issues") }
             )
             TooltipIconButton(
                 icon = Icons.Rounded.AccountBalanceWallet,

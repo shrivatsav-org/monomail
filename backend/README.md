@@ -1,6 +1,8 @@
 # Monomail Push Notification Backend (Cloudflare Worker)
 
-This lightweight Cloudflare Worker bridges push notifications from **Google Cloud Pub/Sub (Gmail)** and **Microsoft Graph Webhooks (Outlook)** to **Firebase Cloud Messaging (FCM)** on your Android device.
+This lightweight Cloudflare Worker bridges push notifications from **Google Cloud Pub/Sub (Gmail)** and **Microsoft Graph Webhooks (Outlook)** to **Firebase Cloud Messaging (FCM)** on your Android device. It is the backbone of the Monomail zero-polling push notification system.
+
+> **Note:** The official Play Store (Paid) version of Monomail already uses a hosted, fully managed instance of this backend. These instructions are purely for self-hosters and open-source users.
 
 ## Features
 - **Gmail Push**: Leverages Gmail API `watch` to receive real-time updates via Google Cloud Pub/Sub.

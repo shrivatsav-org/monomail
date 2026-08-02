@@ -1,6 +1,6 @@
 # MonoMail
 
-[![Release](https://img.shields.io/github/v/release/shrivatsav-0/monomail?label=version)](https://github.com/shrivatsav-0/monomail/releases/latest)
+[![Release](https://img.shields.io/github/v/release/shrivatsav-org/monomail?label=version)](https://github.com/shrivatsav-org/monomail/releases/latest)
 [![License](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-26%2B-3ddc84)](https://developer.android.com/about/versions/8.0)
 [![Kotlin](https://img.shields.io/badge/Kotlin-2.2-7f52ff)](https://kotlinlang.org)
@@ -9,27 +9,65 @@
 
 Monochrome email client for Android — Jetpack Compose, Material 3 Expressive. No colour accents, no noise, just email.
 
-[Website](https://monomail.millosaurs.me) · [Download APK](https://github.com/shrivatsav-0/monomail/releases/latest) · [Discord](https://discord.gg/gXp6xPetKU)
+[Website](https://monomail.millosaurs.me) · [Download from Play Store](https://play.google.com/store/apps/details?id=com.shrivatsav.monomail) · [Discord](https://discord.gg/gXp6xPetKU)
 
-> [!WARNING]
-> **Gmail API test-user quota (100 users).** The app is not published on the Play Store. If Google shows "This app is blocked", the test-user quota is exhausted. Run from source with your own Google Cloud project, or use an Outlook account (no such limit).
+> [!NOTE]
+> **Play Store Version:** The app is currently in **Open Testing** on the Google Play Store (Paid). It includes full support for the **Gmail API** with instant **Push Notifications**, Microsoft Graph for Outlook, and IMAP.
+
+> [!IMPORTANT]
+> **Help Make Gmail Support Free:** We are actively collecting funds to cover the expensive **Google CASA Security Assessment** required to verify the app and make Gmail API access free for everyone. If you'd like to support this effort, please consider donating on [Ko-fi](https://ko-fi.com/N4N2W53M5)!
 
 ---
 
 ## Features
+### Inbox
+- **Navigation**: Pull-to-refresh, paginated scroll, scroll position retention per tab.
+- **Actions**: Swipe gestures (configurable L/R), long-press actions, bulk multi-select, undo toast (4s), mark-all-read.
+- **Organization**: Smart sender grouping, snooze (1hr/tomorrow/weekend/next week), date headers, calendar badge for scheduled.
 
-| Category | Highlights |
-|---|---|
-| **Inbox** | Pull-to-refresh, paginated scroll, swipe gestures (configurable L/R), long-press actions, bulk multi-select, smart sender grouping, snooze (1hr/tomorrow/weekend/next week), undo toast (4s), date headers, scroll position retention per tab, calendar badge for scheduled, mark-all-read |
-| **Conversation** | Collapsible thread view, inline chain view (configurable), CC/BCC expand, thread connecting lines, alternating backgrounds |
-| **Search** | Local client-side filter (subject/sender/snippet), server-side API search with pagination |
-| **Multi-Account** | Up to 10 accounts (Gmail, Outlook, IMAP), unified inbox toggle, swipe-to-switch avatar, profile card |
-| **Compose** | Reply/Reply-all/forward, CC/BCC, contact autocomplete, file attachments (any MIME), schedule send, undo send (5-30s configurable), send-as aliases, email templates, formatting toolbar (B/I/U/lists/quote), PGP encrypt & sign, WebView contenteditable editor |
-| **Settings** | Hub-and-spoke navigation — Appearance (theme, font scale, dividers, compact, remote images, markdown, email colors), Inbox (swipe config, smart grouping), Compose (reply mode, confirm-send, undo window, templates), Navigation (dock size, tab editor), Notifications (sync frequency, per-account channels), PGP key management |
-| **PGP** | Ed25519/X25519 key generation, ASCII-armored import/export, auto-decrypt + signature verification, passphrase-protected keys, encrypt & sign on outgoing |
-| **Detail view** | HTML rendering (WebView, JS disabled), algorithmic dark mode (AndroidX WebKit), collapsible quoted text, responsive email detection, remote image blocking with per-email override, CSP `default-src 'none'`, HTML sanitization (no Jsoup), inline image previews (max 280dp), attachment grid (2-4 columns), font scaling (0.8x-1.3x) |
-| **Notifications** | Adaptive WorkManager sync (2min foreground, 15min backoff), per-account channels (sound/vibration), inline reply via RemoteInput, archive+undo from shade, parallelised multi-account sync |
-| **Micro-interactions** | Spring physics throughout — press-scale on cards/buttons, animated dock tabs, bounce on theme selector, `animateContentSize` for expand/collapse, sent overlay animation, slide+fade navigation transitions |
+### Conversation & Detail View
+- **Threading**: Collapsible thread view, inline chain view (configurable), thread connecting lines, alternating backgrounds, CC/BCC expand.
+- **Rendering**: HTML rendering (WebView, JS disabled), algorithmic dark mode (AndroidX WebKit), responsive email detection.
+- **Security & Privacy**: Remote image blocking with per-email override, CSP `default-src 'none'`, HTML sanitization (no Jsoup).
+- **Viewing**: Collapsible quoted text, inline image previews (max 280dp), attachment grid (2-4 columns), font scaling (0.8x-1.3x).
+
+### Search
+- **Local**: Client-side filter (subject/sender/snippet).
+- **Remote**: Server-side API search with pagination.
+
+### Multi-Account & Push Notifications
+- **Accounts**: Up to 10 accounts (Gmail, Outlook, IMAP).
+- **Interface**: Unified inbox toggle, swipe-to-switch avatar, profile card.
+- **Push**: Instant Gmail Pub/Sub push notifications, Outlook Webhooks, and IMAP IDLE support. No more battery-draining polling—messages arrive the second they are sent.
+
+### Compose
+- **Basics**: Reply/Reply-all/forward, CC/BCC, contact autocomplete, file attachments (any MIME).
+- **Advanced**: Schedule send, undo send (5-30s configurable), send-as aliases, email templates.
+- **Editor**: WebView contenteditable editor with formatting toolbar (B/I/U/lists/quote).
+
+### PGP Security
+- **Key Management**: Ed25519/X25519 key generation, ASCII-armored import/export, passphrase-protected keys.
+- **Operations**: Auto-decrypt + signature verification, encrypt & sign on outgoing.
+
+### Settings & Notifications
+- **Customization**:
+  - *Appearance*: Theme, font scale, dividers, compact mode, remote images, markdown, email colors.
+  - *Inbox*: Swipe config, smart grouping.
+  - *Compose*: Reply mode, confirm-send, undo window, templates.
+  - *Navigation*: Dock size, tab editor.
+- **Background Sync**: Adaptive WorkManager sync (2min foreground, 15min backoff), parallelized multi-account sync.
+- **Alerts**: Per-account channels (sound/vibration), inline reply via RemoteInput, archive+undo from shade.
+
+### Micro-interactions
+- **Physics**: Spring physics throughout (press-scale on cards/buttons, animated dock tabs, bounce on theme selector).
+- **Motion**: `animateContentSize` for expand/collapse, sent overlay animation, slide+fade navigation transitions.
+
+### Extreme Optimizations
+
+- **Zero-Polling Battery Life**: By moving to a Cloudflare Worker backend for Gmail Pub/Sub and Outlook Webhooks, combined with IMAP IDLE, the app sleeps until a push message wakes it up via FCM. Zero polling means minimal battery consumption.
+- **Compose Render Performance**: Heavy use of `remember`, `derivedStateOf`, and immutable data classes to skip recompositions. List scrolling hits strict 120fps via lazy rendering and item keying.
+- **Database & Local Caching**: SQLCipher + Room queries are heavily parallelized. We use adaptive paginated fetching with intelligent local caching so the app works seamlessly offline and loads instantly.
+- **Network Efficiency**: Minimized payload sizes, batched API requests, and aggressive GZIP compression for all endpoints. Background sync is offloaded to WorkManager only when necessary, adapting to your network state.
 
 ### Account management
 
@@ -103,7 +141,7 @@ flowchart TB
 ### Setup
 
 ```bash
-git clone https://github.com/shrivatsav-0/monomail.git
+git clone https://github.com/shrivatsav-org/monomail.git
 ```
 
 Create `secrets.properties` for the `playstore` flavor:
@@ -149,4 +187,4 @@ Fork → Branch → Commit → Pull Request
 
 ---
 
-Built by [Shrivatsav](https://github.com/shrivatsav-0)
+Built by [Shrivatsav](https://github.com/shrivatsav-org)
