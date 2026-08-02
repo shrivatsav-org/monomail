@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 import coil.compose.AsyncImage
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -206,7 +207,7 @@ private fun SearchInputContent(
             when {
                 display.isRefreshing -> LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
                 // API accounts (Gmail API / Outlook) never bulk-download bodies,
-                // so the "missing bodies" count is meaningless — plain search icon.
+                // so the "missing bodies" count is meaningless — show the Monomail mark.
                 display.missingBodyCount > 0 && !display.isApiProvider -> IconButton(
                     onClick = display.onSyncStatusClick,
                     modifier = Modifier.size(40.dp)
@@ -217,6 +218,12 @@ private fun SearchInputContent(
                         tint = MaterialTheme.colorScheme.onSurface
                     )
                 }
+                display.isApiProvider -> Icon(
+                    painter = painterResource(com.shrivatsav.monomail.feature.auth.R.drawable.ic_signin_mark),
+                    contentDescription = "Monomail",
+                    modifier = Modifier.size(26.dp),
+                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
                 else -> Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
         },
