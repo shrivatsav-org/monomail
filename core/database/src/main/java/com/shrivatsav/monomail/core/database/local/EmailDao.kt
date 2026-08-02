@@ -129,6 +129,10 @@ interface EmailDao {
     suspend fun getEmailsMissingBody(accountId: String, limit: Int = 500): List<EmailBodySlimProjection>
     @Query("UPDATE emails SET body = :body, bodyIsHtml = :bodyIsHtml, snippet = :snippet WHERE id = :emailId AND accountId = :accountId")
     suspend fun updateEmailBody(emailId: String, accountId: String, body: String, bodyIsHtml: Boolean, snippet: String)
+    @Query("SELECT COUNT(*) FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '')")
+    fun observeMissingBodyCount(accountId: String): Flow<Int>
+    @Query("SELECT COUNT(*) FROM emails WHERE accountId = :accountId")
+    fun observeEmailCount(accountId: String): Flow<Int>
 
     @Query("""
         SELECT DISTINCT e.threadId FROM emails e

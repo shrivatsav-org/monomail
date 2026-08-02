@@ -11,6 +11,7 @@ import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.core.data.repository.BodyBackfillState
+import com.shrivatsav.monomail.core.data.repository.BodyDownloadStats
 import com.shrivatsav.monomail.core.data.settings.AppSettings
 import com.shrivatsav.monomail.core.data.settings.SyncFrequency
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
@@ -32,6 +33,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -111,6 +113,32 @@ class InboxViewModel @Inject constructor(
     /** Live header deep-sync progress (folder + fraction) — drives the
      *  "tab is syncing" empty state and the banner. */
     val syncProgress: StateFlow<EmailRepository.DeepSyncProgress?> = repository.syncProgress
+    /** Live count of emails still missing body content — "inbox not up to
+     *  date" signal for the search-bar cloud-off icon. */
+    val missingBodyCount: StateFlow<Int> = _activeAccountId
+        .flatMapLatest { id ->
+            if (id == null) flowOf(0) else repository.observeMissingBodyCount(id)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
+    /** DB-derived download progress for the sync-status modal. */
+    val bodyDownloadStats: StateFlow<BodyDownloadStats?> = _activeAccountId
+        .flatMapLatest { id ->
+            if (id == null) {
+                flowOf(null)
+            } else {
+                combine(repository.observeEmailCount(id), repository.observeMissingBodyCount(id)) { total, missing ->
+                    BodyDownloadStats(total, (total - missing).coerceAtLeast(0))
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+    /** User tapped Cancel on the download-progress modal. */
+    fun cancelBodyBackfill() = repository.cancelBodyBackfill()
+    /** User tapped Continue on the sync-status modal. */
+    fun continueBodyBackfill() {
+        val id = _activeAccountId.value ?: return
+        viewModelScope.launch { repository.continueBodyBackfill(id) }
+    }
     val animatedItemsTracker = mutableSetOf<String>()
     private val _appSettings = MutableStateFlow(AppSettings())
     val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()

@@ -56,7 +56,9 @@ data class SearchDisplayState(
     val isRefreshing: Boolean = false,
     val unifiedInboxEnabled: Boolean = false,
     val accounts: List<UserProfile> = emptyList(),
-    val userProfile: UserProfile? = null
+    val userProfile: UserProfile? = null,
+    val missingBodyCount: Int = 0,
+    val onSyncStatusClick: () -> Unit = {}
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -69,6 +71,8 @@ internal fun InboxSearchBar(
     onServerSearch: (String) -> Unit,
     actions: SearchBarActions,
     isRefreshing: Boolean,
+    missingBodyCount: Int = 0,
+    onSyncStatusClick: () -> Unit = {},
     bulkSelection: BulkSelectionState = BulkSelectionState(),
     unifiedInboxEnabled: Boolean = false,
     onFocusChange: ((Boolean) -> Unit)? = null,
@@ -101,7 +105,7 @@ internal fun InboxSearchBar(
                         BulkSelectionContent(bulkSelection)
                     } else {
                         // No toast overlay; always show search input
-                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile), onFocusChange)
+                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile, missingBodyCount, onSyncStatusClick), onFocusChange)
                     }
                 }
             },
@@ -197,10 +201,19 @@ private fun SearchInputContent(
             )
         },
         leadingIcon = {
-            if (display.isRefreshing) {
-                LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
-            } else {
-                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
+            when {
+                display.isRefreshing -> LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
+                display.missingBodyCount > 0 -> IconButton(
+                    onClick = display.onSyncStatusClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.CloudOff,
+                        contentDescription = "Inbox not up to date",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                else -> Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
         },
         trailingIcon = { SearchTrailingIcon(actions, display) }

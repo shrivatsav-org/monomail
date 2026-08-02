@@ -24,6 +24,15 @@ data class BodyBackfillState(
     val finished: Boolean get() = completed >= total
 }
 
+/** DB-derived download state for the sync-status modal: how much of the
+ *  account's email content has been downloaded so far. */
+data class BodyDownloadStats(
+    val total: Int,
+    val downloaded: Int
+) {
+    val progress: Float get() = if (total > 0) downloaded.toFloat() / total else 0f
+}
+
 internal const val BODY_BACKFILL_CHANNEL_ID = "body_backfill"
 internal const val BODY_BACKFILL_NOTIFICATION_ID = 0xBB
 

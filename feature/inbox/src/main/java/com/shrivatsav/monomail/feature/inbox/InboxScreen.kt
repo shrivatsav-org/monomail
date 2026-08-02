@@ -61,6 +61,7 @@ import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import kotlinx.coroutines.launch
 import com.shrivatsav.monomail.core.data.repository.BodyBackfillState
+import com.shrivatsav.monomail.core.data.repository.BodyDownloadStats
 
 data class InboxNavActions(
     val onEmailClick: (String, String?) -> Unit,
@@ -89,6 +90,10 @@ fun InboxScreen(
     val isBodyBackfilling by viewModel.isBodyBackfilling.collectAsState()
     val syncProgress by viewModel.syncProgress.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
+    val missingBodyCount by viewModel.missingBodyCount.collectAsState()
+    val bodyDownloadStats by viewModel.bodyDownloadStats.collectAsState()
+    var showBackfillDialog by remember { mutableStateOf(false) }
+    var showSyncStatusDialog by remember { mutableStateOf(false) }
 
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -229,6 +234,8 @@ fun InboxScreen(
                             showMarkAllRead = appSettings.showMarkAllRead
                         ),
                         isRefreshing = isRefreshing,
+                        missingBodyCount = missingBodyCount,
+                        onSyncStatusClick = { showSyncStatusDialog = true },
                         bulkSelection = BulkSelectionState(
                             isBulkMode = isBulkMode,
                             selectedCount = selectedCount,
@@ -266,7 +273,30 @@ fun InboxScreen(
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
                     ) {
-                        BackfillProgressBanner(progress = bodyBackfillProgress)
+                        BackfillProgressBanner(
+                            progress = bodyBackfillProgress,
+                            onClick = { showBackfillDialog = true }
+                        )
+                    }
+                    if (showBackfillDialog && bodyBackfillProgress != null) {
+                        BackfillProgressDialog(
+                            progress = bodyBackfillProgress!!,
+                            onCancel = {
+                                viewModel.cancelBodyBackfill()
+                                showBackfillDialog = false
+                            },
+                            onDismiss = { showBackfillDialog = false }
+                        )
+                    }
+                    if (showSyncStatusDialog) {
+                        SyncStatusDialog(
+                            stats = bodyDownloadStats,
+                            onContinue = {
+                                viewModel.continueBodyBackfill()
+                                showSyncStatusDialog = false
+                            },
+                            onDismiss = { showSyncStatusDialog = false }
+                        )
                     }
                     when (val s = state) {
                         is InboxState.Loading -> {
@@ -1753,7 +1783,7 @@ private fun OfflineBanner() {
     }
 }
 @Composable
-private fun BackfillProgressBanner(progress: BodyBackfillState?) {
+private fun BackfillProgressBanner(progress: BodyBackfillState?, onClick: () -> Unit = {}) {
     val total = progress?.total ?: 0
     val completed = progress?.completed ?: 0
     val pct = if (total > 0) (completed.toFloat() / total * 100).toInt() else 0
@@ -1765,6 +1795,7 @@ private fun BackfillProgressBanner(progress: BodyBackfillState?) {
                 color = MaterialTheme.colorScheme.tertiaryContainer,
                 shape = com.shrivatsav.monomail.ui.theme.cornerShape(16.dp)
             )
+            .clickable(onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -1803,6 +1834,98 @@ private fun BackfillProgressBanner(progress: BodyBackfillState?) {
             strokeWidth = 3.dp
         )
     }
+}
+
+/** Modal opened by tapping the download banner: live progress + Cancel. */
+@Composable
+private fun BackfillProgressDialog(
+    progress: BodyBackfillState,
+    onCancel: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val pct = if (progress.total > 0) (progress.completed.toFloat() / progress.total * 100).toInt() else 0
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { androidx.compose.material3.Text("Downloading email content") },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onCancel) {
+                androidx.compose.material3.Text("Cancel download")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                androidx.compose.material3.Text("Close")
+            }
+        },
+        text = {
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.material3.Text(
+                    if (progress.folder != null) "Downloading ${progress.folder} content" else "Downloading email content",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                LinearProgressIndicator(
+                    progress = { progress.progress },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.tertiary,
+                    trackColor = MaterialTheme.colorScheme.tertiaryContainer,
+                )
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.Text(
+                    "${progress.completed} of ${progress.total} emails · $pct%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                )
+            }
+        }
+    )
+}
+
+/** Modal opened by the cloud-off search icon: DB-derived progress + Continue. */
+@Composable
+private fun SyncStatusDialog(
+    stats: BodyDownloadStats?,
+    onContinue: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val total = stats?.total ?: 0
+    val downloaded = stats?.downloaded ?: 0
+    val pct = if (total > 0) (downloaded.toFloat() / total * 100).toInt() else 0
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { androidx.compose.material3.Text("Email sync") },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onContinue) {
+                androidx.compose.material3.Text("Continue sync")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                androidx.compose.material3.Text("Close")
+            }
+        },
+        text = {
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.material3.Text(
+                    "Your inbox isn't fully up to date with the server.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                LinearProgressIndicator(
+                    progress = { stats?.progress ?: 0f },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.Text(
+                    "$downloaded of $total emails downloaded · $pct%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                )
+            }
+        }
+    )
 }
 
 @Composable

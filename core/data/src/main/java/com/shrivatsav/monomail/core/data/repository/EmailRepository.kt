@@ -643,7 +643,12 @@ class EmailRepository(
                                         emailDao.updateEmailBody(emailMeta.id, accountId, body, bodyIsHtml, snippet)
                                     }
                                 }
-                            } catch (e: java.net.UnknownHostException) {
+                            } catch (e: kotlinx.coroutines.CancellationException) {
+                                // User cancelled the sweep (banner modal) — stop
+                                // immediately without recording a download error.
+                                throw e
+                            }
+                            catch (e: java.net.UnknownHostException) {
                                 Log.w("EmailRepo", "Body backfill network error for thread $threadId: ${e.message}")
                                 if (_bodyBackfillError.value == null) {
                                     _bodyBackfillError.value = "No internet connection. Email content will download when you're back online."
@@ -681,7 +686,11 @@ class EmailRepository(
                     }
                 }
             }
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // User cancelled the sweep — no error banner for an intentional stop.
+            throw e
+        }
+        catch (e: Exception) {
             Log.w("EmailRepo", "Body backfill initialization failed: ${e.message}")
             if (_bodyBackfillError.value == null) {
                 _bodyBackfillError.value = "Could not download email content: ${e.message?.take(80)}"
@@ -692,6 +701,42 @@ class EmailRepository(
             lastBackfillFinished = System.currentTimeMillis()
         }
     }
+
+    /** User-initiated stop from the banner modal: cancels the running sweep.
+     *  The sweep's finally block clears progress, dismisses the notification
+     *  and releases the single-flight mutex. */
+    fun cancelBodyBackfill() {
+        activeBackfillJob?.cancel()
+    }
+
+    /**
+     * User-initiated resume from the sync-status modal. Mirrors
+     * [triggerBodyBackfill] but deliberately skips the 5-minute cooldown —
+     * an explicit "continue" always starts a fresh sweep.
+     */
+    suspend fun continueBodyBackfill(accountId: String) {
+        val account = accountManager.getAccounts().find { it.id == accountId }
+        if (account == null) {
+            android.util.Log.w("EmailRepo", "Body backfill: no account found for $accountId")
+            return
+        }
+        if (account.provider != "imap") {
+            android.util.Log.d("EmailRepo", "Body backfill skipped: account provider is ${account.provider}, only IMAP downloads bodies")
+            return
+        }
+        try {
+            com.shrivatsav.monomail.core.data.worker.BodyBackfillService.start(context, accountId)
+        } catch (e: Exception) {
+            android.util.Log.w("EmailRepo", "Body backfill FGS start denied, running inline", e)
+            startBodyBackfill(accountId)
+        }
+    }
+
+    /** Live count of emails whose body still needs downloading for [accountId]. */
+    fun observeMissingBodyCount(accountId: String): Flow<Int> = emailDao.observeMissingBodyCount(accountId)
+
+    /** Live count of all emails for [accountId] (downloaded bodies = total - missing). */
+    fun observeEmailCount(accountId: String): Flow<Int> = emailDao.observeEmailCount(accountId)
 
     /**
      * Backfill order for a thread's labels: Inbox (incl. Starred) -> Sent ->
