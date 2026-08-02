@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
  * Device diagnostic for the notification contract:
  *  - the body-backfill channel is silent (IMPORTANCE_LOW) — a long download
  *    must never alert, on start or on folder switches,
- *  - the "Inbox synced" (0xDE) completion notification is only posted AFTER
+ *  - the persistent "All synced" (0xDE) notification is only posted AFTER
  *    the body backfill has finished (its 0xBB notification is dismissed),
  *    not right after the header sync.
  * Runs the real DeepSyncService FGS end to end against the live account.
@@ -82,7 +82,7 @@ class DeepSyncServiceOrderTest {
                 }
                 val done = active.firstOrNull {
                     it.id == deepSyncNotificationId &&
-                        it.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() == "Inbox synced"
+                        it.notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() == "All synced"
                 }
                 if (done != null) {
                     doneObserved = true
@@ -101,7 +101,7 @@ class DeepSyncServiceOrderTest {
             "done observed: $doneObserved; backfill notification seen: $sawBackfillNotif " +
                 "(first +${firstBackfillSeenAt}ms, last +${lastBackfillSeenAt}ms)"
         )
-        assertTrue("Inbox synced (0xDE) notification never appeared", observed == true && doneObserved)
+        assertTrue("All synced (0xDE) notification never appeared", observed == true && doneObserved)
         assertTrue(
             "test setup: body backfill notification never appeared — nothing to prove the ordering",
             sawBackfillNotif

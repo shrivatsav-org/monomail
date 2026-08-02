@@ -50,14 +50,19 @@ class BodyBackfillService : Service() {
         backfillJob = scope.launch {
             try {
                 emailRepository.startBodyBackfill(accountId)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("BodyBackfillSvc", "Backfill failed unexpectedly", e)
             } finally {
                 backfillJob = null
-                // DETACH keeps the completion notification the sweep just
-                // posted (it auto-dismisses via setTimeoutAfter); REMOVE would
-                // delete it along with the foreground state.
-                stopForeground(STOP_FOREGROUND_DETACH)
+                // REMOVE deletes the foreground-owned progress notification
+                // (0xBB) here: NotificationManager.cancel() is ignored for FGS
+                // notifications, so the sweep's own dismiss() could never
+                // remove it, and DETACH would leave "10/10" stuck forever.
+                // The completion toast (0xBC) is a separate notification and
+                // survives REMOVE untouched.
+                stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
         }

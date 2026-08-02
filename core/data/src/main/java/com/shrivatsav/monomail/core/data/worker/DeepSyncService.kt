@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -146,13 +147,23 @@ class DeepSyncService : Service() {
 
     private fun showDoneNotification() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        // Tapping the persistent "All synced" notification opens the app.
+        val openIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val contentIntent = openIntent?.let {
+            PendingIntent.getActivity(
+                this, 0, it,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
         val done = NotificationCompat.Builder(this, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Inbox synced")
-            .setContentText("Your emails have been synced")
+            .setContentTitle("All synced")
+            .setContentText("Inbox is ready")
+            .setContentIntent(contentIntent)
             .setAutoCancel(true)
             .setSilent(true)
-            .setTimeoutAfter(5000)
             .build()
         nm.notify(notificationId, done)
     }
