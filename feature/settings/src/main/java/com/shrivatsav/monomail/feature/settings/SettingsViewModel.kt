@@ -33,6 +33,7 @@ class SettingsViewModel @Inject constructor(
     fun setAddSignature(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setAddSignature(enabled) }
     fun setDefaultReply(reply: DefaultReply) = viewModelScope.launch { settingsDataStore.setDefaultReply(reply) }
     fun setDisabledNotificationAccounts(accounts: Set<String>) = viewModelScope.launch { settingsDataStore.setDisabledNotificationAccounts(accounts) }
+    fun setNotificationQuickActions(actions: Set<String>) = viewModelScope.launch { settingsDataStore.setNotificationQuickActions(actions) }
     fun setSyncFrequency(freq: SyncFrequency) = viewModelScope.launch { settingsDataStore.setSyncFrequency(freq) }
     fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsDataStore.setUnifiedInboxEnabled(enabled)

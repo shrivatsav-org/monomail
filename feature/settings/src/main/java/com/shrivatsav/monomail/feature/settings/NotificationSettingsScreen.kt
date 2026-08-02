@@ -83,5 +83,38 @@ internal fun NotificationSettingsScreen(
                 }
             }
         }
+
+        GroupLabel(text = "Quick Actions", modifier = Modifier.padding(horizontal = 16.dp))
+        SettingsCard {
+            val quickActions = settings.notificationQuickActions
+            val rows = listOf(
+                Triple(Icons.Rounded.Reply, "Reply", "reply"),
+                Triple(Icons.Rounded.Archive, "Archive", "archive"),
+                Triple(Icons.Rounded.Delete, "Trash", "delete"),
+                Triple(Icons.Rounded.Snooze, "Snooze", "snooze")
+            )
+            rows.forEachIndexed { index, (icon, title, id) ->
+                SettingsToggleRow(
+                    icon = icon,
+                    title = title,
+                    subtitle = "Show on new-email notification",
+                    checked = id in quickActions,
+                    onCheckedChange = { checked ->
+                        val newSet = quickActions.toMutableSet()
+                        if (checked) newSet.add(id) else newSet.remove(id)
+                        viewModel.setNotificationQuickActions(newSet)
+                    }
+                )
+                if (index < rows.lastIndex) {
+                    CardDivider()
+                }
+            }
+            InfoRow(
+                icon = Icons.Rounded.Info,
+                title = "Up to 3 actions are visible",
+                value = "Android hides the rest — turn off the ones you don't use."
+            )
+        }
+        Spacer(Modifier.height(16.dp))
     }
 }

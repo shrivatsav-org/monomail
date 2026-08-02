@@ -55,6 +55,7 @@ data class AppSettings(
     val swipeRightAction: SwipeAction = SwipeAction.ARCHIVE,
     val confirmBeforeSending: Boolean = false,
     val defaultReply: DefaultReply = DefaultReply.REPLY,
+    val notificationQuickActions: Set<String> = setOf("reply", "archive", "delete", "snooze"),
     val disabledNotificationAccounts: Set<String> = emptySet(),
     val syncFrequency: SyncFrequency = SyncFrequency.MIN_15,
     val unifiedInboxEnabled: Boolean = false,
@@ -95,6 +96,7 @@ class SettingsDataStore(private val context: Context) {
         val SWIPE_RIGHT = stringPreferencesKey("swipe_right_action")
         val CONFIRM_SEND = booleanPreferencesKey("confirm_before_sending")
         val DEFAULT_REPLY = stringPreferencesKey("default_reply")
+        val NOTIFICATION_QUICK_ACTIONS = stringSetPreferencesKey("notification_quick_actions")
         val DISABLED_NOTIF_ACCOUNTS = stringSetPreferencesKey("disabled_notif_accounts")
         val SYNC_FREQUENCY = stringPreferencesKey("sync_frequency")
         val UNIFIED_INBOX_ENABLED = booleanPreferencesKey("unified_inbox_enabled")
@@ -133,8 +135,9 @@ class SettingsDataStore(private val context: Context) {
             swipeRightAction = prefs[Keys.SWIPE_RIGHT]?.let { SwipeAction.valueOf(it) } ?: SwipeAction.ARCHIVE,
             confirmBeforeSending = prefs[Keys.CONFIRM_SEND] ?: false,
             defaultReply = prefs[Keys.DEFAULT_REPLY]?.let { DefaultReply.valueOf(it) } ?: DefaultReply.REPLY,
+            notificationQuickActions = prefs[Keys.NOTIFICATION_QUICK_ACTIONS]
+                ?: setOf("reply", "archive", "delete", "snooze"),
             disabledNotificationAccounts = prefs[Keys.DISABLED_NOTIF_ACCOUNTS] ?: emptySet(),
-            syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15,
             unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false,
             hasSeenWelcomePrompt = prefs[Keys.HAS_SEEN_WELCOME_PROMPT] ?: false,
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
@@ -213,6 +216,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setDisabledNotificationAccounts(accounts: Set<String>) {
         context.dataStore.edit { it[Keys.DISABLED_NOTIF_ACCOUNTS] = accounts }
+    }
+    suspend fun setNotificationQuickActions(actions: Set<String>) {
+        context.dataStore.edit { it[Keys.NOTIFICATION_QUICK_ACTIONS] = actions }
     }
     suspend fun setSyncFrequency(freq: SyncFrequency) {
         context.dataStore.edit { it[Keys.SYNC_FREQUENCY] = freq.name }

@@ -202,6 +202,16 @@ class EmailSyncWorker @AssistedInject constructor(
             android.R.drawable.ic_menu_edit, "Archive", archivePendingIntent
         ).build()
 
+        val deletePendingIntent = NotificationActionReceiver.createDeletePendingIntent(
+            context = context,
+            accountId = accountId,
+            threadId = thread.threadId,
+            notificationId = notificationId
+        )
+        val deleteAction = NotificationCompat.Action.Builder(
+            android.R.drawable.ic_menu_delete, "Trash", deletePendingIntent
+        ).build()
+
         val snoozePendingIntent = NotificationActionReceiver.createSnoozePendingIntent(
             context = context,
             accountId = accountId,
@@ -211,6 +221,16 @@ class EmailSyncWorker @AssistedInject constructor(
         val snoozeAction = NotificationCompat.Action.Builder(
             android.R.drawable.ic_menu_recent_history, "Snooze", snoozePendingIntent
         ).build()
+
+        // Which quick actions appear on the notification is user-configurable
+        // (Settings > Notifications > Quick Actions).
+        val quickActions = settingsDataStore.settingsFlow.value.notificationQuickActions
+        val actions = listOf(
+            "reply" to replyAction,
+            "archive" to archiveAction,
+            "delete" to deleteAction,
+            "snooze" to snoozeAction
+        ).filter { it.first in quickActions }.map { it.second }
 
         val cleanSnippet = thread.snippet.replace(Regex("\\bOn\\s+[A-Z][a-z]{2},.*?wrote:.*"), "").trim()
         val channelId = channelIdForAccount(accountId)
@@ -225,10 +245,8 @@ class EmailSyncWorker @AssistedInject constructor(
             )
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setContentIntent(openPendingIntent)
-            .addAction(replyAction)
-            .addAction(archiveAction)
-            .addAction(snoozeAction)
             .setAutoCancel(true)
+        actions.forEach(builder::addAction)
 
         NotificationManagerCompat.from(context).notify(accountId, notificationId, builder.build())
         Log.i(TAG, "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")

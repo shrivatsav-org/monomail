@@ -28,6 +28,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val ACTION_REPLY = "com.shrivatsav.monomail.REPLY"
         const val ACTION_ARCHIVE = "com.shrivatsav.monomail.ARCHIVE"
         const val ACTION_UNDO_ARCHIVE = "com.shrivatsav.monomail.UNDO_ARCHIVE"
+        const val ACTION_DELETE = "com.shrivatsav.monomail.DELETE"
+        const val ACTION_UNDO_DELETE = "com.shrivatsav.monomail.UNDO_DELETE"
         const val ACTION_SNOOZE = "com.shrivatsav.monomail.SNOOZE"
         const val ACTION_CANCEL_BACKFILL = "com.shrivatsav.monomail.CANCEL_BACKFILL"
         const val ACTION_CANCEL_DEEP_SYNC = "com.shrivatsav.monomail.CANCEL_DEEP_SYNC"
@@ -49,6 +51,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val UNDO_REQUEST_CODE_BASE = 30000
         const val SNOOZE_REQUEST_CODE_BASE = 40000
         const val UNDO_SNOOZE_REQUEST_CODE_BASE = 50000
+        const val DELETE_REQUEST_CODE_BASE = 80000
+        const val UNDO_DELETE_REQUEST_CODE_BASE = 90000
 
         fun createReplyPendingIntent(context: Context, params: ReplyParams): PendingIntent {
             val intent = Intent(context, NotificationActionReceiver::class.java).apply {
@@ -96,6 +100,21 @@ class NotificationActionReceiver : BroadcastReceiver() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
         }
+        fun createDeletePendingIntent(
+            context: Context, accountId: String, threadId: String, notificationId: Int
+        ): PendingIntent {
+            val intent = Intent(context, NotificationActionReceiver::class.java).apply {
+                action = ACTION_DELETE
+                putExtra(EXTRA_ACCOUNT_ID, accountId)
+                putExtra(EXTRA_THREAD_ID, threadId)
+                putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+            }
+            return PendingIntent.getBroadcast(
+                context, DELETE_REQUEST_CODE_BASE + notificationId, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
 
         fun createCancelBodyBackfillPendingIntent(context: Context): PendingIntent {
             val intent = Intent(context, NotificationActionReceiver::class.java).apply {
@@ -145,8 +164,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     ACTION_REPLY -> handleReply(context, intent)
                     ACTION_ARCHIVE -> handleArchive(context, intent)
                     ACTION_UNDO_ARCHIVE -> handleUndoArchive(context, intent)
+                    ACTION_DELETE -> handleDelete(context, intent)
+                    ACTION_UNDO_DELETE -> handleUndoDelete(context, intent)
                     ACTION_SNOOZE -> handleSnooze(context, intent)
-                    ACTION_UNDO_SNOOZE -> handleUndoSnooze(context, intent)
                     ACTION_CANCEL_BACKFILL -> {
                         // Stops the body-download sweep: banner, notification and
                         // (if service-backed) the FGS notification all vanish.
@@ -246,6 +266,48 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val deps = getDependencies(context)
 
         deps.emailRepository().unarchiveThread(threadId, explicitAccountId = accountId)
+
+        val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
+        NotificationManagerCompat.from(context).cancel(ARCHIVE_CONFIRM_CHANNEL, notificationId)
+    }
+    private suspend fun handleDelete(context: Context, intent: Intent) {
+        val accountId = intent.getStringExtra(EXTRA_ACCOUNT_ID) ?: return
+        val threadId = intent.getStringExtra(EXTRA_THREAD_ID) ?: return
+        val originalNotificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
+
+        val deps = getDependencies(context)
+
+        deps.emailRepository().deleteThread(threadId)
+
+        val undoIntent = Intent(context, NotificationActionReceiver::class.java).apply {
+            action = ACTION_UNDO_DELETE
+            putExtra(EXTRA_ACCOUNT_ID, accountId)
+            putExtra(EXTRA_THREAD_ID, threadId)
+            putExtra(EXTRA_NOTIFICATION_ID, originalNotificationId)
+        }
+        val undoPendingIntent = PendingIntent.getBroadcast(
+            context, UNDO_DELETE_REQUEST_CODE_BASE + originalNotificationId, undoIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        createArchiveConfirmChannel(context)
+        val undoBuilder = NotificationCompat.Builder(context, ARCHIVE_CONFIRM_CHANNEL)
+            .setSmallIcon(android.R.drawable.ic_menu_delete)
+            .setContentTitle("Moved to trash")
+            .setContentText("Thread moved to trash")
+            .addAction(android.R.drawable.ic_menu_revert, "Undo", undoPendingIntent)
+            .setAutoCancel(true)
+            .setTimeoutAfter(60000)
+
+        NotificationManagerCompat.from(context).notify(
+            ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
+        )
+    }
+
+    private suspend fun handleUndoDelete(context: Context, intent: Intent) {
+        val threadId = intent.getStringExtra(EXTRA_THREAD_ID) ?: return
+
+        getDependencies(context).emailRepository().restoreThread(threadId)
 
         val notificationId = UNDO_NOTIFICATION_ID_BASE + intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
         NotificationManagerCompat.from(context).cancel(ARCHIVE_CONFIRM_CHANNEL, notificationId)
