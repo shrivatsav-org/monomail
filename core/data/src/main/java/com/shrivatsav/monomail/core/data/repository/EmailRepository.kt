@@ -677,10 +677,17 @@ class EmailRepository(
                                 .flatMap { it.labels }
                                 .minByOrNull { folderRank(listOf(it)) }
                                 ?.let { label -> EmailFolder.entries.firstOrNull { it.name == label }?.displayName }
-                            progressMutex.withLock {
-                                completed += threadEmails.size
-                                _bodyBackfillProgress.value = BodyBackfillState(total, completed, accountId, currentFolder)
-                                notifier.showProgress(_bodyBackfillProgress.value!!)
+                            // Skip the progress post once the sweep has been
+                            // cancelled: getThread() is a blocking IMAP read that
+                            // cooperative cancellation cannot interrupt, so a
+                            // thread returning right after cancel must not
+                            // resurrect the banner/notification.
+                            if (kotlin.coroutines.coroutineContext[Job]?.isActive != false) {
+                                progressMutex.withLock {
+                                    completed += threadEmails.size
+                                    _bodyBackfillProgress.value = BodyBackfillState(total, completed, accountId, currentFolder)
+                                    notifier.showProgress(_bodyBackfillProgress.value!!)
+                                }
                             }
                         }
                     }
@@ -707,6 +714,15 @@ class EmailRepository(
      *  and releases the single-flight mutex. */
     fun cancelBodyBackfill() {
         activeBackfillJob?.cancel()
+        // Optimistic: clear the banner and notification right away. The
+        // cancelled sweep may still be draining in-flight blocking IMAP reads
+        // (socket I/O can't be interrupted by coroutine cancellation) — that
+        // drain continues invisibly and the guard in the sweep stops it from
+        // re-posting progress.
+        _bodyBackfillProgress.value = null
+        try {
+            BodyBackfillNotificationHelper(context).dismiss()
+        } catch (_: Exception) {}
     }
 
     /**
