@@ -1,5 +1,6 @@
 package com.shrivatsav.monomail.core.data.repository
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import java.io.File
@@ -8,6 +9,7 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import com.shrivatsav.monomail.core.data.worker.ScheduledSendWorker
+import com.shrivatsav.monomail.core.data.worker.BodyBackfillService
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import com.google.gson.Gson
@@ -709,9 +711,10 @@ class EmailRepository(
         }
     }
 
-    /** User-initiated stop from the banner modal: cancels the running sweep.
-     *  The sweep's finally block clears progress, dismisses the notification
-     *  and releases the single-flight mutex. */
+    /** User-initiated stop from the banner modal: cancels the running sweep
+     *  and removes its UI and notification immediately. The sweep's finally
+     *  still clears progress and releases the single-flight mutex once the
+     *  in-flight blocking IMAP reads drain. */
     fun cancelBodyBackfill() {
         activeBackfillJob?.cancel()
         // Optimistic: clear the banner and notification right away. The
@@ -722,6 +725,17 @@ class EmailRepository(
         _bodyBackfillProgress.value = null
         try {
             BodyBackfillNotificationHelper(context).dismiss()
+        } catch (_: Exception) {}
+        // NotificationManager.cancel() is ignored for foreground-service
+        // notifications (BodyBackfillService.startForeground posts 0xBB as
+        // FGS + promoted ongoing on Android 16+). The only way to remove it
+        // instantly is to drop the service's foreground state — stopping the
+        // service does that (its notification is removed on destroy). The
+        // already-cancelled sweep's finally then runs stopForeground/stopSelf
+        // as a no-op when the drain finishes. No-op when the sweep runs in a
+        // plain coroutine (worker/refresh path).
+        try {
+            context.stopService(Intent(context, BodyBackfillService::class.java))
         } catch (_: Exception) {}
     }
 
