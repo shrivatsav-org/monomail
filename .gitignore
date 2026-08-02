@@ -47,3 +47,5 @@ pr_body.txt
 # generated
 guide.md
 .omp/extensions/emdash-hook.ts
+email_body_dump.md
+app/src/androidTest/java/com/shrivatsav/monomail/EmailBodyDumpTest.kt
