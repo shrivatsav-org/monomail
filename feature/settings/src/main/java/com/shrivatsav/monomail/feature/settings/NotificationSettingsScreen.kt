@@ -109,10 +109,11 @@ internal fun NotificationSettingsScreen(
                     CardDivider()
                 }
             }
-            InfoRow(
-                icon = Icons.Rounded.Info,
-                title = "Up to 3 actions are visible",
-                value = "Android hides the rest — turn off the ones you don't use."
+            Text(
+                text = "Android shows up to 3 actions on a notification — turn off the ones you don't use.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
             )
         }
         Spacer(Modifier.height(16.dp))
