@@ -58,6 +58,7 @@ data class SearchDisplayState(
     val accounts: List<UserProfile> = emptyList(),
     val userProfile: UserProfile? = null,
     val missingBodyCount: Int = 0,
+    val isApiProvider: Boolean = false,
     val onSyncStatusClick: () -> Unit = {}
 )
 
@@ -73,6 +74,7 @@ internal fun InboxSearchBar(
     isRefreshing: Boolean,
     missingBodyCount: Int = 0,
     onSyncStatusClick: () -> Unit = {},
+    isApiProvider: Boolean = false,
     bulkSelection: BulkSelectionState = BulkSelectionState(),
     unifiedInboxEnabled: Boolean = false,
     onFocusChange: ((Boolean) -> Unit)? = null,
@@ -105,7 +107,7 @@ internal fun InboxSearchBar(
                         BulkSelectionContent(bulkSelection)
                     } else {
                         // No toast overlay; always show search input
-                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile, missingBodyCount, onSyncStatusClick), onFocusChange)
+                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile, missingBodyCount, isApiProvider, onSyncStatusClick), onFocusChange)
                     }
                 }
             },
@@ -203,6 +205,16 @@ private fun SearchInputContent(
         leadingIcon = {
             when {
                 display.isRefreshing -> LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
+                display.isApiProvider -> IconButton(
+                    onClick = display.onSyncStatusClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.CloudDone,
+                        contentDescription = "Up to date",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
                 display.missingBodyCount > 0 -> IconButton(
                     onClick = display.onSyncStatusClick,
                     modifier = Modifier.size(40.dp)

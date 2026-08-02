@@ -94,6 +94,10 @@ fun InboxScreen(
     val bodyDownloadStats by viewModel.bodyDownloadStats.collectAsState()
     var showBackfillDialog by remember { mutableStateOf(false) }
     var showSyncStatusDialog by remember { mutableStateOf(false) }
+    // API-backed accounts (Gmail API / Outlook) are always up to date —
+    // bodies load on demand — so they get a "synced" cloud instead of the
+    // IMAP-style "missing bodies" indicator.
+    val isApiProvider = userProfile?.provider == "gmail" || userProfile?.provider == "outlook"
 
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -236,6 +240,7 @@ fun InboxScreen(
                         isRefreshing = isRefreshing,
                         missingBodyCount = missingBodyCount,
                         onSyncStatusClick = { showSyncStatusDialog = true },
+                        isApiProvider = isApiProvider,
                         bulkSelection = BulkSelectionState(
                             isBulkMode = isBulkMode,
                             selectedCount = selectedCount,
@@ -291,6 +296,7 @@ fun InboxScreen(
                     if (showSyncStatusDialog) {
                         SyncStatusDialog(
                             stats = bodyDownloadStats,
+                            isApiProvider = isApiProvider,
                             onContinue = {
                                 viewModel.continueBodyBackfill()
                                 showSyncStatusDialog = false
@@ -1881,48 +1887,73 @@ private fun BackfillProgressDialog(
     )
 }
 
-/** Modal opened by the cloud-off search icon: DB-derived progress + Continue. */
+/** Modal opened by the cloud-off / cloud-done search icon. IMAP shows
+ *  DB-derived body-download progress; API providers are always up to date. */
 @Composable
 private fun SyncStatusDialog(
     stats: BodyDownloadStats?,
+    isApiProvider: Boolean,
     onContinue: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val total = stats?.total ?: 0
-    val downloaded = stats?.downloaded ?: 0
-    val pct = if (total > 0) (downloaded.toFloat() / total * 100).toInt() else 0
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { androidx.compose.material3.Text("Email sync") },
         confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onContinue) {
-                androidx.compose.material3.Text("Continue sync")
+            if (isApiProvider) {
+                androidx.compose.material3.TextButton(onClick = onDismiss) {
+                    androidx.compose.material3.Text("Close")
+                }
+            } else {
+                androidx.compose.material3.TextButton(onClick = onContinue) {
+                    androidx.compose.material3.Text("Continue sync")
+                }
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                androidx.compose.material3.Text("Close")
+            if (!isApiProvider) {
+                androidx.compose.material3.TextButton(onClick = onDismiss) {
+                    androidx.compose.material3.Text("Close")
+                }
             }
         },
         text = {
-            androidx.compose.foundation.layout.Column {
-                androidx.compose.material3.Text(
-                    "Your inbox isn't fully up to date with the server.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                LinearProgressIndicator(
-                    progress = { stats?.progress ?: 0f },
-                    modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                androidx.compose.material3.Text(
-                    "$downloaded of $total emails downloaded · $pct%",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                )
+            if (isApiProvider) {
+                androidx.compose.foundation.layout.Column {
+                    androidx.compose.material3.Text(
+                        "Your mailbox is always up to date — messages sync instantly through the provider API.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    androidx.compose.material3.Text(
+                        "Email bodies download when you open a message and are cached afterwards.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            } else {
+                val total = stats?.total ?: 0
+                val downloaded = stats?.downloaded ?: 0
+                val pct = if (total > 0) (downloaded.toFloat() / total * 100).toInt() else 0
+                androidx.compose.foundation.layout.Column {
+                    androidx.compose.material3.Text(
+                        "Your inbox isn't fully up to date with the server.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { stats?.progress ?: 0f },
+                        modifier = Modifier.fillMaxWidth().height(8.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    androidx.compose.material3.Text(
+                        "$downloaded of $total emails downloaded · $pct%",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                    )
+                }
             }
         }
     )
