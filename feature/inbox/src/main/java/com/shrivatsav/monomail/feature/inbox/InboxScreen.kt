@@ -1754,12 +1754,18 @@ private fun OfflineBanner() {
 }
 @Composable
 private fun BackfillProgressBanner(progress: BodyBackfillState?) {
-    val pct = if (progress != null && progress.total > 0) (progress.completed.toFloat() / progress.total * 100).toInt() else 0
+    val total = progress?.total ?: 0
+    val completed = progress?.completed ?: 0
+    val pct = if (total > 0) (completed.toFloat() / total * 100).toInt() else 0
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.tertiaryContainer)
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .padding(horizontal = 12.dp)
+            .background(
+                color = MaterialTheme.colorScheme.tertiaryContainer,
+                shape = com.shrivatsav.monomail.ui.theme.cornerShape(16.dp)
+            )
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
@@ -1768,30 +1774,33 @@ private fun BackfillProgressBanner(progress: BodyBackfillState?) {
             modifier = Modifier.weight(1f)
         ) {
             Icon(
-                Icons.Rounded.Download,
+                Icons.Rounded.CloudDownload,
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.onTertiaryContainer
             )
-            Spacer(Modifier.width(8.dp))
+            Spacer(Modifier.width(10.dp))
             Column {
                 Text(
-                    "Downloading email content",
+                    if (progress?.folder != null) "Downloading ${progress.folder} content" else "Downloading email content",
                     style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onTertiaryContainer
                 )
                 Text(
-                    "$pct% — ${progress?.completed ?: 0} of ${progress?.total ?: 0}",
+                    "$completed of $total emails · $pct%",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                 )
             }
         }
-        LinearProgressIndicator(
-            progress = { if (progress != null && progress.total > 0) progress.completed.toFloat() / progress.total else 0f },
-            modifier = Modifier.width(120.dp).height(6.dp),
+        Spacer(Modifier.width(12.dp))
+        CircularProgressIndicator(
+            progress = { if (total > 0) completed.toFloat() / total else 0f },
+            modifier = Modifier.size(28.dp),
             color = MaterialTheme.colorScheme.tertiary,
             trackColor = MaterialTheme.colorScheme.tertiaryContainer,
+            strokeWidth = 3.dp
         )
     }
 }
