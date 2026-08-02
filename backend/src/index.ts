@@ -3,147 +3,200 @@ export interface Env {
   GCP_PROJECT_ID: string;
   PUBSUB_TOPIC: string;
   WORKER_BASE_URL: string;
-  GCP_SERVICE_ACCOUNT_KEY: string; // Secret containing JSON string of GCP service account key
+  GCP_SERVICE_ACCOUNT_KEY: string; // Secret: JSON string of GCP service account key
+  PUSH_API_KEY: string;            // Secret: shared key required on /register and /unregister
+  PUBSUB_VERIFY_TOKEN: string;     // Secret: token embedded in Pub/Sub push URL for verification
 }
 
 interface RegisterRequest {
   accountId: string;
   email: string;
   fcmToken: string;
-  accessToken: string;
   provider: 'gmail' | 'outlook';
 }
 
+interface UnregisterRequest {
+  accountId: string;
+  email: string;
+}
+
+interface StoredToken {
+  accountId: string;
+  fcmToken: string;
+  provider: string;
+}
+
+interface ServiceAccount {
+  client_email: string;
+  private_key: string;
+  project_id?: string;
+}
+
+function isRegisterRequest(v: unknown): v is RegisterRequest {
+  return (
+    typeof v === 'object' && v !== null &&
+    typeof (v as Record<string, unknown>).accountId === 'string' &&
+    typeof (v as Record<string, unknown>).email === 'string' &&
+    typeof (v as Record<string, unknown>).fcmToken === 'string' &&
+    typeof (v as Record<string, unknown>).provider === 'string'
+  );
+}
+
+function isUnregisterRequest(v: unknown): v is UnregisterRequest {
+  return (
+    typeof v === 'object' && v !== null &&
+    typeof (v as Record<string, unknown>).accountId === 'string' &&
+    typeof (v as Record<string, unknown>).email === 'string'
+  );
+}
+
+function isStoredToken(v: unknown): v is StoredToken {
+  return (
+    typeof v === 'object' && v !== null &&
+    typeof (v as Record<string, unknown>).accountId === 'string' &&
+    typeof (v as Record<string, unknown>).fcmToken === 'string'
+  );
+}
+
+function isServiceAccount(v: unknown): v is ServiceAccount {
+  return (
+    typeof v === 'object' && v !== null &&
+    typeof (v as Record<string, unknown>).client_email === 'string' &&
+    typeof (v as Record<string, unknown>).private_key === 'string'
+  );
+}
+
+/** Return true when the caller supplied the correct shared API key. */
+function verifyApiKey(request: Request, env: Env): boolean {
+  const key = request.headers.get('X-Api-Key') ?? '';
+  return env.PUSH_API_KEY.length > 0 && key === env.PUSH_API_KEY;
+}
+
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
 
     if (request.method === 'POST' && url.pathname === '/register') {
-      return await handleRegister(request, env);
+      return handleRegister(request, env);
     }
-
+    if (request.method === 'POST' && url.pathname === '/unregister') {
+      return handleUnregister(request, env);
+    }
     if (request.method === 'POST' && (url.pathname === '/webhook/gmail' || url.pathname === '/webhook')) {
-      return await handleGmailWebhook(request, env);
+      return handleGmailWebhook(request, env, url);
     }
-
     if (url.pathname === '/webhook/outlook') {
-      return await handleOutlookWebhook(request, env);
+      return handleOutlookWebhook(request, env);
     }
 
-    return new Response('Monomail Push Backend is running.', { status: 200 });
+    return new Response('Not found', { status: 404 });
   }
 };
 
 async function handleRegister(request: Request, env: Env): Promise<Response> {
+  if (!verifyApiKey(request, env)) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
   try {
-    const data: RegisterRequest = await request.json();
-    if (!data.accountId || !data.email || !data.fcmToken || !data.provider) {
-      return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
+    const body: unknown = await request.json();
+    if (!isRegisterRequest(body)) {
+      return new Response(JSON.stringify({ error: 'Missing or invalid fields' }), { status: 400 });
     }
 
-    // Save mapping in KV. We store the mapping keyed by email or accountId depending on webhook lookup needs.
-    // For Gmail, Pub/Sub sends emailAddress. For Outlook, we can embed accountId in clientState or lookup by subscriptionId.
-    await env.FCM_TOKENS.put(`email:${data.email}`, JSON.stringify({
-      accountId: data.accountId,
-      fcmToken: data.fcmToken,
-      provider: data.provider
-    }));
-    await env.FCM_TOKENS.put(`account:${data.accountId}`, JSON.stringify({
-      accountId: data.accountId,
-      fcmToken: data.fcmToken,
-      provider: data.provider
-    }));
+    const record = JSON.stringify({ accountId: body.accountId, fcmToken: body.fcmToken, provider: body.provider } satisfies StoredToken);
+    await env.FCM_TOKENS.put(`email:${body.email}`, record);
+    await env.FCM_TOKENS.put(`account:${body.accountId}`, record);
 
-    if (data.provider === 'gmail' && data.accessToken) {
-      // Call Gmail API watch endpoint
-      const watchResp = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/watch', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${data.accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          topicName: env.PUBSUB_TOPIC,
-          labelIds: ['INBOX']
-        })
-      });
-
-      if (!watchResp.ok) {
-        const errorText = await watchResp.text();
-        console.error('Gmail watch API failed:', errorText);
-        return new Response(JSON.stringify({ error: 'Gmail watch API failed', details: errorText }), { status: 500 });
-      }
-    } else if (data.provider === 'outlook' && data.accessToken) {
-      // Call Microsoft Graph API to create subscription
-      const notificationUrl = `${env.WORKER_BASE_URL.replace(/\/$/, '')}/webhook/outlook`;
-      const expirationDateTime = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(); // 3 days max for messages
-
-      const subResp = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${data.accessToken}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          changeType: 'created',
-          notificationUrl: notificationUrl,
-          resource: 'me/mailFolders(\'Inbox\')/messages',
-          expirationDateTime: expirationDateTime,
-          clientState: data.accountId // Pass accountId in clientState to identify incoming webhook
-        })
-      });
-
-      if (!subResp.ok) {
-        const errorText = await subResp.text();
-        console.error('Microsoft Graph subscription failed:', errorText);
-        return new Response(JSON.stringify({ error: 'Microsoft Graph subscription failed', details: errorText }), { status: 500 });
-      }
-    }
-
-    return new Response(JSON.stringify({ success: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
-  } catch (err: any) {
-    console.error('handleRegister error:', err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('handleRegister error:', msg);
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
   }
 }
 
-async function handleGmailWebhook(request: Request, env: Env): Promise<Response> {
+async function handleUnregister(request: Request, env: Env): Promise<Response> {
+  if (!verifyApiKey(request, env)) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 });
+  }
   try {
-    const body: any = await request.json();
-    if (!body.message || !body.message.data) {
+    const body: unknown = await request.json();
+    if (!isUnregisterRequest(body)) {
+      return new Response(JSON.stringify({ error: 'Missing required fields' }), { status: 400 });
+    }
+    await env.FCM_TOKENS.delete(`email:${body.email}`);
+    await env.FCM_TOKENS.delete(`account:${body.accountId}`);
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('handleUnregister error:', msg);
+    return new Response(JSON.stringify({ error: msg }), { status: 500 });
+  }
+}
+
+async function handleGmailWebhook(request: Request, env: Env, url: URL): Promise<Response> {
+  // Verify token embedded in the Pub/Sub push subscription URL
+  // Configure the subscription endpoint as: <WORKER_URL>/webhook/gmail?token=<PUBSUB_VERIFY_TOKEN>
+  const token = url.searchParams.get('token') ?? '';
+  if (env.PUBSUB_VERIFY_TOKEN.length > 0 && token !== env.PUBSUB_VERIFY_TOKEN) {
+    console.warn('Gmail webhook: invalid verify token');
+    return new Response('Forbidden', { status: 403 });
+  }
+
+  try {
+    const body: unknown = await request.json();
+    if (
+      typeof body !== 'object' || body === null ||
+      !('message' in body) || typeof (body as Record<string, unknown>).message !== 'object'
+    ) {
       return new Response('Invalid Pub/Sub message', { status: 400 });
     }
 
-    // Decode base64 data
-    const decodedData = atob(body.message.data);
-    const payload = JSON.parse(decodedData);
-    const emailAddress = payload.emailAddress;
+    const message = (body as Record<string, unknown>).message as Record<string, unknown>;
+    if (typeof message.data !== 'string') {
+      return new Response('Invalid Pub/Sub message', { status: 400 });
+    }
+
+    const decodedData = atob(message.data);
+    const payload: unknown = JSON.parse(decodedData);
+    const emailAddress =
+      typeof payload === 'object' && payload !== null && typeof (payload as Record<string, unknown>).emailAddress === 'string'
+        ? (payload as Record<string, unknown>).emailAddress as string
+        : null;
 
     if (!emailAddress) {
       return new Response('No email address in payload', { status: 400 });
     }
 
-    // Lookup FCM token in KV
     const storedStr = await env.FCM_TOKENS.get(`email:${emailAddress}`);
     if (!storedStr) {
       console.warn(`No FCM token mapping found for email: ${emailAddress}`);
-      return new Response('No token mapping found', { status: 200 }); // Return 200 to acknowledge Pub/Sub
+      return new Response('No token mapping found', { status: 200 });
     }
 
-    const stored = JSON.parse(storedStr);
-    await sendFcmMessage(env, stored.fcmToken, stored.accountId, 'gmail');
+    const stored: unknown = JSON.parse(storedStr);
+    if (!isStoredToken(stored)) {
+      return new Response('Corrupt token record', { status: 500 });
+    }
 
+    await sendFcmMessage(env, stored.fcmToken, stored.accountId, 'gmail');
     return new Response('OK', { status: 200 });
-  } catch (err: any) {
-    console.error('handleGmailWebhook error:', err);
-    return new Response(err.message, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('handleGmailWebhook error:', msg);
+    return new Response(msg, { status: 500 });
   }
 }
 
 async function handleOutlookWebhook(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
 
-  // Handle Microsoft Graph validation token verification
   const validationToken = url.searchParams.get('validationToken');
   if (validationToken) {
     return new Response(validationToken, { status: 200, headers: { 'Content-Type': 'text/plain' } });
@@ -154,143 +207,125 @@ async function handleOutlookWebhook(request: Request, env: Env): Promise<Respons
   }
 
   try {
-    const body: any = await request.json();
-    if (body && body.value && Array.isArray(body.value)) {
-      for (const notification of body.value) {
-        const accountId = notification.clientState;
-        if (!accountId) continue;
+    const body: unknown = await request.json();
+    if (typeof body === 'object' && body !== null && 'value' in body && Array.isArray((body as Record<string, unknown>).value)) {
+      for (const notification of (body as Record<string, unknown[]>).value) {
+        if (typeof notification !== 'object' || notification === null) continue;
+        const accountId = (notification as Record<string, unknown>).clientState;
+        if (typeof accountId !== 'string' || !accountId) continue;
 
         const storedStr = await env.FCM_TOKENS.get(`account:${accountId}`);
         if (!storedStr) continue;
 
-        const stored = JSON.parse(storedStr);
+        const stored: unknown = JSON.parse(storedStr);
+        if (!isStoredToken(stored)) continue;
+
         await sendFcmMessage(env, stored.fcmToken, stored.accountId, 'outlook');
       }
     }
-
     return new Response('OK', { status: 200 });
-  } catch (err: any) {
-    console.error('handleOutlookWebhook error:', err);
-    return new Response(err.message, { status: 500 });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Unknown error';
+    console.error('handleOutlookWebhook error:', msg);
+    return new Response(msg, { status: 500 });
   }
 }
 
-async function sendFcmMessage(env: Env, fcmToken: string, accountId: string, provider: string) {
+async function sendFcmMessage(env: Env, fcmToken: string, accountId: string, provider: string): Promise<void> {
   if (!env.GCP_SERVICE_ACCOUNT_KEY) {
-    console.error('GCP_SERVICE_ACCOUNT_KEY secret is not set.');
+    console.error('GCP_SERVICE_ACCOUNT_KEY not set');
     return;
   }
-
   try {
-    const serviceAccount = JSON.parse(env.GCP_SERVICE_ACCOUNT_KEY);
+    const serviceAccount: unknown = JSON.parse(env.GCP_SERVICE_ACCOUNT_KEY);
+    if (!isServiceAccount(serviceAccount)) {
+      console.error('GCP_SERVICE_ACCOUNT_KEY is malformed');
+      return;
+    }
     const accessToken = await getGoogleOAuthAccessToken(serviceAccount);
+    const projectId = serviceAccount.project_id ?? env.GCP_PROJECT_ID;
+    const fcmUrl = `https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`;
 
-    const fcmUrl = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id || env.GCP_PROJECT_ID}/messages:send`;
     const fcmResp = await fetch(fcmUrl, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json'
-      },
+      headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: {
           token: fcmToken,
-          android: {
-            priority: 'high'
-          },
-          data: {
-            accountId: accountId,
-            provider: provider,
-            syncRequired: 'true',
-            timestamp: Date.now().toString()
-          }
+          data: { accountId, provider, type: 'new_email' }
         }
       })
     });
 
     if (!fcmResp.ok) {
-      const errText = await fcmResp.text();
-      console.error('FCM send failed:', errText);
+      console.error('FCM send failed:', await fcmResp.text());
+    } else {
+      console.log(`FCM message sent for account: ${accountId}`);
     }
-  } catch (err) {
-    console.error('sendFcmMessage error:', err);
+  } catch (err: unknown) {
+    console.error('sendFcmMessage error:', err instanceof Error ? err.message : err);
   }
 }
 
-// Helper to generate Google OAuth Access Token via JWT for Service Account
-async function getGoogleOAuthAccessToken(serviceAccount: any): Promise<string> {
-  const header = {
-    alg: 'RS256',
-    typ: 'JWT',
-    kid: serviceAccount.private_key_id
-  };
-
-  const iat = Math.floor(Date.now() / 1000);
-  const exp = iat + 3600;
-  const claimset = {
+async function getGoogleOAuthAccessToken(serviceAccount: ServiceAccount): Promise<string> {
+  const now = Math.floor(Date.now() / 1000);
+  const header = { alg: 'RS256', typ: 'JWT' };
+  const payload = {
     iss: serviceAccount.client_email,
     scope: 'https://www.googleapis.com/auth/firebase.messaging',
     aud: 'https://oauth2.googleapis.com/token',
-    exp: exp,
-    iat: iat
+    exp: now + 3600,
+    iat: now
   };
 
   const encodedHeader = urlSafeBase64Encode(JSON.stringify(header));
-  const encodedClaimset = urlSafeBase64Encode(JSON.stringify(claimset));
-  const toSign = `${encodedHeader}.${encodedClaimset}`;
+  const encodedPayload = urlSafeBase64Encode(JSON.stringify(payload));
+  const signingInput = `${encodedHeader}.${encodedPayload}`;
 
-  const privateKey = importPrivateKey(serviceAccount.private_key);
-  const key = await crypto.subtle.importKey(
+  const privateKeyDer = importPrivateKey(serviceAccount.private_key);
+  const cryptoKey = await crypto.subtle.importKey(
     'pkcs8',
-    privateKey,
-    { name: 'RSASSA-PKCS1-v1_5', hash: { name: 'SHA-256' } },
+    privateKeyDer,
+    { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
     false,
     ['sign']
   );
 
-  const signature = await crypto.subtle.sign(
-    'RSASSA-PKCS1-v1_5',
-    key,
-    new TextEncoder().encode(toSign)
-  );
-
-  const encodedSignature = urlSafeBase64Encode(signature);
-  const jwt = `${toSign}.${encodedSignature}`;
+  const signature = await crypto.subtle.sign('RSASSA-PKCS1-v1_5', cryptoKey, new TextEncoder().encode(signingInput));
+  const jwt = `${signingInput}.${urlSafeBase64Encode(signature)}`;
 
   const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+    body: `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=${jwt}`
   });
 
-  const tokenData: any = await tokenResp.json();
-  return tokenData.access_token;
+  const tokenData: unknown = await tokenResp.json();
+  if (typeof tokenData !== 'object' || tokenData === null || typeof (tokenData as Record<string, unknown>).access_token !== 'string') {
+    throw new Error('Failed to obtain Google OAuth token');
+  }
+  return (tokenData as Record<string, string>).access_token;
 }
 
 function urlSafeBase64Encode(data: string | ArrayBuffer): string {
-  let base64 = '';
+  let base64: string;
   if (typeof data === 'string') {
-    base64 = btoa(data);
+    base64 = btoa(unescape(encodeURIComponent(data)));
   } else {
-    const bytes = new Uint8Array(data);
-    let binary = '';
-    for (let i = 0; i < bytes.byteLength; i++) {
-      binary += String.fromCharCode(bytes[i]);
-    }
-    base64 = btoa(binary);
+    base64 = btoa(String.fromCharCode(...new Uint8Array(data)));
   }
-  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
 }
 
 function importPrivateKey(pem: string): ArrayBuffer {
-  const b64 = pem
-    .replace(/-----BEGIN PRIVATE KEY-----/g, '')
-    .replace(/-----END PRIVATE KEY-----/g, '')
-    .replace(/\s+/g, '');
-  const binary = atob(b64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i);
+  const pemContents = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/, '')
+    .replace(/-----END PRIVATE KEY-----/, '')
+    .replace(/\s/g, '');
+  const binaryString = atob(pemContents);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
   }
   return bytes.buffer;
 }

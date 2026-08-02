@@ -16,6 +16,8 @@ if (secretsFile.exists()) {
 }
 val googleClientId = secrets.getProperty("GOOGLE_CLIENT_ID") ?: ""
 val pushBackendUrl = secrets.getProperty("PUSH_BACKEND_URL") ?: "https://monomail-push.yourdomain.workers.dev"
+val pushApiKey = secrets.getProperty("PUSH_API_KEY") ?: ""
+val pubSubTopic = secrets.getProperty("PUBSUB_TOPIC") ?: ""
 
 val keystoreFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties()
@@ -43,12 +45,16 @@ android {
             dimension = "distribution"
             buildConfigField("String", "GOOGLE_CLIENT_ID", "\"\"")
             buildConfigField("String", "PUSH_BACKEND_URL", "\"$pushBackendUrl\"")
+            buildConfigField("String", "PUSH_API_KEY", "\"\"")
+            buildConfigField("String", "PUBSUB_TOPIC", "\"\"")
             buildConfigField("Boolean", "IS_GITHUB_BUILD", "true")
         }
         create("playstore") {
             dimension = "distribution"
             buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
             buildConfigField("String", "PUSH_BACKEND_URL", "\"$pushBackendUrl\"")
+            buildConfigField("String", "PUSH_API_KEY", "\"$pushApiKey\"")
+            buildConfigField("String", "PUBSUB_TOPIC", "\"$pubSubTopic\"")
             buildConfigField("Boolean", "IS_GITHUB_BUILD", "false")
         }
     }

@@ -53,6 +53,8 @@ jobs:
           cat > secrets.properties << EOF
           GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
           PUSH_BACKEND_URL=${{ secrets.PUSH_BACKEND_URL }}
+          PUSH_API_KEY=${{ secrets.PUSH_API_KEY }}
+          PUBSUB_TOPIC=${{ secrets.PUBSUB_TOPIC }}
           EOF
 
       - name: Decode google-services.json

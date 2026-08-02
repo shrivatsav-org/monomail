@@ -16,8 +16,10 @@ PUBSUB_TOPIC = "projects/monomail-500604/topics/monomail-push"
 # For Outlook Microsoft Graph Webhooks setup
 WORKER_BASE_URL = "https://monomail-push-backend.monomail.workers.dev"
 
-# Note: Set your Google Service Account JSON key for FCM HTTP v1 API as a secret via:
-# wrangler secret put GCP_SERVICE_ACCOUNT_KEY
+# Set these as Wrangler secrets (never in vars):
+#   wrangler secret put GCP_SERVICE_ACCOUNT_KEY
+#   wrangler secret put PUSH_API_KEY
+#   wrangler secret put PUBSUB_VERIFY_TOKEN
 
 [observability.logs]
 enabled = true
