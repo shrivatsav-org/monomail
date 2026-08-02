@@ -4,6 +4,8 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
+import android.app.PendingIntent
+import android.content.Intent
 import android.os.Build
 import com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver
 /**
@@ -38,6 +40,7 @@ internal const val BODY_BACKFILL_NOTIFICATION_ID = 0xBB
 /** Completion toast — separate id so it never collides with the live
  *  progress notification (0xBB) or the deep-sync one (0xDE). */
 internal const val BODY_BACKFILL_DONE_NOTIFICATION_ID = 0xBC
+internal const val BODY_BACKFILL_DONE_CHANNEL_ID = "body_backfill_done"
 /**
  * Creates the body-backfill channel. Silent (IMPORTANCE_LOW) so the long
  * download never alerts: no sound on start, on folder switches, or on
@@ -55,6 +58,26 @@ internal fun ensureBodyBackfillChannel(context: Context) {
         NotificationManager.IMPORTANCE_LOW
     ).apply {
         description = "Shows progress while email body content downloads in the background"
+    }
+    nm.createNotificationChannel(channel)
+}
+/**
+ * Creates the completion channel ("Email content downloaded"). Audible
+ * (IMPORTANCE_DEFAULT) so a finished download rings once — the progress
+ * channel stays LOW because a long download must never alert on every
+ * folder switch.
+ */
+internal fun ensureBodyBackfillDoneChannel(context: Context) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+    val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+    if (nm.getNotificationChannel(BODY_BACKFILL_DONE_CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_DEFAULT) return
+    nm.deleteNotificationChannel(BODY_BACKFILL_DONE_CHANNEL_ID)
+    val channel = NotificationChannel(
+        BODY_BACKFILL_DONE_CHANNEL_ID,
+        "Email content downloaded",
+        NotificationManager.IMPORTANCE_DEFAULT
+    ).apply {
+        description = "Alerts once when email content finishes downloading"
     }
     nm.createNotificationChannel(channel)
 }
@@ -90,19 +113,28 @@ internal fun buildBodyBackfillNotification(context: Context, completed: Int, tot
 
 /**
  * Builds the body-download completion notification ("Email content
- * downloaded"). Posted once a sweep finishes successfully; auto-dismisses
- * after 5 seconds so it never lingers in the shade.
+ * downloaded"). Posted once a sweep finishes successfully; persists until
+ * tapped or swiped, and tapping opens the app.
  */
 internal fun buildBodyBackfillDoneNotification(context: Context): Notification {
-    val builder = Notification.Builder(context, BODY_BACKFILL_CHANNEL_ID)
-        .setSmallIcon(android.R.drawable.stat_sys_download_done)
+    // Tapping the persistent "Email content downloaded" notification opens the app.
+    val openIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
+        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+    }
+    val contentIntent = openIntent?.let {
+        PendingIntent.getActivity(
+            context, 0, it,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+    }
+    val builder = Notification.Builder(context, BODY_BACKFILL_DONE_CHANNEL_ID)
+        .setSmallIcon(com.shrivatsav.monomail.core.data.R.drawable.ic_notification_leaf)
         .setContentTitle("Email content downloaded")
         .setContentText("All email content is now available offline")
+        .setContentIntent(contentIntent)
         .setAutoCancel(true)
-        .setTimeoutAfter(5000)
     return builder.build()
 }
-
 internal class BodyBackfillNotificationHelper(private val context: Context) {
 
     private val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -120,6 +152,7 @@ internal class BodyBackfillNotificationHelper(private val context: Context) {
     }
 
     fun showDone() {
+        ensureBodyBackfillDoneChannel(context)
         nm.notify(BODY_BACKFILL_DONE_NOTIFICATION_ID, buildBodyBackfillDoneNotification(context))
     }
 }
