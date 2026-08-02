@@ -241,6 +241,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val deps = getDependencies(context)
 
         deps.emailRepository().archiveThread(threadId, explicitAccountId = accountId)
+        // Dismiss the parent notification (non-reply actions dismiss it)
+        NotificationManagerCompat.from(context).cancel(accountId, originalNotificationId)
 
         val undoIntent = Intent(context, NotificationActionReceiver::class.java).apply {
             action = ACTION_UNDO_ARCHIVE
@@ -260,7 +262,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .setContentText("Thread has been archived")
             .addAction(android.R.drawable.ic_menu_revert, "Undo", undoPendingIntent)
             .setAutoCancel(true)
-            .setTimeoutAfter(60000)
+            .setTimeoutAfter(5000)
 
         NotificationManagerCompat.from(context).notify(
             ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
@@ -284,6 +286,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val originalNotificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
 
         val deps = getDependencies(context)
+        // Dismiss the parent notification (non-reply actions dismiss it)
+        NotificationManagerCompat.from(context).cancel(accountId, originalNotificationId)
 
         deps.emailRepository().deleteThread(threadId)
 
@@ -304,8 +308,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .setContentTitle("Moved to trash")
             .setContentText("Thread moved to trash")
             .addAction(android.R.drawable.ic_menu_revert, "Undo", undoPendingIntent)
+            .setTimeoutAfter(5000)
             .setAutoCancel(true)
-            .setTimeoutAfter(60000)
 
         NotificationManagerCompat.from(context).notify(
             ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
@@ -327,6 +331,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         val originalNotificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
 
         val deps = getDependencies(context)
+        // Dismiss the parent notification (non-reply actions dismiss it)
+        NotificationManagerCompat.from(context).cancel(accountId, originalNotificationId)
 
         val snoozeUntil = System.currentTimeMillis() + 24 * 60 * 60 * 1000L
         deps.emailRepository().snoozeThread(threadId, snoozeUntil, explicitAccountId = accountId)
@@ -347,9 +353,9 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .setSmallIcon(android.R.drawable.ic_menu_recent_history)
             .setContentTitle("Snoozed")
             .setContentText("Thread snoozed until tomorrow")
+            .setTimeoutAfter(5000)
             .addAction(android.R.drawable.ic_menu_revert, "Undo", undoPendingIntent)
             .setAutoCancel(true)
-            .setTimeoutAfter(60000)
 
         NotificationManagerCompat.from(context).notify(
             ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
@@ -373,6 +379,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
     ) {
         val builder = NotificationCompat.Builder(context, REPLY_STATUS_CHANNEL)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setTimeoutAfter(5000)
             .setContentTitle("Reply")
             .setContentText(text)
             .setAutoCancel(true)
