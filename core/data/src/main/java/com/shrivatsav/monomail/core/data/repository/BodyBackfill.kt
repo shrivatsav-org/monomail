@@ -5,7 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
-
+import com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver
 /**
  * Tracks body-backfill progress displayed in the notification area.
  *
@@ -35,7 +35,9 @@ data class BodyDownloadStats(
 
 internal const val BODY_BACKFILL_CHANNEL_ID = "body_backfill"
 internal const val BODY_BACKFILL_NOTIFICATION_ID = 0xBB
-
+/** Completion toast — separate id so it never collides with the live
+ *  progress notification (0xBB) or the deep-sync one (0xDE). */
+internal const val BODY_BACKFILL_DONE_NOTIFICATION_ID = 0xBC
 /**
  * Creates the body-backfill channel. Silent (IMPORTANCE_LOW) so the long
  * download never alerts: no sound on start, on folder switches, or on
@@ -74,6 +76,7 @@ internal fun buildBodyBackfillNotification(context: Context, completed: Int, tot
         // Fully silent: the channel is IMPORTANCE_LOW, so no sound on the
         // first post or on any progress update.
         .setOnlyAlertOnce(true)
+        .addAction(0, "Cancel", NotificationActionReceiver.createCancelBodyBackfillPendingIntent(context))
 
     // Live Updates opt-in (Android 16+): promotes the ongoing notification to
     // the top of the shade / lock screen / status-bar chip.
@@ -82,6 +85,21 @@ internal fun buildBodyBackfillNotification(context: Context, completed: Int, tot
     }
 
     builder.setProgress(total, completed, total == 0)
+    return builder.build()
+}
+
+/**
+ * Builds the body-download completion notification ("Email content
+ * downloaded"). Posted once a sweep finishes successfully; auto-dismisses
+ * after 5 seconds so it never lingers in the shade.
+ */
+internal fun buildBodyBackfillDoneNotification(context: Context): Notification {
+    val builder = Notification.Builder(context, BODY_BACKFILL_CHANNEL_ID)
+        .setSmallIcon(android.R.drawable.stat_sys_download_done)
+        .setContentTitle("Email content downloaded")
+        .setContentText("All email content is now available offline")
+        .setAutoCancel(true)
+        .setTimeoutAfter(5000)
     return builder.build()
 }
 
@@ -99,5 +117,9 @@ internal class BodyBackfillNotificationHelper(private val context: Context) {
 
     fun dismiss() {
         nm.cancel(BODY_BACKFILL_NOTIFICATION_ID)
+    }
+
+    fun showDone() {
+        nm.notify(BODY_BACKFILL_DONE_NOTIFICATION_ID, buildBodyBackfillDoneNotification(context))
     }
 }

@@ -29,6 +29,8 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val ACTION_ARCHIVE = "com.shrivatsav.monomail.ARCHIVE"
         const val ACTION_UNDO_ARCHIVE = "com.shrivatsav.monomail.UNDO_ARCHIVE"
         const val ACTION_SNOOZE = "com.shrivatsav.monomail.SNOOZE"
+        const val ACTION_CANCEL_BACKFILL = "com.shrivatsav.monomail.CANCEL_BACKFILL"
+        const val ACTION_CANCEL_DEEP_SYNC = "com.shrivatsav.monomail.CANCEL_DEEP_SYNC"
         const val ACTION_UNDO_SNOOZE = "com.shrivatsav.monomail.UNDO_SNOOZE"
         const val KEY_TEXT_REPLY = "key_text_reply"
         const val REPLY_STATUS_CHANNEL = "monomail_reply_status"
@@ -95,6 +97,26 @@ class NotificationActionReceiver : BroadcastReceiver() {
             )
         }
 
+        fun createCancelBodyBackfillPendingIntent(context: Context): PendingIntent {
+            val intent = Intent(context, NotificationActionReceiver::class.java).apply {
+                action = ACTION_CANCEL_BACKFILL
+            }
+            return PendingIntent.getBroadcast(
+                context, 60001, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
+        fun createCancelDeepSyncPendingIntent(context: Context): PendingIntent {
+            val intent = Intent(context, NotificationActionReceiver::class.java).apply {
+                action = ACTION_CANCEL_DEEP_SYNC
+            }
+            return PendingIntent.getBroadcast(
+                context, 60002, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        }
+
         @EntryPoint
         @InstallIn(SingletonComponent::class)
         interface AppDependenciesEntryPoint {
@@ -125,6 +147,16 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     ACTION_UNDO_ARCHIVE -> handleUndoArchive(context, intent)
                     ACTION_SNOOZE -> handleSnooze(context, intent)
                     ACTION_UNDO_SNOOZE -> handleUndoSnooze(context, intent)
+                    ACTION_CANCEL_BACKFILL -> {
+                        // Stops the body-download sweep: banner, notification and
+                        // (if service-backed) the FGS notification all vanish.
+                        getDependencies(context).emailRepository().cancelBodyBackfill()
+                    }
+                    ACTION_CANCEL_DEEP_SYNC -> {
+                        // Stops the deep-sync service; its scope cancels the sync
+                        // coroutine and the FGS notification is removed on destroy.
+                        context.stopService(Intent(context, DeepSyncService::class.java))
+                    }
                 }
             } finally {
                 pendingResult.finish()

@@ -436,11 +436,20 @@ class EmailRepository(
             deepSyncFolderPages(provider, EmailFolder.TRASH, sinceDate, accountId, bodyFetchLimit)
             deepSyncFolderPages(provider, EmailFolder.DRAFT, sinceDate, accountId, bodyFetchLimit)
             _syncProgress.value = DeepSyncProgress(1f, EmailFolder.DRAFT.displayName)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // User cancelled (notification action) — propagate without setting
+            // the fake 100% state; the finally still clears syncProgress.
+            throw e
         } catch (e: Exception) {
             android.util.Log.w("EmailRepo", "Background deep sync failed: ${e.message}")
             _syncProgress.value = DeepSyncProgress(1f, EmailFolder.DRAFT.displayName)
         } finally {
-            kotlinx.coroutines.delay(1000)
+            // delay() throws in a cancelled coroutine — swallow it so the
+            // progress cleanup below always runs (otherwise the UI would be
+            // stuck on "X is syncing" after a cancel).
+            try {
+                kotlinx.coroutines.delay(1000)
+            } catch (_: kotlinx.coroutines.CancellationException) {}
             _syncProgress.value = null
         }
     }
@@ -578,6 +587,8 @@ class EmailRepository(
 
     private suspend fun runBodyBackfillSweep(accountId: String, maxEmails: Int) {
         val notifier = BodyBackfillNotificationHelper(context)
+        var sweepCancelled = false
+        var total = 0
         try {
             val provider = getProviderForAccount(accountId)
             if (provider == null) {
@@ -599,7 +610,7 @@ class EmailRepository(
             val seenThreads = mutableSetOf<String>()
             val threadGrouped = missing.filter { seenThreads.add(it.threadId) }
 
-            val total = missing.size
+            total = missing.size
             var completed = 0
             _bodyBackfillError.value = null
             _bodyBackfillProgress.value = BodyBackfillState(total, 0, accountId)
@@ -697,6 +708,7 @@ class EmailRepository(
             }
         } catch (e: kotlinx.coroutines.CancellationException) {
             // User cancelled the sweep — no error banner for an intentional stop.
+            sweepCancelled = true
             throw e
         }
         catch (e: Exception) {
@@ -708,6 +720,11 @@ class EmailRepository(
             try { notifier.dismiss() } catch (_: Exception) {}
             _bodyBackfillProgress.value = null
             lastBackfillFinished = System.currentTimeMillis()
+            // Completion toast: only for a sweep that actually finished (not
+            // cancelled) without errors and had work to do. Auto-dismisses.
+            if (!sweepCancelled && _bodyBackfillError.value == null && total > 0) {
+                try { notifier.showDone() } catch (_: Exception) {}
+            }
         }
     }
 

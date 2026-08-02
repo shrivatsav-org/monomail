@@ -54,7 +54,10 @@ class BodyBackfillService : Service() {
                 android.util.Log.e("BodyBackfillSvc", "Backfill failed unexpectedly", e)
             } finally {
                 backfillJob = null
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                // DETACH keeps the completion notification the sweep just
+                // posted (it auto-dismisses via setTimeoutAfter); REMOVE would
+                // delete it along with the foreground state.
+                stopForeground(STOP_FOREGROUND_DETACH)
                 stopSelf()
             }
         }

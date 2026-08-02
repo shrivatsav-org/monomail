@@ -48,6 +48,7 @@ class DeepSyncService : Service() {
 
         startForeground(notificationId, buildNotification(0, indeterminate = true))
 
+        var postedDone = false
         scope.launch {
             // Observe sync progress and update notification
             val progressJob = launch {
@@ -67,13 +68,21 @@ class DeepSyncService : Service() {
                 // Only announce completion once BOTH the header sync and the
                 // email content download have finished.
                 showDoneNotification()
+                postedDone = true
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Cancelled via the notification's Cancel action — no error
+                // notification for an intentional stop.
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("DeepSyncSvc", "Deep sync failed", e)
                 showErrorNotification(e.message ?: "Unknown error")
             } finally {
                 progressJob.cancel()
                 delay(3000)
-                stopForeground(STOP_FOREGROUND_REMOVE)
+                // DETACH keeps the just-posted "Inbox synced" notification
+                // visible as a regular notification — it auto-dismisses via
+                // setTimeoutAfter. REMOVE would delete it with the FGS.
+                stopForeground(if (postedDone) STOP_FOREGROUND_DETACH else STOP_FOREGROUND_REMOVE)
                 stopSelf()
             }
         }
@@ -121,6 +130,7 @@ class DeepSyncService : Service() {
             .setProgress(100, progress, indeterminate)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
+            .addAction(0, "Cancel", NotificationActionReceiver.createCancelDeepSyncPendingIntent(this))
             .build()
     }
 
@@ -142,6 +152,7 @@ class DeepSyncService : Service() {
             .setContentText("Your emails have been synced")
             .setAutoCancel(true)
             .setSilent(true)
+            .setTimeoutAfter(5000)
             .build()
         nm.notify(notificationId, done)
     }
