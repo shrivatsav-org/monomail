@@ -8,13 +8,6 @@ compatibility_date = "2025-01-09"
 binding = "FCM_TOKENS"
 id = "36c6042608ff4f71adf1be8d58398e57"
 
-# D1 Database for license management
-# Create via: wrangler d1 create monomail-licenses
-[[d1_databases]]
-binding = "DB"
-database_name = "monomail-licenses"
-database_id = "b1ae361c-9b26-44d2-b3f5-cac3e87bc5c4"
-
 [vars]
 # For Gmail Pub/Sub push notification setup
 GCP_PROJECT_ID = "monomail-500604"
@@ -25,9 +18,8 @@ WORKER_BASE_URL = "https://monomail-push-backend.monomail.workers.dev"
 
 # Note: Set your Google Service Account JSON key for FCM HTTP v1 API as a secret via:
 # wrangler secret put GCP_SERVICE_ACCOUNT_KEY
-# Note: Set your admin API key as a secret via:
-# wrangler secret put ADMIN_KEY
 
 [observability.logs]
 enabled = true
 invocation_logs = true
+

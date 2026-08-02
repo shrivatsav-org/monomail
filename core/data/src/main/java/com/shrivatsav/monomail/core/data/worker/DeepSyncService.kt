@@ -55,8 +55,8 @@ class DeepSyncService : Service() {
             // Observe sync progress and update notification
             val progressJob = launch {
                 emailRepository.syncProgress.collect { progress ->
-                    val pct = ((progress ?: 0f) * 100).toInt().coerceIn(0, 100)
-                    updateNotification(pct)
+                    val pct = ((progress?.fraction ?: 0f) * 100).toInt().coerceIn(0, 100)
+                    updateNotification(pct, progress?.folder)
                 }
             }
 

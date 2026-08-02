@@ -24,7 +24,6 @@ app/monomail-release.keystore
 node_modules
 backend/node_modules
 google-services.json
-.wrangler/
 app/google-services.json
 
 walkthrough.md
@@ -47,4 +46,3 @@ pr_body.txt
 
 # generated
 guide.md
-.omp/extensions/emdash-hook.ts

@@ -26,7 +26,6 @@ import com.shrivatsav.monomail.model.InboxTab
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -103,7 +102,7 @@ class EmailSyncWorker @AssistedInject constructor(
         val isSelfSent = latestEmail?.fromEmail?.equals(account.email, ignoreCase = true) == true
 
         if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp && !isLatestDraft && !isSelfSent) {
-            val disabledAccounts = settingsDataStore.settingsFlow.first().disabledNotificationAccounts
+            val disabledAccounts = settingsDataStore.settingsFlow.value.disabledNotificationAccounts
             if (disabledAccounts.contains(accountId)) {
                 Log.i("EmailSyncWorker", "New email detected for $accountId, but notifications are disabled for this account. Skipping notification banner.")
             } else {

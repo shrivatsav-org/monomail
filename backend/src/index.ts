@@ -1,11 +1,9 @@
 export interface Env {
   FCM_TOKENS: KVNamespace;
-  DB: D1Database;
   GCP_PROJECT_ID: string;
   PUBSUB_TOPIC: string;
   WORKER_BASE_URL: string;
   GCP_SERVICE_ACCOUNT_KEY: string; // Secret containing JSON string of GCP service account key
-  ADMIN_KEY: string; // Secret containing admin API key
 }
 
 interface RegisterRequest {
@@ -15,29 +13,10 @@ interface RegisterRequest {
   accessToken: string;
   provider: 'gmail' | 'outlook';
 }
-const CORS_HEADERS: Record<string, string> = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
-
-function corsResponse(response: Response): Response {
-  const newResponse = new Response(response.body, response);
-  for (const [key, value] of Object.entries(CORS_HEADERS)) {
-    newResponse.headers.set(key, value);
-  }
-  return newResponse;
-}
-
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
-
-    // Handle CORS preflight
-    if (request.method === 'OPTIONS') {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
-    }
 
     if (request.method === 'POST' && url.pathname === '/register') {
       return await handleRegister(request, env);
@@ -49,23 +28,6 @@ export default {
 
     if (url.pathname === '/webhook/outlook') {
       return await handleOutlookWebhook(request, env);
-    }
-
-    // License management endpoints
-    if (request.method === 'POST' && url.pathname === '/license/validate') {
-      return corsResponse(await handleLicenseValidate(request, env));
-    }
-    if (request.method === 'POST' && url.pathname === '/license/generate') {
-      return corsResponse(await handleLicenseGenerate(request, env));
-    }
-    if (request.method === 'GET' && url.pathname === '/license/list') {
-      return corsResponse(await handleLicenseList(request, env));
-    }
-    if (request.method === 'POST' && url.pathname === '/license/revoke') {
-      return corsResponse(await handleLicenseRevoke(request, env));
-    }
-    if (request.method === 'GET' && url.pathname === '/license/schema') {
-      return corsResponse(await handleLicenseSchema(request, env));
     }
 
     return new Response('Monomail Push Backend is running.', { status: 200 });
@@ -331,203 +293,4 @@ function importPrivateKey(pem: string): ArrayBuffer {
     bytes[i] = binary.charCodeAt(i);
   }
   return bytes.buffer;
-}
-// ── License Management ──────────────────────────────────────────────────────
-
-function generateKey(): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-  const segments = [4, 4, 4, 4];
-  return 'MONO-' + segments.map(len => {
-    let seg = '';
-    for (let i = 0; i < len; i++) {
-      seg += chars[Math.floor(Math.random() * chars.length)];
-    }
-    return seg;
-  }).join('-');
-}
-
-function verifyAdmin(request: Request, env: Env): boolean {
-  const auth = request.headers.get('Authorization');
-  return auth === `Bearer ${env.ADMIN_KEY}`;
-}
-
-async function handleLicenseValidate(request: Request, env: Env): Promise<Response> {
-  try {
-    const { key } = await request.json() as { key?: string };
-    if (!key) {
-      return new Response(JSON.stringify({ error: 'Missing key' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const row = await env.DB.prepare('SELECT * FROM licenses WHERE key = ?').bind(key).first();
-    if (!row) {
-      return new Response(JSON.stringify({ valid: false }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (row.status !== 'active') {
-      return new Response(JSON.stringify({ valid: false }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (row.expiresAt && row.expiresAt < Date.now()) {
-      return new Response(JSON.stringify({ valid: false }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    return new Response(JSON.stringify({
-      valid: true,
-      email: row.email,
-      plan: row.plan,
-      expiresAt: row.expiresAt,
-    }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err: any) {
-    console.error('handleLicenseValidate error:', err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
-
-async function handleLicenseGenerate(request: Request, env: Env): Promise<Response> {
-  if (!verifyAdmin(request, env)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    const { email, plan, expiresAt } = await request.json() as {
-      email?: string;
-      plan?: string;
-      expiresAt?: number;
-    };
-    if (!email) {
-      return new Response(JSON.stringify({ error: 'Missing email' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const key = generateKey();
-    await env.DB.prepare(
-      'INSERT INTO licenses (key, email, plan, status, expiresAt, createdAt) VALUES (?, ?, ?, ?, ?, ?)'
-    ).bind(key, email, plan ?? 'premium', 'active', expiresAt ?? null, Date.now()).run();
-
-    return new Response(JSON.stringify({ key }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err: any) {
-    console.error('handleLicenseGenerate error:', err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
-
-async function handleLicenseList(request: Request, env: Env): Promise<Response> {
-  if (!verifyAdmin(request, env)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    const { results } = await env.DB.prepare('SELECT * FROM licenses').all();
-    return new Response(JSON.stringify(results), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err: any) {
-    console.error('handleLicenseList error:', err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
-
-async function handleLicenseRevoke(request: Request, env: Env): Promise<Response> {
-  if (!verifyAdmin(request, env)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    const { key } = await request.json() as { key?: string };
-    if (!key) {
-      return new Response(JSON.stringify({ error: 'Missing key' }), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
-
-    const result = await env.DB.prepare(
-      "UPDATE licenses SET status = 'revoked', revokedAt = ? WHERE key = ? AND status = 'active'"
-    ).bind(Date.now(), key).run();
-
-    const revoked = result.meta.changes > 0;
-    return new Response(JSON.stringify({ revoked }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err: any) {
-    console.error('handleLicenseRevoke error:', err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-}
-
-async function handleLicenseSchema(request: Request, env: Env): Promise<Response> {
-  if (!verifyAdmin(request, env)) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  try {
-    await env.DB.exec(`
-      CREATE TABLE IF NOT EXISTS licenses (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        key TEXT UNIQUE NOT NULL,
-        email TEXT NOT NULL,
-        plan TEXT DEFAULT 'premium',
-        status TEXT DEFAULT 'active',
-        expiresAt INTEGER,
-        createdAt INTEGER NOT NULL,
-        revokedAt INTEGER
-      );
-    `);
-    return new Response(JSON.stringify({ success: true }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch (err: any) {
-    console.error('handleLicenseSchema error:', err);
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
 }

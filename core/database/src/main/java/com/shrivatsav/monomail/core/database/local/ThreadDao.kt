@@ -36,7 +36,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, t.messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inArchived = 1 AND t.inInbox = 0
+        WHERE t.accountId = :accountId AND t.inArchived = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getArchivedThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -135,7 +135,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, t.messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inArchived = 1 AND t.inInbox = 0
+        WHERE t.inArchived = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllArchivedThreads(): Flow<List<ThreadEntity>>
@@ -190,10 +190,8 @@ interface ThreadDao {
 
     @Query("SELECT * FROM threads WHERE threadId IN (:threadIds) AND accountId = :accountId ORDER BY date DESC")
     suspend fun getThreadsByIds(threadIds: List<String>, accountId: String): List<ThreadEntity>
-    @Query("SELECT inInbox, inSent, inArchived FROM threads WHERE threadId = :threadId AND accountId = :accountId LIMIT 1")
-    suspend fun getThreadFolderFlags(threadId: String, accountId: String): ThreadFolderFlags?
-    @Query("SELECT threadId, inInbox, inSent, inArchived, inTrash, inSpam, inDrafts FROM threads WHERE threadId IN (:threadIds) AND accountId = :accountId")
-    suspend fun getFullFolderFlagsForThreads(threadIds: List<String>, accountId: String): List<ThreadFullFolderFlags>
+    @Query("SELECT threadId, inInbox, inSent, inArchived, inTrash, inSpam, inDrafts FROM threads WHERE accountId = :accountId")
+    suspend fun getThreadFolderFlags(accountId: String): List<ThreadFolderFlagsProjection>
 }
 
 data class ThreadReadStatusProjection(
@@ -211,12 +209,8 @@ data class ThreadSnoozeProjection(
     val isSnoozed: Boolean,
     val snoozedUntil: Long
 )
-data class ThreadFolderFlags(
-    val inInbox: Boolean,
-    val inSent: Boolean,
-    val inArchived: Boolean
-)
-data class ThreadFullFolderFlags(
+
+data class ThreadFolderFlagsProjection(
     val threadId: String,
     val inInbox: Boolean,
     val inSent: Boolean,

@@ -71,15 +71,6 @@ internal fun InboxSettingsScreen(
                 options = SwipeAction.entries.map { it.displayName() },
                 onSelected = { idx -> viewModel.setSwipeRightAction(SwipeAction.entries[idx]) }
             )
-            CardDivider()
-            val daysOptions = listOf(1, 3, 7, 14, 30, 90, 365)
-            BottomSheetPickerRow(
-                icon = Icons.Rounded.CloudDownload,
-                title = "Offline Body Sync",
-                currentValue = "${settings.bodyFetchDays} days",
-                options = daysOptions.map { "$it days" },
-                onSelected = { idx -> viewModel.setBodyFetchDays(daysOptions[idx]) }
-            )
         }
     }
 }

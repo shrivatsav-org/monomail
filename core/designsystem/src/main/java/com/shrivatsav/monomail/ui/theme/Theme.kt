@@ -88,7 +88,7 @@ private val DarkColors = darkColorScheme(
     error                  = White,
     onError                = Black,
     errorContainer         = DarkSurfaceContainerHigh,
-    onErrorContainer       = Black,
+    onErrorContainer       = White,
 )
 
 

@@ -54,10 +54,11 @@ data class BulkSelectionState(
 
 data class SearchDisplayState(
     val isRefreshing: Boolean = false,
-    val syncProgress: Float? = null,
     val unifiedInboxEnabled: Boolean = false,
     val accounts: List<UserProfile> = emptyList(),
-    val userProfile: UserProfile? = null
+    val userProfile: UserProfile? = null,
+    val missingBodyCount: Int = 0,
+    val onSyncStatusClick: () -> Unit = {}
 )
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
@@ -70,7 +71,8 @@ internal fun InboxSearchBar(
     onServerSearch: (String) -> Unit,
     actions: SearchBarActions,
     isRefreshing: Boolean,
-    syncProgress: Float? = null,
+    missingBodyCount: Int = 0,
+    onSyncStatusClick: () -> Unit = {},
     bulkSelection: BulkSelectionState = BulkSelectionState(),
     unifiedInboxEnabled: Boolean = false,
     onFocusChange: ((Boolean) -> Unit)? = null,
@@ -103,7 +105,7 @@ internal fun InboxSearchBar(
                         BulkSelectionContent(bulkSelection)
                     } else {
                         // No toast overlay; always show search input
-                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, syncProgress, unifiedInboxEnabled, accounts, userProfile), onFocusChange)
+                        SearchInputContent(query, onQueryChange, onServerSearch, actions, SearchDisplayState(isRefreshing, unifiedInboxEnabled, accounts, userProfile, missingBodyCount, onSyncStatusClick), onFocusChange)
                     }
                 }
             },
@@ -193,18 +195,25 @@ private fun SearchInputContent(
         interactionSource = interactionSource,
         placeholder = {
             Text(
-                if (display.syncProgress != null) "Syncing... ${(display.syncProgress * 100).toInt()}%"
-                else if (display.isRefreshing) "Syncing..."
-                else if (display.unifiedInboxEnabled) "Search all accounts..." else "Search in mail",
+                if (display.isRefreshing) "Syncing..." else if (display.unifiedInboxEnabled) "Search all accounts..." else "Search in mail",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
             )
         },
         leadingIcon = {
-            if (display.isRefreshing || display.syncProgress != null) {
-                LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
-            } else {
-                Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
+            when {
+                display.isRefreshing -> LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
+                display.missingBodyCount > 0 -> IconButton(
+                    onClick = display.onSyncStatusClick,
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        Icons.Rounded.CloudOff,
+                        contentDescription = "Inbox not up to date",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                else -> Icon(Icons.Rounded.Search, contentDescription = "Search", tint = MaterialTheme.colorScheme.onSurface)
             }
         },
         trailingIcon = { SearchTrailingIcon(actions, display) }
