@@ -78,6 +78,7 @@ data class AppSettings(
     val swipeThreshold: Float = 0.40f,
     val demoSmartFolders: Boolean = false,
     val addSignature: Boolean = true,
+    val bodyFetchDays: Int = 30,
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -119,6 +120,7 @@ class SettingsDataStore(private val context: Context) {
         val MONOCHROME_THEME = booleanPreferencesKey("monochrome_theme")
         val SWIPE_THRESHOLD = floatPreferencesKey("swipe_threshold")
         val ADD_SIGNATURE = booleanPreferencesKey("add_signature")
+        val BODY_FETCH_DAYS = intPreferencesKey("body_fetch_days")
     }
     private fun mapToSettings(prefs: Preferences): AppSettings {
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
@@ -167,6 +169,7 @@ class SettingsDataStore(private val context: Context) {
             monochromeTheme = prefs[Keys.MONOCHROME_THEME] ?: false,
             swipeThreshold = prefs[Keys.SWIPE_THRESHOLD]?.coerceIn(0.20f, 0.60f) ?: 0.40f,
             addSignature = prefs[Keys.ADD_SIGNATURE] ?: true,
+            bodyFetchDays = prefs[Keys.BODY_FETCH_DAYS] ?: 30,
         )
     }
 
@@ -287,6 +290,9 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[Keys.TEMPLATES] = gson.toJson(templates)
         }
+    }
+    suspend fun setBodyFetchDays(days: Int) {
+        context.dataStore.edit { it[Keys.BODY_FETCH_DAYS] = days.coerceIn(1, 365) }
     }
     suspend fun setDemoSmartFolders(enabled: Boolean) {
         context.dataStore.edit { it[Keys.DEMO_SMART_FOLDERS] = enabled }

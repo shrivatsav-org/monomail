@@ -10,8 +10,6 @@ import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
-import com.shrivatsav.monomail.core.data.repository.BodyBackfillState
-import com.shrivatsav.monomail.core.data.repository.BodyDownloadStats
 import com.shrivatsav.monomail.core.data.settings.AppSettings
 import com.shrivatsav.monomail.core.data.settings.SyncFrequency
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
@@ -33,7 +31,6 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -49,6 +46,7 @@ sealed class InboxState {
         val currentTab: InboxTab = InboxTab.INBOX,
         val isRefreshing: Boolean = false,
         val isLoadingMore: Boolean = false,
+        val syncProgress: Float? = null,
         val nextPageToken: String? = null
     ) : InboxState()
     data class Error(val message: String) : InboxState()
@@ -65,6 +63,7 @@ class InboxViewModel @Inject constructor(
     private val _currentTab = MutableStateFlow(InboxTab.INBOX)
     val currentTab: StateFlow<InboxTab> = _currentTab.asStateFlow()
     private val _isRefreshing = MutableStateFlow(false)
+    val syncProgress = repository.syncProgress
     private val pageTokens = mutableMapOf<String, String?>()
     private fun getPageTokenKey(): String = "${_currentTab.value.name}_${currentServerQuery ?: ""}"
     private var currentServerQuery: String? = null
@@ -106,39 +105,6 @@ class InboxViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     private val _lastSelectedThreadId = MutableStateFlow<String?>(null)
     val lastSelectedThreadId: StateFlow<String?> = _lastSelectedThreadId.asStateFlow()
-    val bodyBackfillProgress: StateFlow<BodyBackfillState?> = repository.bodyBackfillProgress
-    val bodyBackfillError: StateFlow<String?> = repository.bodyBackfillError
-    val isBodyBackfilling: StateFlow<Boolean> = repository.bodyBackfillProgress.map { it != null }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    /** Live header deep-sync progress (folder + fraction) — drives the
-     *  "tab is syncing" empty state and the banner. */
-    val syncProgress: StateFlow<EmailRepository.DeepSyncProgress?> = repository.syncProgress
-    /** Live count of emails still missing body content — "inbox not up to
-     *  date" signal for the search-bar cloud-off icon. */
-    val missingBodyCount: StateFlow<Int> = _activeAccountId
-        .flatMapLatest { id ->
-            if (id == null) flowOf(0) else repository.observeMissingBodyCount(id)
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-    /** DB-derived download progress for the sync-status modal. */
-    val bodyDownloadStats: StateFlow<BodyDownloadStats?> = _activeAccountId
-        .flatMapLatest { id ->
-            if (id == null) {
-                flowOf(null)
-            } else {
-                combine(repository.observeEmailCount(id), repository.observeMissingBodyCount(id)) { total, missing ->
-                    BodyDownloadStats(total, (total - missing).coerceAtLeast(0))
-                }
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
-    /** User tapped Cancel on the download-progress modal. */
-    fun cancelBodyBackfill() = repository.cancelBodyBackfill()
-    /** User tapped Continue on the sync-status modal. */
-    fun continueBodyBackfill() {
-        val id = _activeAccountId.value ?: return
-        viewModelScope.launch { repository.continueBodyBackfill(id) }
-    }
     val animatedItemsTracker = mutableSetOf<String>()
     private val _appSettings = MutableStateFlow(AppSettings())
     val appSettingsState: StateFlow<AppSettings> = _appSettings.asStateFlow()
@@ -197,7 +163,6 @@ class InboxViewModel @Inject constructor(
                                     InboxTab.TRASH -> repository.getTrashThreadsFlow(accountId)
                                     InboxTab.SNOOZED -> repository.getSnoozedThreadsFlow(accountId)
                                     InboxTab.SPAM -> repository.getSpamThreadsFlow(accountId)
-                                    InboxTab.DRAFTS -> repository.getDraftThreadsFlow(accountId)
                                     else -> repository.getInboxThreadsFlow(tab, accountId)
                                 }
                             }
@@ -253,7 +218,7 @@ class InboxViewModel @Inject constructor(
                         pendingHideIds
                     ) { threads, isRefreshing, isLoadingMore, hiddenIds ->
                         val filteredThreads = threads.filter { it.threadId !in hiddenIds }
-                        InboxState.Success(filteredThreads, tab, isRefreshing, isLoadingMore, pageTokens[getPageTokenKey()])
+                        InboxState.Success(filteredThreads, tab, isRefreshing, isLoadingMore, null, pageTokens[getPageTokenKey()])
                     }
                 }.collect { newState ->
                     _state.value = newState
@@ -425,20 +390,13 @@ class InboxViewModel @Inject constructor(
         viewModelScope.launch {
             if (showLoader) _isRefreshing.value = true
             val query = currentServerQuery
-            val accountId = _activeAccountId.value
             val result = if (_currentTab.value == InboxTab.UNIFIED) {
-                repository.refreshInbox(InboxTab.INBOX, accountId = accountId)
+                repository.refreshInbox(InboxTab.INBOX)
             } else {
-                repository.refreshInbox(_currentTab.value, query = query, accountId = accountId)
+                repository.refreshInbox(_currentTab.value, query = query)
             }
-            result.onSuccess { token ->
-                updatePageToken(token)
-                // Body backfill is handled by DeepSyncService (initial sync) and
-                // EmailSyncWorker (periodic). Triggering here on every pull-to-refresh
-                // caused the banner to restart with a new total (70→94→76).
-            }.onFailure { e ->
-                _uiError.emit(e.message ?: "Failed to refresh emails")
-            }
+            result.onSuccess { token -> updatePageToken(token) }
+                .onFailure { e -> _uiError.emit(e.message ?: "Failed to refresh emails") }
             if (showLoader) _isRefreshing.value = false
         }
     }

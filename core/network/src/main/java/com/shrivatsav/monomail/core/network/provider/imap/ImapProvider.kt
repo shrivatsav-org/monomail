@@ -43,7 +43,6 @@ class ImapProvider(
         private const val HEADER_MESSAGE_ID = "Message-ID"
         private const val HEADER_IN_REPLY_TO = "In-Reply-To"
         private const val HEADER_REFERENCES = "References"
-        private const val HEADER_X_GM_LABELS = "X-GM-LABELS"
         private const val MIME_MULTIPART = "multipart/*"
         const val MIME_TEXT_PLAIN = "text/plain"
         const val MIME_TEXT_HTML = "text/html"
@@ -72,17 +71,6 @@ class ImapProvider(
         foldersInitialized = true
     }
 
-    /**
-     * Entry point for all pool-backed IMAP operations. Ensures the folder-name
-     * cache is populated BEFORE acquiring the pool's operation mutex — otherwise
-     * a nested [ensureFoldersInitialized] inside [pool.withStore] would try to
-     * re-acquire the same non-reentrant mutex and deadlock.
-     */
-    private suspend fun <T> withStore(block: suspend (Store) -> T): T {
-        ensureFoldersInitialized()
-        return pool.withStore(block)
-    }
-
     private suspend fun getFolderName(folder: EmailFolder): String? {
         ensureFoldersInitialized()
         if (folder == EmailFolder.STARRED) return null // Handled via search or all folders
@@ -107,7 +95,7 @@ class ImapProvider(
         bodyFetchLimitMs: Long?,
         sinceDate: Long?,
         onProgress: ((Float) -> Unit)?
-    ): ProviderThreadListResult = withStore { store ->
+    ): ProviderThreadListResult = pool.withStore { store ->
         val imapFolder = openListFolder(store, folder)
             ?: return@withStore ProviderThreadListResult(emptyList(), null)
 
@@ -141,7 +129,6 @@ class ImapProvider(
                     add(HEADER_MESSAGE_ID)
                     add(HEADER_REFERENCES)
                     add(HEADER_IN_REPLY_TO)
-                    add(HEADER_X_GM_LABELS)
                 }
                 imapFolder.fetch(batch.toTypedArray(), profile)
 
@@ -215,7 +202,6 @@ class ImapProvider(
             add(HEADER_MESSAGE_ID)
             add(HEADER_REFERENCES)
             add(HEADER_IN_REPLY_TO)
-            add(HEADER_X_GM_LABELS)
         }
         folder.fetch(messages.toTypedArray(), profile)
 
@@ -232,19 +218,57 @@ class ImapProvider(
         val toAddrs = msg.getRecipients(Message.RecipientType.TO)?.mapNotNull { it as? InternetAddress } ?: emptyList()
         val ccAddrs = msg.getRecipients(Message.RecipientType.CC)?.mapNotNull { it as? InternetAddress } ?: emptyList()
 
-        // Gmail's All Mail contains messages from every folder. Labeling a
-        // message with only the searched folder would surface new INBOX mail on
-        // the Archived tab (and vice versa). X-GM-LABELS carries the true
-        // membership (e.g. "\Inbox \All"); non-Gmail servers don't send it.
-        val folderSet = resolveFolderMembership(msg, folder)
+        val folderSet = mutableSetOf(folder)
         val isRead = msg.isSet(Flags.Flag.SEEN)
         val isStarred = msg.isSet(Flags.Flag.FLAGGED)
         if (isStarred) folderSet.add(EmailFolder.STARRED)
         val isDraft = msg.isSet(Flags.Flag.DRAFT)
         if (isDraft) folderSet.add(EmailFolder.DRAFT)
 
-        // Headers-only listing: body content is fetched by the body backfill
-        // (newest-first) or on-demand when a thread is opened.
+        val shouldFetchBody = bodyFetchLimitMs == null || date >= bodyFetchLimitMs
+
+        val state = BodyParseState(messageId = messageId)
+        if (shouldFetchBody) {
+            try {
+                // Pre-fetch entire message content in one FETCH BODY.PEEK[] to avoid
+                // per-MIME-part round trips. Re-parse locally so processPart is purely CPU.
+                val rawBytes = msg.inputStream?.use { it.readBytes() } ?: ByteArray(0)
+                if (rawBytes.isNotEmpty()) {
+                    val localMsg = jakarta.mail.internet.MimeMessage(
+                        jakarta.mail.Session.getInstance(java.util.Properties()),
+                        java.io.ByteArrayInputStream(rawBytes)
+                    )
+                    processPart(localMsg, state)
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("ImapProvider", "Body fetch/parse failed for $messageId: ${e.message}")
+            }
+        }
+        val preCleanHtml = state.htmlBody
+            .replace(HTML_STYLE_REGEX, " ")
+            .replace(HTML_SCRIPT_REGEX, " ")
+            
+        val cleanHtml = try {
+            @Suppress("DEPRECATION")
+            android.text.Html.fromHtml(preCleanHtml).toString()
+        } catch (e: Exception) {
+            preCleanHtml.replace(Regex("<[^>]+>"), " ")
+        }
+
+
+
+        var plainClean = state.plainBody
+            .replace(Regex("=+\\s*"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+            
+        // If plain text is empty or just contains CSS artifacts (common in badly formed emails), fallback to cleaned HTML
+        if (plainClean.isEmpty() || plainClean.contains("@media") || plainClean.contains("{") || plainClean.contains("@import") || plainClean.contains("<!--")) {
+            plainClean = cleanHtml.replace(Regex("\\s+"), " ").trim()
+        }
+
+        val body = state.htmlBody.ifEmpty { plainClean.replace("\n", "<br>") }
+        val snippet = plainClean.take(150)
 
         val providerMsg = ProviderMessage(
             id = messageId, threadId = messageId,
@@ -253,60 +277,32 @@ class ImapProvider(
             fromEmail = fromAddrs.firstOrNull()?.address ?: "",
             to = toAddrs.joinToString(", ") { it.address },
             cc = ccAddrs.joinToString(", ") { it.address },
-            bcc = "", snippet = "", body = "", bodyIsHtml = false,
+            bcc = "", snippet = snippet, body = body, bodyIsHtml = state.bodyIsHtml,
             date = date, isRead = isRead, isStarred = isStarred,
-            folders = folderSet, attachments = emptyList()
+            folders = folderSet, attachments = state.attachments
         )
         return ImapRawMessage(messageId, references, inReplyTo, date, providerMsg)
     }
 
-    /**
-     * Resolves the real folder membership of a listed message.
-     *
-     * Gmail's All Mail contains messages from every folder, so a message seen
-     * there must not be labeled ARCHIVE-only — a new INBOX mail pulled on the
-     * Archived tab would surface as archived instead of landing in the Inbox
-     * tab. Gmail exposes the true membership via the X-GM-LABELS pseudo-header
-     * (e.g. "\Inbox \All"); parse it when present. Non-Gmail servers don't
-     * send it — fall back to the searched folder, plus INBOX for STARRED
-     * listings (which search the INBOX folder with a FLAGGED term).
-     */
-    private fun resolveFolderMembership(msg: jakarta.mail.Message, searchedFolder: EmailFolder): MutableSet<EmailFolder> {
-        val folderSet = mutableSetOf(searchedFolder)
-        val gmLabels = msg.getHeader(HEADER_X_GM_LABELS)?.firstOrNull()
-        if (!gmLabels.isNullOrBlank()) {
-            gmLabels.split(' ').forEach { label ->
-                when (label) {
-                    "\\Inbox" -> folderSet.add(EmailFolder.INBOX)
-                    "\\Sent" -> folderSet.add(EmailFolder.SENT)
-                    "\\Draft" -> folderSet.add(EmailFolder.DRAFT)
-                    "\\Trash" -> folderSet.add(EmailFolder.TRASH)
-                    "\\Spam" -> folderSet.add(EmailFolder.SPAM)
-                    "\\Starred" -> folderSet.add(EmailFolder.STARRED)
-                    "\\All" -> folderSet.add(EmailFolder.ARCHIVE)
-                    // Custom labels and \Important etc. map to no tab.
-                }
-            }
-        } else if (searchedFolder == EmailFolder.STARRED) {
-            folderSet.add(EmailFolder.INBOX)
-        }
-        return folderSet
-    }
-
-    override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = withStore { store ->
+    override suspend fun getThread(threadId: String, folderHints: List<String>): ProviderThread = pool.withStore { store ->
         val searchFolders = resolveSearchFolders(folderHints)
         val rawMessages = mutableListOf<ImapRawMessage>()
 
-        for (folderName in searchFolders) {
-            collectMessagesFromFolder(store, folderName, threadId, rawMessages)
+        try {
+            for (folderName in searchFolders) {
+                collectMessagesFromFolder(store, folderName, threadId, rawMessages)
+            }
+
+            if (rawMessages.isEmpty()) return@withStore ProviderThread(threadId, emptyList())
+
+            val threadsMap = ImapThreader.groupByReferences(rawMessages)
+            threadsMap.values.firstOrNull()?.let { msgs ->
+                ProviderThread(threadId, msgs)
+            } ?: ProviderThread(threadId, emptyList())
+        } catch (e: Exception) {
+            android.util.Log.e("ImapProvider", "getThread error", e)
+            ProviderThread(threadId, emptyList())
         }
-
-        if (rawMessages.isEmpty()) return@withStore ProviderThread(threadId, emptyList())
-
-        val threadsMap = ImapThreader.groupByReferences(rawMessages)
-        threadsMap.values.firstOrNull()?.let { msgs ->
-            ProviderThread(threadId, msgs)
-        } ?: ProviderThread(threadId, emptyList())
     }
 
     private fun collectMessagesFromFolder(
@@ -367,13 +363,16 @@ class ImapProvider(
         if (isDraft) folderSet.add(EmailFolder.DRAFT)
 
         val state = BodyParseState(messageId = messageId)
-        // Lazy part access: JavaMail fetches only the MIME parts we touch
-        // (text/plain, text/html) via individual IMAP FETCH commands — no need
-        // to download the entire raw message.  The old readBodyCapped approach
-        // truncated at 256 KB which cut through base64 attachments and broke
-        // HTML decoding for large messages.
+        // Pre-fetch entire message content in one FETCH, then parse locally
         try {
-            processPart(msg, state)
+            val rawBytes = msg.inputStream?.use { it.readBytes() } ?: ByteArray(0)
+            if (rawBytes.isNotEmpty()) {
+                val localMsg = jakarta.mail.internet.MimeMessage(
+                    jakarta.mail.Session.getInstance(java.util.Properties()),
+                    java.io.ByteArrayInputStream(rawBytes)
+                )
+                processPart(localMsg, state)
+            }
         } catch (e: Exception) {
             android.util.Log.w("ImapProvider", "Body fetch/parse failed for thread msg $messageId: ${e.message}")
         }
@@ -392,9 +391,8 @@ class ImapProvider(
 
 
         var plainClean = state.plainBody
-            .replace(Regex("=+[ \t]*"), " ")
-            .replace(Regex("[ \t]+"), " ")          // collapse horizontal whitespace only
-            .replace(Regex("(\\r?\\n){3,}"), "\n\n") // cap runs of blank lines at 2
+            .replace(Regex("=+\\s*"), " ")
+            .replace(Regex("\\s+"), " ")
             .trim()
             
         if (plainClean.isEmpty() || plainClean.contains("@media") || plainClean.contains("{") || plainClean.contains("@import") || plainClean.contains("<!--")) {
@@ -402,7 +400,7 @@ class ImapProvider(
         }
 
         val body = state.htmlBody.ifEmpty { plainClean.replace("\n", "<br>") }
-        val snippet = plainClean.replace(Regex("\\s+"), " ").trim().take(150)
+        val snippet = plainClean.take(150)
 
         val providerMsg = ProviderMessage(
             id = messageId, threadId = threadId,
@@ -418,7 +416,7 @@ class ImapProvider(
         return ImapRawMessage(messageId, references, inReplyTo, date, providerMsg)
     }
 
-    override suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? = withStore { store ->
+    override suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? = pool.withStore { store ->
         val searchFolders = listOfNotNull(
             folderNamesCache[EmailFolder.INBOX],
             folderNamesCache[EmailFolder.SENT],
@@ -446,7 +444,7 @@ class ImapProvider(
         }
     }
 
-    private suspend fun moveThread(threadId: String, targetFolder: EmailFolder) = withStore { store ->
+    private suspend fun moveThread(threadId: String, targetFolder: EmailFolder) = pool.withStore { store ->
         val targetName = getFolderName(targetFolder) ?: return@withStore
         val destFolder = store.getFolder(targetName)
         if (!destFolder.exists()) destFolder.create(Folder.HOLDS_MESSAGES)
@@ -474,7 +472,7 @@ class ImapProvider(
         moveThread(threadId, EmailFolder.ARCHIVE)
     }
 
-    override suspend fun unarchiveThread(threadId: String) = withStore { store ->
+    override suspend fun unarchiveThread(threadId: String) = pool.withStore { store ->
         val srcName = getFolderName(EmailFolder.ARCHIVE) ?: return@withStore
         val destName = getFolderName(EmailFolder.INBOX) ?: return@withStore
         val srcFolder = store.getFolder(srcName)
@@ -498,7 +496,7 @@ class ImapProvider(
         moveThread(threadId, EmailFolder.TRASH)
     }
 
-    override suspend fun restoreThread(threadId: String) = withStore { store ->
+    override suspend fun restoreThread(threadId: String) = pool.withStore { store ->
         val srcName = getFolderName(EmailFolder.TRASH) ?: return@withStore
         val destName = getFolderName(EmailFolder.INBOX) ?: return@withStore
         val srcFolder = store.getFolder(srcName)
@@ -518,7 +516,7 @@ class ImapProvider(
         }
     }
 
-    override suspend fun permanentlyDeleteThread(threadId: String) = withStore { store ->
+    override suspend fun permanentlyDeleteThread(threadId: String) = pool.withStore { store ->
         val srcName = getFolderName(EmailFolder.TRASH) ?: return@withStore
         val f = store.getFolder(srcName)
         if (!f.exists()) return@withStore
@@ -535,7 +533,7 @@ class ImapProvider(
         }
     }
 
-    private suspend fun updateFlag(threadId: String, flag: Flags.Flag, set: Boolean) = withStore { store ->
+    private suspend fun updateFlag(threadId: String, flag: Flags.Flag, set: Boolean) = pool.withStore { store ->
         val searchFolders = listOfNotNull(
             folderNamesCache[EmailFolder.INBOX],
             folderNamesCache[EmailFolder.ARCHIVE]
@@ -565,7 +563,7 @@ class ImapProvider(
         updateFlag(threadId, Flags.Flag.SEEN, read)
     }
 
-    override suspend fun batchMarkRead(messageIds: List<String>) = withStore { store ->
+    override suspend fun batchMarkRead(messageIds: List<String>) = pool.withStore { store ->
         val searchFolders = listOfNotNull(
             folderNamesCache[EmailFolder.INBOX],
             folderNamesCache[EmailFolder.ARCHIVE]
@@ -710,16 +708,11 @@ class ImapProvider(
                 state.attachments.add(EmailAttachmentInfo(id = name, messageId = state.messageId, mimeType = mimeType, name = name, size = part.size))
             }
             part.isMimeType(MIME_TEXT_PLAIN) && state.plainBody.isEmpty() -> {
-                // Skip enormous text parts (> 512 KB) to avoid stalling the connection
-                if (part.size in 1..(512 * 1024) || part.size == -1) {
-                    state.plainBody = part.getBodyText() ?: ""
-                }
+                state.plainBody = part.getBodyText() ?: ""
             }
             part.isMimeType(MIME_TEXT_HTML) && state.htmlBody.isEmpty() -> {
-                if (part.size in 1..(512 * 1024) || part.size == -1) {
-                    state.htmlBody = part.getBodyText() ?: ""
-                    state.bodyIsHtml = true
-                }
+                state.htmlBody = part.getBodyText() ?: ""
+                state.bodyIsHtml = true
             }
             part.isMimeType(MIME_MULTIPART) -> {
                 try {
@@ -797,7 +790,7 @@ class ImapProvider(
     private suspend fun saveToSentFolder(message: jakarta.mail.Message) {
         val sentName = getFolderName(EmailFolder.SENT) ?: return
         try {
-            withStore { store ->
+            pool.withStore { store ->
                 val sentFolder = store.getFolder(sentName)
                 if (sentFolder.exists()) {
                     sentFolder.open(Folder.READ_WRITE)
@@ -885,4 +878,3 @@ private fun extractSnippet(part: jakarta.mail.Part): String {
 private fun String.charsetOrUtf8(): String =
     Regex("charset=[\"']?([\\w-]+)[\"']?", RegexOption.IGNORE_CASE)
         .find(this)?.groupValues?.get(1) ?: "UTF-8"
-

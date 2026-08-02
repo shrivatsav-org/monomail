@@ -56,6 +56,7 @@ class SettingsViewModel @Inject constructor(
     fun setDockConfig(config: DockConfig) = viewModelScope.launch { settingsDataStore.setDockConfig(config) }
     fun setDeveloperMode(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setDeveloperMode(enabled) }
     fun setDemoSmartFolders(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setDemoSmartFolders(enabled) }
+    fun setBodyFetchDays(days: Int) = viewModelScope.launch { settingsDataStore.setBodyFetchDays(days) }
     fun setShowInlineImages(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowInlineImages(enabled) }
     fun setShowInlineAttachments(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowInlineAttachments(enabled) }
     fun setShowMarkAllRead(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowMarkAllRead(enabled) }

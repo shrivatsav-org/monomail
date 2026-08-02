@@ -8,13 +8,6 @@ data class ContactResult(val name: String, val email: String)
 
 @Dao
 interface EmailDao {
-    @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId AND inTrash = 0 ORDER BY date ASC")
-    fun getEmailsForThread(threadId: String, accountId: String): Flow<List<EmailEntity>>
-    
-    @Query("SELECT DISTINCT fromName as name, fromEmail as email FROM emails WHERE fromName LIKE '%' || :query || '%' OR fromEmail LIKE '%' || :query || '%' LIMIT 15")
-    suspend fun searchContacts(query: String): List<ContactResult>
-    @Query("SELECT * FROM emails WHERE id = :id AND accountId = :accountId LIMIT 1")
-    suspend fun getEmailById(id: String, accountId: String): EmailEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertEmails(emails: List<EmailEntity>)
     @Query("UPDATE emails SET isStarred = :isStarred WHERE threadId = :threadId AND accountId = :accountId")
@@ -27,30 +20,20 @@ interface EmailDao {
     suspend fun markThreadEmailsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun deleteThreadEmails(threadId: String, accountId: String)
-    @Query("DELETE FROM emails WHERE id = :emailId")
-    suspend fun deleteDraftEmail(emailId: String)
-    @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId AND id NOT IN (:keepIds)")
-    suspend fun deleteOrphanedEmails(threadId: String, accountId: String, keepIds: List<String>)
-    @Query("DELETE FROM emails WHERE accountId = :accountId")
-    suspend fun clearForAccount(accountId: String)
 
-    @Query("DELETE FROM emails WHERE accountId = :accountId AND inTrash = 1")
-    suspend fun emptyTrash(accountId: String)
-    @Query("DELETE FROM emails WHERE accountId = :accountId AND inSpam = 1")
-    suspend fun emptySpam(accountId: String)
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND id IN (:emailIds) AND threadId IN (SELECT threadId FROM threads WHERE accountId = :accountId AND isSnoozed = 0)")
+    suspend fun getEmailsForAction(accountId: String, emailIds: List<String>): List<EmailEntity>
+    @Query("SELECT * FROM emails WHERE id = :emailId AND accountId = :accountId")
+    suspend fun getEmailById(emailId: String, accountId: String): EmailEntity?
 
     @Query("UPDATE emails SET inInbox = 0, inArchived = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun archiveThreadEmails(threadId: String, accountId: String)
-
     @Query("UPDATE emails SET inInbox = 1, inArchived = 0 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun unarchiveThreadEmails(threadId: String, accountId: String)
-
     @Query("UPDATE emails SET isRead = :isRead WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun updateThreadEmailsReadStatus(threadId: String, accountId: String, isRead: Boolean)
-
     @Query("UPDATE emails SET inInbox = 0, inSent = 0, inArchived = 0, inSpam = 0, inTrash = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun moveThreadEmailsToTrash(threadId: String, accountId: String)
-
     @Query("UPDATE emails SET inTrash = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun restoreThreadEmailsFromTrash(threadId: String, accountId: String)
     @Query("UPDATE emails SET inInbox = 0, inArchived = 1 WHERE id = :emailId AND accountId = :accountId")
@@ -65,24 +48,18 @@ interface EmailDao {
     suspend fun reportThreadEmailsNotSpam(threadId: String, accountId: String)
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 500")
     fun getInboxEmails(accountId: String): Flow<List<EmailEntity>>
-
-    @Query("SELECT * FROM emails WHERE inInbox = 1 ORDER BY date DESC LIMIT 500")
-    fun getAllInboxEmails(): Flow<List<EmailEntity>>
-
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC LIMIT 500")
     fun getSentEmails(accountId: String): Flow<List<EmailEntity>>
-
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inArchived = 1 ORDER BY date DESC LIMIT 500")
     fun getArchivedEmails(accountId: String): Flow<List<EmailEntity>>
-
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND isSnoozed = 1 ORDER BY snoozedUntil ASC LIMIT 500")
+    fun getSnoozedEmails(accountId: String): Flow<List<EmailEntity>>
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND isStarred = 1 ORDER BY date DESC LIMIT 500")
     fun getStarredEmails(accountId: String): Flow<List<EmailEntity>>
-
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inTrash = 1 ORDER BY date DESC LIMIT 500")
     fun getTrashEmails(accountId: String): Flow<List<EmailEntity>>
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSpam = 1 ORDER BY date DESC LIMIT 500")
     fun getSpamEmails(accountId: String): Flow<List<EmailEntity>>
-
     @Query("SELECT * FROM emails WHERE inSent = 1 ORDER BY date DESC LIMIT 500")
     fun getAllSentEmails(): Flow<List<EmailEntity>>
     @Query("SELECT * FROM emails WHERE inArchived = 1 ORDER BY date DESC LIMIT 500")
@@ -100,39 +77,18 @@ interface EmailDao {
 
     @Query("SELECT id, isRead FROM emails WHERE accountId = :accountId")
     suspend fun getEmailReadStatuses(accountId: String): List<EmailReadStatusProjection>
-
     @Query("SELECT id, attachmentsJson FROM emails WHERE accountId = :accountId")
     suspend fun getAttachmentJsonForAccount(accountId: String): List<AttachmentJsonProjection>
-
-
     @Query("SELECT id, inInbox, inArchived, inSent, inTrash, inSpam FROM emails WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun getEmailsByThreadId(threadId: String, accountId: String): List<EmailLabelProjection>
     @Query("SELECT id, body, bodyIsHtml, snippet FROM emails WHERE accountId = :accountId")
     suspend fun getEmailBodyForAccount(accountId: String): List<EmailBodyProjection>
     @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId")
     suspend fun getLatestEmailDate(accountId: String): Long?
-    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inInbox = 1")
-    suspend fun getLatestInboxEmailDate(accountId: String): Long?
-    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inSent = 1")
-    suspend fun getLatestSentEmailDate(accountId: String): Long?
-    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inArchived = 1")
-    suspend fun getLatestArchivedEmailDate(accountId: String): Long?
-    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inTrash = 1")
-    suspend fun getLatestTrashEmailDate(accountId: String): Long?
-    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inSpam = 1")
-    suspend fun getLatestSpamEmailDate(accountId: String): Long?
-    @Query("SELECT MAX(date) FROM emails WHERE accountId = :accountId AND inDrafts = 1")
-    suspend fun getLatestDraftEmailDate(accountId: String): Long?
-    @Query("SELECT id, labels FROM emails WHERE accountId = :accountId")
-    suspend fun getLabelsForAccount(accountId: String): List<EmailLabelsProjection>
-    @Query("SELECT id, threadId, date, body, bodyIsHtml, snippet, labels FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '') ORDER BY date DESC LIMIT :limit")
+    @Query("SELECT id, threadId, body, bodyIsHtml, snippet FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '') ORDER BY date DESC LIMIT :limit")
     suspend fun getEmailsMissingBody(accountId: String, limit: Int = 500): List<EmailBodySlimProjection>
     @Query("UPDATE emails SET body = :body, bodyIsHtml = :bodyIsHtml, snippet = :snippet WHERE id = :emailId AND accountId = :accountId")
     suspend fun updateEmailBody(emailId: String, accountId: String, body: String, bodyIsHtml: Boolean, snippet: String)
-    @Query("SELECT COUNT(*) FROM emails WHERE accountId = :accountId AND (body IS NULL OR body = '')")
-    fun observeMissingBodyCount(accountId: String): Flow<Int>
-    @Query("SELECT COUNT(*) FROM emails WHERE accountId = :accountId")
-    fun observeEmailCount(accountId: String): Flow<Int>
 
     @Query("""
         SELECT DISTINCT e.threadId FROM emails e
@@ -148,6 +104,22 @@ interface EmailDao {
         dateTo: Long?,
         hasAttachments: Boolean
     ): List<String>
+    @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId AND inTrash = 0 ORDER BY date ASC")
+    fun getEmailsForThread(threadId: String, accountId: String): Flow<List<EmailEntity>>
+    @Query("SELECT DISTINCT fromName as name, fromEmail as email FROM emails WHERE fromName LIKE '%' || :query || '%' OR fromEmail LIKE '%' || :query || '%' LIMIT 15")
+    suspend fun searchContacts(query: String): List<ContactResult>
+    @Query("DELETE FROM emails WHERE id = :emailId")
+    suspend fun deleteDraftEmail(emailId: String)
+    @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId AND id NOT IN (:keepIds)")
+    suspend fun deleteOrphanedEmails(threadId: String, accountId: String, keepIds: List<String>)
+    @Query("DELETE FROM emails WHERE accountId = :accountId")
+    suspend fun clearForAccount(accountId: String)
+    @Query("DELETE FROM emails WHERE accountId = :accountId AND inTrash = 1")
+    suspend fun emptyTrash(accountId: String)
+    @Query("DELETE FROM emails WHERE accountId = :accountId AND inSpam = 1")
+    suspend fun emptySpam(accountId: String)
+    @Query("SELECT * FROM emails WHERE inInbox = 1 ORDER BY date DESC LIMIT 500")
+    fun getAllInboxEmails(): Flow<List<EmailEntity>>
 }
 
 data class EmailBodyProjection(
@@ -179,14 +151,7 @@ data class EmailLabelProjection(
 data class EmailBodySlimProjection(
     val id: String,
     val threadId: String,
-    val date: Long,
     val body: String?,
     val bodyIsHtml: Boolean,
-    val snippet: String,
-    val labels: List<String>
-)
-
-data class EmailLabelsProjection(
-    val id: String,
-    val labels: List<String>
+    val snippet: String
 )

@@ -39,7 +39,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -56,6 +55,7 @@ import androidx.compose.material.icons.rounded.Policy
 import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Web
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -186,7 +186,7 @@ fun SignInScreen(
             )
         }
         if (state is SignInState.ShowSyncPrompt) {
-            var pendingDays by remember { mutableStateOf<Int?>(null) }
+            var pendingDays by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
             val days = pendingDays
             if (days == null) {
                 SyncWindowDialog(
@@ -333,6 +333,13 @@ private fun SignInContent(
                     } catch (e: Exception) { android.util.Log.w("SignIn", "Failed to open URL", e) }
                 },
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "I have a licence",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.clickable { onNavigateToLicenseGate() },
+            )
         }
 
         if (isTablet) {
@@ -372,19 +379,6 @@ private fun SignInContent(
                 ActionsBlock()
             }
         }
-
-        // "I have a licence" lives at the bottom of the screen, always
-        // visible without scrolling, instead of below the website link.
-        Text(
-            text = "I have a licence",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(vertical = 16.dp)
-                .clickable { onNavigateToLicenseGate() },
-        )
     }
 }
 
@@ -641,7 +635,7 @@ fun Context.findActivity(): Activity? = when (this) {
 
 @Composable
 fun SyncWindowDialog(onConfirm: (Int) -> Unit, onCancel: () -> Unit) {
-    var selectedDays by remember { mutableStateOf<Int?>(null) }
+    var selectedDays by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<Int?>(null) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onCancel,
         title = { androidx.compose.material3.Text("Initial Sync") },

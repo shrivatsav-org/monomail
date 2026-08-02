@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monomail License Admin</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f0f; color: #e0e0e0; padding: 2rem; max-width: 800px; margin: 0 auto; }
+  h1 { margin-bottom: 1.5rem; font-size: 1.5rem; }
+  .card { background: #1a1a1a; border: 1px solid #333; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+  .card h2 { font-size: 1rem; margin-bottom: 1rem; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+  label { display: block; font-size: 0.85rem; color: #999; margin-bottom: 0.3rem; }
+  input, select { width: 100%; padding: 0.6rem; border: 1px solid #333; border-radius: 6px; background: #0f0f0f; color: #e0e0e0; font-size: 0.95rem; margin-bottom: 1rem; }
+  input:focus, select:focus { outline: none; border-color: #666; }
+  button { padding: 0.6rem 1.2rem; border: none; border-radius: 6px; font-size: 0.9rem; cursor: pointer; font-weight: 500; }
+  .btn-primary { background: #2563eb; color: white; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-danger { background: #dc2626; color: white; }
+  .btn-danger:hover { background: #b91c1c; }
+  .btn-secondary { background: #333; color: #e0e0e0; }
+  .btn-secondary:hover { background: #444; }
+  .row { display: flex; gap: 0.5rem; }
+  .row input { flex: 1; }
+  table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+  th, td { padding: 0.6rem; text-align: left; border-bottom: 1px solid #222; font-size: 0.85rem; }
+  th { color: #888; font-weight: 500; }
+  .status-active { color: #22c55e; }
+  .status-revoked { color: #ef4444; }
+  .key { font-family: monospace; font-size: 0.8rem; background: #0f0f0f; padding: 0.2rem 0.4rem; border-radius: 4px; }
+  .msg { padding: 0.6rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem; display: none; }
+  .msg.success { display: block; background: #052e16; border: 1px solid #166534; color: #22c55e; }
+  .msg.error { display: block; background: #450a0a; border: 1px solid #7f1d1d; color: #ef4444; }
+  .generated-key { font-family: monospace; font-size: 1.1rem; background: #0f0f0f; padding: 0.8rem; border-radius: 6px; border: 1px solid #333; text-align: center; margin: 1rem 0; user-select: all; cursor: pointer; }
+  #setup { display: none; }
+  #app { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Monomail License Admin</h1>
+
+<div class="card" id="setup">
+  <h2>Setup</h2>
+  <label>Admin Key</label>
+  <div class="row">
+    <input type="password" id="adminKeyInput" placeholder="Enter your ADMIN_KEY secret">
+    <button class="btn-primary" onclick="saveKey()">Connect</button>
+  </div>
+</div>
+
+<div id="app">
+  <div class="card">
+    <h2>Generate License</h2>
+    <div id="genMsg" class="msg"></div>
+    <label>Email</label>
+    <input type="email" id="genEmail" placeholder="user@gmail.com">
+    <label>Days Valid (leave empty for no expiry)</label>
+    <input type="number" id="genDays" placeholder="365" value="365">
+    <button class="btn-primary" onclick="generate()">Generate Key</button>
+    <div id="generatedKey" class="generated-key" style="display:none" onclick="copyKey()"></div>
+  </div>
+
+  <div class="card">
+    <h2>All Licenses</h2>
+    <button class="btn-secondary" onclick="loadLicenses()" style="margin-bottom:1rem">Refresh</button>
+    <div id="licenseTable"></div>
+  </div>
+</div>
+
+<script>
+const WORKER_URL = 'https://monomail-push-backend.monomail.workers.dev';
+
+function getKey() { return localStorage.getItem('adminKey') || ''; }
+function saveKey() {
+  const k = document.getElementById('adminKeyInput').value.trim();
+  if (!k) return;
+  localStorage.setItem('adminKey', k);
+  showApp();
+}
+function showApp() {
+  document.getElementById('setup').style.display = getKey() ? 'none' : 'block';
+  document.getElementById('app').style.display = getKey() ? 'block' : 'none';
+  if (getKey()) loadLicenses();
+}
+
+async function api(path, method, body) {
+  const res = await fetch(WORKER_URL + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getKey()}` },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return res.json();
+}
+
+async function generate() {
+  const email = document.getElementById('genEmail').value.trim();
+  const days = document.getElementById('genDays').value;
+  const msgEl = document.getElementById('genMsg');
+  const keyEl = document.getElementById('generatedKey');
+  if (!email) { msgEl.className = 'msg error'; msgEl.textContent = 'Email required'; return; }
+  try {
+    const data = await api('/license/generate', 'POST', { email, daysValid: days ? parseInt(days) : undefined });
+    if (data.key) {
+      msgEl.className = 'msg success'; msgEl.textContent = 'License generated!';
+      keyEl.textContent = data.key;
+      keyEl.style.display = 'block';
+      loadLicenses();
+    } else {
+      msgEl.className = 'msg error'; msgEl.textContent = JSON.stringify(data);
+    }
+  } catch (e) {
+    msgEl.className = 'msg error'; msgEl.textContent = e.message;
+  }
+}
+
+function copyKey() {
+  const key = document.getElementById('generatedKey').textContent;
+  navigator.clipboard.writeText(key);
+}
+
+async function loadLicenses() {
+  try {
+    const data = await api('/license/list', 'GET');
+    const licenses = Array.isArray(data) ? data : [];
+    if (licenses.length === 0) {
+      document.getElementById('licenseTable').innerHTML = '<p style="color:#666">No licenses yet.</p>';
+      return;
+    }
+    let html = '<table><tr><th>Key</th><th>Email</th><th>Plan</th><th>Status</th><th>Expires</th><th></th></tr>';
+    for (const l of licenses) {
+      const exp = l.expiresAt ? new Date(l.expiresAt).toLocaleDateString() : 'Never';
+      html += `<tr>
+        <td><span class="key">${l.key}</span></td>
+        <td>${l.email}</td>
+        <td>${l.plan || 'premium'}</td>
+        <td class="status-${l.status}">${l.status}</td>
+        <td>${exp}</td>
+        <td>${l.status === 'active' ? `<button class="btn-danger" onclick="revoke('${l.key}')">Revoke</button>` : ''}</td>
+      </tr>`;
+    }
+    html += '</table>';
+    document.getElementById('licenseTable').innerHTML = html;
+  } catch (e) {
+    document.getElementById('licenseTable').innerHTML = `<p class="msg error">${e.message}</p>`;
+  }
+}
+
+async function revoke(key) {
+  if (!confirm(`Revoke license ${key}?`)) return;
+  try {
+    const data = await api('/license/revoke', 'POST', { key });
+    if (data.revoked) {
+      loadLicenses();
+    } else {
+      alert('Failed: ' + JSON.stringify(data));
+    }
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+// Init
+document.getElementById('adminKeyInput').value = getKey();
+showApp();
+</script>
+</body>
+</html>
