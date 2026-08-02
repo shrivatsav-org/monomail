@@ -205,17 +205,9 @@ private fun SearchInputContent(
         leadingIcon = {
             when {
                 display.isRefreshing -> LoadingIndicator(modifier = Modifier.size(40.dp), color = MaterialTheme.colorScheme.onSurface)
-                display.isApiProvider -> IconButton(
-                    onClick = display.onSyncStatusClick,
-                    modifier = Modifier.size(40.dp)
-                ) {
-                    Icon(
-                        Icons.Rounded.CloudDone,
-                        contentDescription = "Up to date",
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-                display.missingBodyCount > 0 -> IconButton(
+                // API accounts (Gmail API / Outlook) never bulk-download bodies,
+                // so the "missing bodies" count is meaningless — plain search icon.
+                display.missingBodyCount > 0 && !display.isApiProvider -> IconButton(
                     onClick = display.onSyncStatusClick,
                     modifier = Modifier.size(40.dp)
                 ) {

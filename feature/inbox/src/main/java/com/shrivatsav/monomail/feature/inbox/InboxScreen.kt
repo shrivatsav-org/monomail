@@ -296,7 +296,6 @@ fun InboxScreen(
                     if (showSyncStatusDialog) {
                         SyncStatusDialog(
                             stats = bodyDownloadStats,
-                            isApiProvider = isApiProvider,
                             onContinue = {
                                 viewModel.continueBodyBackfill()
                                 showSyncStatusDialog = false
@@ -1887,73 +1886,48 @@ private fun BackfillProgressDialog(
     )
 }
 
-/** Modal opened by the cloud-off / cloud-done search icon. IMAP shows
- *  DB-derived body-download progress; API providers are always up to date. */
+/** Modal opened by the cloud-off search icon: DB-derived progress + Continue. */
 @Composable
 private fun SyncStatusDialog(
     stats: BodyDownloadStats?,
-    isApiProvider: Boolean,
     onContinue: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val total = stats?.total ?: 0
+    val downloaded = stats?.downloaded ?: 0
+    val pct = if (total > 0) (downloaded.toFloat() / total * 100).toInt() else 0
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { androidx.compose.material3.Text("Email sync") },
         confirmButton = {
-            if (isApiProvider) {
-                androidx.compose.material3.TextButton(onClick = onDismiss) {
-                    androidx.compose.material3.Text("Close")
-                }
-            } else {
-                androidx.compose.material3.TextButton(onClick = onContinue) {
-                    androidx.compose.material3.Text("Continue sync")
-                }
+            androidx.compose.material3.TextButton(onClick = onContinue) {
+                androidx.compose.material3.Text("Continue sync")
             }
         },
         dismissButton = {
-            if (!isApiProvider) {
-                androidx.compose.material3.TextButton(onClick = onDismiss) {
-                    androidx.compose.material3.Text("Close")
-                }
+            androidx.compose.material3.TextButton(onClick = onDismiss) {
+                androidx.compose.material3.Text("Close")
             }
         },
         text = {
-            if (isApiProvider) {
-                androidx.compose.foundation.layout.Column {
-                    androidx.compose.material3.Text(
-                        "Your mailbox is always up to date — messages sync instantly through the provider API.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    androidx.compose.material3.Text(
-                        "Email bodies download when you open a message and are cached afterwards.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                    )
-                }
-            } else {
-                val total = stats?.total ?: 0
-                val downloaded = stats?.downloaded ?: 0
-                val pct = if (total > 0) (downloaded.toFloat() / total * 100).toInt() else 0
-                androidx.compose.foundation.layout.Column {
-                    androidx.compose.material3.Text(
-                        "Your inbox isn't fully up to date with the server.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(bottom = 12.dp)
-                    )
-                    LinearProgressIndicator(
-                        progress = { stats?.progress ?: 0f },
-                        modifier = Modifier.fillMaxWidth().height(8.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                    )
-                    Spacer(Modifier.height(12.dp))
-                    androidx.compose.material3.Text(
-                        "$downloaded of $total emails downloaded · $pct%",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                    )
-                }
+            androidx.compose.foundation.layout.Column {
+                androidx.compose.material3.Text(
+                    "Your inbox isn't fully up to date with the server.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                LinearProgressIndicator(
+                    progress = { stats?.progress ?: 0f },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                )
+                Spacer(Modifier.height(12.dp))
+                androidx.compose.material3.Text(
+                    "$downloaded of $total emails downloaded · $pct%",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
+                )
             }
         }
     )
