@@ -135,7 +135,7 @@ class ComposeViewModel @Inject constructor(
             if (!messageIdArg.isNullOrEmpty()) {
                 val email = repository.getEmailById(messageIdArg)
                 if (email != null) {
-                    _state.value = _state.value.copy(originalBody = email.body)
+                    _state.value = _state.value.copy(originalBody = stripScripts(email.body))
                 }
             }
         }
@@ -541,3 +541,20 @@ class ComposeViewModel @Inject constructor(
         _state.value = _state.value.copy(error = null)
     }
 }
+
+/**
+ * Strips <script> blocks and inline event-handler attributes (on*=) from HTML before it is
+ * injected into the JS-enabled compose editor WebView.  Prevents XSS via malicious reply/forward
+ * content.  Uses simple regex — not a full parser, but sufficient for the threat model here
+ * (JS is already disabled in the read-only email viewer; this blocks the compose-editor vector).
+ */
+private fun stripScripts(html: String): String = html
+    // Remove <script ...>...</script> blocks (case-insensitive, DOTALL)
+    .replace(Regex("<script[^>]*>.*?</script>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), "")
+    // Remove <noscript> blocks
+    .replace(Regex("<noscript[^>]*>.*?</noscript>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)), "")
+    // Remove inline event handlers: onclick=, onerror=, onload=, etc.
+    .replace(Regex("""\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]*)""", RegexOption.IGNORE_CASE), "")
+    // Remove javascript: hrefs and src values
+    .replace(Regex("""(href|src|action)\s*=\s*"javascript:[^"]*"""", RegexOption.IGNORE_CASE), "")
+    .replace(Regex("""(href|src|action)\s*=\s*'javascript:[^']*'""", RegexOption.IGNORE_CASE), "")
