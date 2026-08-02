@@ -105,6 +105,7 @@ class DeepSyncService : Service() {
             .setContentTitle(if (folder != null) "Syncing $folder" else "Syncing your inbox")
             .setContentText(
                 when {
+                    indeterminate && folder != null -> "Searching $folder…"
                     indeterminate -> "Starting..."
                     folder != null -> "$folder · $progress%"
                     else -> "$progress%"
@@ -118,8 +119,13 @@ class DeepSyncService : Service() {
 
     private fun updateNotification(progress: Int, folder: String? = null) {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.notify(notificationId, buildNotification(progress, false, folder))
+        // 0% is the SEARCH phase — the folder search completes before the first
+        // message is processed, so a progress bar pinned at 0% would look stuck.
+        // Render it as an animated indeterminate "Searching…" state instead.
+        val searching = progress == 0
+        nm.notify(notificationId, buildNotification(progress, searching, folder))
     }
+
 
     private fun showDoneNotification() {
         val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager

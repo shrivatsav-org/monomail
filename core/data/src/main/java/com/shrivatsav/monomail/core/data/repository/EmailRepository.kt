@@ -453,6 +453,13 @@ class EmailRepository(
         var pageToken: String? = null
         var pageIndex = 0
         do {
+            // Emit before the SEARCH so the notification switches to the new
+            // folder immediately — the search phase produces no message-level
+            // progress and previously showed the previous folder's stale text.
+            _syncProgress.value = DeepSyncProgress(
+                maxOf(_syncProgress.value?.fraction ?: 0f, pageIndex.toFloat() * 0.10f),
+                folder.displayName
+            )
             val listResponse = provider.listThreads(
                 folder = folder,
                 maxResults = 50,
