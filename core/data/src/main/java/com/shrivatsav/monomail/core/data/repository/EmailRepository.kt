@@ -89,13 +89,18 @@ class EmailRepository(
         if (!isGmailApiAllowed(activeAccount)) return null
         return providerFactory(activeAccount)
     }
-    /** License gate: Gmail API accounts only resolve a provider while a valid
-     *  license is cached. Revoked/expired licenses stop all sync/refresh for
-     *  the account (IMAP and Outlook are unaffected). */
-    private fun isGmailApiAllowed(account: UserProfile): Boolean {
+    /** Gmail API accounts only resolve a provider while the Play Store license
+     *  verdict is LICENSED (paid app). GitHub builds have no Gmail API at all;
+     *  IMAP and Outlook are unaffected. */
+    private suspend fun isGmailApiAllowed(account: UserProfile): Boolean {
         if (account.provider != "gmail") return true
+        if (!LicenseManager.gmailApiAvailable) {
+            Log.w("EmailRepo", "Gmail API not available on this build; use IMAP")
+            return false
+        }
         if (licenseManager.isLicensed.value) return true
-        Log.w("EmailRepo", "Gmail API blocked for ${account.email}: license required")
+        if (licenseManager.checkLicense()) return true
+        Log.w("EmailRepo", "Gmail API blocked for ${account.email}: Play license required")
         return false
     }
     fun getDatabase(): AppDatabase = database

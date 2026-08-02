@@ -134,6 +134,7 @@ class MainActivity : ComponentActivity() {
      *  notifies once when it is blocked (the repository refuses to resolve a
      *  provider for unlicensed Gmail accounts, so sync silently stops). */
     private fun checkGmailLicense() {
+        if (!LicenseManager.gmailApiAvailable) return
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val hasGmailApiAccount = accountManager.getAccounts().any { it.provider == "gmail" }
@@ -171,7 +172,7 @@ class MainActivity : ComponentActivity() {
             val notification = androidx.core.app.NotificationCompat.Builder(this, channelId)
                 .setSmallIcon(com.shrivatsav.monomail.core.data.R.drawable.ic_notification_leaf)
                 .setContentTitle("Gmail sync paused")
-                .setContentText("A Gmail API account needs a valid license. Add a license or use IMAP.")
+                .setContentText("A Gmail API account could not verify its Play Store license. Reinstall from Google Play or use IMAP.")
                 .setContentIntent(pi)
                 .setAutoCancel(true)
                 .build()

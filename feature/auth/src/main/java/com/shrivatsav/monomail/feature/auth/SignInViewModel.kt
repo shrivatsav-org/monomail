@@ -9,7 +9,6 @@ import androidx.lifecycle.viewModelScope
 import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.core.data.auth.SignInResult
 import com.shrivatsav.monomail.core.data.auth.UserProfile
-import com.shrivatsav.monomail.core.data.licensing.LicenseManager
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.shrivatsav.monomail.core.data.util.BatteryOptimization
@@ -35,7 +34,6 @@ class SignInViewModel @Inject constructor(
     private val emailRepository: EmailRepository
 ) : AndroidViewModel(application) {
 
-    private val licenseManager = LicenseManager(application.applicationContext)
     private val _state = MutableStateFlow<SignInState>(SignInState.Idle)
     val state: StateFlow<SignInState> = _state.asStateFlow()
 

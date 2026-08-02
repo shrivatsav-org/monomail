@@ -19,10 +19,15 @@ android {
     productFlavors {
         create("github") {
             dimension = "distribution"
+            buildConfigField("Boolean", "IS_GITHUB_BUILD", "true")
         }
         create("playstore") {
             dimension = "distribution"
+            buildConfigField("Boolean", "IS_GITHUB_BUILD", "false")
         }
+    }
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -59,6 +64,9 @@ dependencies {
     "playstoreImplementation"(libs.androidx.credentials.play.services)
     "playstoreImplementation"(libs.google.identity.googleid)
     "playstoreImplementation"(libs.google.play.services.auth)
+
+    // Play Integrity licensing (Play builds only)
+    "playstoreImplementation"("com.google.android.play:integrity:1.6.0")
 
     // Room
     implementation(libs.androidx.room.runtime)

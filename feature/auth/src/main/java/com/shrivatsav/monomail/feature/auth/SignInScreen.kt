@@ -109,7 +109,6 @@ fun SignInScreen(
     onSignInSuccess: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
     onNavigateToImapSetup: (String?, String?) -> Unit,
-    onNavigateToLicenseGate: () -> Unit,
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -118,6 +117,9 @@ fun SignInScreen(
     var showVerificationModal by remember { mutableStateOf(false) }
     val licenseManager = remember { com.shrivatsav.monomail.core.data.licensing.LicenseManager(context) }
     val isLicensed by licenseManager.isLicensed.collectAsState()
+    LaunchedEffect(Unit) {
+        licenseManager.checkLicense()
+    }
 
     val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -169,7 +171,6 @@ fun SignInScreen(
             alpha = alpha.value,
             onContinueWithEmail = { showProviderSheet = true },
             onNavigateToLegal = onNavigateToLegal,
-            onNavigateToLicenseGate = onNavigateToLicenseGate,
             context = context,
         )
 
@@ -210,7 +211,7 @@ fun SignInScreen(
                 onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
                 onGoogleSignIn = {
                     showProviderSheet = false
-                    if (isLicensed) {
+                    if (!BuildConfig.IS_GITHUB_BUILD && isLicensed) {
                         viewModel.signIn(context)
                     } else {
                         onNavigateToImapSetup(null, "Gmail")
@@ -223,16 +224,6 @@ fun SignInScreen(
     }
 }
 
-private fun handleGoogleSignIn(
-    onGithub: () -> Unit,
-    onOther: () -> Unit
-) {
-    if (com.shrivatsav.monomail.feature.auth.BuildConfig.IS_GITHUB_BUILD) {
-        onGithub()
-    } else {
-        onOther()
-    }
-}
 
 private fun handleMicrosoftSignIn(context: Context, onSignIn: (android.app.Activity) -> Unit) {
     context.findActivity()?.let { onSignIn(it) }
@@ -245,7 +236,6 @@ private fun SignInContent(
     alpha: Float,
     onContinueWithEmail: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
-    onNavigateToLicenseGate: () -> Unit,
     context: Context,
 ) {
     Box(
@@ -373,18 +363,6 @@ private fun SignInContent(
             }
         }
 
-        // "I have a licence" lives at the bottom of the screen, always
-        // visible without scrolling, instead of below the website link.
-        Text(
-            text = "I have a licence",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(vertical = 16.dp)
-                .clickable { onNavigateToLicenseGate() },
-        )
     }
 }
 
@@ -487,7 +465,7 @@ fun ProviderSelectionDialog(
             ProviderButtons(
                 state = state,
                 onGoogleSignIn = {
-                    if (isLicensed) {
+                    if (!BuildConfig.IS_GITHUB_BUILD && isLicensed) {
                         viewModel.signIn(context)
                     } else {
                         onNavigateToImapSetup(null, "Gmail")

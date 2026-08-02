@@ -48,7 +48,6 @@ fun SettingsScreen(
     authManager: com.shrivatsav.monomail.core.data.auth.AuthManager,
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
-    onNavigateToLicensing: () -> Unit = {},
     onNavigateToPgpKeys: () -> Unit = {},
     onNavigateToSampleCompose: () -> Unit = {},
 ) {
@@ -115,7 +114,6 @@ fun SettingsScreen(
                     onSectionClick = { currentSection = it },
                     onNavigateBack = onNavigateBack,
                     onNavigateToLegal = onNavigateToLegal,
-                    onNavigateToLicensing = onNavigateToLicensing,
                 )
             }
             androidx.compose.material3.VerticalDivider(
@@ -178,7 +176,6 @@ fun SettingsScreen(
                     onSectionClick = { currentSection = it },
                     onNavigateBack = onNavigateBack,
                     onNavigateToLegal = onNavigateToLegal,
-                    onNavigateToLicensing = onNavigateToLicensing,
                 )
             } else {
                 DetailScreen(section)
@@ -253,13 +250,6 @@ private fun SettingsHubScreen(
                             }
                         }
                     }
-                )
-                CardDivider()
-                InfoRow(
-                    icon = Icons.Rounded.Key,
-                    title = "Licensing",
-                    value = "License status & key",
-                    onClick = onNavigateToLicensing
                 )
                 CardDivider()
                 InfoRow(

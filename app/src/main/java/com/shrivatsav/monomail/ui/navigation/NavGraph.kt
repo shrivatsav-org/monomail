@@ -1,5 +1,4 @@
 package com.shrivatsav.monomail.ui.navigation
-import com.shrivatsav.monomail.BuildConfig
 import android.net.Uri
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
@@ -43,8 +42,6 @@ import com.shrivatsav.monomail.feature.auth.ImapSetupScreen
 import com.shrivatsav.monomail.feature.auth.ImapSetupViewModel
 import com.shrivatsav.monomail.feature.auth.SignInScreen
 import com.shrivatsav.monomail.feature.auth.SignInViewModel
-import com.shrivatsav.monomail.feature.auth.LicenseKeyScreen
-import com.shrivatsav.monomail.feature.auth.LicenseKeyViewModel
 import com.shrivatsav.monomail.feature.compose.ComposeMode
 import com.shrivatsav.monomail.feature.compose.ComposeScreen
 import com.shrivatsav.monomail.feature.compose.ComposeViewModel
@@ -106,9 +103,6 @@ sealed class Screen(val route: String) {
         }
     }
     object SampleCompose : Screen("sample-compose")
-    object LicenseGate  : Screen("license_gate")
-    object LicenseKey   : Screen("license_key")
-    object Licensing  : Screen("licensing")
 }
 
 private fun openLegalUrl(context: android.content.Context, type: String) {
@@ -252,9 +246,8 @@ fun NavGraph(
     }
     val startDestination = when {
         isAuthenticated -> Screen.Inbox.route
-        BuildConfig.DEBUG -> Screen.LicenseGate.route
         !hasSeenWelcomePrompt -> Screen.Onboarding.route
-        else -> Screen.LicenseGate.route
+        else -> Screen.SignIn.route
     }
 
     Box(
@@ -285,24 +278,6 @@ fun NavGraph(
                     }
                 )
             }
-            composable(Screen.LicenseGate.route) {
-                val vm: com.shrivatsav.monomail.core.data.licensing.LicenseManager = com.shrivatsav.monomail.core.data.licensing.LicenseManager(LocalContext.current)
-                com.shrivatsav.monomail.feature.auth.LicenseGateScreen(
-                    licenseManager = vm,
-                    onLicensed = {
-                        navController.navigate(Screen.SignIn.route) {
-                            popUpTo(Screen.LicenseGate.route) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    },
-                    onSkip = {
-                        navController.navigate(Screen.SignIn.route) {
-                            popUpTo(Screen.LicenseGate.route) { inclusive = true }
-                            launchSingleTop = true
-                        }
-                    }
-                )
-            }
             composable(Screen.SignIn.route) {
                 val vm: SignInViewModel = hiltViewModel()
                 val ctx = LocalContext.current
@@ -318,9 +293,6 @@ fun NavGraph(
                         val route = Screen.ImapSetup.createRoute(email, provider)
                         navController.navigate(route) { launchSingleTop = true }
                     },
-                    onNavigateToLicenseGate = {
-                        navController.navigate(Screen.LicenseGate.route) { launchSingleTop = true }
-                    },
                 )
             }
             composable(Screen.ImapSetup.route) {
@@ -335,19 +307,6 @@ fun NavGraph(
                         navController.navigate(Screen.Inbox.route) {
                             popUpTo(Screen.SignIn.route) { inclusive = true }
                         }
-                    },
-                    onBack = { navController.popBackStack() }
-                )
-            }
-            composable(Screen.LicenseKey.route) {
-                val vm: LicenseKeyViewModel = hiltViewModel()
-                LicenseKeyScreen(
-                    licenseManager = vm.licenseManager,
-                    onKeyValidated = {
-                        navController.popBackStack()
-                    },
-                    onLicenseActivated = {
-                        navController.popBackStack()
                     },
                     onBack = { navController.popBackStack() }
                 )
@@ -504,17 +463,9 @@ fun NavGraph(
                     onNavigateToSampleCompose = {
                         navController.navigate(Screen.SampleCompose.route) { launchSingleTop = true }
                     },
-                    onNavigateToLicensing = {
-                        navController.navigate(Screen.Licensing.route) { launchSingleTop = true }
-                    }
                 )
             }
 
-            composable(Screen.Licensing.route) {
-                com.shrivatsav.monomail.feature.settings.LicensingScreen(
-                    onNavigateBack = { navController.popBackStack() }
-                )
-            }
             composable(Screen.PgpKeys.route) {
                 PgpKeyManagementScreen(
                     onNavigateBack = { navController.popBackStack() }
