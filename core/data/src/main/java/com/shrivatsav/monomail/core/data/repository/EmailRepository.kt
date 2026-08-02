@@ -42,6 +42,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 data class EmailContact(
     val name: String,
@@ -336,6 +339,10 @@ class EmailRepository(
     @Volatile private var lastBackfillFinished = 0L
     private val backfillCooldownMs = 5L * 60 * 1000
 
+    /** Concurrent IMAP body downloads per sweep; matches the connection pool
+     *  size so each downloader gets its own connection (Gmail allows 15). */
+    private val IMAP_BACKFILL_CONCURRENCY = 5
+
     suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> = refreshMutex.withLock {
         return try {
             val resolvedProvider = if (accountId != null) getProviderForAccount(accountId) else getActiveProvider()
@@ -577,60 +584,75 @@ class EmailRepository(
                 compareBy<EmailBodySlimProjection>({ folderRank(it.labels) })
                     .thenByDescending { it.date }
             )
-            for (threadMeta in sortedThreadIds) {
-                val threadId = threadMeta.threadId
-                val threadEmails = missing.filter { it.threadId == threadId }
-                // Search only the folders this thread's emails live in (labels are
-                // EmailFolder enum names) instead of the default 3 — ~3x fewer
-                // IMAP searches on folder-specific sweeps (e.g. Sent).
-                val folderHints = threadEmails.flatMap { it.labels }.distinct()
-                try {
-                    val threadResponse = provider.getThread(threadId, folderHints)
-                    val emailById = threadResponse.messages.associateBy { it.id }
+            // Download several threads at once — the IMAP connection pool
+            // serves up to 5 concurrent connections (Gmail allows 15 per
+            // account), turning serial round trips into a ~5x faster sweep.
+            // Threads still dispatch in folder order (Inbox -> Sent -> ...),
+            // so folders finish mostly in sequence.
+            val slots = Semaphore(IMAP_BACKFILL_CONCURRENCY)
+            val progressMutex = Mutex()
+            coroutineScope {
+                for (threadMeta in sortedThreadIds) {
+                    launch {
+                        slots.withPermit {
+                            val threadId = threadMeta.threadId
+                            val threadEmails = missing.filter { it.threadId == threadId }
+                            // Search only the folders this thread's emails live in (labels are
+                            // EmailFolder enum names) instead of the default 3 — ~3x fewer
+                            // IMAP searches on folder-specific sweeps (e.g. Sent).
+                            val folderHints = threadEmails.flatMap { it.labels }.distinct()
+                            try {
+                                val threadResponse = provider.getThread(threadId, folderHints)
+                                val emailById = threadResponse.messages.associateBy { it.id }
 
-                    // Update each missing email in this thread
-                    for (emailMeta in threadEmails) {
-                        val providerMsg = emailById[emailMeta.id]
-                        val body = providerMsg?.body?.takeIf { it.isNotBlank() } ?: emailMeta.body ?: ""
-                        val bodyIsHtml = providerMsg?.bodyIsHtml ?: emailMeta.bodyIsHtml
-                        val snippet = providerMsg?.snippet?.takeIf { it.isNotBlank() } ?: emailMeta.snippet
+                                // Update each missing email in this thread
+                                for (emailMeta in threadEmails) {
+                                    val providerMsg = emailById[emailMeta.id]
+                                    val body = providerMsg?.body?.takeIf { it.isNotBlank() } ?: emailMeta.body ?: ""
+                                    val bodyIsHtml = providerMsg?.bodyIsHtml ?: emailMeta.bodyIsHtml
+                                    val snippet = providerMsg?.snippet?.takeIf { it.isNotBlank() } ?: emailMeta.snippet
 
-                        if (providerMsg?.body != null) {
-                            emailDao.updateEmailBody(emailMeta.id, accountId, body, bodyIsHtml, snippet)
+                                    if (providerMsg?.body != null) {
+                                        emailDao.updateEmailBody(emailMeta.id, accountId, body, bodyIsHtml, snippet)
+                                    }
+                                }
+                            } catch (e: java.net.UnknownHostException) {
+                                Log.w("EmailRepo", "Body backfill network error for thread $threadId: ${e.message}")
+                                if (_bodyBackfillError.value == null) {
+                                    _bodyBackfillError.value = "No internet connection. Email content will download when you're back online."
+                                }
+                            } catch (e: java.net.ConnectException) {
+                                Log.w("EmailRepo", "Body backfill connection error for thread $threadId: ${e.message}")
+                                if (_bodyBackfillError.value == null) {
+                                    _bodyBackfillError.value = "Could not connect to server. Check your internet connection."
+                                }
+                            } catch (e: jakarta.mail.MessagingException) {
+                                Log.w("EmailRepo", "Body backfill mail error for thread $threadId: ${e.message}")
+                                if (_bodyBackfillError.value == null) {
+                                    _bodyBackfillError.value = "Mail server error. Email content download will retry later."
+                                }
+                            } catch (e: Exception) {
+                                Log.w("EmailRepo", "Body backfill failed for thread $threadId: ${e.message}")
+                                // Continue with next thread
+                            }
+                            // Progress advances per thread regardless of outcome, so a slow or
+                            // failing thread never freezes the banner at 0%.
+                            // Labels are EmailFolder enum names; pick the rank-first one so
+                            // the notification shows the folder this thread is downloaded
+                            // under (a thread can carry several, e.g. INBOX + ARCHIVE after
+                            // the All Mail union).
+                            val currentFolder = threadEmails
+                                .flatMap { it.labels }
+                                .minByOrNull { folderRank(listOf(it)) }
+                                ?.let { label -> EmailFolder.entries.firstOrNull { it.name == label }?.displayName }
+                            progressMutex.withLock {
+                                completed += threadEmails.size
+                                _bodyBackfillProgress.value = BodyBackfillState(total, completed, accountId, currentFolder)
+                                notifier.showProgress(_bodyBackfillProgress.value!!)
+                            }
                         }
                     }
-                } catch (e: java.net.UnknownHostException) {
-                    Log.w("EmailRepo", "Body backfill network error for thread $threadId: ${e.message}")
-                    if (_bodyBackfillError.value == null) {
-                        _bodyBackfillError.value = "No internet connection. Email content will download when you're back online."
-                    }
-                } catch (e: java.net.ConnectException) {
-                    Log.w("EmailRepo", "Body backfill connection error for thread $threadId: ${e.message}")
-                    if (_bodyBackfillError.value == null) {
-                        _bodyBackfillError.value = "Could not connect to server. Check your internet connection."
-                    }
-                } catch (e: jakarta.mail.MessagingException) {
-                    Log.w("EmailRepo", "Body backfill mail error for thread $threadId: ${e.message}")
-                    if (_bodyBackfillError.value == null) {
-                        _bodyBackfillError.value = "Mail server error. Email content download will retry later."
-                    }
-                } catch (e: Exception) {
-                    Log.w("EmailRepo", "Body backfill failed for thread $threadId: ${e.message}")
-                    // Continue with next thread
                 }
-                // Progress advances per thread regardless of outcome, so a slow or
-                // failing thread never freezes the banner at 0%.
-                completed += threadEmails.size
-                // Labels are EmailFolder enum names; pick the rank-first one so
-                // the notification shows the folder this thread is downloaded
-                // under (a thread can carry several, e.g. INBOX + ARCHIVE after
-                // the All Mail union).
-                val currentFolder = threadEmails
-                    .flatMap { it.labels }
-                    .minByOrNull { folderRank(listOf(it)) }
-                    ?.let { label -> EmailFolder.entries.firstOrNull { it.name == label }?.displayName }
-                _bodyBackfillProgress.value = BodyBackfillState(total, completed, accountId, currentFolder)
-                notifier.showProgress(_bodyBackfillProgress.value!!)
             }
         } catch (e: Exception) {
             Log.w("EmailRepo", "Body backfill initialization failed: ${e.message}")

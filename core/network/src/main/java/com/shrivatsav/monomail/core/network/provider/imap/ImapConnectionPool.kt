@@ -5,55 +5,67 @@ import jakarta.mail.Folder
 import jakarta.mail.Session
 import jakarta.mail.Store
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.Properties
-import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 import com.shrivatsav.monomail.core.network.provider.EmailFolder
 
 /**
  * Persistent IMAP connection pool for a single account.
- * 
- * Maintains a single Store connection that is reused across operations.
- * Automatically reconnects on connection drops.
- * 
- * Thread-safe via Mutex — only one reconnection attempt at a time.
+ *
+ * Maintains up to [poolSize] Store connections so body backfill (and other
+ * concurrent operations) can run in parallel. Gmail allows 15 simultaneous
+ * connections per account, so 5 leaves comfortable headroom for other devices.
+ *
+ * Connections are created lazily on concurrent demand, reused while idle, and
+ * recreated on demand when a connection drops.
+ *
+ * Thread-safe: leasing/returning goes through a bounded channel, so the
+ * pool never hands out more stores than [poolSize].
  */
 class ImapConnectionPool(
     private val config: ImapAccountConfig,
     private val credentialProvider: suspend () -> String,  // Returns password/app-password
-    private val tag: String = "ImapPool"
+    private val tag: String = "ImapPool",
+    private val poolSize: Int = DEFAULT_POOL_SIZE,
 ) {
-    @Volatile private var store: Store? = null
-    private val reconnectMutex = Mutex()
-    private val operationMutex = Mutex()
-    private val isConnecting = AtomicBoolean(false)
-    
+    /** Idle, connected stores waiting to be leased. */
+    private val idleStores = Channel<Store>(capacity = poolSize)
+
+    /** Number of stores created (idle + leased); never exceeds [poolSize]. */
+    private val createdCount = AtomicInteger(0)
+
+    private val closeMutex = Mutex()
+
     /**
-     * Execute a block with a connected Store.
-     * Reconnects automatically if connection dropped.
+     * Execute a block with a connected Store, leasing one of the pooled
+     * connections. Creates a new connection when demand exceeds supply (up to
+     * [poolSize]) and reconnects automatically if the connection dropped.
      */
-    suspend fun <T> withStore(block: suspend (Store) -> T): T {
-        return operationMutex.withLock {
-            withContext(Dispatchers.IO) {
-                val s = getOrCreateStore()
-                try {
-                    block(s)
-                } catch (e: Exception) {
-                    // Connection may have dropped — try once more after reconnect
-                    if (!s.isConnected) {
-                        Log.w(tag, "Store disconnected, reconnecting")
-                        val newStore = reconnect()
-                        block(newStore)
-                    } else {
-                        throw e
-                    }
+    suspend fun <T> withStore(block: suspend (Store) -> T): T = withContext(Dispatchers.IO) {
+        var active = leaseStore()
+        try {
+            try {
+                block(active)
+            } catch (e: Exception) {
+                // Connection may have dropped — try once more after reconnect
+                if (!active.isConnected) {
+                    Log.w(tag, "Store disconnected, reconnecting")
+                    dropStore(active)
+                    active = leaseStore()
+                    block(active)
+                } else {
+                    throw e
                 }
             }
+        } finally {
+            returnStore(active)
         }
     }
-    
+
     /**
      * Execute a block with an opened Folder.
      * Opens folder, executes block, then closes folder (but keeps Store alive).
@@ -78,87 +90,98 @@ class ImapConnectionPool(
             }
         }
     }
-    
+
     /**
-     * Get or create the Store connection.
+     * Take an idle store, or create a new one while under the pool cap,
+     * or wait for one to be returned when the pool is saturated.
      */
-    private suspend fun getOrCreateStore(): Store {
-        store?.let { s ->
-            if (s.isConnected) return s
-            // Connection dropped — fall through to reconnect
+    private suspend fun leaseStore(): Store {
+        while (true) {
+            idleStores.tryReceive().getOrNull()?.let { return it }
+            val created = createdCount.get()
+            if (created < poolSize && createdCount.compareAndSet(created, created + 1)) {
+                return try {
+                    createStore()
+                } catch (e: Exception) {
+                    createdCount.decrementAndGet()
+                    throw e
+                }
+            }
+            // Pool saturated — wait for a store to be returned
+            val store = idleStores.receiveCatching().getOrNull()
+            if (store != null) return store
+            throw IllegalStateException("IMAP connection pool closed")
         }
-        return reconnect()
     }
-    
+
     /**
-     * Create a new Store connection.
-     * Mutex prevents concurrent reconnection attempts.
+     * Return a healthy store to the idle pool, or drop a dead one.
      */
-    private suspend fun reconnect(): Store = reconnectMutex.withLock {
-        // Double-check after acquiring lock
-        store?.let { s ->
-            if (s.isConnected) return s
+    private suspend fun returnStore(store: Store) {
+        if (store.isConnected) {
+            // Capacity == poolSize and leased + idle <= poolSize, so this never blocks.
+            idleStores.send(store)
+        } else {
+            dropStore(store)
         }
-        
-        // Close existing connection if any
+    }
+
+    /** Close a dead store and free its pool slot. */
+    private fun dropStore(store: Store) {
         try {
-            store?.close()
+            store.close()
         } catch (e: Exception) {
-            Log.d(tag, "Error closing old store: ${e.message}")
+            Log.d(tag, "Error closing dead store: ${e.message}")
         }
-        
-        val newStore = createStore()
-        store = newStore
-        newStore
+        createdCount.decrementAndGet()
     }
-    
+
     /**
      * Create a new IMAP Store with optimized settings.
      */
     private fun createStore(): Store {
         val props = Properties()
         val protocol = if (config.imapSsl) "imaps" else "imap"
-        
+
         // Connection settings
         props["mail.store.protocol"] = protocol
         props["mail.$protocol.host"] = config.imapHost
         props["mail.$protocol.port"] = config.imapPort.toString()
-        
+
         // Timeouts
         props["mail.$protocol.connectiontimeout"] = "10000"  // 10s connect
         props["mail.$protocol.timeout"] = "10000"            // 10s read
         props["mail.$protocol.fetchsize"] = "65536"   // fetch content in 64KB chunks so a capped read stops the download early
 
-        
         // Keep-alive
         props["mail.$protocol.keepalive"] = "true"
         props["mail.$protocol.keepalive.interval"] = "180"   // 3 min
-        
+
         // TLS
         if (config.imapStartTls) {
             props["mail.$protocol.starttls.enable"] = "true"
         }
         props["mail.$protocol.ssl.protocols"] = "TLSv1.2 TLSv1.3"
-        
+
         // MIME handling
         props["mail.mime.multipart.ignoreexistingboundaryparameter"] = "true"
         props["mail.mime.multipart.ignoremissingboundaryparameter"] = "true"
         props["mail.mime.base64.ignoreerrors"] = "true"
         props["mail.mime.decodetext.strict"] = "false"
-        
+
         val session = Session.getInstance(props)
         val newStore = session.getStore(protocol)
-        
+
         // Use runBlocking-like approach for sync connect in IO thread
         val password = kotlinx.coroutines.runBlocking {
             credentialProvider()
         }
         newStore.connect(config.username, password)
-        
+
         Log.d(tag, "Connected to ${config.imapHost}:${config.imapPort}")
         return newStore
     }
-    
+
     /**
      * Get folder names cache from connected store.
      * Call after first connect to populate folder mappings.
@@ -175,24 +198,28 @@ class ImapConnectionPool(
         }
         cache
     }
-    
+
     /**
-     * Check if store is currently connected.
+     * Check if the pool holds any connection.
      */
-    fun isConnected(): Boolean = store?.isConnected == true
-    
+    fun isConnected(): Boolean = createdCount.get() > 0
+
     /**
-     * Close the connection pool.
+     * Close all idle connections. Leased connections are closed when they are
+     * returned; the pool lazily reconnects on next use.
      */
-    suspend fun close() = reconnectMutex.withLock {
-        try {
-            store?.close()
-        } catch (e: Exception) {
-            Log.d(tag, "Error closing store: ${e.message}")
+    suspend fun close() = closeMutex.withLock {
+        while (true) {
+            val s = idleStores.tryReceive().getOrNull() ?: break
+            try {
+                s.close()
+            } catch (e: Exception) {
+                Log.d(tag, "Error closing store: ${e.message}")
+            }
+            createdCount.decrementAndGet()
         }
-        store = null
     }
-    
+
     /**
      * Map folder name to EmailFolder enum.
      */
@@ -215,5 +242,11 @@ class ImapConnectionPool(
             normalized.contains("starred") || normalized.contains("flagged") -> EmailFolder.STARRED
             else -> null
         }
+    }
+
+    companion object {
+        /** Gmail allows 15 simultaneous IMAP connections per account; 5 leaves
+         *  headroom for other clients/devices while giving backfill ~5x speedup. */
+        const val DEFAULT_POOL_SIZE = 5
     }
 }
