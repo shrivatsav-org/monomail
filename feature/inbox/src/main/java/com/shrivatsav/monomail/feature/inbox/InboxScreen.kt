@@ -90,14 +90,7 @@ fun InboxScreen(
     val isBodyBackfilling by viewModel.isBodyBackfilling.collectAsState()
     val syncProgress by viewModel.syncProgress.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
-    val missingBodyCount by viewModel.missingBodyCount.collectAsState()
-    val bodyDownloadStats by viewModel.bodyDownloadStats.collectAsState()
     var showBackfillDialog by remember { mutableStateOf(false) }
-    var showSyncStatusDialog by remember { mutableStateOf(false) }
-    // API-backed accounts (Gmail API / Outlook) are always up to date —
-    // bodies load on demand — so they get a "synced" cloud instead of the
-    // IMAP-style "missing bodies" indicator.
-    val isApiProvider = userProfile?.provider == "gmail" || userProfile?.provider == "outlook"
 
     val lifecycle = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -238,9 +231,6 @@ fun InboxScreen(
                             showMarkAllRead = appSettings.showMarkAllRead
                         ),
                         isRefreshing = isRefreshing,
-                        missingBodyCount = missingBodyCount,
-                        onSyncStatusClick = { showSyncStatusDialog = true },
-                        isApiProvider = isApiProvider,
                         bulkSelection = BulkSelectionState(
                             isBulkMode = isBulkMode,
                             selectedCount = selectedCount,
@@ -291,16 +281,6 @@ fun InboxScreen(
                                 showBackfillDialog = false
                             },
                             onDismiss = { showBackfillDialog = false }
-                        )
-                    }
-                    if (showSyncStatusDialog) {
-                        SyncStatusDialog(
-                            stats = bodyDownloadStats,
-                            onContinue = {
-                                viewModel.continueBodyBackfill()
-                                showSyncStatusDialog = false
-                            },
-                            onDismiss = { showSyncStatusDialog = false }
                         )
                     }
                     when (val s = state) {
@@ -1886,52 +1866,6 @@ private fun BackfillProgressDialog(
     )
 }
 
-/** Modal opened by the cloud-off search icon: DB-derived progress + Continue. */
-@Composable
-private fun SyncStatusDialog(
-    stats: BodyDownloadStats?,
-    onContinue: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    val total = stats?.total ?: 0
-    val downloaded = stats?.downloaded ?: 0
-    val pct = if (total > 0) (downloaded.toFloat() / total * 100).toInt() else 0
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { androidx.compose.material3.Text("Email sync") },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = onContinue) {
-                androidx.compose.material3.Text("Continue sync")
-            }
-        },
-        dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onDismiss) {
-                androidx.compose.material3.Text("Close")
-            }
-        },
-        text = {
-            androidx.compose.foundation.layout.Column {
-                androidx.compose.material3.Text(
-                    "Your inbox isn't fully up to date with the server.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-                LinearProgressIndicator(
-                    progress = { stats?.progress ?: 0f },
-                    modifier = Modifier.fillMaxWidth().height(8.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                )
-                Spacer(Modifier.height(12.dp))
-                androidx.compose.material3.Text(
-                    "$downloaded of $total emails downloaded · $pct%",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-                )
-            }
-        }
-    )
-}
 
 @Composable
 private fun BackfillErrorBanner(errorMessage: String) {
