@@ -63,10 +63,10 @@ interface EmailDao {
     suspend fun updateEmailReadStatus(emailId: String, accountId: String, isRead: Boolean)
     @Query("UPDATE emails SET inSpam = 0, inInbox = 1 WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun reportThreadEmailsNotSpam(threadId: String, accountId: String)
-    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 500")
+    @Query("SELECT * FROM emails WHERE accountId = :accountId AND inInbox = 1 AND inTrash = 0 ORDER BY date DESC LIMIT 500")
     fun getInboxEmails(accountId: String): Flow<List<EmailEntity>>
 
-    @Query("SELECT * FROM emails WHERE inInbox = 1 ORDER BY date DESC LIMIT 500")
+    @Query("SELECT * FROM emails WHERE inInbox = 1 AND inTrash = 0 ORDER BY date DESC LIMIT 500")
     fun getAllInboxEmails(): Flow<List<EmailEntity>>
 
     @Query("SELECT * FROM emails WHERE accountId = :accountId AND inSent = 1 ORDER BY date DESC LIMIT 500")
