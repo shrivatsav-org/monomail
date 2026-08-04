@@ -11,10 +11,13 @@ import com.shrivatsav.monomail.core.data.settings.NotificationSound
 /**
  * Owns the per-account new-email notification channel lifecycle.
  *
- * Channel properties (name, importance, sound, vibration, badge) are immutable
- * after creation, so any change requires delete + recreate. The name is the
- * account email — never the first sender's name. Recreating also repairs
- * channels created by older builds that were mislabeled with a sender name.
+ * Channel properties (importance, sound, vibration, badge) are immutable after
+ * creation, and Android does NOT honor delete + recreate of the same channel id
+ * (the recreated channel keeps the original settings — a channel that was once
+ * silent stays silent forever). So the channel id is derived from the profile:
+ * any profile change maps to a NEW channel id, which is always created with the
+ * exact requested settings, and switching back reuses the original channel.
+ * Stale channels for the account are deleted once the current one exists.
  */
 object NotificationChannelManager {
 
@@ -25,32 +28,33 @@ object NotificationChannelManager {
     }
 
     /**
-     * Creates (or repairs) the new-email channel for [account] so it matches
-     * [profile]. Deletes and recreates when any immutable property differs.
+     * Stable channel id per (account, profile). Encode every immutable channel
+     * property so a changed setting yields a different channel.
+     */
+    fun channelIdFor(accountId: String, profile: NotificationProfile): String =
+        "monomail_${accountId}_${profile.importance.name}_${profile.sound.name}_${profile.vibrate}_${profile.badge}"
+
+    private fun isAccountChannel(id: String, accountId: String): Boolean =
+        id == "monomail_$accountId" || id.startsWith("monomail_${accountId}_")
+
+    /**
+     * Ensures the channel matching [profile] exists for [account]. Creates it
+     * on first use; deletes stale channels (older profile ids and the legacy
+     * sender-name-mislabeled channel) afterwards.
      */
     fun ensureNewEmailChannel(context: Context, account: UserProfile, profile: NotificationProfile) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        val channelId = channelIdForAccount(account.id)
-        val existing = nm.getNotificationChannel(channelId)
+        val desiredId = channelIdFor(account.id, profile)
+        val existing = nm.getNotificationChannel(desiredId)
+        if (existing != null && existing.name == account.email) {
+            cleanupStaleChannels(nm, account.id, desiredId)
+            return
+        }
 
-        val wantsSilentSound = profile.sound == NotificationSound.SILENT
-        val wantsImportance = channelImportance(profile.importance)
-
-        val matches =
-            existing != null &&
-                existing.name == account.email &&
-                existing.importance == wantsImportance &&
-                (existing.sound == null) == !wantsSilentSound &&
-                existing.shouldVibrate() == profile.vibrate &&
-                existing.canShowBadge() == profile.badge
-        if (matches) return
-
-        if (existing != null) nm.deleteNotificationChannel(channelId)
-
-        val channel = NotificationChannel(channelId, account.email, wantsImportance).apply {
+        val channel = NotificationChannel(desiredId, account.email, channelImportance(profile.importance)).apply {
             description = "Notifications for ${account.email}"
             setShowBadge(profile.badge)
-            if (wantsSilentSound) {
+            if (profile.sound == NotificationSound.SILENT) {
                 setSound(null, null)
             }
             if (!profile.vibrate) {
@@ -58,11 +62,24 @@ object NotificationChannelManager {
             }
         }
         nm.createNotificationChannel(channel)
+        cleanupStaleChannels(nm, account.id, desiredId)
     }
 
-    /** Deletes an account's channel (called when the account is removed). */
+    private fun cleanupStaleChannels(nm: NotificationManager, accountId: String, keepId: String) {
+        for (channel in nm.notificationChannels) {
+            if (channel.id != keepId && isAccountChannel(channel.id, accountId)) {
+                nm.deleteNotificationChannel(channel.id)
+            }
+        }
+    }
+
+    /** Deletes every channel for an account (called when the account is removed). */
     fun deleteChannel(context: Context, accountId: String) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        nm.deleteNotificationChannel(channelIdForAccount(accountId))
+        for (channel in nm.notificationChannels) {
+            if (isAccountChannel(channel.id, accountId)) {
+                nm.deleteNotificationChannel(channel.id)
+            }
+        }
     }
 }

@@ -15,6 +15,7 @@ import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.feature.settings.BuildConfig
 import com.shrivatsav.monomail.core.data.settings.*
 import com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver
+import com.shrivatsav.monomail.core.data.worker.NotificationChannelManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -126,7 +127,7 @@ internal fun NotificationSettingsScreen(
                             onClick = {
                                 val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
                                     putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                    putExtra(Settings.EXTRA_CHANNEL_ID, "monomail_${account.id}")
+                                    putExtra(Settings.EXTRA_CHANNEL_ID, NotificationChannelManager.channelIdFor(account.id, profile))
                                 }
                                 try {
                                     context.startActivity(intent)

@@ -18,8 +18,6 @@ import com.shrivatsav.monomail.core.data.settings.NotificationProfile
 
 private const val TAG = "NewEmailNotification"
 
-/** Channel id used for per-account new-email notifications. */
-fun channelIdForAccount(accountId: String): String = "monomail_$accountId"
 
 /**
  * Posts the new-email notification for [thread] on [accountId]'s channel,
@@ -108,7 +106,7 @@ fun showNewEmailNotification(
     ).filter { it.first in quickActions }.map { it.second }
 
     val cleanSnippet = thread.snippet.replace(Regex("\\bOn\\s+[A-Z][a-z]{2},.*?wrote:.*"), "").trim()
-    val channelId = channelIdForAccount(account.id)
+    val channelId = NotificationChannelManager.channelIdFor(account.id, profile)
     val builder = NotificationCompat.Builder(context, channelId)
         .setSmallIcon(com.shrivatsav.monomail.core.data.R.drawable.ic_notification_leaf)
         .setContentTitle(thread.from)
