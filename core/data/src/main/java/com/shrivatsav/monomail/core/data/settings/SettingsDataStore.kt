@@ -28,6 +28,30 @@ enum class SwipeAction { ARCHIVE, STAR, DELETE, READ_UNREAD }
 enum class DefaultReply { REPLY, REPLY_ALL }
 enum class SyncFrequency { MIN_15, MIN_30, HOUR_1, MANUAL }
 enum class UndoSendWindow(val seconds: Int) { SEC_5(5), SEC_10(10), SEC_20(20), SEC_30(30) }
+/** Sound behavior for a per-account notification channel. */
+enum class NotificationSound { DEFAULT, SILENT }
+/** Alert level for a per-account notification channel (maps to channel importance). */
+enum class NotificationImportance { DEFAULT, URGENT, SILENT }
+/** How much email content appears on the lock screen (maps to Notification visibility). */
+enum class NotificationPreview { FULL, PRIVATE, NONE }
+/**
+ * Per-account notification behavior. Stored as one Gson JSON string per account
+ * under a `notification_profile_<accountId>` preference key.
+ *
+ * Defaults preserve the pre-customization behavior: system sound + vibration,
+ * default importance, full content preview, badge shown.
+ */
+data class NotificationProfile(
+    val sound: NotificationSound = NotificationSound.DEFAULT,
+    val vibrate: Boolean = true,
+    val importance: NotificationImportance = NotificationImportance.DEFAULT,
+    val preview: NotificationPreview = NotificationPreview.FULL,
+    val badge: Boolean = true,
+) {
+    companion object {
+        fun defaults() = NotificationProfile()
+    }
+}
 enum class DockTabId { UNIFIED, INBOX, SENT, ARCHIVED, SNOOZED, STARRED, TRASH, SPAM }
 data class DockConfig(
     val primaryTabs: List<DockTabId> = listOf(
@@ -77,7 +101,6 @@ data class AppSettings(
     val showMarkAllRead: Boolean = true,
     val monochromeTheme: Boolean = false,
     val swipeThreshold: Float = 0.40f,
-    val demoSmartFolders: Boolean = false,
     val addSignature: Boolean = true,
 )
 class SettingsDataStore(private val context: Context) {
@@ -116,11 +139,12 @@ class SettingsDataStore(private val context: Context) {
         val SHOW_INLINE_ATTACHMENTS = booleanPreferencesKey("show_inline_attachments")
         val SHOW_MARK_ALL_READ = booleanPreferencesKey("show_mark_all_read")
         val CORNER_STYLE = stringPreferencesKey("corner_style")
-        val DEMO_SMART_FOLDERS = booleanPreferencesKey("demo_smart_folders")
         val SHOW_INLINE_IMAGES = booleanPreferencesKey("show_inline_images")
         val MONOCHROME_THEME = booleanPreferencesKey("monochrome_theme")
         val SWIPE_THRESHOLD = floatPreferencesKey("swipe_threshold")
         val ADD_SIGNATURE = booleanPreferencesKey("add_signature")
+        fun notificationProfileKey(accountId: String) =
+            stringPreferencesKey("notification_profile_$accountId")
     }
     private fun mapToSettings(prefs: Preferences): AppSettings {
         val dockConfigJson = prefs[Keys.DOCK_CONFIG]
@@ -163,7 +187,6 @@ class SettingsDataStore(private val context: Context) {
                 } catch (e: Exception) { DockConfig.defaults() }
             } ?: DockConfig.defaults(),
             isDeveloperMode = prefs[Keys.IS_DEVELOPER_MODE] ?: false,
-            demoSmartFolders = prefs[Keys.DEMO_SMART_FOLDERS] ?: false,
             showInlineImages = prefs[Keys.SHOW_INLINE_IMAGES] ?: true,
             showInlineAttachments = prefs[Keys.SHOW_INLINE_ATTACHMENTS] ?: true,
             cornerStyle = prefs[Keys.CORNER_STYLE]?.let { CornerStyle.valueOf(it) } ?: CornerStyle.ROUNDED,
@@ -171,6 +194,38 @@ class SettingsDataStore(private val context: Context) {
             swipeThreshold = prefs[Keys.SWIPE_THRESHOLD]?.coerceIn(0.20f, 0.60f) ?: 0.40f,
             addSignature = prefs[Keys.ADD_SIGNATURE] ?: true,
         )
+    }
+    private fun parseNotificationProfile(json: String?): NotificationProfile {
+        if (json == null) return NotificationProfile.defaults()
+        return try {
+            val raw = gson.fromJson(json, NotificationProfile::class.java)
+            val sound = raw?.sound
+            val vibrate = raw?.vibrate
+            val importance = raw?.importance
+            val preview = raw?.preview
+            val badge = raw?.badge
+            if (sound != null && vibrate != null && importance != null && preview != null && badge != null) {
+                NotificationProfile(sound, vibrate, importance, preview, badge)
+            } else {
+                NotificationProfile.defaults()
+            }
+        } catch (e: Exception) {
+            NotificationProfile.defaults()
+        }
+    }
+
+    /** Per-account notification profile as a reactive flow (for the settings UI). */
+    fun notificationProfileFlow(accountId: String): Flow<NotificationProfile> =
+        context.dataStore.data.map { prefs ->
+            parseNotificationProfile(prefs[Keys.notificationProfileKey(accountId)])
+        }
+
+    /** One-shot profile read for workers (settingsFlow is pre-heated but per-account keys aren't). */
+    suspend fun getNotificationProfile(accountId: String): NotificationProfile =
+        parseNotificationProfile(context.dataStore.data.first()[Keys.notificationProfileKey(accountId)])
+
+    suspend fun setNotificationProfile(accountId: String, profile: NotificationProfile) {
+        context.dataStore.edit { it[Keys.notificationProfileKey(accountId)] = gson.toJson(profile) }
     }
 
     /**
@@ -293,9 +348,6 @@ class SettingsDataStore(private val context: Context) {
         context.dataStore.edit { prefs ->
             prefs[Keys.TEMPLATES] = gson.toJson(templates)
         }
-    }
-    suspend fun setDemoSmartFolders(enabled: Boolean) {
-        context.dataStore.edit { it[Keys.DEMO_SMART_FOLDERS] = enabled }
     }
     val templatesFlow: Flow<List<EmailTemplate>> = context.dataStore.data.map { prefs ->
         val json = prefs[Keys.TEMPLATES] ?: return@map emptyList()

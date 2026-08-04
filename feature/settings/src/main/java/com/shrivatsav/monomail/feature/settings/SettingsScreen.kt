@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import com.shrivatsav.monomail.ui.theme.MonoSpring
 import com.shrivatsav.monomail.ui.theme.MonoTween
 import androidx.compose.ui.platform.LocalContext
+import com.shrivatsav.monomail.feature.settings.BuildConfig
 
 enum class SettingsSection(val icon: ImageVector, val title: String, val subtitle: String) {
     ACCOUNTS(Icons.Rounded.ManageAccounts, "Accounts", "Manage accounts, providers, connection status"),
@@ -49,7 +50,6 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     onNavigateToLegal: (String) -> Unit,
     onNavigateToPgpKeys: () -> Unit = {},
-    onNavigateToSampleCompose: () -> Unit = {},
 ) {
     var currentSection by remember { mutableStateOf<SettingsSection?>(null) }
     BackHandler(currentSection != null) { currentSection = null }
@@ -90,8 +90,7 @@ fun SettingsScreen(
             )
             SettingsSection.DEVELOPER -> DeveloperSettingsScreen(
                 viewModel = viewModel,
-                onBack = { currentSection = null },
-                onNavigateToSampleCompose = onNavigateToSampleCompose
+                onBack = { currentSection = null }
             )
             SettingsSection.NOTIFICATIONS -> NotificationSettingsScreen(
                 authManager = authManager,
@@ -286,12 +285,12 @@ private fun SettingsHubScreen(
         }
     }
 }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DeveloperSettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit,
-    onNavigateToSampleCompose: () -> Unit = {}
 ) {
     val settings by viewModel.settings.collectAsState()
     val context = LocalContext.current
@@ -307,134 +306,91 @@ internal fun DeveloperSettingsScreen(
                 checked = settings.isDeveloperMode,
                 onCheckedChange = { viewModel.setDeveloperMode(it) }
             )
-            CardDivider()
-            SettingsToggleRow(
-                icon = Icons.Rounded.FolderSpecial,
-                title = "Demo Smart Folders",
-                subtitle = "Enable smart folders demonstration",
-                checked = settings.demoSmartFolders,
-                onCheckedChange = { viewModel.setDemoSmartFolders(it) }
-            )
         }
         Spacer(Modifier.height(8.dp))
-        SettingsCard {
-            // Sample Attachments
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onNavigateToSampleCompose)
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.AttachFile,
-                    contentDescription = "Sample Attachments",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Sample Attachments",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
+        if (BuildConfig.DEBUG) {
+            SettingsCard {
+                // Preview Welcome button (dev only)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = {
+                            viewModel.resetWelcomePrompt()
+                            android.widget.Toast.makeText(
+                                context,
+                                "Welcome prompt will show on next app launch",
+                                android.widget.Toast.LENGTH_SHORT
+                            ).show()
+                        })
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Preview,
+                        contentDescription = "Preview Welcome",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
-                    Text(
-                        "Open compose with sample attachments for testing",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                    )
-                }
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            CardDivider()
-            // Preview Welcome button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = {
-                        viewModel.resetWelcomePrompt()
-                        android.widget.Toast.makeText(
-                            context,
-                            "Welcome prompt will show on next app launch",
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    })
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Preview,
-                    contentDescription = "Preview Welcome",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Preview Welcome",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        "Reset welcome prompt and show modal on next app launch",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Preview Welcome",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            "Reset welcome prompt and show modal on next app launch",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-            CardDivider()
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = {
-                        throw RuntimeException("Intentional crash for testing purposes")
-                    })
-                    .padding(horizontal = 16.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Rounded.Warning,
-                    contentDescription = "Test Crash",
-                    tint = MaterialTheme.colorScheme.error,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        "Test App Crash",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.error
+                CardDivider()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(onClick = {
+                            throw RuntimeException("Intentional crash for testing purposes")
+                        })
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.Warning,
+                        contentDescription = "Test Crash",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(20.dp)
                     )
-                    Text(
-                        "Intentionally crash the app to verify crash handler",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Test App Crash",
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        Text(
+                            "Intentionally crash the app to verify crash handler",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                        )
+                    }
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        imageVector = Icons.Rounded.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                Spacer(Modifier.width(4.dp))
-                Icon(
-                    imageVector = Icons.Rounded.ChevronRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.4f),
-                    modifier = Modifier.size(18.dp)
-                )
             }
         }
     }

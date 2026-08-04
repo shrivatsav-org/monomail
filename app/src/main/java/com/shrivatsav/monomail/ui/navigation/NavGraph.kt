@@ -102,7 +102,6 @@ sealed class Screen(val route: String) {
             return "attachment-viewer/${enc(messageId)}/${enc(attachmentId)}?mimeType=${enc(mimeType)}&name=${enc(name)}"
         }
     }
-    object SampleCompose : Screen("sample-compose")
 }
 
 private fun openLegalUrl(context: android.content.Context, type: String) {
@@ -460,9 +459,6 @@ fun NavGraph(
                     onNavigateToPgpKeys = {
                         navController.navigate(Screen.PgpKeys.route) { launchSingleTop = true }
                     },
-                    onNavigateToSampleCompose = {
-                        navController.navigate(Screen.SampleCompose.route) { launchSingleTop = true }
-                    },
                 )
             }
 
@@ -573,42 +569,6 @@ fun NavGraph(
             ) {
                 AttachmentViewerScreen(
                     onBack = { navController.popBackStack() }
-                )
-            }
-            composable(Screen.SampleCompose.route) {
-                val vm: ComposeViewModel = hiltViewModel()
-                val packageName = LocalContext.current.packageName
-                val sampleUri = { res: String -> android.net.Uri.parse("android.resource://$packageName/drawable/$res") }
-                LaunchedEffect(Unit) {
-                    vm.addAttachment(com.shrivatsav.monomail.data.model.EmailAttachment(
-                        uri = sampleUri("ic_launcher_foreground"),
-                        name = "Sample Image.png",
-                        size = 24576,
-                        mimeType = "image/png"
-                    ))
-                    vm.addAttachment(com.shrivatsav.monomail.data.model.EmailAttachment(
-                        uri = sampleUri("ic_launcher_foreground"),
-                        name = "Report.pdf",
-                        size = 102400,
-                        mimeType = "application/pdf"
-                    ))
-                    vm.addAttachment(com.shrivatsav.monomail.data.model.EmailAttachment(
-                        uri = sampleUri("ic_launcher_foreground"),
-                        name = "Demo Video.mp4",
-                        size = 5242880,
-                        mimeType = "video/mp4"
-                    ))
-                    vm.addAttachment(com.shrivatsav.monomail.data.model.EmailAttachment(
-                        uri = sampleUri("ic_launcher_foreground"),
-                        name = "Document.docx",
-                        size = 48256,
-                        mimeType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    ))
-                }
-                ComposeScreen(
-                    viewModel = vm,
-                    onBack = { navController.popBackStack() },
-                    onSent = { navController.popBackStack() }
                 )
             }
         }
