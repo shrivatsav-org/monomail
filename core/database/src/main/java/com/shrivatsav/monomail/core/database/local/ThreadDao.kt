@@ -10,7 +10,7 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, t.messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.accountId = :accountId AND t.inInbox = 1
+        WHERE t.accountId = :accountId AND t.inInbox = 1 AND t.inTrash = 0
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getInboxThreads(accountId: String): Flow<List<ThreadEntity>>
@@ -18,11 +18,11 @@ interface ThreadDao {
         SELECT t.threadId, t.accountId, t.subject, t.messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
                e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
-        WHERE t.inInbox = 1
+        WHERE t.inInbox = 1 AND t.inTrash = 0
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
     """)
     fun getAllInboxThreads(): Flow<List<ThreadEntity>>
-    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inInbox = 1 ORDER BY date DESC LIMIT 1")
+    @Query("SELECT * FROM threads WHERE accountId = :accountId AND inInbox = 1 AND inTrash = 0 ORDER BY date DESC LIMIT 1")
     suspend fun getLatestInboxThread(accountId: String): ThreadEntity?
     @Query("""
         SELECT t.threadId, t.accountId, t.subject, t.messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,

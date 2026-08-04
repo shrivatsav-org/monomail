@@ -269,7 +269,7 @@ class EmailRepository(
         // Gmail's All Mail contains INBOX + SENT messages too. Union with the
         // flags the thread already has so a folder pass never wipes membership
         // discovered by an earlier pass (INBOX → sent → All Mail order).
-        val inInbox = EmailFolder.INBOX in allFolders || existing?.inInbox == true
+        val inInbox = (EmailFolder.INBOX in allFolders || existing?.inInbox == true) && existing?.inTrash != true
         val inSent = EmailFolder.SENT in allFolders || existing?.inSent == true
         val inTrash = EmailFolder.TRASH in allFolders || existing?.inTrash == true
         val inSpam = EmailFolder.SPAM in allFolders || existing?.inSpam == true
