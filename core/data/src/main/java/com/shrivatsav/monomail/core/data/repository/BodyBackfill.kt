@@ -7,6 +7,7 @@ import android.content.Context
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
+import android.util.Log
 import com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver
 /**
  * Tracks body-backfill progress displayed in the notification area.
@@ -103,9 +104,19 @@ internal fun buildBodyBackfillNotification(context: Context, completed: Int, tot
         .addAction(0, "Cancel", NotificationActionReceiver.createCancelBodyBackfillPendingIntent(context))
 
     // Live Updates opt-in (Android 16+): promotes the ongoing notification to
-    // the top of the shade / lock screen / status-bar chip.
-    if (Build.VERSION.SDK_INT >= 36) {
-        builder.setRequestPromotedOngoing(true)
+    // the top of the shade / lock screen / status-bar chip. Guarded for
+    // pre-16 devices — invoking setRequestPromotedOngoing on an older
+    // platform throws NoSuchMethodError and crashes the backfill service
+    // (observed on Android ≤ 15 during account setup). The catch(Throwable)
+    // is a belt-and-suspenders fallback: any failure — missing method, odd
+    // OEM ROM — logs and falls through to the classic progress bar below,
+    // which works on every API level we ship (minSdk 26).
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.BAKLAVA) {
+        try {
+            builder.setRequestPromotedOngoing(true)
+        } catch (t: Throwable) {
+            Log.w("BodyBackfill", "Live updates unavailable, using classic progress notification", t)
+        }
     }
 
     builder.setProgress(total, completed, total == 0)
