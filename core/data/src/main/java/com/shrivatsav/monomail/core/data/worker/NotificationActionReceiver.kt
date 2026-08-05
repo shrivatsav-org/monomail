@@ -447,10 +447,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
         )
         showNewEmailNotification(
             context = context,
-            accountId = account.id,
+            account = account,
             thread = thread,
             notificationId = 7000 + account.id.hashCode(),
-            quickActions = deps.settingsDataStore().settingsFlow.value.notificationQuickActions
+            quickActions = deps.settingsDataStore().settingsFlow.value.notificationQuickActions,
+            profile = deps.settingsDataStore().getNotificationProfile(account.id)
         )
     }
 }

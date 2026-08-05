@@ -15,6 +15,7 @@ import com.shrivatsav.monomail.core.data.auth.AuthManager
 import com.shrivatsav.monomail.feature.settings.BuildConfig
 import com.shrivatsav.monomail.core.data.settings.*
 import com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver
+import com.shrivatsav.monomail.core.data.worker.NotificationChannelManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -59,15 +60,74 @@ internal fun NotificationSettingsScreen(
                         }
                     )
                     
-                    if (isEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    if (isEnabled) {
+                        val profile by viewModel.notificationProfileFlow(account.id)
+                            .collectAsState(initial = NotificationProfile.defaults())
+                        CardDivider()
+                        BottomSheetPickerRow(
+                            icon = Icons.Rounded.NotificationsActive,
+                            title = "Alert style",
+                            currentValue = profile.importance.displayName(),
+                            options = NotificationImportance.entries.map { it.displayName() },
+                            onSelected = { idx ->
+                                viewModel.setNotificationProfile(
+                                    account.id, profile.copy(importance = NotificationImportance.entries[idx])
+                                )
+                            }
+                        )
+                        CardDivider()
+                        BottomSheetPickerRow(
+                            icon = Icons.Rounded.VolumeUp,
+                            title = "Sound",
+                            currentValue = profile.sound.displayName(),
+                            options = NotificationSound.entries.map { it.displayName() },
+                            onSelected = { idx ->
+                                viewModel.setNotificationProfile(
+                                    account.id, profile.copy(sound = NotificationSound.entries[idx])
+                                )
+                            }
+                        )
+                        CardDivider()
+                        SettingsToggleRow(
+                            icon = Icons.Rounded.Vibration,
+                            title = "Vibrate",
+                            subtitle = "Vibrate when a notification arrives",
+                            checked = profile.vibrate,
+                            onCheckedChange = { checked ->
+                                viewModel.setNotificationProfile(account.id, profile.copy(vibrate = checked))
+                            }
+                        )
+                        CardDivider()
+                        BottomSheetPickerRow(
+                            icon = Icons.Rounded.Lock,
+                            title = "Lock screen preview",
+                            currentValue = profile.preview.displayName(),
+                            options = NotificationPreview.entries.map { it.displayName() },
+                            onSelected = { idx ->
+                                viewModel.setNotificationProfile(
+                                    account.id, profile.copy(preview = NotificationPreview.entries[idx])
+                                )
+                            }
+                        )
+                        CardDivider()
+                        SettingsToggleRow(
+                            icon = Icons.Rounded.Badge,
+                            title = "App icon badge",
+                            subtitle = "Show the app icon badge with a count",
+                            checked = profile.badge,
+                            onCheckedChange = { checked ->
+                                viewModel.setNotificationProfile(account.id, profile.copy(badge = checked))
+                            }
+                        )
+                        CardDivider()
                         InfoRow(
                             icon = Icons.Rounded.Tune,
-                            title = "Customize Sound & Vibration",
+                            title = "System channel settings",
                             value = "",
                             onClick = {
                                 val intent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
                                     putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                    putExtra(Settings.EXTRA_CHANNEL_ID, "monomail_${account.id}")
+                                    putExtra(Settings.EXTRA_CHANNEL_ID, NotificationChannelManager.channelIdFor(account.id, profile))
                                 }
                                 try {
                                     context.startActivity(intent)

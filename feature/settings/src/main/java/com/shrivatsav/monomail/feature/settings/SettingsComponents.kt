@@ -838,6 +838,23 @@ internal fun EmailTheme.displayName() = when (this) {
     EmailTheme.ORIGINAL -> "Original"
 }
 
+internal fun NotificationSound.displayName() = when (this) {
+    NotificationSound.DEFAULT -> "Default sound"
+    NotificationSound.SILENT -> "Silent"
+}
+
+internal fun NotificationImportance.displayName() = when (this) {
+    NotificationImportance.DEFAULT -> "Default"
+    NotificationImportance.URGENT -> "Urgent"
+    NotificationImportance.SILENT -> "Silent"
+}
+
+internal fun NotificationPreview.displayName() = when (this) {
+    NotificationPreview.FULL -> "Full content"
+    NotificationPreview.PRIVATE -> "Hide on lock screen"
+    NotificationPreview.NONE -> "Don't show"
+}
+
 internal fun EmailTheme.description() = when (this) {
     EmailTheme.AUTO     -> "Adapt simple emails to the app theme; show styled emails as sent"
     EmailTheme.ORIGINAL -> "Always show the sender's original colors on a light background"

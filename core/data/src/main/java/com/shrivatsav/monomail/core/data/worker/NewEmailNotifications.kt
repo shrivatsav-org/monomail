@@ -1,8 +1,6 @@
 package com.shrivatsav.monomail.core.data.worker
 
 import android.Manifest
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -14,11 +12,12 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.RemoteInput
 import androidx.core.content.ContextCompat
 import androidx.core.text.HtmlCompat
+import com.shrivatsav.monomail.core.data.auth.UserProfile
+import com.shrivatsav.monomail.core.data.settings.NotificationPreview
+import com.shrivatsav.monomail.core.data.settings.NotificationProfile
 
 private const val TAG = "NewEmailNotification"
 
-/** Channel id used for per-account new-email notifications. */
-fun channelIdForAccount(accountId: String): String = "monomail_$accountId"
 
 /**
  * Posts the new-email notification for [thread] on [accountId]'s channel,
@@ -27,10 +26,11 @@ fun channelIdForAccount(accountId: String): String = "monomail_$accountId"
  */
 fun showNewEmailNotification(
     context: Context,
-    accountId: String,
+    account: UserProfile,
     thread: com.shrivatsav.monomail.data.model.EmailThread,
     notificationId: Int,
-    quickActions: Set<String>
+    quickActions: Set<String>,
+    profile: NotificationProfile
 ) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -39,7 +39,7 @@ fun showNewEmailNotification(
         Log.e(TAG, "POST_NOTIFICATIONS permission not granted! Aborting notification display.")
         return
     }
-    createNotificationChannel(context, accountId, thread.from)
+    NotificationChannelManager.ensureNewEmailChannel(context, account, profile)
 
     val openIntent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply {
         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -52,7 +52,7 @@ fun showNewEmailNotification(
     val replyPendingIntent = NotificationActionReceiver.createReplyPendingIntent(
         context = context,
         params = NotificationActionReceiver.ReplyParams(
-            accountId = accountId,
+            accountId = account.id,
             threadId = thread.threadId,
             messageId = thread.latestMessageId,
             subject = thread.subject,
@@ -70,7 +70,7 @@ fun showNewEmailNotification(
 
     val archivePendingIntent = NotificationActionReceiver.createArchivePendingIntent(
         context = context,
-        accountId = accountId,
+        accountId = account.id,
         threadId = thread.threadId,
         notificationId = notificationId
     )
@@ -80,7 +80,7 @@ fun showNewEmailNotification(
 
     val deletePendingIntent = NotificationActionReceiver.createDeletePendingIntent(
         context = context,
-        accountId = accountId,
+        accountId = account.id,
         threadId = thread.threadId,
         notificationId = notificationId
     )
@@ -90,7 +90,7 @@ fun showNewEmailNotification(
 
     val snoozePendingIntent = NotificationActionReceiver.createSnoozePendingIntent(
         context = context,
-        accountId = accountId,
+        accountId = account.id,
         threadId = thread.threadId,
         notificationId = notificationId
     )
@@ -106,7 +106,7 @@ fun showNewEmailNotification(
     ).filter { it.first in quickActions }.map { it.second }
 
     val cleanSnippet = thread.snippet.replace(Regex("\\bOn\\s+[A-Z][a-z]{2},.*?wrote:.*"), "").trim()
-    val channelId = channelIdForAccount(accountId)
+    val channelId = NotificationChannelManager.channelIdFor(account.id, profile)
     val builder = NotificationCompat.Builder(context, channelId)
         .setSmallIcon(com.shrivatsav.monomail.core.data.R.drawable.ic_notification_leaf)
         .setContentTitle(thread.from)
@@ -119,23 +119,19 @@ fun showNewEmailNotification(
         .setPriority(NotificationCompat.PRIORITY_DEFAULT)
         .setContentIntent(openPendingIntent)
         .setAutoCancel(true)
+        .setVisibility(
+            when (profile.preview) {
+                NotificationPreview.FULL -> NotificationCompat.VISIBILITY_PUBLIC
+                NotificationPreview.PRIVATE -> NotificationCompat.VISIBILITY_PRIVATE
+                NotificationPreview.NONE -> NotificationCompat.VISIBILITY_SECRET
+            }
+        )
+        .apply {
+            if (!profile.badge) setBadgeIconType(NotificationCompat.BADGE_ICON_NONE)
+        }
     actions.forEach(builder::addAction)
 
-    NotificationManagerCompat.from(context).notify(accountId, notificationId, builder.build())
+    NotificationManagerCompat.from(context).notify(account.id, notificationId, builder.build())
     Log.i(TAG, "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")
 }
 
-private fun createNotificationChannel(context: Context, accountId: String, accountName: String) {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        val channelId = channelIdForAccount(accountId)
-        val channelName = "$accountName ($accountId)"
-        val descriptionText = "Notifications for $accountName"
-        val importance = NotificationManager.IMPORTANCE_DEFAULT
-        val channel = NotificationChannel(channelId, channelName, importance).apply {
-            description = descriptionText
-        }
-        val notificationManager: NotificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.createNotificationChannel(channel)
-    }
-}

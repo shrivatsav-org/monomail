@@ -34,6 +34,9 @@ class SettingsViewModel @Inject constructor(
     fun setDefaultReply(reply: DefaultReply) = viewModelScope.launch { settingsDataStore.setDefaultReply(reply) }
     fun setDisabledNotificationAccounts(accounts: Set<String>) = viewModelScope.launch { settingsDataStore.setDisabledNotificationAccounts(accounts) }
     fun setNotificationQuickActions(actions: Set<String>) = viewModelScope.launch { settingsDataStore.setNotificationQuickActions(actions) }
+    fun notificationProfileFlow(accountId: String) = settingsDataStore.notificationProfileFlow(accountId)
+    fun setNotificationProfile(accountId: String, profile: NotificationProfile) =
+        viewModelScope.launch { settingsDataStore.setNotificationProfile(accountId, profile) }
     fun setSyncFrequency(freq: SyncFrequency) = viewModelScope.launch { settingsDataStore.setSyncFrequency(freq) }
     fun setUnifiedInboxEnabled(enabled: Boolean) = viewModelScope.launch {
         settingsDataStore.setUnifiedInboxEnabled(enabled)
@@ -56,7 +59,6 @@ class SettingsViewModel @Inject constructor(
     fun setUndoSendWindow(window: UndoSendWindow) = viewModelScope.launch { settingsDataStore.setUndoSendWindow(window) }
     fun setDockConfig(config: DockConfig) = viewModelScope.launch { settingsDataStore.setDockConfig(config) }
     fun setDeveloperMode(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setDeveloperMode(enabled) }
-    fun setDemoSmartFolders(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setDemoSmartFolders(enabled) }
     fun setShowInlineImages(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowInlineImages(enabled) }
     fun setShowInlineAttachments(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowInlineAttachments(enabled) }
     fun setShowMarkAllRead(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setShowMarkAllRead(enabled) }

@@ -350,39 +350,8 @@ fun InboxScreen(
                                     }
                                 }
                             }
-                            val displayItems = remember(inboxStructure, expandedGroupsList, appSettings.demoSmartFolders) {
-                                val items = flattenDisplayItems(inboxStructure, expandedGroupsList.toSet(), tabPrefix = currentTab.name).toMutableList()
-                                if (appSettings.demoSmartFolders) {
-                                    items.add(0, InboxDisplayItem.GroupHeader(
-                                        groupName = "Demo Smart Folder",
-                                        count = 42,
-                                        unreadCount = 5,
-                                        latestDate = System.currentTimeMillis(),
-                                        isExpanded = expandedGroupsList.contains("Demo Smart Folder"),
-                                        avatarUrl = null,
-                                        tab = currentTab.name
-                                    ))
-                                    val isDemoExpanded = expandedGroupsList.contains("Demo Smart Folder")
-                                    items.add(1, InboxDisplayItem.NestedThread(
-                                        thread = com.shrivatsav.monomail.data.model.EmailThread(
-                                            threadId = "demo_thread_1",
-                                            subject = "This is a demo email",
-                                            from = "Demo Sender",
-                                            fromEmail = "demo@example.com",
-                                            snippet = "Just demonstrating the smart folder expansion",
-                                            date = System.currentTimeMillis(),
-                                            messageCount = 1,
-                                            isRead = false,
-                                            isStarred = false,
-                                            latestMessageId = "demo_msg_1",
-                                            participants = listOf("Demo Sender")
-                                        ),
-                                        groupName = "Demo Smart Folder",
-                                        tab = currentTab.name,
-                                        isVisible = isDemoExpanded
-                                    ))
-                                }
-                                items
+                            val displayItems = remember(inboxStructure, expandedGroupsList) {
+                                flattenDisplayItems(inboxStructure, expandedGroupsList.toSet(), tabPrefix = currentTab.name)
                             }
                             val orderedThreadIds by remember(displayItems) {
                                 derivedStateOf {

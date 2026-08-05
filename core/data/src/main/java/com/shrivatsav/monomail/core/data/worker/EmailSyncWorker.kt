@@ -94,7 +94,7 @@ class EmailSyncWorker @AssistedInject constructor(
                 Log.i("EmailSyncWorker", "New email detected for $accountId, but notifications are disabled for this account. Skipping notification banner.")
             } else {
                 Log.i("EmailSyncWorker", "New email detected for $accountId! Showing notification...")
-                showNotification(accountId, newestThread, accountId.hashCode())
+                showNotification(account, newestThread, accountId.hashCode())
             }
         } else if (isLatestDraft) {
             Log.i("EmailSyncWorker", "Newest message is a draft. Skipping notification banner.")
@@ -134,17 +134,18 @@ class EmailSyncWorker @AssistedInject constructor(
         )
     }
 
-    private fun showNotification(
-        accountId: String,
+    private suspend fun showNotification(
+        account: com.shrivatsav.monomail.core.data.auth.UserProfile,
         thread: com.shrivatsav.monomail.data.model.EmailThread,
         notificationId: Int
     ) {
         showNewEmailNotification(
             context = applicationContext,
-            accountId = accountId,
+            account = account,
             thread = thread,
             notificationId = notificationId,
-            quickActions = settingsDataStore.settingsFlow.value.notificationQuickActions
+            quickActions = settingsDataStore.settingsFlow.value.notificationQuickActions,
+            profile = settingsDataStore.getNotificationProfile(account.id)
         )
     }
 }

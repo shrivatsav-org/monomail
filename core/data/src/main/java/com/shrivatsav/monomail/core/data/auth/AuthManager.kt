@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import com.shrivatsav.monomail.core.data.worker.NotificationChannelManager
 import com.shrivatsav.monomail.core.data.push.PushNotificationManager
 
 data class ReauthInfo(val email: String, val provider: String, val intent: android.content.Intent? = null)
@@ -240,6 +241,7 @@ class AuthManager(
         }
         accountManager.removeAccount(accountId)
         try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "push unregister failed during removeAccount for ${target.id}", e) }
+        try { NotificationChannelManager.deleteChannel(context, target.id) } catch (e: Exception) { android.util.Log.w(TAG, "notification channel delete failed during removeAccount for ${target.id}", e) }
         try {
             database.emailDao().clearForAccount(accountId)
             database.threadDao().clearForAccount(accountId)
@@ -279,6 +281,9 @@ class AuthManager(
         accountManager.removeAccount(active.id)
         try { pushNotificationManager.unregisterForPushNotifications(active.id) } catch (e: Exception) {
             android.util.Log.w("AuthManager", "push unregister failed during signOut for ${active.id}", e)
+        }
+        try { NotificationChannelManager.deleteChannel(context, active.id) } catch (e: Exception) {
+            android.util.Log.w(TAG, "notification channel delete failed during signOut for ${active.id}", e)
         }
         try {
             database.emailDao().clearForAccount(active.id)
