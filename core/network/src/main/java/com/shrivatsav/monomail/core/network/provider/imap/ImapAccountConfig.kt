@@ -33,14 +33,41 @@ data class ImapAccountConfig(
     @SerializedName("authMethod") val authMethod: AuthMethod = AuthMethod.PASSWORD,
     @SerializedName("displayName") val displayName: String = ""
 ) {
+    /**
+     * The SMTP settings actually used at send time, after fallbacks and
+     * normalization:
+     * - blank host falls back to the IMAP host (most providers serve SMTP
+     *   on the same hostname)
+     * - port is derived (465 SSL / 587 STARTTLS) when SMTP was left at
+     *   setup defaults (blank host or port <= 0)
+     * - 587 is the IANA STARTTLS submission port: a stored 587+SSL config
+     *   (the setup UI defaults SSL on) normalizes to STARTTLS, since
+     *   implicit TLS on 587 fails the handshake on most servers
+     */
+    fun effectiveSmtp(): EffectiveSmtp {
+        val host = smtpHost.ifBlank { imapHost }
+        val port = if (smtpHost.isBlank() || smtpPort <= 0) {
+            if (smtpSsl) 465 else 587
+        } else {
+            smtpPort
+        }
+        val startTls = smtpStartTls || (smtpPort == 587 && smtpSsl)
+        val useSsl = smtpSsl && !(smtpPort == 587 && !smtpStartTls)
+        return EffectiveSmtp(host, port, startTls, useSsl)
+    }
+
+    /** A sender's FROM domain to use as the SMTP HELO hostname. */
+    fun heloDomain(from: String): String =
+        from.substringAfterLast("@").ifBlank { effectiveSmtp().host }
+
     fun toJson(): String = Gson().toJson(this)
-    
+
     /** Returns true if this is a Gmail/Googlemail account */
-    fun isGmail(): Boolean = 
-        imapHost.contains("gmail", ignoreCase = true) || 
+    fun isGmail(): Boolean =
+        imapHost.contains("gmail", ignoreCase = true) ||
         smtpHost.contains("gmail", ignoreCase = true) ||
         imapHost.contains("googlemail", ignoreCase = true)
-    
+
     companion object {
         fun fromJson(json: String): ImapAccountConfig = Gson().fromJson(json, ImapAccountConfig::class.java)
 
@@ -75,3 +102,13 @@ data class ImapAccountConfig(
         }
     }
 }
+
+/**
+ * Resolved SMTP settings: what [ImapAccountConfig.effectiveSmtp] produces.
+ */
+data class EffectiveSmtp(
+    val host: String,
+    val port: Int,
+    val startTls: Boolean,
+    val useSsl: Boolean
+)

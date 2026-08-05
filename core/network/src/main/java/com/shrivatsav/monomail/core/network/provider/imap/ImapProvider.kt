@@ -777,35 +777,13 @@ class ImapProvider(
 
     private fun buildSmtpProps(from: String): Properties {
         val props = Properties()
-        // Port 587 is the IANA STARTTLS submission port; implicit TLS on 587
-        // is non-standard and most servers there (Infomaniak included) speak
-        // plaintext + STARTTLS. The setup UI defaults SSL on, so a config
-        // stored as 587+SSL without STARTTLS is a misconfiguration that
-        // would fail the TLS handshake — normalize it to STARTTLS instead.
-        val startTls = config.smtpStartTls || (config.smtpPort == 587 && config.smtpSsl)
-        val useSsl = config.smtpSsl && !(config.smtpPort == 587 && !config.smtpStartTls)
-        val protocol = if (useSsl) "smtps" else "smtp"
-        // SMTP settings are optional in setup and legacy accounts may lack
-        // them entirely. An empty host makes JavaMail silently fall back to
-        // localhost:25 — a confusing send failure. Fall back to the IMAP
-        // host (most providers, Infomaniak included, serve SMTP on the same
-        // hostname) and a standard port.
-        val smtpHost = config.smtpHost.ifBlank { config.imapHost }
-        // A blank host means SMTP was left at setup defaults, so the stored
-        // port is untrustworthy too (defaults produce host="" + a port that
-        // does not match the derived host's protocol). Derive it from the
-        // TLS flags: 465 SMTPS or 587 STARTTLS, both verified against
-        // common providers.
-        val smtpPort = if (config.smtpHost.isBlank() || config.smtpPort <= 0) {
-            if (config.smtpSsl) 465 else 587
-        } else {
-            config.smtpPort
-        }
-        android.util.Log.i("ImapProvider", "SMTP props: protocol=$protocol host=$smtpHost port=$smtpPort ssl=$useSsl startTls=$startTls")
+        val eff = config.effectiveSmtp()
+        val protocol = if (eff.useSsl) "smtps" else "smtp"
+        android.util.Log.i("ImapProvider", "SMTP props: protocol=$protocol host=${eff.host} port=${eff.port} ssl=${eff.useSsl} startTls=${eff.startTls}")
         props["mail.transport.protocol"] = protocol
-        props["mail.$protocol.host"] = smtpHost
+        props["mail.$protocol.host"] = eff.host
         props["mail.$protocol.auth"] = "true"
-        if (startTls) props["mail.$protocol.starttls.enable"] = "true"
+        if (eff.startTls) props["mail.$protocol.starttls.enable"] = "true"
         props["mail.$protocol.connectiontimeout"] = "15000"
         props["mail.$protocol.timeout"] = "15000"
         props["mail.$protocol.writetimeout"] = "15000"
@@ -813,11 +791,11 @@ class ImapProvider(
         // hardcoded `mail.smtp.*` keys were silent no-ops under `smtps`
         // (Gmail/Yahoo/Zoho 465 presets), leaving HELO hostname and quitwait
         // at JavaMail defaults and — critically — server-identity checks off.
-        props["mail.$protocol.localhost"] = from.substringAfterLast("@").ifBlank { smtpHost }
+        props["mail.$protocol.localhost"] = config.heloDomain(from)
         props["mail.$protocol.quitwait"] = "false"
         props["mail.$protocol.ssl.protocols"] = "TLSv1.2 TLSv1.3"
-        if (useSsl || startTls) props["mail.$protocol.ssl.checkserveridentity"] = "true"
-        if (startTls) props["mail.$protocol.starttls.required"] = "true"
+        if (eff.useSsl || eff.startTls) props["mail.$protocol.ssl.checkserveridentity"] = "true"
+        if (eff.startTls) props["mail.$protocol.starttls.required"] = "true"
         return props
     }
 
