@@ -209,11 +209,10 @@ class MainActivity : ComponentActivity() {
             SyncFrequency.MIN_30 -> 30L
             SyncFrequency.HOUR_1 -> 60L
             SyncFrequency.MANUAL -> {
-                // Cancel periodic sync when user selects Manual
-                WorkManager.getInstance(this).cancelUniqueWork("EmailSyncWork")
-                // Still schedule push subscription renewal (independent of notification frequency)
-                scheduleRenewalWorker()
-                return
+                // Manual: no frequent background checks, but keep a quiet 6h
+                // safety-net sync so accounts never go fully stale (GitHub builds
+                // have no push to fall back on).
+                6 * 60L
             }
         }
         val workRequest = PeriodicWorkRequestBuilder<EmailSyncWorker>(

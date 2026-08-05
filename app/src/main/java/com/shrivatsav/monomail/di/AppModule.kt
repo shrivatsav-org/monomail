@@ -12,6 +12,7 @@ import com.shrivatsav.monomail.core.data.auth.provideGoogleAuthHelper
 import com.shrivatsav.monomail.core.network.provider.EmailProvider
 import com.shrivatsav.monomail.core.network.provider.GmailProvider
 import com.shrivatsav.monomail.core.network.provider.OutlookProvider
+import com.shrivatsav.monomail.core.network.provider.ProviderCache
 import com.shrivatsav.monomail.core.network.provider.imap.ImapAccountConfig
 import com.shrivatsav.monomail.core.network.provider.imap.ImapProvider
 import com.shrivatsav.monomail.core.network.remote.RetrofitClient
@@ -63,10 +64,9 @@ object AppModule {
         accountManager: AccountManager,
         authManager: AuthManager
     ): (UserProfile) -> EmailProvider {
-        val providerCache = java.util.concurrent.ConcurrentHashMap<String, EmailProvider>()
         return { profile ->
-            providerCache.getOrPut(profile.id) {
-                val retrofit = createRetrofitClient(profile, context, accountManager, authManager, providerCache)
+            ProviderCache.getOrCreate(profile.id) {
+                val retrofit = createRetrofitClient(profile, context, accountManager, authManager)
                 retrofit.cachedToken.set(profile.accessToken.takeIf { it.isNotEmpty() })
                 createProvider(profile, retrofit, context, authManager)
             }
@@ -77,10 +77,9 @@ object AppModule {
         profile: UserProfile,
         context: Context,
         accountManager: AccountManager,
-        authManager: AuthManager,
-        providerCache: java.util.concurrent.ConcurrentHashMap<String, EmailProvider>
+        authManager: AuthManager
     ) = RetrofitClient(
-        tokenRefresher = { refreshProfileToken(profile, context, accountManager, authManager, providerCache) },
+        tokenRefresher = { refreshProfileToken(profile, context, accountManager, authManager) },
         onRefreshFailed = { authManager.notifyReauthRequired(profile.email, profile.provider) },
         onHttpError = { code -> android.util.Log.w("AppModule", "HTTP $code for ${profile.id}") }
     )
@@ -89,8 +88,7 @@ object AppModule {
         profile: UserProfile,
         context: Context,
         accountManager: AccountManager,
-        authManager: AuthManager,
-        providerCache: java.util.concurrent.ConcurrentHashMap<String, EmailProvider>
+        authManager: AuthManager
     ): String? {
         // ponytail: runBlocking required — tokenRefresher is sync (OkHttp interceptor). Dispatchers.IO keeps DataStore ops off the dispatcher thread.
         val currentProfile = runBlocking(kotlinx.coroutines.Dispatchers.IO) { accountManager.getAccounts().find { it.id == profile.id } }
@@ -99,7 +97,7 @@ object AppModule {
             val newToken = fetchNewToken(currentProfile, context, authManager)
             if (newToken != null) {
                 runBlocking(kotlinx.coroutines.Dispatchers.IO) { authManager.updateAccessToken(currentProfile.copy(accessToken = newToken)) }
-                providerCache.remove(profile.id)
+                ProviderCache.invalidate(profile.id)
             }
             newToken
         } catch (e: GoogleAuthException) {

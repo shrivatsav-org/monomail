@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import com.shrivatsav.monomail.security.SecurityUtil
+import com.shrivatsav.monomail.core.network.provider.ProviderCache
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "auth_prefs")
 class AccountManager(private val context: Context) {
     companion object {
@@ -164,6 +165,9 @@ class AccountManager(private val context: Context) {
                     accounts[index] = accounts[index].copy(accessToken = newToken)
                     try { prefs[KEY_ACCOUNTS_JSON] = SecurityUtil.encryptString(gson.toJson(accounts)) } catch (e: Exception) { Log.e(TAG, "Failed to serialize accounts", e) }
                 }
+                // Providers cache config/token at construction; drop the cached
+                // instance so the next access rebuilds with the new settings.
+                ProviderCache.invalidate(accountId)
             }
         }
     }
