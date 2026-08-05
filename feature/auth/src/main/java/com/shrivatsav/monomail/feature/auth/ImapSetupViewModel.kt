@@ -166,6 +166,18 @@ class ImapSetupViewModel @Inject constructor(
             try {
                 val provider = ImapProvider(config, _password.value, context)
                 provider.listThreads(com.shrivatsav.monomail.core.network.provider.EmailFolder.INBOX, 1)
+                // IMAP verified — now verify SMTP too, so a blank/wrong
+                // outgoing config is caught here and not at first send
+                // (where it used to silently fail against localhost:25).
+                try {
+                    provider.testSmtpConnection()
+                } catch (e: jakarta.mail.AuthenticationFailedException) {
+                    _testState.value = ImapTestState.Error("SMTP: wrong username or password")
+                    return@launch
+                } catch (e: jakarta.mail.MessagingException) {
+                    _testState.value = ImapTestState.Error("SMTP connection failed: ${e.message?.take(80)}")
+                    return@launch
+                }
                 pendingProfile = buildProfile(config)
                 _testState.value = ImapTestState.Verified
             } catch (e: AuthenticationFailedException) {
@@ -244,7 +256,7 @@ class ImapSetupViewModel @Inject constructor(
 
     private fun buildConfig(): ImapAccountConfig? {
         val iPort = _imapPort.value.toIntOrNull() ?: return null
-        val sPort = _smtpPort.value.toIntOrNull() ?: return null
+        val sPort = _smtpPort.value.toIntOrNull() ?: if (_smtpSsl.value) 465 else 587
 
         // Determine auth method based on Gmail mode
         val authMethod = if (_isGmailMode.value) {
@@ -252,13 +264,15 @@ class ImapSetupViewModel @Inject constructor(
         } else {
             AuthMethod.PASSWORD
         }
-        
+
         return ImapAccountConfig(
             imapHost = _imapHost.value,
             imapPort = iPort,
             imapSsl = _imapSsl.value,
             imapStartTls = _imapStartTls.value,
-            smtpHost = _smtpHost.value,
+            // A blank SMTP host reuses the IMAP host: most providers (and
+            // Infomaniak specifically) serve SMTP on the same hostname.
+            smtpHost = _smtpHost.value.ifBlank { _imapHost.value },
             smtpPort = sPort,
             smtpSsl = _smtpSsl.value,
             smtpStartTls = _smtpStartTls.value,

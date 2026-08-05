@@ -188,7 +188,8 @@ data class PendingSendEntity(
     @ColumnInfo(defaultValue = "NULL") val fromAlias: String? = null,
     @ColumnInfo(defaultValue = "NULL") val threadId: String? = null,
     @ColumnInfo(defaultValue = "NULL") val messageId: String? = null,
-    @ColumnInfo(defaultValue = "NULL") val messageReferences: String? = null
+    @ColumnInfo(defaultValue = "NULL") val messageReferences: String? = null,
+    @ColumnInfo(defaultValue = "0") val retryCount: Int = 0
 )
 
 enum class PendingActionType {

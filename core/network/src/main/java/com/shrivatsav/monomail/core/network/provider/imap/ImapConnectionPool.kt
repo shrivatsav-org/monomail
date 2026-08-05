@@ -5,6 +5,7 @@ import jakarta.mail.Folder
 import jakarta.mail.Session
 import jakarta.mail.Store
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -44,26 +45,39 @@ class ImapConnectionPool(
      * Execute a block with a connected Store, leasing one of the pooled
      * connections. Creates a new connection when demand exceeds supply (up to
      * [poolSize]) and reconnects automatically if the connection dropped.
+     *
+     * Reconnects are bounded and back off exponentially: a server that keeps
+     * kicking us (Gmail sends `* BYE` and closes connections under connection
+     * pressure) must not be hammered with instant reconnects — that turns a
+     * single dropped connection into a reconnect storm.
      */
     suspend fun <T> withStore(block: suspend (Store) -> T): T = withContext(Dispatchers.IO) {
-        var active = leaseStore()
-        try {
+        var attempt = 0
+        while (true) {
+            val active = leaseStore()
             try {
-                block(active)
+                val result = block(active)
+                returnStore(active)
+                return@withContext result
             } catch (e: Exception) {
-                // Connection may have dropped — try once more after reconnect
-                if (!active.isConnected) {
-                    Log.w(tag, "Store disconnected, reconnecting")
-                    dropStore(active)
-                    active = leaseStore()
-                    block(active)
-                } else {
-                    throw e
+                val disconnected = !active.isConnected
+                // Drop dead stores, return healthy ones to the idle pool.
+                returnStore(active)
+                if (disconnected && attempt < STORE_RECONNECT_ATTEMPTS) {
+                    attempt++
+                    val delayMs = STORE_RECONNECT_BASE_DELAY_MS * attempt
+                    Log.w(tag, "Store disconnected, retrying in ${delayMs}ms (attempt $attempt/$STORE_RECONNECT_ATTEMPTS)")
+                    delay(delayMs)
+                    continue
                 }
+                throw e
             }
-        } finally {
-            returnStore(active)
         }
+        // Unreachable: the loop above only exits via return@withContext or
+        // throw. This Nothing-typed tail keeps the lambda's inferred type T
+        // instead of Unit (a bare while loop would fix T = Unit).
+        @Suppress("UNREACHABLE_CODE")
+        error("unreachable")
     }
 
     /**
@@ -252,5 +266,11 @@ class ImapConnectionPool(
         /** Gmail allows 15 simultaneous IMAP connections per account; 5 leaves
          *  headroom for other clients/devices while giving backfill ~5x speedup. */
         const val DEFAULT_POOL_SIZE = 5
+
+        /** Bounded reconnect attempts and linear backoff (2s, 4s, 6s) after a
+         *  connection is dropped, so a server that is kicking us (Gmail `* BYE`)
+         *  is not hammered with an instant-reconnect storm. */
+        private const val STORE_RECONNECT_ATTEMPTS = 3
+        private const val STORE_RECONNECT_BASE_DELAY_MS = 2000L
     }
 }

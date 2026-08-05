@@ -146,6 +146,7 @@ object AppModule {
         val config = ImapAccountConfig.fromJson(configJson)
         val password = SecurityUtil.decryptString(profile.refreshToken)
             ?: throw IllegalStateException("Cannot decrypt IMAP password")
+        android.util.Log.i("AppModule", "IMAP provider for ${profile.id}: smtpHost='${config.smtpHost}' smtpPort=${config.smtpPort} ssl=${config.smtpSsl} startTls=${config.smtpStartTls}")
         ImapProvider(config, password, context)
     } catch (e: Exception) {
         android.util.Log.e("AppModule", "Failed to create IMAP provider for ${profile.id}", e)
