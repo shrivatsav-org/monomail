@@ -126,9 +126,12 @@ internal fun AccountsSettingsScreen(
         }
     }
 
-    selectedImapAccount?.let { account ->
+    // Resolve the selected account against the live list so the dialog
+    // re-reads the config after a save (the tap-time snapshot would stay stale).
+    selectedImapAccount?.let { selected ->
+        val current = accounts.firstOrNull { it.id == selected.id } ?: selected
         ImapAccountDetailDialog(
-            account = account,
+            account = current,
             authManager = authManager,
             onDismiss = { selectedImapAccount = null }
         )
