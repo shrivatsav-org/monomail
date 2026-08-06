@@ -164,6 +164,7 @@ private fun ImapAccountDetailDialog(
     var smtpHost by remember(config, editing) { mutableStateOf(config?.smtpHost ?: "") }
     var smtpPortStr by remember(config, editing) { mutableStateOf(config?.smtpPort?.takeIf { it > 0 }?.toString() ?: "") }
     var smtpMode by remember(config, editing) { mutableStateOf(config?.let(::smtpSecurityMode) ?: SecurityMode.SSL) }
+    var displayName by remember(account.displayName, editing) { mutableStateOf(account.displayName) }
 
     val imapPort = imapPortStr.toIntOrNull()
     val smtpPort = smtpPortStr.toIntOrNull()
@@ -193,6 +194,8 @@ private fun ImapAccountDetailDialog(
                         AccountEditContent(
                             account = account,
                             isReauthNeeded = isReauthNeeded,
+                            displayName = displayName,
+                            onDisplayNameChange = { displayName = it },
                             imapHost = imapHost,
                             onImapHostChange = { imapHost = it },
                             imapPortStr = imapPortStr,
@@ -237,7 +240,7 @@ private fun ImapAccountDetailDialog(
                         scope.launch {
                             val encrypted = SecurityUtil.encryptString(newConfig.toJson())
                             if (encrypted != null) {
-                                authManager.updateAccessToken(account.copy(accessToken = encrypted))
+                                authManager.updateAccount(account.copy(accessToken = encrypted, displayName = displayName.trim()))
                                 haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                                 editing = false
                             }
@@ -372,6 +375,8 @@ private fun AccountDetailContent(
 private fun AccountEditContent(
     account: UserProfile,
     isReauthNeeded: Boolean,
+    displayName: String,
+    onDisplayNameChange: (String) -> Unit,
     imapHost: String,
     onImapHostChange: (String) -> Unit,
     imapPortStr: String,
@@ -394,6 +399,10 @@ private fun AccountEditContent(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         AccountIdentityHeader(account, isReauthNeeded)
+
+        ConfigSectionCard(title = "Identity", icon = Icons.Rounded.Person) {
+            EditField(value = displayName, onValueChange = onDisplayNameChange, label = "Display Name", placeholder = account.email)
+        }
 
         ConfigSectionCard(title = "IMAP", icon = Icons.Rounded.MoveToInbox) {
             EditField(value = imapHost, onValueChange = onImapHostChange, label = "IMAP Host")

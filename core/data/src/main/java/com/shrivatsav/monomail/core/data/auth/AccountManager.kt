@@ -171,6 +171,30 @@ class AccountManager(private val context: Context) {
             }
         }
     }
+    suspend fun updateAccount(updated: UserProfile) {
+        context.dataStore.edit { prefs ->
+            val json = prefs[KEY_ACCOUNTS_JSON]
+            if (json != null) {
+                val decryptedJson = SecurityUtil.decryptString(json)
+                if (decryptedJson == null) {
+                    Log.w(TAG, "Failed to decrypt accounts in updateAccount — treating as corrupt")
+                    _decryptionFailed.value = true
+                    return@edit
+                }
+                val type = object : TypeToken<List<UserProfile>>() {}.type
+                val accounts: MutableList<UserProfile> = gson.fromJson(decryptedJson, type)
+                val index = accounts.indexOfFirst { it.id == updated.id }
+                if (index != -1) {
+                    accounts[index] = updated
+                    val newJson = gson.toJson(accounts)
+                    val encrypted = SecurityUtil.encryptString(newJson)
+                    if (encrypted != null) {
+                        prefs[KEY_ACCOUNTS_JSON] = encrypted
+                    }
+                }
+            }
+        }
+    }
     suspend fun clearAll() {
         context.dataStore.edit { it.clear() }
     }
