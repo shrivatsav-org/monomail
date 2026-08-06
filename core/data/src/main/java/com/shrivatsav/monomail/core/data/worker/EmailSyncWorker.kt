@@ -95,7 +95,11 @@ class EmailSyncWorker @AssistedInject constructor(
         val isLatestDraft = latestEmail?.inDrafts == true
         val isSelfSent = latestEmail?.fromEmail?.equals(account.email, ignoreCase = true) == true
 
-        if (lastKnownTimestamp != null && newTimestamp.toString() != lastKnownTimestamp && !isLatestDraft && !isSelfSent) {
+        val lastKnownLong = lastKnownTimestamp?.toLongOrNull() ?: 0L
+        val isTrulyNew = newTimestamp > lastKnownLong
+        val isUnread = !newestThread.isRead
+
+        if (lastKnownTimestamp != null && isTrulyNew && !isLatestDraft && !isSelfSent && isUnread) {
             val disabledAccounts = settingsDataStore.settingsFlow.value.disabledNotificationAccounts
             if (disabledAccounts.contains(accountId)) {
                 Log.i("EmailSyncWorker", "New email detected for $accountId, but notifications are disabled for this account. Skipping notification banner.")
