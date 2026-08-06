@@ -32,6 +32,7 @@ walkthrough.md
 .kotlin/
 .claude/
 .agents/
+.agents/skills/m3e-domain-skill/
 plans/
 .entire/
 skill-lock.json
