@@ -65,8 +65,15 @@ class EmailSyncWorker @AssistedInject constructor(
         val accountId = account.id
         val lastKnownTimestamp = accountManager.getLastKnownEmailId(accountId)
         Log.i("EmailSyncWorker", "Starting sync for account $accountId (lastKnownTimestamp: $lastKnownTimestamp)")
+        // Deliver queued sends first: a send stuck in pending_sends (undo-send
+        // countdown expired without the app being opened) must not wait for
+        // the user to reopen the inbox. Failures keep the row for the next run.
+        try {
+            emailRepository.drainPendingSendsForAccount(accountId)
+        } catch (e: Exception) {
+            Log.w(TAG, "Draining pending sends failed for $accountId", e)
+        }
         val refreshResult = emailRepository.refreshInbox(InboxTab.INBOX, accountId = accountId)
-        Log.i("EmailSyncWorker", "Refresh result for $accountId: isSuccess=${refreshResult.isSuccess}")
 
         if (refreshResult.isFailure) {
             return handleSyncFailure(accountId, refreshResult.exceptionOrNull())

@@ -608,6 +608,21 @@ class ImapProvider(
         saveToSentFolder(message)
         SendEmailResult(messageId = message.messageID, threadId = message.messageID)
     }
+    /** Verify SMTP connectivity and auth with the stored config without
+     *  sending anything. Used by the setup flow so a broken/blank SMTP
+     *  configuration is caught at account creation instead of at first send
+     *  (where it used to silently fail against localhost:25). */
+    fun testSmtpConnection(from: String = config.username) {
+        val session = Session.getInstance(buildSmtpProps(from), object : jakarta.mail.Authenticator() {
+            override fun getPasswordAuthentication() = jakarta.mail.PasswordAuthentication(config.username, password)
+        })
+        val transport = session.getTransport()
+        try {
+            transport.connect()
+        } finally {
+            try { transport.close() } catch (_: Exception) {}
+        }
+    }
 
     private fun buildMimeMessage(
         session: Session,
@@ -762,20 +777,25 @@ class ImapProvider(
 
     private fun buildSmtpProps(from: String): Properties {
         val props = Properties()
-        val protocol = if (config.smtpSsl) "smtps" else "smtp"
+        val eff = config.effectiveSmtp()
+        val protocol = if (eff.useSsl) "smtps" else "smtp"
+        android.util.Log.i("ImapProvider", "SMTP props: protocol=$protocol host=${eff.host} port=${eff.port} ssl=${eff.useSsl} startTls=${eff.startTls}")
         props["mail.transport.protocol"] = protocol
-        props["mail.$protocol.host"] = config.smtpHost
-        props["mail.$protocol.port"] = config.smtpPort.toString()
+        props["mail.$protocol.host"] = eff.host
         props["mail.$protocol.auth"] = "true"
-        if (config.smtpStartTls) props["mail.$protocol.starttls.enable"] = "true"
+        if (eff.startTls) props["mail.$protocol.starttls.enable"] = "true"
         props["mail.$protocol.connectiontimeout"] = "15000"
         props["mail.$protocol.timeout"] = "15000"
         props["mail.$protocol.writetimeout"] = "15000"
-        props["mail.smtp.localhost"] = from.substringAfterLast("@").ifBlank { config.smtpHost }
-        props["mail.smtp.quitwait"] = "false"
+        // All keys must be prefixed with the ACTIVE protocol. The old
+        // hardcoded `mail.smtp.*` keys were silent no-ops under `smtps`
+        // (Gmail/Yahoo/Zoho 465 presets), leaving HELO hostname and quitwait
+        // at JavaMail defaults and — critically — server-identity checks off.
+        props["mail.$protocol.localhost"] = config.heloDomain(from)
+        props["mail.$protocol.quitwait"] = "false"
         props["mail.$protocol.ssl.protocols"] = "TLSv1.2 TLSv1.3"
-        if (config.smtpSsl || config.smtpStartTls) props["mail.$protocol.checkserveridentity"] = "true"
-        if (config.smtpStartTls) props["mail.$protocol.starttls.required"] = "true"
+        if (eff.useSsl || eff.startTls) props["mail.$protocol.ssl.checkserveridentity"] = "true"
+        if (eff.startTls) props["mail.$protocol.starttls.required"] = "true"
         return props
     }
 
@@ -795,8 +815,8 @@ class ImapProvider(
     }
 
     private suspend fun saveToSentFolder(message: jakarta.mail.Message) {
-        val sentName = getFolderName(EmailFolder.SENT) ?: return
         try {
+            val sentName = getFolderName(EmailFolder.SENT) ?: return
             withStore { store ->
                 val sentFolder = store.getFolder(sentName)
                 if (sentFolder.exists()) {
@@ -810,6 +830,10 @@ class ImapProvider(
                 }
             }
         } catch (e: Exception) {
+            // Best-effort: the email was already delivered via SMTP. A failure
+            // here (e.g. the IMAP pool is saturated or the server kicked us)
+            // must never surface as a send failure — that makes users retry
+            // and send duplicates.
             android.util.Log.w("ImapProvider", "Failed to save to Sent folder", e)
         }
     }

@@ -363,9 +363,16 @@ class EmailRepository(
     @Volatile private var lastBackfillFinished = 0L
     private val backfillCooldownMs = 5L * 60 * 1000
 
-    /** Concurrent IMAP body downloads per sweep; matches the connection pool
-     *  size so each downloader gets its own connection (Gmail allows 15). */
-    private val IMAP_BACKFILL_CONCURRENCY = 5
+    /** Concurrent IMAP body downloads per sweep. Deliberately BELOW the pool
+     *  size: the sync worker and other paths also lease pool connections, and
+     *  bursting 5 fresh connections within milliseconds was observed tripping
+     *  Gmail into `* BYE`-kicking the account (issue #129). 3 stays parallel
+     *  while keeping total connections per account comfortably under 15. */
+    private val IMAP_BACKFILL_CONCURRENCY = 3
+    /** Failed queued sends are retried on each drain (every sync); after this
+     *  many consecutive failures the row is dropped so a permanently failing
+     *  send (bad credentials, dead SMTP server) cannot retry forever. */
+    private val PENDING_SEND_MAX_RETRIES = 5
 
     suspend fun refreshInbox(tab: InboxTab, pageToken: String? = null, query: String? = null, accountId: String? = null): Result<String?> = refreshMutex.withLock {
         return try {
@@ -379,6 +386,13 @@ class EmailRepository(
             // than its own newest row. The old global cutoff made Sent/Archive/Spam
             // tabs return empty — those emails are older than the newest INBOX mail.
             // Null when the tab is empty → full folder fetch on first open.
+            // Clamped to "now": the stored cutoff is the newest header sent-date,
+            // which can be in the FUTURE (sender's clock ahead, or a synced
+            // device clock >24h ahead of the server). With the search cutoff
+            // being sent-date-minus-24h compared against the server's INTERNAL
+            //DATE (arrival), a future cutoff permanently starves new arrivals
+            // ("inbox doesn't sync"). Clamping keeps the fallback window at
+            // [now - 24h, now + server time], which always includes new mail.
             val sinceDate = when (tab) {
                 InboxTab.SENT -> emailDao.getLatestSentEmailDate(resolvedAccountId)
                 InboxTab.ARCHIVED -> emailDao.getLatestArchivedEmailDate(resolvedAccountId)
@@ -386,6 +400,9 @@ class EmailRepository(
                 InboxTab.SPAM -> emailDao.getLatestSpamEmailDate(resolvedAccountId)
                 InboxTab.DRAFTS -> emailDao.getLatestDraftEmailDate(resolvedAccountId)
                 else -> emailDao.getLatestInboxEmailDate(resolvedAccountId)
+            }?.let { stored ->
+                // Null when the tab is empty → full folder fetch on first open.
+                minOf(stored, System.currentTimeMillis())
             }
             val listResponse = provider.listThreads(
                 folder = folder,
@@ -603,6 +620,23 @@ class EmailRepository(
         }
     }
 
+    /** True when [e] (or any cause in its chain) indicates the connection
+     *  itself died — Gmail's `* BYE`, read timeout, EOF, connect refusal.
+     *  Protocol-level errors (bad folder, bad search term) return false. */
+    private fun isConnectionLevelImapError(e: Throwable): Boolean {
+        var cause: Throwable? = e
+        while (cause != null) {
+            val msg = cause.message ?: ""
+            if (msg.contains("BYE", ignoreCase = true) ||
+                cause is java.net.SocketTimeoutException ||
+                cause is java.io.EOFException ||
+                cause is java.net.ConnectException
+            ) return true
+            cause = cause.cause
+        }
+        return false
+    }
+
     private suspend fun runBodyBackfillSweep(accountId: String, maxEmails: Int) {
         val notifier = BodyBackfillNotificationHelper(context)
         var sweepCancelled = false
@@ -644,15 +678,18 @@ class EmailRepository(
             )
             // Download several threads at once — the IMAP connection pool
             // serves up to 5 concurrent connections (Gmail allows 15 per
-            // account), turning serial round trips into a ~5x faster sweep.
-            // Threads still dispatch in folder order (Inbox -> Sent -> ...),
-            // so folders finish mostly in sequence.
             val slots = Semaphore(IMAP_BACKFILL_CONCURRENCY)
             val progressMutex = Mutex()
+            // Once a connection-level error (Gmail `* BYE`, socket death)
+            // occurs, stop launching new work: every retry opens a fresh
+            // connection and feeds the reconnect storm that made the server
+            // kick us in the first place.
+            val connectionAborted = java.util.concurrent.atomic.AtomicBoolean(false)
             coroutineScope {
                 for (threadMeta in sortedThreadIds) {
                     launch {
                         slots.withPermit {
+                            if (connectionAborted.get()) return@withPermit
                             val threadId = threadMeta.threadId
                             val threadEmails = missing.filter { it.threadId == threadId }
                             // Search only the folders this thread's emails live in (labels are
@@ -691,11 +728,30 @@ class EmailRepository(
                                 }
                             } catch (e: jakarta.mail.MessagingException) {
                                 Log.w("EmailRepo", "Body backfill mail error for thread $threadId: ${e.message}")
+                                if (isConnectionLevelImapError(e)) {
+                                    // Gmail kicked us (`* BYE`) or the socket died
+                                    // mid-download. Abort the whole sweep — the
+                                    // remaining threads retry on the next sweep
+                                    // after the 5-min cooldown, when the server
+                                    // has had time to recover.
+                                    connectionAborted.set(true)
+                                    if (_bodyBackfillError.value == null) {
+                                        _bodyBackfillError.value = "Connection to mail server was lost. Email content will download on the next sync."
+                                    }
+                                    return@withPermit
+                                }
                                 if (_bodyBackfillError.value == null) {
                                     _bodyBackfillError.value = "Mail server error. Email content download will retry later."
                                 }
                             } catch (e: Exception) {
                                 Log.w("EmailRepo", "Body backfill failed for thread $threadId: ${e.message}")
+                                if (isConnectionLevelImapError(e)) {
+                                    connectionAborted.set(true)
+                                    if (_bodyBackfillError.value == null) {
+                                        _bodyBackfillError.value = "Connection to mail server was lost. Email content will download on the next sync."
+                                    }
+                                    return@withPermit
+                                }
                                 // Continue with next thread
                             }
                             // Progress advances per thread regardless of outcome, so a slow or
@@ -1239,10 +1295,34 @@ class EmailRepository(
             ),
             explicitAccountId = entity.accountId
         )
-        pendingSendDao.deleteById(id)
-        cleanupPendingAttachmentFiles(entity.attachmentsJson)
-        if (result.isFailure) {
-            Log.w("EmailRepo", "completePendingSend failed for $id", result.exceptionOrNull())
+        if (result.isSuccess) {
+            // Only remove the row once the email is actually delivered.
+            // Deleting before the failure check (the old behaviour) silently
+            // dropped the send on SMTP failure with no retry.
+            pendingSendDao.deleteById(id)
+            cleanupPendingAttachmentFiles(entity.attachmentsJson)
+            return
+        }
+        // Delivery failed: keep the row (and its attachment files) so the next
+        // drain retries. A cap stops a permanently failing send (bad
+        // credentials, dead server) from retrying forever on every sync.
+        val retries = entity.retryCount + 1
+        Log.w("EmailRepo", "completePendingSend failed for $id (attempt $retries/$PENDING_SEND_MAX_RETRIES)", result.exceptionOrNull())
+        if (retries >= PENDING_SEND_MAX_RETRIES) {
+            pendingSendDao.deleteById(id)
+            cleanupPendingAttachmentFiles(entity.attachmentsJson)
+            Log.w("EmailRepo", "Dropping pending send $id after $PENDING_SEND_MAX_RETRIES failed attempts")
+        } else {
+            pendingSendDao.updateRetryCount(id, retries)
+        }
+    }
+
+    /** Retry every queued send for one account. Called from the sync worker so
+     *  queued sends drain even when the inbox is never opened (the undo-send
+     *  countdown in InboxViewModel is only a fast path). */
+    suspend fun drainPendingSendsForAccount(accountId: String) {
+        for (entity in pendingSendDao.getAllForAccount(accountId)) {
+            completePendingSend(entity.id)
         }
     }
 
