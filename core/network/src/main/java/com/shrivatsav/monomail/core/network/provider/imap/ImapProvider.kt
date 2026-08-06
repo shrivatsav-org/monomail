@@ -612,7 +612,7 @@ class ImapProvider(
      *  sending anything. Used by the setup flow so a broken/blank SMTP
      *  configuration is caught at account creation instead of at first send
      *  (where it used to silently fail against localhost:25). */
-    fun testSmtpConnection(from: String = config.username) {
+    suspend fun testSmtpConnection(from: String = config.username) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
         val session = Session.getInstance(buildSmtpProps(from), object : jakarta.mail.Authenticator() {
             override fun getPasswordAuthentication() = jakarta.mail.PasswordAuthentication(config.username, password)
         })

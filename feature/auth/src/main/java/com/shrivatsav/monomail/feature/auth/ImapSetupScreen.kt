@@ -141,7 +141,14 @@ private fun ServerSection(
     onPortChange: (String) -> Unit,
     onSslChange: (Boolean) -> Unit,
     onStartTlsChange: (Boolean) -> Unit,
-    portImeAction: ImeAction
+    portImeAction: ImeAction,
+    hostLabel: String = "Host *",
+    hostPlaceholder: String? = null,
+    portLabel: String = "Port *",
+    portPlaceholder: String? = null,
+    hostError: Boolean = false,
+    portError: Boolean = false,
+    portSupportingText: String? = null
 ) {
     Spacer(modifier = Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -153,19 +160,24 @@ private fun ServerSection(
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(
             value = host,
-            onValueChange = onHostChange,
-            label = { Text("Host") },
+            onValueChange = { onHostChange(it) },
+            label = { Text(hostLabel) },
+            placeholder = hostPlaceholder?.let { { Text(it) } },
             modifier = Modifier.weight(0.7f),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri, imeAction = ImeAction.Next),
-            singleLine = true
+            singleLine = true,
+            isError = hostError
         )
         OutlinedTextField(
             value = port,
-            onValueChange = onPortChange,
-            label = { Text("Port") },
+            onValueChange = { onPortChange(it) },
+            label = { Text(portLabel) },
+            placeholder = portPlaceholder?.let { { Text(it) } },
             modifier = Modifier.weight(0.3f),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = portImeAction),
-            singleLine = true
+            singleLine = true,
+            isError = portError,
+            supportingText = portSupportingText?.let { { Text(it) } }
         )
     }
 
@@ -255,6 +267,12 @@ private fun ImapSetupForm(
     var showPassword by remember { mutableStateOf(false) }
     val uriHandler = LocalUriHandler.current
     var showAdvanced by remember { mutableStateOf(false) }
+    
+    var usernameError by remember { mutableStateOf(false) }
+    var passwordError by remember { mutableStateOf(false) }
+    var imapHostError by remember { mutableStateOf(false) }
+    var imapPortError by remember { mutableStateOf(false) }
+    var smtpPortError by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -272,22 +290,25 @@ private fun ImapSetupForm(
         // Email
         OutlinedTextField(
             value = username,
-            onValueChange = { viewModel.setUsername(it) },
-            label = { Text("Email Address") },
+            onValueChange = { viewModel.setUsername(it); usernameError = false },
+            label = { Text("Email Address *") },
             modifier = Modifier.fillMaxWidth(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
-            singleLine = true
+            singleLine = true,
+            isError = usernameError,
+            supportingText = if (usernameError) { { Text("Email is required") } } else null
         )
 
         // Password / App Password
         OutlinedTextField(
             value = password,
-            onValueChange = { viewModel.setPassword(it) },
-            label = { Text(if (isGmailMode) "Gmail App Password" else "Password") },
+            onValueChange = { viewModel.setPassword(it); passwordError = false },
+            label = { Text(if (isGmailMode) "Gmail App Password *" else "Password *") },
             modifier = Modifier.fillMaxWidth(),
             visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = ImeAction.Next),
             singleLine = true,
+            isError = passwordError,
             trailingIcon = {
                 IconButton(onClick = { showPassword = !showPassword }) {
                     Icon(
@@ -296,7 +317,9 @@ private fun ImapSetupForm(
                     )
                 }
             },
-            supportingText = if (isGmailMode) {
+            supportingText = if (passwordError) {
+                { Text("Password is required") }
+            } else if (isGmailMode) {
                 { Text("16-character app password from myaccount.google.com/apppasswords") }
             } else null
         )
@@ -366,11 +389,14 @@ private fun ImapSetupForm(
                     port = imapPort,
                     ssl = imapSsl,
                     startTls = imapStartTls,
-                    onHostChange = { viewModel.setImapHost(it) },
-                    onPortChange = { viewModel.setImapPort(it) },
+                    onHostChange = { viewModel.setImapHost(it); imapHostError = false },
+                    onPortChange = { viewModel.setImapPort(it); imapPortError = false },
                     onSslChange = { viewModel.setImapSsl(it) },
                     onStartTlsChange = { viewModel.setImapStartTls(it) },
-                    portImeAction = ImeAction.Next
+                    portImeAction = ImeAction.Next,
+                    hostError = imapHostError,
+                    portError = imapPortError,
+                    portSupportingText = if (imapPortError) "Enter a port from 1 to 65535" else null
                 )
 
                 ServerSection(
@@ -381,10 +407,23 @@ private fun ImapSetupForm(
                     ssl = smtpSsl,
                     startTls = smtpStartTls,
                     onHostChange = { viewModel.setSmtpHost(it) },
-                    onPortChange = { viewModel.setSmtpPort(it) },
+                    onPortChange = { viewModel.setSmtpPort(it); smtpPortError = false },
                     onSslChange = { viewModel.setSmtpSsl(it) },
                     onStartTlsChange = { viewModel.setSmtpStartTls(it) },
-                    portImeAction = ImeAction.Done
+                    portImeAction = ImeAction.Done,
+                    hostLabel = "Host",
+                    hostPlaceholder = "Use IMAP host",
+                    portLabel = "Port",
+                    portPlaceholder = "Auto",
+                    portError = smtpPortError,
+                    portSupportingText = if (smtpPortError) "Enter a port from 1 to 65535" else null
+                )
+                
+                Text(
+                    "587 usually pairs with STARTTLS, 465 with SSL. Leaving the port blank auto-derives it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = com.shrivatsav.monomail.ui.theme.MonoOpacity.secondary),
+                    modifier = Modifier.padding(start = 4.dp, top = 2.dp, bottom = 8.dp)
                 )
             }
         }
@@ -392,7 +431,20 @@ private fun ImapSetupForm(
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedButton(
-            onClick = onTestCredentials,
+            onClick = {
+                var valid = true
+                if (username.isBlank()) { usernameError = true; valid = false } else { usernameError = false }
+                if (password.isBlank()) { passwordError = true; valid = false } else { passwordError = false }
+                if (imapHost.isBlank()) { imapHostError = true; valid = false; showAdvanced = true } else { imapHostError = false }
+                
+                val iPort = imapPort.toIntOrNull()
+                if (iPort == null || iPort !in 1..65535) { imapPortError = true; valid = false; showAdvanced = true } else { imapPortError = false }
+
+                val sPort = smtpPort.toIntOrNull()
+                if (smtpPort.isNotBlank() && (sPort == null || sPort !in 1..65535)) { smtpPortError = true; valid = false; showAdvanced = true } else { smtpPortError = false }
+
+                if (valid) onTestCredentials()
+            },
             modifier = Modifier.fillMaxWidth().height(50.dp),
             enabled = !isBusy
         ) {
