@@ -328,6 +328,12 @@ class AuthManager(
         _userProfile = updated
         accountManager.updateAccountToken(updated.id, updated.accessToken)
     }
+    suspend fun updateAccount(updated: UserProfile) {
+        if (_userProfile?.id == updated.id) {
+            _userProfile = updated
+        }
+        accountManager.updateAccount(updated)
+    }
     private suspend fun requestAccessToken(
         activityContext: Context,
         email: String,
