@@ -115,11 +115,6 @@ fun SignInScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showProviderSheet by remember { mutableStateOf(false) }
     var showVerificationModal by remember { mutableStateOf(false) }
-    val licenseManager = remember { com.shrivatsav.monomail.core.data.licensing.LicenseManager(context) }
-    val isLicensed by licenseManager.isLicensed.collectAsState()
-    LaunchedEffect(Unit) {
-        licenseManager.checkLicense()
-    }
 
     val consentLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -211,7 +206,7 @@ fun SignInScreen(
                 onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
                 onGoogleSignIn = {
                     showProviderSheet = false
-                    if (!BuildConfig.IS_GITHUB_BUILD && isLicensed) {
+                    if (!BuildConfig.IS_GITHUB_BUILD) {
                         viewModel.signIn(context)
                     } else {
                         onNavigateToImapSetup(null, "Gmail")
@@ -403,8 +398,7 @@ private fun ProviderSheet(
 fun ProviderSelectionDialog(
     viewModel: SignInViewModel,
     onSuccess: () -> Unit,
-    onNavigateToImapSetup: (String?, String?) -> Unit,
-    isLicensed: Boolean = true,
+    onNavigateToImapSetup: (String?, String?) -> Unit
 ) {
     val state by viewModel.state.collectAsState()
     val context = LocalContext.current
@@ -465,7 +459,7 @@ fun ProviderSelectionDialog(
             ProviderButtons(
                 state = state,
                 onGoogleSignIn = {
-                    if (!BuildConfig.IS_GITHUB_BUILD && isLicensed) {
+                    if (!BuildConfig.IS_GITHUB_BUILD) {
                         viewModel.signIn(context)
                     } else {
                         onNavigateToImapSetup(null, "Gmail")
