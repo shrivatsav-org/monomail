@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit
 import com.google.gson.Gson
 import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.auth.UserProfile
-import com.shrivatsav.monomail.core.data.licensing.LicenseManager
 import com.shrivatsav.monomail.core.database.local.*
 import com.shrivatsav.monomail.core.data.repository.SearchField
 import com.shrivatsav.monomail.data.model.Email
@@ -68,7 +67,6 @@ class EmailRepository(
     private val scheduledMessageDao = database.scheduledMessageDao()
     private val gson = Gson()
     private val _syncProgress = MutableStateFlow<DeepSyncProgress?>(null)
-    private val licenseManager = LicenseManager(context)
     val syncProgress: StateFlow<DeepSyncProgress?> = _syncProgress.asStateFlow()
     /** Progress snapshot for the deep sync foreground notification:
      *  overall fraction [0..1] plus the folder (tab) currently being synced. */
@@ -94,14 +92,11 @@ class EmailRepository(
      *  IMAP and Outlook are unaffected. */
     private suspend fun isGmailApiAllowed(account: UserProfile): Boolean {
         if (account.provider != "gmail") return true
-        if (!LicenseManager.gmailApiAvailable) {
+        if (com.shrivatsav.monomail.core.data.BuildConfig.IS_GITHUB_BUILD) {
             Log.w("EmailRepo", "Gmail API not available on this build; use IMAP")
             return false
         }
-        if (licenseManager.isLicensed.value) return true
-        if (licenseManager.checkLicense()) return true
-        Log.w("EmailRepo", "Gmail API blocked for ${account.email}: Play license required")
-        return false
+        return true
     }
     fun getDatabase(): AppDatabase = database
     suspend fun searchThreads(
