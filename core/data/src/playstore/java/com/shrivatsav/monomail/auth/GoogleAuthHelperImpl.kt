@@ -10,6 +10,7 @@ import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import java.security.SecureRandom
 
 object GoogleAuthHelperImpl : GoogleAuthHelper {
     override suspend fun clearToken(context: Context, token: String) {
@@ -28,10 +29,13 @@ object GoogleAuthHelperImpl : GoogleAuthHelper {
 
     override suspend fun signIn(context: Context, clientId: String): GoogleSignInData {
         try {
+            val nonce = ByteArray(16).apply { SecureRandom().nextBytes(this) }
+                .joinToString("") { "%02x".format(it) }
             val googleIdOption = GetGoogleIdOption.Builder()
                 .setFilterByAuthorizedAccounts(false)
                 .setServerClientId(clientId)
                 .setAutoSelectEnabled(false)
+                .setNonce(nonce)
                 .build()
             val request = GetCredentialRequest.Builder()
                 .addCredentialOption(googleIdOption)

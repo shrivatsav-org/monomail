@@ -85,10 +85,7 @@ fun InboxScreen(
     val showWelcomePrompt by viewModel.showWelcomePrompt.collectAsState()
     val scheduledCount by viewModel.scheduledCount.collectAsState()
     val accounts by viewModel.accounts.collectAsState()
-    val bodyBackfillProgress by viewModel.bodyBackfillProgress.collectAsState()
-    val bodyBackfillError by viewModel.bodyBackfillError.collectAsState()
-    val isBodyBackfilling by viewModel.isBodyBackfilling.collectAsState()
-    val syncProgress by viewModel.syncProgress.collectAsState()
+    val syncState by viewModel.inboxSyncState.collectAsState()
     val immediateTab by viewModel.currentTab.collectAsState()
     var showBackfillDialog by remember { mutableStateOf(false) }
 
@@ -257,25 +254,25 @@ fun InboxScreen(
                         OfflineBanner()
                     }
                     AnimatedVisibility(
-                        visible = bodyBackfillError != null,
+                        visible = syncState.backfillError != null,
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
                     ) {
-                        BackfillErrorBanner(errorMessage = bodyBackfillError ?: "")
+                        BackfillErrorBanner(errorMessage = syncState.backfillError ?: "")
                     }
                     AnimatedVisibility(
-                        visible = isBodyBackfilling && bodyBackfillError == null,
+                        visible = syncState.isBackfilling && syncState.backfillError == null,
                         enter = expandVertically() + fadeIn(),
                         exit = shrinkVertically() + fadeOut()
                     ) {
                         BackfillProgressBanner(
-                            progress = bodyBackfillProgress,
+                            progress = syncState.backfillProgress,
                             onClick = { showBackfillDialog = true }
                         )
                     }
-                    if (showBackfillDialog && bodyBackfillProgress != null) {
+                    if (showBackfillDialog && syncState.backfillProgress != null) {
                         BackfillProgressDialog(
-                            progress = bodyBackfillProgress!!,
+                            progress = syncState.backfillProgress!!,
                             onCancel = {
                                 viewModel.cancelBodyBackfill()
                                 showBackfillDialog = false
@@ -399,10 +396,10 @@ fun InboxScreen(
                                         val tabIsSyncing = when (currentTab) {
                                             // Aggregate tabs cover every folder's sync.
                                             InboxTab.UNIFIED, InboxTab.STARRED, InboxTab.SNOOZED ->
-                                                syncProgress != null || isBodyBackfilling
+                                                syncState.deepSyncProgress != null || syncState.isBackfilling
                                             else -> tabFolderName != null && (
-                                                syncProgress?.folder == tabFolderName ||
-                                                    bodyBackfillProgress?.folder == tabFolderName
+                                                syncState.deepSyncProgress?.folder == tabFolderName ||
+                                                    syncState.backfillProgress?.folder == tabFolderName
                                                 )
                                         }
                                         if (tabIsSyncing) {
