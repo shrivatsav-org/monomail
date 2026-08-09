@@ -106,23 +106,24 @@ class InboxViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
     private val _lastSelectedThreadId = MutableStateFlow<String?>(null)
     val lastSelectedThreadId: StateFlow<String?> = _lastSelectedThreadId.asStateFlow()
-    val bodyBackfillProgress: StateFlow<BodyBackfillState?> = repository.bodyBackfillProgress
-    val bodyBackfillError: StateFlow<String?> = repository.bodyBackfillError
-    val isBodyBackfilling: StateFlow<Boolean> = repository.bodyBackfillProgress.map { it != null }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
-    /** Live header deep-sync progress (folder + fraction) — drives the
-     *  "tab is syncing" empty state and the banner. */
-    val syncProgress: StateFlow<EmailRepository.DeepSyncProgress?> = repository.syncProgress
-    /** Live count of emails still missing body content — "inbox not up to
-     *  date" signal for the search-bar cloud-off icon. */
-    val missingBodyCount: StateFlow<Int> = _activeAccountId
-        .flatMapLatest { id ->
+    /** Combined sync/backfill state to reduce number of active collectors. */
+    data class InboxSyncState(
+        val backfillProgress: BodyBackfillState? = null,
+        val backfillError: String? = null,
+        val isBackfilling: Boolean = false,
+        val missingBodyCount: Int = 0,
+        val downloadStats: BodyDownloadStats? = null,
+        val deepSyncProgress: EmailRepository.DeepSyncProgress? = null
+    )
+
+    val inboxSyncState: StateFlow<InboxSyncState> = combine(
+        repository.bodyBackfillProgress,
+        repository.bodyBackfillError,
+        repository.bodyBackfillProgress.map { it != null },
+        _activeAccountId.flatMapLatest { id ->
             if (id == null) flowOf(0) else repository.observeMissingBodyCount(id)
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
-    /** DB-derived download progress for the sync-status modal. */
-    val bodyDownloadStats: StateFlow<BodyDownloadStats?> = _activeAccountId
-        .flatMapLatest { id ->
+        },
+        _activeAccountId.flatMapLatest { id ->
             if (id == null) {
                 flowOf(null)
             } else {
@@ -130,8 +131,19 @@ class InboxViewModel @Inject constructor(
                     BodyDownloadStats(total, (total - missing).coerceAtLeast(0))
                 }
             }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+        },
+        repository.syncProgress
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        InboxSyncState(
+            backfillProgress = values[0] as BodyBackfillState?,
+            backfillError = values[1] as String?,
+            isBackfilling = values[2] as Boolean,
+            missingBodyCount = values[3] as Int,
+            downloadStats = values[4] as BodyDownloadStats?,
+            deepSyncProgress = values[5] as EmailRepository.DeepSyncProgress?
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), InboxSyncState())
     /** User tapped Cancel on the download-progress modal. */
     fun cancelBodyBackfill() = repository.cancelBodyBackfill()
     /** User tapped Continue on the sync-status modal. */
