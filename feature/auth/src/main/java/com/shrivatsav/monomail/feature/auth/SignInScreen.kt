@@ -205,15 +205,18 @@ fun SignInScreen(
                 state = state,
                 onDismiss = { if (state !is SignInState.Loading) showProviderSheet = false },
                 onGoogleSignIn = {
-                    showProviderSheet = false
                     if (!BuildConfig.IS_GITHUB_BUILD) {
                         viewModel.signIn(context)
                     } else {
+                        showProviderSheet = false
                         onNavigateToImapSetup(null, "Gmail")
                     }
                 },
                 onMicrosoftSignIn = { handleMicrosoftSignIn(context) { activity -> viewModel.signInMicrosoft(activity) } },
-                onImapClick = { email -> onNavigateToImapSetup(email, null) },
+                onImapClick = { email -> 
+                    showProviderSheet = false
+                    onNavigateToImapSetup(email, null) 
+                },
             )
         }
     }
