@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import com.shrivatsav.monomail.core.data.worker.NotificationChannelManager
 import com.shrivatsav.monomail.core.data.push.PushNotificationManager
 
@@ -381,7 +382,9 @@ class AuthManager(
             _isSignedIn.value = true
             accountManager.addAccount(profile)
             accountManager.setActiveAccountId(profile.id)
-            try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
+            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, "Push registration failed", e) }
+            }
             SignInResult.Success(profile)
         } catch (e: GoogleAuthException) {
             val consentIntent = e.intent
