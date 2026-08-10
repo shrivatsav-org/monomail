@@ -24,6 +24,7 @@ import java.util.*
 @Composable
 fun ScheduledMessagesScreen(
     viewModel: ScheduledMessagesViewModel,
+    use24HourTime: Boolean = false,
     onBack: () -> Unit,
     onCompose: () -> Unit = {},
     onEdit: (com.shrivatsav.monomail.core.database.local.ScheduledMessageEntity) -> Unit = {}
@@ -97,6 +98,7 @@ fun ScheduledMessagesScreen(
                 items(messages, key = { it.id }) { msg ->
                     ScheduledMessageItem(
                         message = msg,
+                        use24HourTime = use24HourTime,
                         onCancel = { viewModel.cancelSchedule(msg.id) },
                         onEdit = { onEdit(msg) }
                     )
@@ -109,10 +111,16 @@ fun ScheduledMessagesScreen(
 @Composable
 private fun ScheduledMessageItem(
     message: com.shrivatsav.monomail.core.database.local.ScheduledMessageEntity,
+    use24HourTime: Boolean,
     onCancel: () -> Unit,
     onEdit: () -> Unit = {}
 ) {
-    val dateFormat = remember { SimpleDateFormat("MMM dd, yyyy · hh:mm a", Locale.getDefault()) }
+    val dateFormat = remember(use24HourTime) {
+        SimpleDateFormat(
+            if (use24HourTime) "MMM dd, yyyy · HH:mm" else "MMM dd, yyyy · hh:mm a",
+            Locale.getDefault()
+        )
+    }
     var showCancelConfirm by remember { mutableStateOf(false) }
 
     Surface(

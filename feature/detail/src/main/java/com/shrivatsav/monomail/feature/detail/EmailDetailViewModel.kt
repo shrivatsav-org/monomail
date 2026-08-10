@@ -114,6 +114,9 @@ class EmailDetailViewModel @Inject constructor(
     val showInlineAttachments: StateFlow<Boolean> = settingsDataStore.settingsFlow
         .map { it.showInlineAttachments }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+    val use24HourTime: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.use24HourTime }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val state: StateFlow<EmailDetailState> = _threadId.flatMapLatest { id ->
         if (id.isEmpty()) {

@@ -97,6 +97,14 @@ internal fun AppearanceSettingsScreen(
                 checked = settings.showMarkAllRead,
                 onCheckedChange = { viewModel.setShowMarkAllRead(it) }
             )
+            CardDivider()
+            SettingsToggleRow(
+                icon = Icons.Rounded.Schedule,
+                title = "24-Hour Time",
+                subtitle = "Show times in 24-hour format (e.g. 15:30)",
+                checked = settings.use24HourTime,
+                onCheckedChange = { viewModel.setUse24HourTime(it) }
+            )
         }
 }
 }
