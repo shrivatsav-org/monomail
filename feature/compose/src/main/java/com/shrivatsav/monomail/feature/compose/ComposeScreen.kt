@@ -314,7 +314,7 @@ private fun DraftsModal(
 }
 
 @Composable
-private fun ComposeDialogs(state: ComposeUiState, viewModel: ComposeViewModel) {
+private fun ComposeDialogs(state: ComposeUiState, viewModel: ComposeViewModel, use24HourTime: Boolean) {
     if (state.showConfirmSendDialog) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissConfirmSend() },
@@ -334,6 +334,7 @@ private fun ComposeDialogs(state: ComposeUiState, viewModel: ComposeViewModel) {
     }
     if (state.showSchedulePicker) {
         ScheduleSendDialog(
+            use24HourTime = use24HourTime,
             onDismiss = { viewModel.dismissSchedulePicker() },
             onSchedule = { millis -> viewModel.scheduleSend(millis) }
         )
@@ -420,6 +421,7 @@ fun ComposeScreen(
 ) {
     val state by viewModel.state.collectAsState()
     val suggestions by viewModel.suggestions.collectAsState()
+    val use24HourTime by viewModel.use24HourTime.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val canSend = state.to.isNotBlank()
@@ -482,7 +484,7 @@ fun ComposeScreen(
             viewModel.dismissError()
         }
     }
-    ComposeDialogs(state, viewModel)
+    ComposeDialogs(state, viewModel, use24HourTime)
     if (showDrafts) {
         DraftsModal(
             drafts = drafts,
@@ -788,6 +790,7 @@ private fun FormatButton(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ScheduleSendDialog(
+    use24HourTime: Boolean,
     onDismiss: () -> Unit,
     onSchedule: (Long) -> Unit
 ) {
@@ -796,7 +799,7 @@ private fun ScheduleSendDialog(
     val timePickerState = rememberTimePickerState(
         initialHour = (java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) + 1) % 24,
         initialMinute = 0,
-        is24Hour = true
+        is24Hour = use24HourTime
     )
     if (step == 0) {
         DatePickerDialog(

@@ -102,6 +102,7 @@ data class AppSettings(
     val monochromeTheme: Boolean = false,
     val swipeThreshold: Float = 0.40f,
     val addSignature: Boolean = true,
+    val use24HourTime: Boolean = false,
 )
 class SettingsDataStore(private val context: Context) {
     private val gson = Gson()
@@ -143,6 +144,7 @@ class SettingsDataStore(private val context: Context) {
         val MONOCHROME_THEME = booleanPreferencesKey("monochrome_theme")
         val SWIPE_THRESHOLD = floatPreferencesKey("swipe_threshold")
         val ADD_SIGNATURE = booleanPreferencesKey("add_signature")
+        val USE_24_HOUR_TIME = booleanPreferencesKey("use_24_hour_time")
         fun notificationProfileKey(accountId: String) =
             stringPreferencesKey("notification_profile_$accountId")
     }
@@ -193,6 +195,7 @@ class SettingsDataStore(private val context: Context) {
             monochromeTheme = prefs[Keys.MONOCHROME_THEME] ?: false,
             swipeThreshold = prefs[Keys.SWIPE_THRESHOLD]?.coerceIn(0.20f, 0.60f) ?: 0.40f,
             addSignature = prefs[Keys.ADD_SIGNATURE] ?: true,
+            use24HourTime = prefs[Keys.USE_24_HOUR_TIME] ?: false,
         )
     }
     private fun parseNotificationProfile(json: String?): NotificationProfile {
@@ -335,6 +338,9 @@ class SettingsDataStore(private val context: Context) {
     }
     suspend fun setSwipeThreshold(threshold: Float) {
         context.dataStore.edit { it[Keys.SWIPE_THRESHOLD] = threshold.coerceIn(0.20f, 0.60f) }
+    }
+    suspend fun setUse24HourTime(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.USE_24_HOUR_TIME] = enabled }
     }
     suspend fun getTemplates(): List<EmailTemplate> {
         val prefs = context.dataStore.data.first()

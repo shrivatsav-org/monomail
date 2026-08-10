@@ -169,10 +169,11 @@ fun InboxScreen(
             snackbarHostState.showSnackbar(errorMsg)
         }
     }
-
+    val currentAppSettings by rememberUpdatedState(appSettings)
     LaunchedEffect(Unit) {
         viewModel.scheduledEmailEvents.collect { event ->
-            val formatted = java.text.SimpleDateFormat("MMM dd, hh:mm a", java.util.Locale.getDefault())
+            val pattern = if (currentAppSettings.use24HourTime) "MMM dd, HH:mm" else "MMM dd, hh:mm a"
+            val formatted = java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
                 .format(java.util.Date(event.scheduledAt))
             snackbarHostState.showSnackbar(
                 "Email scheduled for $formatted"
@@ -758,6 +759,7 @@ fun InboxScreen(
                 LongPressMenu(
                     thread = thread,
                     state = state,
+                    use24HourTime = appSettings.use24HourTime,
                     onDismiss = { longPressedThread = null },
                     actions = LongPressMenuActions(
                         onEmailClick = { navActions.onEmailClick(thread.threadId, thread.latestMessageId) },
@@ -1293,6 +1295,7 @@ private fun LongPressMenu(
     thread: EmailThread,
     state: InboxState,
     onDismiss: () -> Unit,
+    use24HourTime: Boolean,
     actions: LongPressMenuActions
 ) {
     val tabForMenu = (state as? InboxState.Success)?.currentTab ?: InboxTab.INBOX
@@ -1309,7 +1312,7 @@ private fun LongPressMenu(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Surface(shape = cornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {
-                EmailItem(thread = thread, onClick = { onDismiss(); actions.onEmailClick() }, onLongClick = {}, modifier = Modifier)
+                EmailItem(thread = thread, onClick = { onDismiss(); actions.onEmailClick() }, onLongClick = {}, use24HourTime = use24HourTime, modifier = Modifier)
             }
             Spacer(Modifier.height(8.dp))
             Surface(shape = cornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceContainer, tonalElevation = 0.dp, shadowElevation = 8.dp) {

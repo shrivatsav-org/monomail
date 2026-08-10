@@ -74,6 +74,7 @@ fun EmailItem(
     onClick: () -> Unit,
     onLongClick: () -> Unit = {},
     showSnippet: Boolean = true,
+    use24HourTime: Boolean = false,
     compactMode: Boolean = false,
     selection: SelectionState = SelectionState(),
     unreadPosition: UnreadPosition = UnreadPosition.SOLO,
@@ -160,7 +161,7 @@ fun EmailItem(
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
-            EmailItemSenderInfo(thread = thread, isUnread = isUnread)
+            EmailItemSenderInfo(thread = thread, isUnread = isUnread, use24HourTime = use24HourTime)
             EmailItemSubject(thread = thread, isUnread = isUnread)
             if (showSnippet) {
                 EmailItemSnippet(thread = thread, compactMode = compactMode)
@@ -171,7 +172,7 @@ fun EmailItem(
 
 
 @Composable
-private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean) {
+private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean, use24HourTime: Boolean) {
     val senderWeight = if (isUnread) FontWeight.ExtraBold else FontWeight.Medium
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -209,7 +210,7 @@ private fun EmailItemSenderInfo(thread: EmailThread, isUnread: Boolean) {
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = formatTimestamp(thread.date),
+            text = formatTimestamp(thread.date, use24HourTime),
             style = MaterialTheme.typography.labelSmall,
             fontWeight = if (isUnread) FontWeight.Bold else FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurface.copy(
@@ -310,12 +311,14 @@ private fun displayName(from: String): String {
     val nameMatch = displayNameRegex.find(from)
     return nameMatch?.groupValues?.get(1)?.trim() ?: from.trim()
 }
-private val timeFormatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+private val time12Formatter = DateTimeFormatter.ofPattern("h:mm a", Locale.getDefault())
+private val time24Formatter = DateTimeFormatter.ofPattern("HH:mm", Locale.getDefault())
 private val dayFormatter = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
 private val dateFormatter = DateTimeFormatter.ofPattern("MMM d", Locale.getDefault())
 private val fullDateFormatter = DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.getDefault())
 
-private fun formatTimestamp(epochMillis: Long): String {
+private fun formatTimestamp(epochMillis: Long, use24HourTime: Boolean): String {
+    val timeFormatter = if (use24HourTime) time24Formatter else time12Formatter
     if (epochMillis == 0L) return ""
     val zdt = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault())
     val date = zdt.toLocalDate()

@@ -65,6 +65,7 @@ class SettingsViewModel @Inject constructor(
     fun setMonochromeTheme(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setMonochromeTheme(enabled) }
     fun setCornerStyle(style: com.shrivatsav.monomail.core.data.settings.CornerStyle) = viewModelScope.launch { settingsDataStore.setCornerStyle(style) }
     fun setSwipeThreshold(threshold: Float) = viewModelScope.launch { settingsDataStore.setSwipeThreshold(threshold) }
+    fun setUse24HourTime(enabled: Boolean) = viewModelScope.launch { settingsDataStore.setUse24HourTime(enabled) }
     fun resetWelcomePrompt() = viewModelScope.launch {
         settingsDataStore.setHasSeenWelcomePrompt(false)
     }

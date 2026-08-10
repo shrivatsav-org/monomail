@@ -112,6 +112,9 @@ class ComposeViewModel @Inject constructor(
     val templatesFlow = settingsDataStore.templatesFlow
     val drafts: StateFlow<List<com.shrivatsav.monomail.data.model.EmailThread>> = repository.getDraftThreadsFlow(accountId)
         .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
+    val use24HourTime: StateFlow<Boolean> = settingsDataStore.settingsFlow
+        .map { it.use24HourTime }
+        .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), false)
 
     val state: StateFlow<ComposeUiState> = _state.asStateFlow()
 

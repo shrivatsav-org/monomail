@@ -132,6 +132,7 @@ data class EmailDisplayConfig(
     val showInlineImages: Boolean = true,
     val showInlineAttachments: Boolean = true,
     val isDeveloperMode: Boolean = false,
+    val use24HourTime: Boolean = false,
     val currentUserEmail: String = ""
 )
 
@@ -156,6 +157,7 @@ fun EmailDetailScreen(
     val isStarred by viewModel.isStarred.collectAsState()
     val decryptedBodies by viewModel.decryptedBodies.collectAsState()
     val isDeveloperMode by viewModel.isDeveloperMode.collectAsState()
+    val use24HourTime by viewModel.use24HourTime.collectAsState()
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -236,6 +238,7 @@ fun EmailDetailScreen(
                 emailTheme = emailTheme,
                 showInlineImages = showInlineImages,
                 showInlineAttachments = showInlineAttachments,
+                use24HourTime = use24HourTime,
                 isDeveloperMode = isDeveloperMode,
                 currentUserEmail = viewModel.currentUserEmail
             ),
@@ -611,7 +614,7 @@ private fun ConversationEmailItem(
                         modifier = Modifier.weight(1f)
                     )
                     Text(
-                        text = formatRelativeDate(email.date),
+                        text = formatRelativeDate(email.date, config.use24HourTime),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                     )
@@ -841,7 +844,7 @@ private fun MessageBodyContent(
     var showQuotedText by remember { mutableStateOf(false) }
     val hasQuotedText = remember(safeBodyText) { hasQuotedTextBlock(safeBodyText) }
     if (showSender) {
-        SenderInfoSection(email, messageCount)
+        SenderInfoSection(email, messageCount, config.use24HourTime)
     }
     if (showSender && !config.showInlineAttachments && email.attachments.isNotEmpty()) {
         Spacer(modifier = Modifier.height(8.dp))
@@ -961,11 +964,11 @@ private fun EncryptionBadge(decryptedResult: PgpDecryptionResult?) {
 }
 
 @Composable
-private fun SenderInfoSection(email: Email, messageCount: Int) {
+private fun SenderInfoSection(email: Email, messageCount: Int, use24HourTime: Boolean) {
     val isMsgUnread = !email.isRead
     var showCcBcc by remember { mutableStateOf(false) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 12.dp)) {
-        SenderDetails(email, isMsgUnread)
+        SenderDetails(email, isMsgUnread, use24HourTime)
         Spacer(modifier = Modifier.height(8.dp))
         ToRow(email) { showCcBcc = !showCcBcc }
         if (showCcBcc && (email.cc.isNotBlank() || email.bcc.isNotBlank())) {
@@ -982,7 +985,7 @@ private fun SenderInfoSection(email: Email, messageCount: Int) {
 }
 
 @Composable
-private fun SenderDetails(email: Email, isMsgUnread: Boolean) {
+private fun SenderDetails(email: Email, isMsgUnread: Boolean, use24HourTime: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         AvatarCircle(
             photoUrl = null,
@@ -1004,7 +1007,7 @@ private fun SenderDetails(email: Email, isMsgUnread: Boolean) {
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = formatDetailDate(email.date),
+                    text = formatDetailDate(email.date, use24HourTime),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
                 )
@@ -1745,13 +1748,14 @@ private fun FileAttachmentsGrid(
     }
 }
 
-private val detailDateFormat = SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault())
+private val detailDateFormat12 = SimpleDateFormat("MMM d, yyyy  h:mm a", Locale.getDefault())
+private val detailDateFormat24 = SimpleDateFormat("MMM d, yyyy  HH:mm", Locale.getDefault())
 
 /**
  * Returns a relative timestamp for recent messages ("2h ago", "Yesterday")
  * and falls back to the full date for older messages.
  */
-private fun formatRelativeDate(epochMillis: Long): String {
+private fun formatRelativeDate(epochMillis: Long, use24HourTime: Boolean): String {
     if (epochMillis == 0L) return ""
     val now = System.currentTimeMillis()
     val diff = now - epochMillis
@@ -1770,7 +1774,7 @@ private fun formatRelativeDate(epochMillis: Long): String {
             "${cal.get(java.util.Calendar.DAY_OF_MONTH)} $month"
         }
 
-        else -> formatDetailDate(epochMillis)
+        else -> formatDetailDate(epochMillis, use24HourTime)
     }
 }
 
@@ -1823,9 +1827,10 @@ private fun stripBodyInlineStyles(html: String): String {
 private val FIXED_WIDTH_ATTR = Regex("""\bwidth\s*=\s*["']?(5[4-9]\d|[6-8]\d\d)["']?""", RegexOption.IGNORE_CASE)
 private val FIXED_WIDTH_STYLE = Regex("""(?:width|min-width)\s*:\s*(5[4-9]\d|[6-8]\d\d)px""", RegexOption.IGNORE_CASE)
 
-private fun formatDetailDate(epochMillis: Long): String {
+private fun formatDetailDate(epochMillis: Long, use24HourTime: Boolean): String {
     if (epochMillis == 0L) return ""
-    return detailDateFormat.format(Date(epochMillis))
+    val formatter = if (use24HourTime) detailDateFormat24 else detailDateFormat12
+    return formatter.format(Date(epochMillis))
 }
 
 @Composable
