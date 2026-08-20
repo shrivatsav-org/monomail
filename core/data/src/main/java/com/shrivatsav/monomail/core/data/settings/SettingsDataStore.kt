@@ -164,6 +164,7 @@ class SettingsDataStore(private val context: Context) {
             notificationQuickActions = prefs[Keys.NOTIFICATION_QUICK_ACTIONS]
                 ?: setOf("reply", "archive", "delete", "snooze"),
             disabledNotificationAccounts = prefs[Keys.DISABLED_NOTIF_ACCOUNTS] ?: emptySet(),
+            syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15,
             unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false,
             hasSeenWelcomePrompt = prefs[Keys.HAS_SEEN_WELCOME_PROMPT] ?: false,
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,

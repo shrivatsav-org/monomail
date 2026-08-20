@@ -85,7 +85,7 @@ internal fun BottomDockBar(
         Row(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(end = 72.dp)
+                .fillMaxWidth()
                 .onGloballyPositioned { coordinates ->
                     dockRowHeightPx = coordinates.size.height.toFloat()
                 }
@@ -111,6 +111,7 @@ internal fun BottomDockBar(
                     onClick = { showRemainingTabs = !showRemainingTabs }
                 )
             }
+            Spacer(modifier = Modifier.width(72.dp))
         }
     }
 }

@@ -111,8 +111,8 @@ class ImapProvider(
         val imapFolder = openListFolder(store, folder)
             ?: return@withStore ProviderThreadListResult(emptyList(), null)
 
-        imapFolder.open(Folder.READ_ONLY)
         try {
+            imapFolder.open(Folder.READ_ONLY)
             val fetchResult: FetchResult?
             var nextToken: String? = null
 
@@ -166,6 +166,8 @@ class ImapProvider(
                 .sortedByDescending { t -> t.messages.maxOfOrNull { it.date } ?: 0L }
 
             ProviderThreadListResult(threads, nextToken)
+        } catch (e: Exception) {
+            ProviderThreadListResult(emptyList(), null)
         } finally {
             if (imapFolder.isOpen) imapFolder.close(false)
         }
@@ -318,8 +320,8 @@ class ImapProvider(
         val f = store.getFolder(folderName)
         if (!f.exists()) return
 
-        f.open(Folder.READ_ONLY)
         try {
+            f.open(Folder.READ_ONLY)
             val orTerm = jakarta.mail.search.OrTerm(
                 jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId),
                 jakarta.mail.search.OrTerm(
@@ -341,6 +343,8 @@ class ImapProvider(
                 val raw = threadMessageToRaw(msg, threadId) ?: continue
                 rawMessages.add(raw)
             }
+        } catch (e: Exception) {
+            // Ignore folder open/search errors (e.g. [NONEXISTENT] Unknown Mailbox) and proceed to next folder
         } finally {
             if (f.isOpen) f.close(false)
         }
@@ -436,13 +440,15 @@ class ImapProvider(
         val f = store.getFolder(folderName)
         if (!f.exists()) return null
 
-        f.open(Folder.READ_ONLY)
         try {
+            f.open(Folder.READ_ONLY)
             val messages = f.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, messageId))
             if (messages.isEmpty()) return null
             return searchPart(messages[0], attachmentId)
+        } catch (e: Exception) {
+            return null
         } finally {
-            f.close(false)
+            if (f.isOpen) f.close(false)
         }
     }
 
@@ -456,16 +462,18 @@ class ImapProvider(
             val srcFolder = store.getFolder(srcName)
             if (!srcFolder.exists()) continue
 
-            srcFolder.open(Folder.READ_WRITE)
             try {
+                srcFolder.open(Folder.READ_WRITE)
                 val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                 if (messages.isNotEmpty()) {
                     srcFolder.copyMessages(messages, destFolder)
                     srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
                     srcFolder.expunge()
                 }
+            } catch (e: Exception) {
+                // Ignore
             } finally {
-                srcFolder.close(true)
+                if (srcFolder.isOpen) srcFolder.close(false)
             }
         }
     }
@@ -474,48 +482,42 @@ class ImapProvider(
         moveThread(threadId, EmailFolder.ARCHIVE)
     }
 
-    override suspend fun unarchiveThread(threadId: String) = withStore { store ->
-        val srcName = getFolderName(EmailFolder.ARCHIVE) ?: return@withStore
-        val destName = getFolderName(EmailFolder.INBOX) ?: return@withStore
+    private suspend fun moveThreadBetween(
+        threadId: String,
+        source: EmailFolder,
+        destination: EmailFolder
+    ) = withStore { store ->
+        val srcName = getFolderName(source) ?: return@withStore
+        val destName = getFolderName(destination) ?: return@withStore
         val srcFolder = store.getFolder(srcName)
         val destFolder = store.getFolder(destName)
         if (!srcFolder.exists()) return@withStore
 
-        srcFolder.open(Folder.READ_WRITE)
         try {
+            srcFolder.open(Folder.READ_WRITE)
             val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
             if (messages.isNotEmpty()) {
                 srcFolder.copyMessages(messages, destFolder)
                 srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
                 srcFolder.expunge()
             }
+        } catch (e: Exception) {
+            // Ignore folder open/search errors and leave the thread in place
         } finally {
-            srcFolder.close(true)
+            if (srcFolder.isOpen) srcFolder.close(true)
         }
+    }
+
+    override suspend fun unarchiveThread(threadId: String) {
+        moveThreadBetween(threadId, EmailFolder.ARCHIVE, EmailFolder.INBOX)
     }
 
     override suspend fun trashThread(threadId: String) {
         moveThread(threadId, EmailFolder.TRASH)
     }
 
-    override suspend fun restoreThread(threadId: String) = withStore { store ->
-        val srcName = getFolderName(EmailFolder.TRASH) ?: return@withStore
-        val destName = getFolderName(EmailFolder.INBOX) ?: return@withStore
-        val srcFolder = store.getFolder(srcName)
-        val destFolder = store.getFolder(destName)
-        if (!srcFolder.exists()) return@withStore
-
-        srcFolder.open(Folder.READ_WRITE)
-        try {
-            val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
-            if (messages.isNotEmpty()) {
-                srcFolder.copyMessages(messages, destFolder)
-                srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
-                srcFolder.expunge()
-            }
-        } finally {
-            srcFolder.close(true)
-        }
+    override suspend fun restoreThread(threadId: String) {
+        moveThreadBetween(threadId, EmailFolder.TRASH, EmailFolder.INBOX)
     }
 
     override suspend fun permanentlyDeleteThread(threadId: String) = withStore { store ->
@@ -523,15 +525,17 @@ class ImapProvider(
         val f = store.getFolder(srcName)
         if (!f.exists()) return@withStore
 
-        f.open(Folder.READ_WRITE)
         try {
+            f.open(Folder.READ_WRITE)
             val messages = f.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
             if (messages.isNotEmpty()) {
                 f.setFlags(messages, Flags(Flags.Flag.DELETED), true)
                 f.expunge()
             }
+        } catch (e: Exception) {
+            // Ignore
         } finally {
-            f.close(true)
+            if (f.isOpen) f.close(true)
         }
     }
 
@@ -544,14 +548,16 @@ class ImapProvider(
         for (folderName in searchFolders) {
             val f = store.getFolder(folderName)
             if (f.exists()) {
-                f.open(Folder.READ_WRITE)
                 try {
+                    f.open(Folder.READ_WRITE)
                     val messages = f.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                     if (messages.isNotEmpty()) {
                         f.setFlags(messages, Flags(flag), set)
                     }
+                } catch (e: Exception) {
+                    // Ignore
                 } finally {
-                    f.close(false)
+                    if (f.isOpen) f.close(false)
                 }
             }
         }
