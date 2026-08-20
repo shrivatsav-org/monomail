@@ -1,5 +1,8 @@
 package com.shrivatsav.monomail.ui.navigation
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.compose.animation.AnimatedContentTransitionScope
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -45,6 +48,7 @@ import com.shrivatsav.monomail.feature.auth.SignInViewModel
 import com.shrivatsav.monomail.feature.compose.ComposeMode
 import com.shrivatsav.monomail.feature.compose.ComposeScreen
 import com.shrivatsav.monomail.feature.compose.ComposeViewModel
+import com.shrivatsav.monomail.data.model.EmailAttachment
 import com.shrivatsav.monomail.model.InboxTab
 import com.shrivatsav.monomail.feature.detail.EmailDetailScreen
 import com.shrivatsav.monomail.feature.detail.EmailDetailViewModel
@@ -532,74 +536,17 @@ fun NavGraph(
                     navArgument("unified") { type = NavType.BoolType; defaultValue = false }
                 ),
                 deepLinks = listOf(
-                    androidx.navigation.navDeepLink { action = android.content.Intent.ACTION_SEND; mimeType = "*/*" },
-                    androidx.navigation.navDeepLink { action = android.content.Intent.ACTION_SEND_MULTIPLE; mimeType = "*/*" },
-                    androidx.navigation.navDeepLink { action = android.content.Intent.ACTION_SENDTO; uriPattern = "mailto:.*" },
-                    androidx.navigation.navDeepLink { action = android.content.Intent.ACTION_VIEW; uriPattern = "mailto:.*" }
+                    androidx.navigation.navDeepLink { action = Intent.ACTION_SEND; mimeType = "*/*" },
+                    androidx.navigation.navDeepLink { action = Intent.ACTION_SEND_MULTIPLE; mimeType = "*/*" },
+                    androidx.navigation.navDeepLink { action = Intent.ACTION_SENDTO; uriPattern = "mailto:.*" },
+                    androidx.navigation.navDeepLink { action = Intent.ACTION_VIEW; uriPattern = "mailto:.*" }
                 )
             ) { backStackEntry ->
                 val vm: ComposeViewModel = hiltViewModel()
                 val context = LocalContext.current
                 LaunchedEffect(Unit) {
-                    val intent = backStackEntry.arguments?.getParcelable(androidx.navigation.NavController.KEY_DEEP_LINK_INTENT) as? android.content.Intent
-                    if (intent != null) {
-                        val action = intent.action
-                        val type = intent.type
-                        if (action == android.content.Intent.ACTION_SENDTO || action == android.content.Intent.ACTION_VIEW) {
-                            val uri = intent.data
-                            if (uri != null && uri.scheme.equals("mailto", ignoreCase = true)) {
-                                uri.schemeSpecificPart?.let { vm.updateTo(it) }
-                                uri.getQueryParameter("subject")?.let { vm.updateSubject(it) }
-                                uri.getQueryParameter("body")?.let { vm.updateBody(it) }
-                            }
-                        }
-                        if (action == android.content.Intent.ACTION_SEND || action == android.content.Intent.ACTION_SENDTO || action == android.content.Intent.ACTION_VIEW) {
-                            intent.getStringExtra(android.content.Intent.EXTRA_EMAIL)?.let { vm.updateTo(it) }
-                            intent.getStringArrayExtra(android.content.Intent.EXTRA_EMAIL)?.firstOrNull()?.let { vm.updateTo(it) }
-                            intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT)?.let { vm.updateSubject(it) }
-                            intent.getStringExtra(android.content.Intent.EXTRA_TEXT)?.let { vm.updateBody(it) }
-                            val streamUri = intent.getParcelableExtra<Uri>(android.content.Intent.EXTRA_STREAM)
-                            if (streamUri != null) {
-                                val resolver = context.contentResolver
-                                var name = "attachment"
-                                var size = 0L
-                                val mime = resolver.getType(streamUri) ?: "application/octet-stream"
-                                val cursor = resolver.query(streamUri, null, null, null, null)
-                                cursor?.use { c ->
-                                    if (c.moveToFirst()) {
-                                        val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                                        val sizeIndex = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                                        if (nameIndex != -1) name = c.getString(nameIndex) ?: name
-                                        if (sizeIndex != -1) size = c.getLong(sizeIndex)
-                                    }
-                                }
-                                vm.addAttachment(com.shrivatsav.monomail.data.model.EmailAttachment(streamUri, name, size, mime))
-                            }
-                        }
-                        if (action == android.content.Intent.ACTION_SEND_MULTIPLE) {
-                            intent.getStringExtra(android.content.Intent.EXTRA_EMAIL)?.let { vm.updateTo(it) }
-                            intent.getStringArrayExtra(android.content.Intent.EXTRA_EMAIL)?.firstOrNull()?.let { vm.updateTo(it) }
-                            intent.getStringExtra(android.content.Intent.EXTRA_SUBJECT)?.let { vm.updateSubject(it) }
-                            intent.getStringExtra(android.content.Intent.EXTRA_TEXT)?.let { vm.updateBody(it) }
-                            val streamUris = intent.getParcelableArrayListExtra<Uri>(android.content.Intent.EXTRA_STREAM)
-                            streamUris?.forEach { streamUri ->
-                                val resolver = context.contentResolver
-                                var name = "attachment"
-                                var size = 0L
-                                val mime = resolver.getType(streamUri) ?: "application/octet-stream"
-                                val cursor = resolver.query(streamUri, null, null, null, null)
-                                cursor?.use { c ->
-                                    if (c.moveToFirst()) {
-                                        val nameIndex = c.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                                        val sizeIndex = c.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                                        if (nameIndex != -1) name = c.getString(nameIndex) ?: name
-                                        if (sizeIndex != -1) size = c.getLong(sizeIndex)
-                                    }
-                                }
-                                vm.addAttachment(com.shrivatsav.monomail.data.model.EmailAttachment(streamUri, name, size, mime))
-                            }
-                        }
-                    }
+                    val intent = backStackEntry.arguments?.getParcelable(androidx.navigation.NavController.KEY_DEEP_LINK_INTENT) as? Intent
+                    if (intent != null) applyComposeIntent(intent, context, vm)
                 }
                 ComposeScreen(
                     viewModel = vm,
@@ -641,4 +588,48 @@ fun NavGraph(
             }
         }
     }
+}
+
+/**
+ * Reads display name, size and mime type for a shared content URI.
+ */
+private fun readSharedAttachment(context: Context, uri: Uri): EmailAttachment {
+    val resolver = context.contentResolver
+    var name = "attachment"
+    var size = 0L
+    val mime = resolver.getType(uri) ?: "application/octet-stream"
+    resolver.query(uri, null, null, null, null)?.use { c ->
+        if (c.moveToFirst()) {
+            val nameIndex = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            val sizeIndex = c.getColumnIndex(OpenableColumns.SIZE)
+            if (nameIndex != -1) name = c.getString(nameIndex) ?: name
+            if (sizeIndex != -1) size = c.getLong(sizeIndex)
+        }
+    }
+    return EmailAttachment(uri, name, size, mime)
+}
+
+/**
+ * Populates the compose screen from a share-sheet / mailto deep link intent.
+ */
+private fun applyComposeIntent(intent: Intent, context: Context, vm: ComposeViewModel) {
+    val action = intent.action
+    if (action == Intent.ACTION_SENDTO || action == Intent.ACTION_VIEW) {
+        intent.data?.takeIf { it.scheme.equals("mailto", ignoreCase = true) }?.let { uri ->
+            uri.schemeSpecificPart?.let { vm.updateTo(it) }
+            uri.getQueryParameter("subject")?.let { vm.updateSubject(it) }
+            uri.getQueryParameter("body")?.let { vm.updateBody(it) }
+        }
+    }
+    intent.getStringExtra(Intent.EXTRA_EMAIL)?.let { vm.updateTo(it) }
+    intent.getStringArrayExtra(Intent.EXTRA_EMAIL)?.firstOrNull()?.let { vm.updateTo(it) }
+    intent.getStringExtra(Intent.EXTRA_SUBJECT)?.let { vm.updateSubject(it) }
+    intent.getStringExtra(Intent.EXTRA_TEXT)?.let { vm.updateBody(it) }
+
+    val streamUris = if (action == Intent.ACTION_SEND_MULTIPLE) {
+        intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM).orEmpty()
+    } else {
+        listOfNotNull(intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM))
+    }
+    streamUris.forEach { vm.addAttachment(readSharedAttachment(context, it)) }
 }

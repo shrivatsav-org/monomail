@@ -179,6 +179,7 @@ class SettingsDataStore(private val context: Context) {
             dockConfig = dockConfigJson?.let { json ->
                 try {
                     val raw = gson.fromJson(json, DockConfig::class.java)
+                    // Gson may silently produce broken objects (null/wrong-type primaryTabs)
                     // when deserializing Kotlin data classes via Unsafe. Validate the result.
                     val tabs = raw?.primaryTabs
                     @Suppress("SENSELESS_COMPARISON") // Gson Unsafe may produce wrong-type elements at runtime

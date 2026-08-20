@@ -467,7 +467,7 @@ class ImapProvider(
                 val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
                 if (messages.isNotEmpty()) {
                     srcFolder.copyMessages(messages, destFolder)
-                    srcFolder.setFlags(messages, jakarta.mail.Flags(jakarta.mail.Flags.Flag.DELETED), true)
+                    srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
                     srcFolder.expunge()
                 }
             } catch (e: Exception) {
@@ -482,9 +482,13 @@ class ImapProvider(
         moveThread(threadId, EmailFolder.ARCHIVE)
     }
 
-    override suspend fun unarchiveThread(threadId: String) = withStore { store ->
-        val srcName = getFolderName(EmailFolder.ARCHIVE) ?: return@withStore
-        val destName = getFolderName(EmailFolder.INBOX) ?: return@withStore
+    private suspend fun moveThreadBetween(
+        threadId: String,
+        source: EmailFolder,
+        destination: EmailFolder
+    ) = withStore { store ->
+        val srcName = getFolderName(source) ?: return@withStore
+        val destName = getFolderName(destination) ?: return@withStore
         val srcFolder = store.getFolder(srcName)
         val destFolder = store.getFolder(destName)
         if (!srcFolder.exists()) return@withStore
@@ -498,36 +502,22 @@ class ImapProvider(
                 srcFolder.expunge()
             }
         } catch (e: Exception) {
-            // Ignore
+            // Ignore folder open/search errors and leave the thread in place
         } finally {
             if (srcFolder.isOpen) srcFolder.close(true)
         }
+    }
+
+    override suspend fun unarchiveThread(threadId: String) {
+        moveThreadBetween(threadId, EmailFolder.ARCHIVE, EmailFolder.INBOX)
     }
 
     override suspend fun trashThread(threadId: String) {
         moveThread(threadId, EmailFolder.TRASH)
     }
 
-    override suspend fun restoreThread(threadId: String) = withStore { store ->
-        val srcName = getFolderName(EmailFolder.TRASH) ?: return@withStore
-        val destName = getFolderName(EmailFolder.INBOX) ?: return@withStore
-        val srcFolder = store.getFolder(srcName)
-        val destFolder = store.getFolder(destName)
-        if (!srcFolder.exists()) return@withStore
-
-        try {
-            srcFolder.open(Folder.READ_WRITE)
-            val messages = srcFolder.search(jakarta.mail.search.HeaderTerm(HEADER_MESSAGE_ID, threadId))
-            if (messages.isNotEmpty()) {
-                srcFolder.copyMessages(messages, destFolder)
-                srcFolder.setFlags(messages, Flags(Flags.Flag.DELETED), true)
-                srcFolder.expunge()
-            }
-        } catch (e: Exception) {
-            // Ignore
-        } finally {
-            if (srcFolder.isOpen) srcFolder.close(true)
-        }
+    override suspend fun restoreThread(threadId: String) {
+        moveThreadBetween(threadId, EmailFolder.TRASH, EmailFolder.INBOX)
     }
 
     override suspend fun permanentlyDeleteThread(threadId: String) = withStore { store ->
