@@ -695,8 +695,8 @@ private fun ConversationEmailItem(
         }
         AnimatedVisibility(
             visible = isExpanded,
-            enter = fadeIn(tween(200)) + expandVertically(tween(200)),
-            exit = fadeOut(tween(150)) + shrinkVertically(tween(150))
+            enter = fadeIn(tween(200)) + expandVertically(androidx.compose.animation.core.spring(dampingRatio = 0.8f, stiffness = 400f)),
+            exit = fadeOut(tween(150)) + shrinkVertically(androidx.compose.animation.core.spring(dampingRatio = 0.9f, stiffness = 400f))
         ) {
             ConversationEmailBody(email, index, config, decryptedBodies, onFetchAttachment, onNavigateToAttachmentViewer)
         }
@@ -1840,22 +1840,31 @@ fun CollapsedGroupItem(count: Int, onClick: () -> Unit) {
             .fillMaxWidth()
             .clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Surface(
-            shape = androidx.compose.foundation.shape.CircleShape,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surfaceVariant,
-            modifier = Modifier.padding(horizontal = 16.dp).size(28.dp)
+            modifier = Modifier.padding(horizontal = 16.dp)
         ) {
-            Box(contentAlignment = Alignment.Center) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.ExpandMore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = count.toString(),
+                    text = "$count older messages",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
-        HorizontalDivider(modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
     }
 }
