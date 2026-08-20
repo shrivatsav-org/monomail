@@ -162,6 +162,7 @@ class SettingsDataStore(private val context: Context) {
             notificationQuickActions = prefs[Keys.NOTIFICATION_QUICK_ACTIONS]
                 ?: setOf("reply", "archive", "delete", "snooze"),
             disabledNotificationAccounts = prefs[Keys.DISABLED_NOTIF_ACCOUNTS] ?: emptySet(),
+            syncFrequency = prefs[Keys.SYNC_FREQUENCY]?.let { SyncFrequency.valueOf(it) } ?: SyncFrequency.MIN_15,
             unifiedInboxEnabled = prefs[Keys.UNIFIED_INBOX_ENABLED] ?: false,
             hasSeenWelcomePrompt = prefs[Keys.HAS_SEEN_WELCOME_PROMPT] ?: false,
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
@@ -178,7 +179,6 @@ class SettingsDataStore(private val context: Context) {
             dockConfig = dockConfigJson?.let { json ->
                 try {
                     val raw = gson.fromJson(json, DockConfig::class.java)
-                    // Gson may silently produce broken objects (null/wrong-type primaryTabs)
                     // when deserializing Kotlin data classes via Unsafe. Validate the result.
                     val tabs = raw?.primaryTabs
                     @Suppress("SENSELESS_COMPARISON") // Gson Unsafe may produce wrong-type elements at runtime
