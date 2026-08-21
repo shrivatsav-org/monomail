@@ -55,7 +55,7 @@ internal fun BottomDockBar(
             enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(MonoTween.fadeIn),
             exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(MonoTween.fadeOut),
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.BottomCenter)
                 .padding(bottom = androidx.compose.ui.unit.max(0.dp, (dockRowHeightPx / density.density).dp - 12.dp))
         ) {
             Surface(
@@ -82,36 +82,39 @@ internal fun BottomDockBar(
                 }
             }
         }
-        Row(
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 72.dp)
                 .onGloballyPositioned { coordinates ->
                     dockRowHeightPx = coordinates.size.height.toFloat()
                 }
-                .horizontalScroll(rememberScrollState())
-                .padding(vertical = 12.dp, horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
         ) {
-            PrimaryDockRow(
-                currentTab = currentTab,
-                primaryIds = primaryIds,
-                unifiedInboxEnabled = unifiedInboxEnabled,
-                appSettings = appSettings,
-                onTabClick = { tab ->
-                    onTabClick(tab)
-                    showRemainingTabs = false
-                },
-            )
-            if (filteredRemainingIds.isNotEmpty()) {
-                MoreTabsButton(
-                    showRemainingTabs = showRemainingTabs,
-                    navScale = appSettings.navScale,
-                    onClick = { showRemainingTabs = !showRemainingTabs }
+            Row(
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                PrimaryDockRow(
+                    currentTab = currentTab,
+                    primaryIds = primaryIds,
+                    unifiedInboxEnabled = unifiedInboxEnabled,
+                    appSettings = appSettings,
+                    onTabClick = { tab ->
+                        onTabClick(tab)
+                        showRemainingTabs = false
+                    },
                 )
+                if (filteredRemainingIds.isNotEmpty()) {
+                    MoreTabsButton(
+                        showRemainingTabs = showRemainingTabs,
+                        navScale = appSettings.navScale,
+                        onClick = { showRemainingTabs = !showRemainingTabs }
+                    )
+                }
             }
-            Spacer(modifier = Modifier.width(72.dp))
         }
     }
 }
