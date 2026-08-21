@@ -82,38 +82,33 @@ internal fun BottomDockBar(
                 }
             }
         }
-        Box(
+        Row(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(horizontal = 72.dp)
                 .onGloballyPositioned { coordinates ->
                     dockRowHeightPx = coordinates.size.height.toFloat()
                 }
+                .horizontalScroll(rememberScrollState())
+                .padding(vertical = 12.dp, horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 12.dp, horizontal = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                PrimaryDockRow(
-                    currentTab = currentTab,
-                    primaryIds = primaryIds,
-                    unifiedInboxEnabled = unifiedInboxEnabled,
-                    appSettings = appSettings,
-                    onTabClick = { tab ->
-                        onTabClick(tab)
-                        showRemainingTabs = false
-                    },
+            PrimaryDockRow(
+                currentTab = currentTab,
+                primaryIds = primaryIds,
+                unifiedInboxEnabled = unifiedInboxEnabled,
+                appSettings = appSettings,
+                onTabClick = { tab ->
+                    onTabClick(tab)
+                    showRemainingTabs = false
+                },
+            )
+            if (filteredRemainingIds.isNotEmpty()) {
+                MoreTabsButton(
+                    showRemainingTabs = showRemainingTabs,
+                    navScale = appSettings.navScale,
+                    onClick = { showRemainingTabs = !showRemainingTabs }
                 )
-                if (filteredRemainingIds.isNotEmpty()) {
-                    MoreTabsButton(
-                        showRemainingTabs = showRemainingTabs,
-                        navScale = appSettings.navScale,
-                        onClick = { showRemainingTabs = !showRemainingTabs }
-                    )
-                }
             }
         }
     }
