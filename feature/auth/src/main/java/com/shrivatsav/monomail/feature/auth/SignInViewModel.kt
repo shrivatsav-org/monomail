@@ -110,10 +110,11 @@ class SignInViewModel @Inject constructor(
         }
     }
 
-    /** User cancelled the initial-sync prompt — back to the sign-in screen, no sync started. */
+    /** User cancelled the initial-sync prompt — no deep sync started, but account is added so go to inbox. */
     fun cancelInitialSync() {
-        if (_state.value is SignInState.ShowSyncPrompt) {
-            _state.value = SignInState.Idle
+        val currentState = _state.value
+        if (currentState is SignInState.ShowSyncPrompt) {
+            _state.value = SignInState.Success(currentState.profile)
         }
     }
 
