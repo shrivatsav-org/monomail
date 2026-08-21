@@ -618,9 +618,19 @@ private fun applyComposeIntent(intent: Intent, context: Context, vm: ComposeView
     val action = intent.action
     if (action == Intent.ACTION_SENDTO || action == Intent.ACTION_VIEW) {
         intent.data?.takeIf { it.scheme.equals("mailto", ignoreCase = true) }?.let { uri ->
-            uri.schemeSpecificPart?.let { vm.updateTo(it) }
-            uri.getQueryParameter("subject")?.let { vm.updateSubject(it) }
-            uri.getQueryParameter("body")?.let { vm.updateBody(it) }
+            uri.schemeSpecificPart?.let { ssp ->
+                val parts = ssp.split("?", limit = 2)
+                vm.updateTo(parts[0])
+                if (parts.size > 1) {
+                    val query = parts[1]
+                    val params = query.split("&").associate {
+                        val kv = it.split("=", limit = 2)
+                        kv[0] to kv.getOrElse(1) { "" }
+                    }
+                    params["subject"]?.let { vm.updateSubject(android.net.Uri.decode(it)) }
+                    params["body"]?.let { vm.updateBody(android.net.Uri.decode(it)) }
+                }
+            }
         }
     }
     intent.getStringExtra(Intent.EXTRA_EMAIL)?.let { vm.updateTo(it) }

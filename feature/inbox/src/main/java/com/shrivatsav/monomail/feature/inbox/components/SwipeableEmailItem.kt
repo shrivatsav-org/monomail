@@ -126,22 +126,24 @@ internal fun SwipeableEmailItem(
                     SwipeBackground(dismissState, appSettings, tabForSwipe, optIsStarred, optIsRead)
                 }
             ) {
-                EmailItem(
-                    thread = displayThread,
-                    onClick = callbacks.onEmailClick,
-                    onLongClick = callbacks.onLongClick,
-                    showSnippet = appSettings.showSnippet,
-                    use24HourTime = appSettings.use24HourTime,
-                    compactMode = appSettings.compactList,
-                    selection = SelectionState(
-                        isSelected = selection.isSelected,
-                        isBulkMode = false,
-                        onSelectToggle = selection.onSelectToggle,
-                        onRangeSelect = selection.onRangeSelect,
-                        onAvatarLongClick = selection.onAvatarLongClick
-                    ),
-                    unreadPosition = unreadPosition
-                )
+                Box(modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainer)) {
+                    EmailItem(
+                        thread = displayThread,
+                        onClick = callbacks.onEmailClick,
+                        onLongClick = callbacks.onLongClick,
+                        showSnippet = appSettings.showSnippet,
+                        use24HourTime = appSettings.use24HourTime,
+                        compactMode = appSettings.compactList,
+                        selection = SelectionState(
+                            isSelected = selection.isSelected,
+                            isBulkMode = false,
+                            onSelectToggle = selection.onSelectToggle,
+                            onRangeSelect = selection.onRangeSelect,
+                            onAvatarLongClick = selection.onAvatarLongClick
+                        ),
+                        unreadPosition = unreadPosition
+                    )
+                }
             }
         }
     }

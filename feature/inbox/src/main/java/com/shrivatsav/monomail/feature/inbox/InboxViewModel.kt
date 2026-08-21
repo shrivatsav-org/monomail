@@ -245,15 +245,15 @@ class InboxViewModel @Inject constructor(
                                 EmailThread(
                                     threadId = email.threadId,
                                     subject = email.subject.replaceFirst(Regex("^(Re|Fwd|Fw):\\s*", RegexOption.IGNORE_CASE), ""),
-                                    from = email.from,
-                                    fromEmail = email.fromEmail,
+                                    from = if (tab == InboxTab.SENT) email.to else email.from,
+                                    fromEmail = if (tab == InboxTab.SENT) email.to else email.fromEmail,
                                     snippet = email.snippet,
                                     date = email.date,
                                     messageCount = 1,
                                     isRead = email.isRead,
                                     isStarred = email.isStarred,
                                     latestMessageId = email.id,
-                                    participants = listOf(email.fromEmail)
+                                    participants = if (tab == InboxTab.SENT) listOf(email.to) else listOf(email.fromEmail)
                                 )
                             }
                         }

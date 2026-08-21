@@ -96,19 +96,11 @@ internal fun AccountsSettingsScreen(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                if (isImap) {
-                                    Text(
-                                        text = " • tap for details",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                } else {
-                                    Text(
-                                        text = " • ",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
+                                Text(
+                                    text = " • ",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                                 Text(
                                     text = statusText,
                                     style = MaterialTheme.typography.bodySmall,
@@ -359,13 +351,6 @@ private fun AccountDetailContent(
             ConfigRow("Host", config.smtpHost.ifBlank { "Uses IMAP host" }, mono = true)
             ConfigRow("Port", if (config.smtpPort > 0) config.smtpPort.toString() else "Auto", mono = true)
             ConfigRow("Security", smtpSecurityMode(config).label)
-            val eff = config.effectiveSmtp()
-            Text(
-                text = "Effective: ${eff.host}:${eff.port} · ${eff.protocolLabel}",
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = MonoOpacity.secondary),
-                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 4.dp)
-            )
         }
     }
 }

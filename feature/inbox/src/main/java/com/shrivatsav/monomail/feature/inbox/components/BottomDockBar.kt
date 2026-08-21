@@ -55,7 +55,7 @@ internal fun BottomDockBar(
             enter = expandVertically(expandFrom = Alignment.Bottom) + fadeIn(MonoTween.fadeIn),
             exit = shrinkVertically(shrinkTowards = Alignment.Bottom) + fadeOut(MonoTween.fadeOut),
             modifier = Modifier
-                .align(Alignment.BottomStart)
+                .align(Alignment.BottomCenter)
                 .padding(bottom = androidx.compose.ui.unit.max(0.dp, (dockRowHeightPx / density.density).dp - 12.dp))
         ) {
             Surface(
@@ -84,8 +84,7 @@ internal fun BottomDockBar(
         }
         Row(
             modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
+                .align(Alignment.BottomCenter)
                 .onGloballyPositioned { coordinates ->
                     dockRowHeightPx = coordinates.size.height.toFloat()
                 }
@@ -111,7 +110,6 @@ internal fun BottomDockBar(
                     onClick = { showRemainingTabs = !showRemainingTabs }
                 )
             }
-            Spacer(modifier = Modifier.width(72.dp))
         }
     }
 }

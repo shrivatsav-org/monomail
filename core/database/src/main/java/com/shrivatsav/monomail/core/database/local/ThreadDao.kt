@@ -26,7 +26,7 @@ interface ThreadDao {
     suspend fun getLatestInboxThread(accountId: String): ThreadEntity?
     @Query("""
         SELECT t.threadId, t.accountId, t.subject, t.messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
-               e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
+               e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.toEmail as fromName, e.toEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
         WHERE t.accountId = :accountId AND t.inSent = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
@@ -157,7 +157,7 @@ interface ThreadDao {
     fun getAllTrashThreads(): Flow<List<ThreadEntity>>
     @Query("""
         SELECT t.threadId, t.accountId, t.subject, t.messageCount, t.isRead, t.isStarred, t.participants, t.inInbox, t.inSent, t.inArchived, t.inTrash, t.isSnoozed, t.snoozedUntil, t.inSpam, t.inDrafts,
-               e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.fromName as fromName, e.fromEmail as fromEmail
+               e.id as latestMessageId, e.snippet as snippet, MAX(e.date) as date, e.toEmail as fromName, e.toEmail as fromEmail
         FROM threads t INNER JOIN emails e ON t.threadId = e.threadId AND t.accountId = e.accountId
         WHERE t.inSent = 1
         GROUP BY t.threadId ORDER BY date DESC LIMIT 500
