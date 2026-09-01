@@ -230,7 +230,5 @@ jobs:
             "release-artifacts/MonoMail-$TAG-playstore-mapping.txt" \
             "release-artifacts/SHA256SUMS" \
             --draft \
-            --verify-tag \
-            --target "$TAG" \
             --title "$TAG" \
             --notes-file release_notes.md
