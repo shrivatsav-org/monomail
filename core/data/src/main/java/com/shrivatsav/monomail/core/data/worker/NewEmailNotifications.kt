@@ -1,6 +1,7 @@
 package com.shrivatsav.monomail.core.data.worker
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -15,6 +16,7 @@ import androidx.core.text.HtmlCompat
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import com.shrivatsav.monomail.core.data.settings.NotificationPreview
 import com.shrivatsav.monomail.core.data.settings.NotificationProfile
+import com.shrivatsav.monomail.core.data.util.canPostNotifications
 
 private const val TAG = "NewEmailNotification"
 
@@ -131,7 +133,10 @@ fun showNewEmailNotification(
         }
     actions.forEach(builder::addAction)
 
-    NotificationManagerCompat.from(context).notify(account.id, notificationId, builder.build())
-    Log.i(TAG, "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")
+    @SuppressLint("MissingPermission")
+    if (canPostNotifications(context)) {
+        NotificationManagerCompat.from(context).notify(account.id, notificationId, builder.build())
+        Log.i(TAG, "Notification successfully sent to NotificationManagerCompat (id: $notificationId)")
+    }
 }
 

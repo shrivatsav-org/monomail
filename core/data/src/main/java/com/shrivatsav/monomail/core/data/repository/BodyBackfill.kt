@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.app.PendingIntent
 import android.content.Intent
+import android.annotation.SuppressLint
 import android.os.Build
 import android.util.Log
 import com.shrivatsav.monomail.core.data.worker.NotificationActionReceiver
@@ -91,6 +92,7 @@ internal fun ensureBodyBackfillDoneChannel(context: Context) {
  * levels. (ProgressStyle segments were tried on 37 but its setProgress()
  * semantics filled the bar regardless of the counter — dropped for correctness.)
  */
+@SuppressLint("NewApi")
 internal fun buildBodyBackfillNotification(context: Context, completed: Int, total: Int, folder: String? = null): Notification {
     val builder = Notification.Builder(context, BODY_BACKFILL_CHANNEL_ID)
         .setSmallIcon(android.R.drawable.stat_sys_download)

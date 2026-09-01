@@ -108,16 +108,17 @@ private fun ProfileAvatarSection(
             (fadeOut(tween(150)) + scaleOut(tween(150), targetScale = 0.9f))
         },
         label = "profileContent"
-    ) {
+    ) { profileId ->
+        val activeProfile = accounts.firstOrNull { it.id == profileId } ?: userProfile
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
         ) {
-            DraggableAvatarBox(userProfile, accounts, callbacks, unifiedInboxEnabled)
+            DraggableAvatarBox(activeProfile, accounts, callbacks, unifiedInboxEnabled)
 
             Spacer(Modifier.height(14.dp))
             Text(
-                text = userProfile.displayName,
+                text = activeProfile.displayName,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground,
@@ -125,7 +126,7 @@ private fun ProfileAvatarSection(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-                text = userProfile.email,
+                text = activeProfile.email,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                 maxLines = 1,
