@@ -3,6 +3,7 @@ package com.shrivatsav.monomail.core.data.worker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -18,6 +19,7 @@ import androidx.core.app.RemoteInput
 import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.core.data.repository.SendEmailParams
+import com.shrivatsav.monomail.core.data.util.canPostNotifications
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -264,9 +266,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .setAutoCancel(true)
             .setTimeoutAfter(5000)
 
-        NotificationManagerCompat.from(context).notify(
-            ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
-        )
+        @SuppressLint("MissingPermission")
+        if (canPostNotifications(context)) {
+            NotificationManagerCompat.from(context).notify(
+                ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
+            )
+        }
     }
 
     private suspend fun handleUndoArchive(context: Context, intent: Intent) {
@@ -311,9 +316,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .setTimeoutAfter(5000)
             .setAutoCancel(true)
 
-        NotificationManagerCompat.from(context).notify(
-            ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
-        )
+        @SuppressLint("MissingPermission")
+        if (canPostNotifications(context)) {
+            NotificationManagerCompat.from(context).notify(
+                ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
+            )
+        }
     }
 
     private suspend fun handleUndoDelete(context: Context, intent: Intent) {
@@ -357,9 +365,12 @@ class NotificationActionReceiver : BroadcastReceiver() {
             .addAction(android.R.drawable.ic_menu_revert, "Undo", undoPendingIntent)
             .setAutoCancel(true)
 
-        NotificationManagerCompat.from(context).notify(
-            ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
-        )
+        @SuppressLint("MissingPermission")
+        if (canPostNotifications(context)) {
+            NotificationManagerCompat.from(context).notify(
+                ARCHIVE_CONFIRM_CHANNEL, UNDO_NOTIFICATION_ID_BASE + originalNotificationId, undoBuilder.build()
+            )
+        }
     }
 
     private suspend fun handleUndoSnooze(context: Context, intent: Intent) {
@@ -388,7 +399,10 @@ class NotificationActionReceiver : BroadcastReceiver() {
             builder.setProgress(0, 0, true).setOngoing(true)
         }
 
-        NotificationManagerCompat.from(context).notify(REPLY_STATUS_CHANNEL, notificationId, builder.build())
+        @SuppressLint("MissingPermission")
+        if (canPostNotifications(context)) {
+            NotificationManagerCompat.from(context).notify(REPLY_STATUS_CHANNEL, notificationId, builder.build())
+        }
     }
 
     private fun createReplyStatusChannel(context: Context) {

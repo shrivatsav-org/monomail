@@ -140,7 +140,7 @@ jobs:
         run: >-
           ./gradlew
           lintGithubRelease lintPlaystoreRelease
-          testGithubReleaseUnitTest testPlaystoreReleaseUnitTest
+          testGithubDebugUnitTest testPlaystoreDebugUnitTest
           assembleGithubRelease bundlePlaystoreRelease
           --stacktrace
 
