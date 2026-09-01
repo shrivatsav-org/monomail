@@ -46,6 +46,7 @@ class AttachmentViewerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val messageId: String = savedStateHandle["messageId"] ?: ""
+    private val accountId: String = savedStateHandle["accountId"] ?: ""
     private val attachmentId: String = savedStateHandle["attachmentId"] ?: ""
     private val mimeType: String = savedStateHandle["mimeType"] ?: "application/octet-stream"
     private val name: String = savedStateHandle["name"] ?: "attachment"
@@ -63,7 +64,7 @@ class AttachmentViewerViewModel @Inject constructor(
             try {
                 val category = classifyAttachment(mimeType, name)
                 val bytes = withContext(Dispatchers.IO) {
-                    repository.getAttachmentBytes(messageId, attachmentId)
+                    repository.getAttachmentBytes(messageId, attachmentId, accountId)
                 }
 
                 if (bytes == null || bytes.isEmpty()) {

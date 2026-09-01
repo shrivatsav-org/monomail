@@ -77,10 +77,13 @@ sealed class Screen(val route: String) {
         }
     }
     object Inbox        : Screen("inbox")
-    object ThreadDetail : Screen("thread/{threadId}?focusedId={focusedId}") {
-        fun createRoute(threadId: String, focusedId: String? = null) = if (focusedId != null) "thread/$threadId?focusedId=$focusedId" else "thread/$threadId"
+    object ThreadDetail : Screen("thread/{accountId}/{threadId}?focusedId={focusedId}") {
+        fun createRoute(accountId: String, threadId: String, focusedId: String? = null): String {
+            val base = "thread/${Uri.encode(accountId)}/${Uri.encode(threadId)}"
+            return if (focusedId != null) "$base?focusedId=${Uri.encode(focusedId)}" else base
+        }
     }
-    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}&unified={unified}") {
+    object Compose      : Screen("compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}&unified={unified}&accountId={accountId}") {
         fun createRoute(
             mode: ComposeMode = ComposeMode.NEW,
             to: String = "",
@@ -88,10 +91,11 @@ sealed class Screen(val route: String) {
             threadId: String = "",
             messageId: String = "",
             scheduledId: String = "",
-            unified: Boolean = false
+            unified: Boolean = false,
+            accountId: String = ""
         ): String {
             val enc = { s: String -> Uri.encode(s) }
-            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}&scheduledId=${enc(scheduledId)}&unified=$unified"
+            return "compose?mode=${mode.name}&to=${enc(to)}&subject=${enc(subject)}&threadId=${enc(threadId)}&messageId=${enc(messageId)}&scheduledId=${enc(scheduledId)}&unified=$unified&accountId=${enc(accountId)}"
         }
     }
     object Scheduled : Screen("scheduled")
@@ -100,10 +104,10 @@ sealed class Screen(val route: String) {
         fun createRoute(type: String) = "legal/$type"
     }
     object PgpKeys : Screen("pgp_keys")
-    object AttachmentViewer : Screen("attachment-viewer/{messageId}/{attachmentId}?mimeType={mimeType}&name={name}") {
-        fun createRoute(messageId: String, attachmentId: String, mimeType: String, name: String): String {
+    object AttachmentViewer : Screen("attachment-viewer/{accountId}/{messageId}/{attachmentId}?mimeType={mimeType}&name={name}") {
+        fun createRoute(accountId: String, messageId: String, attachmentId: String, mimeType: String, name: String): String {
             val enc = { s: String -> Uri.encode(s) }
-            return "attachment-viewer/${enc(messageId)}/${enc(attachmentId)}?mimeType=${enc(mimeType)}&name=${enc(name)}"
+            return "attachment-viewer/${enc(accountId)}/${enc(messageId)}/${enc(attachmentId)}?mimeType=${enc(mimeType)}&name=${enc(name)}"
         }
     }
 }
@@ -321,6 +325,7 @@ fun NavGraph(
                 val configuration = androidx.compose.ui.platform.LocalConfiguration.current
                 val isTablet = configuration.screenWidthDp >= 600
                 var selectedThreadId by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+                var selectedAccountId by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
 
                 if (isTablet) {
                     androidx.compose.foundation.layout.Row(
@@ -331,7 +336,10 @@ fun NavGraph(
                                 viewModel = vm,
                                 userProfile = activeAccount,
                                 navActions = InboxNavActions(
-                                    onEmailClick = { threadId, _ -> selectedThreadId = threadId },
+                                    onEmailClick = { accountId, threadId, _ ->
+                                        selectedAccountId = accountId
+                                        selectedThreadId = threadId
+                                    },
                                     onSignOut = {
                                         inboxScope.launch {
                                             authManager.signOutActiveAccount()
@@ -359,9 +367,9 @@ fun NavGraph(
                         )
                         androidx.compose.foundation.layout.Box(modifier = Modifier.weight(0.6f)) {
                             if (selectedThreadId != null) {
-                                val detailViewModel: EmailDetailViewModel = hiltViewModel(key = selectedThreadId!!)
-                                androidx.compose.runtime.LaunchedEffect(selectedThreadId) {
-                                    detailViewModel.setThreadId(selectedThreadId!!)
+                                val detailViewModel: EmailDetailViewModel = hiltViewModel(key = "${selectedAccountId}:${selectedThreadId}")
+                                androidx.compose.runtime.LaunchedEffect(selectedAccountId, selectedThreadId) {
+                                    detailViewModel.setThread(selectedThreadId!!, selectedAccountId.orEmpty())
                                 }
                                 EmailDetailScreen(
                                     viewModel = detailViewModel,
@@ -373,7 +381,8 @@ fun NavGraph(
                                                 to = to,
                                                 subject = subject,
                                                 threadId = threadId,
-                                                messageId = messageId
+                                                messageId = messageId,
+                                                accountId = detailViewModel.accountId
                                             )
                                         )
                                     },
@@ -383,13 +392,14 @@ fun NavGraph(
                                                 mode = ComposeMode.FORWARD,
                                                 subject = subject,
                                                 threadId = threadId,
-                                                messageId = messageId
+                                                messageId = messageId,
+                                                accountId = detailViewModel.accountId
                                             )
                                         )
                                     },
                                     onFetchAttachment = { msg, att -> detailViewModel.fetchAttachmentBytes(msg, att) },
                                     onNavigateToAttachmentViewer = { mId, aId, mime, name ->
-                                        navController.navigate(Screen.AttachmentViewer.createRoute(mId, aId, mime, name))
+                                        navController.navigate(Screen.AttachmentViewer.createRoute(detailViewModel.accountId, mId, aId, mime, name))
                                     }
                                 )
                             } else {
@@ -420,8 +430,8 @@ fun NavGraph(
                         viewModel    = vm,
                         userProfile  = activeAccount,
                         navActions = InboxNavActions(
-                            onEmailClick = { threadId, focusedId ->
-                                navController.navigate(Screen.ThreadDetail.createRoute(threadId, focusedId)) { launchSingleTop = true }
+                            onEmailClick = { accountId, threadId, focusedId ->
+                                navController.navigate(Screen.ThreadDetail.createRoute(accountId, threadId, focusedId)) { launchSingleTop = true }
                             },
                             onSignOut = {
                                 inboxScope.launch {
@@ -484,6 +494,7 @@ fun NavGraph(
             composable(
                 route = Screen.ThreadDetail.route,
                 arguments = listOf(
+                    navArgument("accountId") { type = NavType.StringType },
                     navArgument("threadId") { type = NavType.StringType },
                     navArgument("focusedId") { type = NavType.StringType; nullable = true; defaultValue = null }
                 )
@@ -499,7 +510,8 @@ fun NavGraph(
                                 to = to,
                                 subject = subject,
                                 threadId = tid,
-                                messageId = messageId
+                                messageId = messageId,
+                                accountId = vm.accountId
                             )
                         )
                     },
@@ -510,7 +522,8 @@ fun NavGraph(
                                 to = "",
                                 subject = subject,
                                 threadId = tid,
-                                messageId = messageId
+                                messageId = messageId,
+                                accountId = vm.accountId
                             )
                         )
                     },
@@ -519,13 +532,13 @@ fun NavGraph(
                     },
                     onNavigateToAttachmentViewer = { messageId, attachmentId, mimeType, name ->
                         navController.navigate(
-                            Screen.AttachmentViewer.createRoute(messageId, attachmentId, mimeType, name)
+                            Screen.AttachmentViewer.createRoute(vm.accountId, messageId, attachmentId, mimeType, name)
                         )
                     }
                 )
             }
             composable(
-                route = "compose?mode={mode}&to={to}&subject={subject}&threadId={threadId}&messageId={messageId}&scheduledId={scheduledId}&unified={unified}",
+                route = Screen.Compose.route,
                 arguments = listOf(
                     navArgument("mode") { type = NavType.StringType; defaultValue = "NEW" },
                     navArgument("to") { type = NavType.StringType; defaultValue = "" },
@@ -533,7 +546,8 @@ fun NavGraph(
                     navArgument("threadId") { type = NavType.StringType; defaultValue = "" },
                     navArgument("messageId") { type = NavType.StringType; defaultValue = "" },
                     navArgument("scheduledId") { type = NavType.StringType; defaultValue = "" },
-                    navArgument("unified") { type = NavType.BoolType; defaultValue = false }
+                    navArgument("unified") { type = NavType.BoolType; defaultValue = false },
+                    navArgument("accountId") { type = NavType.StringType; defaultValue = "" }
                 ),
                 deepLinks = listOf(
                     androidx.navigation.navDeepLink { action = Intent.ACTION_SEND; mimeType = "*/*" },
@@ -569,7 +583,8 @@ fun NavGraph(
                             Screen.Compose.createRoute(
                                 to = scheduled.to,
                                 subject = scheduled.subject,
-                                scheduledId = scheduled.id
+                                scheduledId = scheduled.id,
+                                accountId = scheduled.accountId
                             )
                         )
                     }
@@ -578,6 +593,7 @@ fun NavGraph(
             composable(
                 route = Screen.AttachmentViewer.route,
                 arguments = listOf(
+                    navArgument("accountId") { type = NavType.StringType },
                     navArgument("messageId") { type = NavType.StringType },
                     navArgument("attachmentId") { type = NavType.StringType },
                     navArgument("mimeType") { type = NavType.StringType; defaultValue = "application/octet-stream" },

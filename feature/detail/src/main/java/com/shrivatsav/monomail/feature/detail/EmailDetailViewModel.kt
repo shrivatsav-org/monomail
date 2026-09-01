@@ -12,10 +12,14 @@ import com.shrivatsav.monomail.core.data.repository.EmailRepository
 import com.shrivatsav.monomail.core.data.settings.EmailTheme
 import com.shrivatsav.monomail.core.data.settings.FontScale
 import com.shrivatsav.monomail.core.data.settings.SettingsDataStore
+import com.shrivatsav.monomail.core.network.provider.IncompleteProviderResponseException
+import com.shrivatsav.monomail.core.network.provider.ProviderContentException
+import com.shrivatsav.monomail.core.network.remote.RetrofitClient
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -24,7 +28,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -50,11 +58,16 @@ class EmailDetailViewModel @Inject constructor(
     private val authManager: AuthManager,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    val currentUserEmail: String = authManager.currentUser?.email ?: ""
-    val accountId: String = authManager.currentUser?.id ?: ""
     private val _threadId = MutableStateFlow(savedStateHandle.get<String>("threadId") ?: "")
+    private val _accountId = MutableStateFlow(savedStateHandle.get<String>("accountId") ?: authManager.currentUser?.id.orEmpty())
+    val accountId: String get() = _accountId.value
+    private val _currentUserEmail = MutableStateFlow("")
+    val currentUserEmail: StateFlow<String> = _currentUserEmail.asStateFlow()
+    private val threadKey = combine(_threadId, _accountId) { threadId, accountId -> threadId to accountId }
+        .distinctUntilChanged()
     private val focusedEmailId = savedStateHandle.get<String>("focusedId")
     private val _expandedEmailIds = MutableStateFlow<Set<String>>(emptySet())
+    private val reloadRequests = MutableSharedFlow<Pair<String, String>>(extraBufferCapacity = 1)
 
     fun expandEmails(ids: List<String>) {
         _expandedEmailIds.value = _expandedEmailIds.value + ids
@@ -72,6 +85,13 @@ class EmailDetailViewModel @Inject constructor(
         if (_threadId.value != id && id.isNotEmpty()) {
             _threadId.value = id
         }
+    }
+
+    fun setThread(id: String, accountId: String) {
+        val unchanged = id == _threadId.value && accountId == _accountId.value
+        if (id.isNotEmpty()) _threadId.value = id
+        if (accountId.isNotEmpty()) _accountId.value = accountId
+        if (unchanged && id.isNotEmpty() && accountId.isNotEmpty()) retry()
     }
 
     private val _isLoading = kotlinx.coroutines.flow.MutableStateFlow(true)
@@ -118,12 +138,12 @@ class EmailDetailViewModel @Inject constructor(
         .map { it.use24HourTime }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val state: StateFlow<EmailDetailState> = _threadId.flatMapLatest { id ->
-        if (id.isEmpty()) {
+    val state: StateFlow<EmailDetailState> = threadKey.flatMapLatest { (id, accountId) ->
+        if (id.isEmpty() || accountId.isEmpty()) {
             flowOf(EmailDetailState.Success(emptyList(), emptyList(), isRefreshing = false))
         } else {
             combine(
-                repository.getThreadEmailsFlow(id),
+                repository.getThreadEmailsFlow(id, accountId),
                 _isLoading,
                 _error,
                 _expandedEmailIds
@@ -140,7 +160,7 @@ class EmailDetailViewModel @Inject constructor(
                             if (!isDuplicate) acc.add(email)
                             acc
                         }
-                        val needsBodyFetch = deduplicated.any { it.body.isEmpty() }
+                        val needsBodyFetch = deduplicated.any { it.body.isBlank() }
                         val items = mutableListOf<ThreadListItem>()
                         
                         if (focusedEmailId != null) {
@@ -203,9 +223,9 @@ class EmailDetailViewModel @Inject constructor(
         initialValue = EmailDetailState.Success(emptyList(), emptyList(), isRefreshing = true)
     )
 
-    val isStarred: StateFlow<Boolean> = _threadId.flatMapLatest { id ->
-        if (id.isEmpty()) flowOf(false)
-        else repository.getThreadEmailsFlow(id).map { emails -> emails.any { it.isStarred } }
+    val isStarred: StateFlow<Boolean> = threadKey.flatMapLatest { (id, accountId) ->
+        if (id.isEmpty() || accountId.isEmpty()) flowOf(false)
+        else repository.getThreadEmailsFlow(id, accountId).map { emails -> emails.any { it.isStarred } }
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -214,21 +234,14 @@ class EmailDetailViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            _threadId.collect { id ->
-                if (id.isNotEmpty()) {
-                    try {
-                        repository.markThreadAsRead(id)
-                        _isLoading.value = true
-                        val result = repository.refreshThread(id)
-                        _isLoading.value = false
-                        result.onFailure {
-                            _error.value = it.message ?: "Failed to refresh thread"
-                        }
-                    } catch (e: Exception) {
-                        _isLoading.value = false
-                        _error.value = e.message ?: "Failed to load email"
-                        Log.e("EmailDetailVM", "Unexpected error loading thread $id", e)
-                    }
+            _accountId.collect { accountId ->
+                _currentUserEmail.value = authManager.getAccounts().find { it.id == accountId }?.email.orEmpty()
+            }
+        }
+        viewModelScope.launch {
+            merge(threadKey, reloadRequests).collectLatest { (id, accountId) ->
+                if (id.isNotEmpty() && accountId.isNotEmpty()) {
+                    loadThread(id, accountId)
                 }
             }
         }
@@ -237,7 +250,7 @@ class EmailDetailViewModel @Inject constructor(
                 if (s is EmailDetailState.Success) {
                     val unreadIds = s.emails.filter { !it.isRead }.map { it.id }
                     if (unreadIds.isNotEmpty()) {
-                        repository.markEmailsAsRead(unreadIds)
+                        repository.markEmailsAsRead(unreadIds, accountId)
                     }
                 }
             }
@@ -268,11 +281,76 @@ class EmailDetailViewModel @Inject constructor(
         }
     }
 
+    fun retry() {
+        val id = _threadId.value
+        val accountId = _accountId.value
+        if (id.isEmpty() || accountId.isEmpty()) return
+        _error.value = null
+        _isLoading.value = true
+        reloadRequests.tryEmit(id to accountId)
+    }
+
+    private suspend fun loadThread(id: String, accountId: String) {
+        _error.value = null
+        _isLoading.value = true
+        try {
+            repository.markThreadAsRead(id, accountId)
+            var failure: Throwable? = null
+            for (attempt in 0 until DETAIL_FETCH_ATTEMPTS) {
+                val result = repository.refreshThread(id, accountId)
+                failure = result.exceptionOrNull()
+                if (failure == null) break
+                if (!failure.isTransientDetailFailure() || attempt == DETAIL_FETCH_ATTEMPTS - 1) {
+                    break
+                }
+                delay(DETAIL_RETRY_BASE_DELAY_MS * (1L shl attempt))
+            }
+            if (failure != null) {
+                _error.value = failure?.message ?: "Failed to refresh thread"
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            _error.value = e.message ?: "Failed to load email"
+            Log.e("EmailDetailVM", "Unexpected error loading thread $id", e)
+        } finally {
+            _isLoading.value = false
+        }
+    }
+
+    private fun Throwable?.isTransientDetailFailure(): Boolean {
+        var cause = this
+        while (cause != null) {
+            if (cause is jakarta.mail.AuthenticationFailedException ||
+                cause is RetrofitClient.AuthFailedException ||
+                cause is retrofit2.HttpException && cause.code() in setOf(401, 403)
+            ) return false
+            cause = cause.cause
+        }
+        cause = this
+        while (cause != null) {
+            if (cause is IncompleteProviderResponseException ||
+                cause is ProviderContentException ||
+                cause is java.io.IOException ||
+                cause is jakarta.mail.MessagingException ||
+                cause is retrofit2.HttpException &&
+                    (cause.code() in setOf(408, 425, 429) || cause.code() >= 500)
+            ) return true
+            cause = cause.cause
+        }
+        return false
+    }
+
+    private companion object {
+        const val DETAIL_FETCH_ATTEMPTS = 3
+        const val DETAIL_RETRY_BASE_DELAY_MS = 500L
+    }
+
     fun toggleStar() {
         val currentId = _threadId.value
         if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.toggleStar(currentId, isStarred.value)
+            repository.toggleStar(currentId, isStarred.value, accountId)
         }
     }
 
@@ -280,7 +358,7 @@ class EmailDetailViewModel @Inject constructor(
         val currentId = _threadId.value
         if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.markThreadAsUnread(currentId)
+            repository.markThreadAsUnread(currentId, accountId)
             withContext(Dispatchers.Main) { onComplete() }
         }
     }
@@ -289,7 +367,7 @@ class EmailDetailViewModel @Inject constructor(
         val currentId = _threadId.value
         if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.archiveThread(currentId)
+            repository.archiveThread(currentId, accountId)
             withContext(Dispatchers.Main) { onComplete() }
         }
     }
@@ -298,7 +376,7 @@ class EmailDetailViewModel @Inject constructor(
         val currentId = _threadId.value
         if (currentId.isEmpty()) return
         viewModelScope.launch {
-            repository.deleteThread(currentId)
+            repository.deleteThread(currentId, accountId)
             withContext(Dispatchers.Main) { onComplete() }
         }
     }
@@ -311,19 +389,19 @@ class EmailDetailViewModel @Inject constructor(
         }
     }
 
-    fun archiveEmail(emailId: String, accountId: String, threadId: String) {
+    fun archiveEmail(emailId: String, threadId: String) {
         viewModelScope.launch {
             repository.archiveEmail(emailId, accountId, threadId)
         }
     }
 
-    fun trashEmail(emailId: String, accountId: String, threadId: String) {
+    fun trashEmail(emailId: String, threadId: String) {
         viewModelScope.launch {
             repository.trashEmail(emailId, accountId, threadId)
         }
     }
 
     suspend fun fetchAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
-        return repository.getAttachmentBytes(messageId, attachmentId)
+        return repository.getAttachmentBytes(messageId, attachmentId, accountId)
     }
 }

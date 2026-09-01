@@ -1,13 +1,15 @@
 package com.shrivatsav.monomail.data.pgp
 
+import com.google.gson.annotations.SerializedName
+
 data class PgpKeyInfo(
-    val fingerprint: String,
-    val userId: String,
-    val algorithm: String,
-    val creationDate: Long,
-    val isPrivate: Boolean,
-    val isExpired: Boolean,
-    val isPassphraseProtected: Boolean = false
+    @SerializedName("fingerprint") val fingerprint: String,
+    @SerializedName("userId") val userId: String,
+    @SerializedName("algorithm") val algorithm: String,
+    @SerializedName("creationDate") val creationDate: Long,
+    @SerializedName("isPrivate") val isPrivate: Boolean,
+    @SerializedName("isExpired") val isExpired: Boolean,
+    @SerializedName("isPassphraseProtected") val isPassphraseProtected: Boolean = false
 )
 
 data class PgpSignature(

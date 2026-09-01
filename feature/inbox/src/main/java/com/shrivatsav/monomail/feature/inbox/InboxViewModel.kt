@@ -66,7 +66,7 @@ class InboxViewModel @Inject constructor(
     val currentTab: StateFlow<InboxTab> = _currentTab.asStateFlow()
     private val _isRefreshing = MutableStateFlow(false)
     private val pageTokens = mutableMapOf<String, String?>()
-    private fun getPageTokenKey(): String = "${_currentTab.value.name}_${currentServerQuery ?: ""}"
+    private fun getPageTokenKey(): String = "${_activeAccountId.value}_${_currentTab.value.name}_${currentServerQuery ?: ""}"
     private var currentServerQuery: String? = null
     private val _isLoadingMore = MutableStateFlow(false)
     private val pendingHideIdsSnapshot = mutableStateMapOf<String, Boolean>()
@@ -253,7 +253,8 @@ class InboxViewModel @Inject constructor(
                                     isRead = email.isRead,
                                     isStarred = email.isStarred,
                                     latestMessageId = email.id,
-                                    participants = if (tab == InboxTab.SENT) listOf(email.to) else listOf(email.fromEmail)
+                                    participants = if (tab == InboxTab.SENT) listOf(email.to) else listOf(email.fromEmail),
+                                    accountId = email.accountId
                                 )
                             }
                         }
@@ -498,7 +499,12 @@ class InboxViewModel @Inject constructor(
         if (_isLoadingMore.value) return
         _isLoadingMore.value = true
         viewModelScope.launch {
-            val result = repository.refreshInbox(_currentTab.value, pageToken = token, query = currentServerQuery)
+            val result = repository.refreshInbox(
+                _currentTab.value,
+                pageToken = token,
+                query = currentServerQuery,
+                accountId = _activeAccountId.value
+            )
             result.onSuccess { newToken ->
                 if (newToken != null) {
                     pageTokens[key] = newToken
@@ -513,31 +519,32 @@ class InboxViewModel @Inject constructor(
         val currentState = state.value as? InboxState.Success ?: return
         val unreadThreads = currentState.threads.filter { !it.isRead }
         if (unreadThreads.isEmpty()) return
-        val ids = unreadThreads.map { it.threadId }
         _state.value = currentState.copy(
             threads = currentState.threads.map { thread ->
                 if (!thread.isRead) thread.copy(isRead = true) else thread
             }
         )
         viewModelScope.launch {
-            repository.markThreadsAsRead(ids).onFailure { e ->
-                _uiError.emit(e.message ?: "Failed to mark emails as read")
+            unreadThreads.groupBy { it.accountId }.forEach { (accountId, threads) ->
+                repository.markThreadsAsRead(threads.map { it.threadId }, accountId).onFailure { e ->
+                    _uiError.emit(e.message ?: "Failed to mark emails as read")
+                }
             }
         }
     }
-    fun markThreadAsRead(threadId: String) {
-        viewModelScope.launch { repository.markThreadAsRead(threadId) }
+    fun markThreadAsRead(threadId: String, accountId: String? = null) {
+        viewModelScope.launch { repository.markThreadAsRead(threadId, accountId) }
     }
-    fun markThreadAsUnread(threadId: String) {
-        viewModelScope.launch { repository.markThreadAsUnread(threadId) }
+    fun markThreadAsUnread(threadId: String, accountId: String? = null) {
+        viewModelScope.launch { repository.markThreadAsUnread(threadId, accountId) }
     }
-    fun archiveThread(threadId: String) {
-        queueAction(threadId, ActionType.ARCHIVE, "Conversation archived")
+    fun archiveThread(threadId: String, accountId: String? = null) {
+        queueAction(threadId, ActionType.ARCHIVE, "Conversation archived", accountId)
     }
-    fun deleteThread(threadId: String) {
-        queueAction(threadId, ActionType.DELETE, "Conversation deleted")
+    fun deleteThread(threadId: String, accountId: String? = null) {
+        queueAction(threadId, ActionType.DELETE, "Conversation deleted", accountId)
     }
-    fun snoozeThread(threadId: String, untilTimestamp: Long) {
+    fun snoozeThread(threadId: String, untilTimestamp: Long, accountId: String? = null) {
         pendingHideIdsSnapshot[threadId] = true
         _toastState.value = ToastState(threadId, "Snoozed", ActionType.SNOOZE)
         pendingActionJobs[threadId]?.cancel()
@@ -550,7 +557,7 @@ class InboxViewModel @Inject constructor(
         pendingActionJobs[threadId] = viewModelScope.launch {
             delay(4000)
             if (_toastState.value?.threadId == threadId) {
-                repository.snoozeThread(threadId, untilTimestamp)
+                repository.snoozeThread(threadId, untilTimestamp, accountId)
                 pendingHideIdsSnapshot.remove(threadId)
                 _toastState.value = null
             }
@@ -583,26 +590,26 @@ class InboxViewModel @Inject constructor(
     }
 
 
-    fun restoreThread(threadId: String) {
-        viewModelScope.launch { repository.restoreThread(threadId) }
+    fun restoreThread(threadId: String, accountId: String? = null) {
+        viewModelScope.launch { repository.restoreThread(threadId, accountId) }
     }
-    fun reportNotSpam(threadId: String) {
-        viewModelScope.launch { repository.reportNotSpam(threadId) }
+    fun reportNotSpam(threadId: String, accountId: String? = null) {
+        viewModelScope.launch { repository.reportNotSpam(threadId, accountId) }
     }
-    fun unarchiveThread(threadId: String) {
-        viewModelScope.launch { repository.unarchiveThread(threadId) }
+    fun unarchiveThread(threadId: String, accountId: String? = null) {
+        viewModelScope.launch { repository.unarchiveThread(threadId, accountId) }
     }
-    fun unsnoozeThread(threadId: String) {
-        viewModelScope.launch { repository.unsnoozeThread(threadId) }
+    fun unsnoozeThread(threadId: String, accountId: String? = null) {
+        viewModelScope.launch { repository.unsnoozeThread(threadId, accountId) }
     }
-    fun toggleStar(threadId: String) {
+    fun toggleStar(threadId: String, accountId: String? = null) {
         viewModelScope.launch {
             val currentState = state.value as? InboxState.Success ?: return@launch
-            val thread = currentState.threads.find { it.threadId == threadId } ?: return@launch
-            repository.toggleStar(threadId, thread.isStarred)
+            val thread = currentState.threads.find { it.threadId == threadId && (accountId == null || it.accountId == accountId) } ?: return@launch
+            repository.toggleStar(threadId, thread.isStarred, accountId)
         }
     }
-    private fun queueAction(threadId: String, type: ActionType, message: String) {
+    private fun queueAction(threadId: String, type: ActionType, message: String, accountId: String? = null) {
         pendingHideIdsSnapshot[threadId] = true
         _toastState.value = ToastState(threadId, message, type)
         pendingActionJobs[threadId]?.cancel()
@@ -615,7 +622,7 @@ class InboxViewModel @Inject constructor(
         pendingActionJobs[threadId] = viewModelScope.launch {
             try {
                 delay(4000)
-                executeAction(threadId, type)
+                executeAction(threadId, type, accountId)
             } catch (e: Exception) {
                 android.util.Log.w(TAG, "queueAction failed", e)
             } finally {
@@ -625,16 +632,16 @@ class InboxViewModel @Inject constructor(
             }
         }
     }
-    private suspend fun executeAction(threadId: String, type: ActionType) {
+    private suspend fun executeAction(threadId: String, type: ActionType, accountId: String? = null) {
         pendingActionJobs.remove(threadId)
         when (type) {
-            ActionType.ARCHIVE -> repository.archiveThread(threadId)
-            ActionType.DELETE -> repository.deleteThread(threadId)
+            ActionType.ARCHIVE -> repository.archiveThread(threadId, accountId)
+            ActionType.DELETE -> repository.deleteThread(threadId, accountId)
             ActionType.EMPTY_TRASH -> repository.emptyTrash()
             ActionType.SEND -> { /* handled elsewhere */ }
             ActionType.SNOOZE -> { /* handled elsewhere */ }
-            ActionType.UNARCHIVE -> repository.unarchiveThread(threadId)
-            ActionType.RESTORE -> repository.restoreThread(threadId)
+            ActionType.UNARCHIVE -> repository.unarchiveThread(threadId, accountId)
+            ActionType.RESTORE -> repository.restoreThread(threadId, accountId)
         }
         pendingHideIdsSnapshot.remove(threadId)
     }
@@ -764,21 +771,26 @@ class InboxViewModel @Inject constructor(
         _selectedThreadIds.value = emptySet()
         _isBulkSelectMode.value = false
     }
+    private fun selectedThreads(): List<EmailThread> {
+        val ids = _selectedThreadIds.value
+        return (state.value as? InboxState.Success)?.threads.orEmpty().filter { it.threadId in ids }
+    }
     fun bulkArchive() {
-        val ids = _selectedThreadIds.value.toList()
-        if (ids.isEmpty()) return
-        ids.forEach { queueAction(it, ActionType.ARCHIVE, "Conversation archived") }
+        val threads = selectedThreads()
+        if (threads.isEmpty()) return
+        threads.forEach { queueAction(it.threadId, ActionType.ARCHIVE, "Conversation archived", it.accountId) }
         exitBulkSelectMode()
     }
     fun bulkDelete() {
-        val ids = _selectedThreadIds.value.toList()
-        if (ids.isEmpty()) return
-        ids.forEach { queueAction(it, ActionType.DELETE, "Conversation deleted") }
+        val threads = selectedThreads()
+        if (threads.isEmpty()) return
+        threads.forEach { queueAction(it.threadId, ActionType.DELETE, "Conversation deleted", it.accountId) }
         exitBulkSelectMode()
     }
     fun bulkMarkRead() {
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
+        val selected = selectedThreads()
         val currentState = _state.value
         if (currentState is InboxState.Success) {
             _state.value = currentState.copy(
@@ -788,13 +800,14 @@ class InboxViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            ids.forEach { repository.markThreadAsRead(it) }
+            selected.forEach { repository.markThreadAsRead(it.threadId, it.accountId) }
         }
         exitBulkSelectMode()
     }
     fun bulkMarkUnread() {
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
+        val selected = selectedThreads()
         val currentState = _state.value
         if (currentState is InboxState.Success) {
             _state.value = currentState.copy(
@@ -804,7 +817,7 @@ class InboxViewModel @Inject constructor(
             )
         }
         viewModelScope.launch {
-            ids.forEach { repository.markThreadAsUnread(it) }
+            selected.forEach { repository.markThreadAsUnread(it.threadId, it.accountId) }
         }
         exitBulkSelectMode()
     }
@@ -813,30 +826,30 @@ class InboxViewModel @Inject constructor(
         if (ids.isEmpty()) return
         viewModelScope.launch {
             val currentState = state.value as? InboxState.Success ?: return@launch
-            ids.forEach { id ->
-                val thread = currentState.threads.find { it.threadId == id } ?: return@forEach
-                repository.toggleStar(id, thread.isStarred)
+            currentState.threads.filter { it.threadId in ids }.forEach { thread ->
+                repository.toggleStar(thread.threadId, thread.isStarred, thread.accountId)
             }
         }
         exitBulkSelectMode()
     }
     fun bulkUnarchive() {
-        val ids = _selectedThreadIds.value.toList()
-        if (ids.isEmpty()) return
-        ids.forEach { queueAction(it, ActionType.UNARCHIVE, "Conversation unarchived") }
+        val threads = selectedThreads()
+        if (threads.isEmpty()) return
+        threads.forEach { queueAction(it.threadId, ActionType.UNARCHIVE, "Conversation unarchived", it.accountId) }
         exitBulkSelectMode()
     }
     fun bulkRestore() {
-        val ids = _selectedThreadIds.value.toList()
-        if (ids.isEmpty()) return
-        ids.forEach { queueAction(it, ActionType.RESTORE, "Conversation restored") }
+        val threads = selectedThreads()
+        if (threads.isEmpty()) return
+        threads.forEach { queueAction(it.threadId, ActionType.RESTORE, "Conversation restored", it.accountId) }
         exitBulkSelectMode()
     }
     fun bulkReportNotSpam() {
         val ids = _selectedThreadIds.value.toList()
         if (ids.isEmpty()) return
+        val selected = selectedThreads()
         viewModelScope.launch {
-            ids.forEach { repository.reportNotSpam(it) }
+            selected.forEach { repository.reportNotSpam(it.threadId, it.accountId) }
         }
         exitBulkSelectMode()
     }

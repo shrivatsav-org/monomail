@@ -8,11 +8,13 @@ data class ContactResult(val name: String, val email: String)
 
 @Dao
 interface EmailDao {
-    @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId AND inTrash = 0 ORDER BY date ASC")
+    @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId ORDER BY date ASC")
     fun getEmailsForThread(threadId: String, accountId: String): Flow<List<EmailEntity>>
+    @Query("SELECT * FROM emails WHERE threadId = :threadId AND accountId = :accountId ORDER BY date ASC")
+    suspend fun getEmailEntitiesForThread(threadId: String, accountId: String): List<EmailEntity>
     
-    @Query("SELECT DISTINCT fromName as name, fromEmail as email FROM emails WHERE fromName LIKE '%' || :query || '%' OR fromEmail LIKE '%' || :query || '%' LIMIT 15")
-    suspend fun searchContacts(query: String): List<ContactResult>
+    @Query("SELECT DISTINCT fromName as name, fromEmail as email FROM emails WHERE accountId = :accountId AND (fromName LIKE '%' || :query || '%' OR fromEmail LIKE '%' || :query || '%') LIMIT 15")
+    suspend fun searchContacts(query: String, accountId: String): List<ContactResult>
     @Query("SELECT * FROM emails WHERE id = :id AND accountId = :accountId LIMIT 1")
     suspend fun getEmailById(id: String, accountId: String): EmailEntity?
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -27,8 +29,8 @@ interface EmailDao {
     suspend fun markThreadEmailsAsRead(threadIds: List<String>, accountId: String)
     @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId")
     suspend fun deleteThreadEmails(threadId: String, accountId: String)
-    @Query("DELETE FROM emails WHERE id = :emailId")
-    suspend fun deleteDraftEmail(emailId: String)
+    @Query("DELETE FROM emails WHERE id = :emailId AND accountId = :accountId")
+    suspend fun deleteDraftEmail(emailId: String, accountId: String)
     @Query("DELETE FROM emails WHERE threadId = :threadId AND accountId = :accountId AND id NOT IN (:keepIds)")
     suspend fun deleteOrphanedEmails(threadId: String, accountId: String, keepIds: List<String>)
     @Query("DELETE FROM emails WHERE accountId = :accountId")
@@ -138,12 +140,14 @@ interface EmailDao {
         SELECT DISTINCT e.threadId FROM emails e
         INNER JOIN emails_fts fts ON e.rowid = fts.docid
         WHERE emails_fts MATCH :ftsQuery
+        AND e.accountId = :accountId
         AND (:dateFrom IS NULL OR e.date >= :dateFrom)
         AND (:dateTo IS NULL OR e.date <= :dateTo)
         AND (:hasAttachments = 0 OR e.attachmentsJson != '[]')
     """)
     suspend fun searchThreadIds(
         ftsQuery: String,
+        accountId: String,
         dateFrom: Long?,
         dateTo: Long?,
         hasAttachments: Boolean

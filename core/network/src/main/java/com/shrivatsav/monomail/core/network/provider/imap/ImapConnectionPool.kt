@@ -12,6 +12,10 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicInteger
+import java.io.EOFException
+import java.net.ConnectException
+import java.net.SocketException
+import java.net.SocketTimeoutException
 import com.shrivatsav.monomail.core.network.provider.EmailFolder
 
 /**
@@ -54,16 +58,23 @@ class ImapConnectionPool(
     suspend fun <T> withStore(block: suspend (Store) -> T): T = withContext(Dispatchers.IO) {
         var attempt = 0
         while (true) {
-            val active = leaseStore()
+            var active: Store? = null
             try {
+                active = leaseStore()
                 val result = block(active)
                 returnStore(active)
                 return@withContext result
             } catch (e: Exception) {
-                val disconnected = !active.isConnected
-                // Drop dead stores, return healthy ones to the idle pool.
-                returnStore(active)
-                if (disconnected && attempt < STORE_RECONNECT_ATTEMPTS) {
+                val connectionFailure = active?.let { !it.isConnected || isConnectionFailure(e) }
+                    ?: isConnectionFailure(e)
+                active?.let {
+                    if (connectionFailure) {
+                        discardStore(it)
+                    } else {
+                        returnStore(it)
+                    }
+                }
+                if (connectionFailure && attempt < STORE_RECONNECT_ATTEMPTS) {
                     attempt++
                     val delayMs = STORE_RECONNECT_BASE_DELAY_MS * attempt
                     Log.w(tag, "Store disconnected, retrying in ${delayMs}ms (attempt $attempt/$STORE_RECONNECT_ATTEMPTS)")
@@ -148,6 +159,22 @@ class ImapConnectionPool(
             Log.d(tag, "Error closing dead store: ${e.message}")
         }
         createdCount.decrementAndGet()
+    }
+
+    private fun discardStore(store: Store) = dropStore(store)
+
+    private fun isConnectionFailure(error: Throwable): Boolean {
+        var cause: Throwable? = error
+        while (cause != null) {
+            val message = cause.message.orEmpty()
+            if (cause is SocketTimeoutException || cause is SocketException ||
+                cause is EOFException || cause is ConnectException ||
+                message.contains("BYE", ignoreCase = true) ||
+                message.contains("connection closed", ignoreCase = true)
+            ) return true
+            cause = cause.cause
+        }
+        return false
     }
 
     /**

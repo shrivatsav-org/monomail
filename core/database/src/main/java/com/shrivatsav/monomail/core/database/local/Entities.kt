@@ -54,11 +54,13 @@ data class ThreadEntity(
         isRead = isRead,
         isStarred = isStarred,
         latestMessageId = latestMessageId,
-        participants = participants
+        participants = participants,
+        accountId = accountId
     )
 }
 @Entity(
     tableName = "emails",
+    primaryKeys = ["accountId", "id"],
     indices = [
         Index(value = ["accountId", "threadId"]),
         Index(value = ["accountId", "inInbox", "date"]),
@@ -73,7 +75,7 @@ data class ThreadEntity(
     ]
 )
 data class EmailEntity(
-    @PrimaryKey val id: String,
+    val id: String,
     val accountId: String,
     val threadId: String,
     val subject: String,
@@ -117,7 +119,8 @@ data class EmailEntity(
         labels = labels,
         attachments = try {
             gson.fromJson(attachmentsJson, Array<com.shrivatsav.monomail.data.model.EmailAttachmentInfo>::class.java)?.toList() ?: emptyList()
-        } catch(e: Exception) { emptyList() }
+        } catch(e: Exception) { emptyList() },
+        accountId = accountId
     )
 }
 fun EmailThread.toEntity(

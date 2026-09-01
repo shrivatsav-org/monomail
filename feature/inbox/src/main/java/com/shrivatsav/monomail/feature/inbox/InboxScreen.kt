@@ -64,7 +64,7 @@ import com.shrivatsav.monomail.core.data.repository.BodyBackfillState
 import com.shrivatsav.monomail.core.data.repository.BodyDownloadStats
 
 data class InboxNavActions(
-    val onEmailClick: (String, String?) -> Unit,
+    val onEmailClick: (String, String, String?) -> Unit,
     val onSignOut: () -> Unit,
     val onCompose: () -> Unit = {},
     val onSettings: () -> Unit = {},
@@ -105,7 +105,7 @@ fun InboxScreen(
         }
     }
 
-    var threadToDelete by remember { mutableStateOf<String?>(null) }
+    var threadToDelete by remember { mutableStateOf<EmailThread?>(null) }
     val appSettings by viewModel.appSettingsState.collectAsState()
     val searchFilters by viewModel.searchFilters.collectAsState()
     val searchResults by viewModel.searchResults.collectAsState()
@@ -117,11 +117,11 @@ fun InboxScreen(
     var longPressedThread by remember { mutableStateOf<EmailThread?>(null) }
     var activeModal by remember { mutableStateOf<ModalType?>(null) }
     var showSnoozePicker by remember { mutableStateOf(false) }
-    var snoozeThreadId by remember { mutableStateOf<String?>(null) }
+    var snoozeThread by remember { mutableStateOf<EmailThread?>(null) }
     var showPerformanceWarningDialog by remember { mutableStateOf(false) }
     var showMoveToTrashDialog by remember { mutableStateOf(false) }
 
-    val onSnoozeSelected: (String) -> Unit = remember { { id -> snoozeThreadId = id; showSnoozePicker = true } }
+    val onSnoozeSelected: (EmailThread) -> Unit = remember { { thread -> snoozeThread = thread; showSnoozePicker = true } }
     val isBulkMode by viewModel.isBulkSelectMode.collectAsState()
     val selectedThreadIds by viewModel.selectedThreadIds.collectAsState()
     val selectedCount by viewModel.selectedCount.collectAsState()
@@ -555,7 +555,7 @@ fun InboxScreen(
                                                         viewModel = viewModel,
                                                         callbacks = SwipeCallbacks(
                                                             onThreadToDeleteChange = { threadToDelete = it },
-                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId, displayItem.thread.latestMessageId) },
+                                                            onEmailClick = { navActions.onEmailClick(displayItem.thread.accountId, displayItem.thread.threadId, displayItem.thread.latestMessageId) },
                                                             onLongClick = {
                                                                 hapticFeedback.performHapticFeedback(
                                                                     HapticFeedbackType.LongPress
@@ -615,7 +615,7 @@ fun InboxScreen(
                                                                 viewModel = viewModel,
                                                                 callbacks = SwipeCallbacks(
                                                                     onThreadToDeleteChange = { threadToDelete = it },
-                                                                    onEmailClick = { navActions.onEmailClick(displayItem.thread.threadId, displayItem.thread.latestMessageId) },
+                                                                    onEmailClick = { navActions.onEmailClick(displayItem.thread.accountId, displayItem.thread.threadId, displayItem.thread.latestMessageId) },
                                                                     onLongClick = {
                                                                         hapticFeedback.performHapticFeedback(
                                                                             HapticFeedbackType.LongPress
@@ -762,21 +762,21 @@ fun InboxScreen(
                     use24HourTime = appSettings.use24HourTime,
                     onDismiss = { longPressedThread = null },
                     actions = LongPressMenuActions(
-                        onEmailClick = { navActions.onEmailClick(thread.threadId, thread.latestMessageId) },
-                        onStar = { viewModel.toggleStar(thread.threadId) },
+                        onEmailClick = { navActions.onEmailClick(thread.accountId, thread.threadId, thread.latestMessageId) },
+                        onStar = { viewModel.toggleStar(thread.threadId, thread.accountId) },
                         onArchive = { tab -> when (tab) {
-                            InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId)
-                            InboxTab.SPAM -> viewModel.deleteThread(thread.threadId)
-                            else -> viewModel.archiveThread(thread.threadId)
+                            InboxTab.ARCHIVED -> viewModel.unarchiveThread(thread.threadId, thread.accountId)
+                            InboxTab.SPAM -> viewModel.deleteThread(thread.threadId, thread.accountId)
+                            else -> viewModel.archiveThread(thread.threadId, thread.accountId)
                         } },
-                        onRestore = { viewModel.restoreThread(thread.threadId) },
+                        onRestore = { viewModel.restoreThread(thread.threadId, thread.accountId) },
                         onToggleRead = {
-                            if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId)
-                            else viewModel.markThreadAsRead(thread.threadId)
+                            if (thread.isRead) viewModel.markThreadAsUnread(thread.threadId, thread.accountId)
+                            else viewModel.markThreadAsRead(thread.threadId, thread.accountId)
                         },
-                        onDelete = { threadToDelete = thread.threadId },
-                        onSnooze = { onSnoozeSelected(thread.threadId) },
-                        onUnsnooze = { viewModel.unsnoozeThread(thread.threadId) }
+                        onDelete = { threadToDelete = thread },
+                        onSnooze = { onSnoozeSelected(thread) },
+                        onUnsnooze = { viewModel.unsnoozeThread(thread.threadId, thread.accountId) }
                     )
                 )
             }
@@ -1164,7 +1164,7 @@ fun InboxScreen(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     TextButton(onClick = {
-                        threadToDelete?.let { viewModel.deleteThread(it) }
+                        threadToDelete?.let { viewModel.deleteThread(it.threadId, it.accountId) }
                         threadToDelete = null
                     }) {
                         Text("Move to Trash")
@@ -1176,11 +1176,11 @@ fun InboxScreen(
 
 
 
-    if (showSnoozePicker && snoozeThreadId != null) {
+    if (showSnoozePicker && snoozeThread != null) {
         SnoozePickerDialog(
             onDismiss = { showSnoozePicker = false },
             onSnooze = { timestamp ->
-                snoozeThreadId?.let { viewModel.snoozeThread(it, timestamp) }
+                snoozeThread?.let { viewModel.snoozeThread(it.threadId, timestamp, it.accountId) }
                 showSnoozePicker = false
             }
         )

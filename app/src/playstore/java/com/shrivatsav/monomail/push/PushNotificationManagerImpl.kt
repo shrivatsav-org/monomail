@@ -1,6 +1,5 @@
 package com.shrivatsav.monomail.push
 
-import com.shrivatsav.monomail.BuildConfig
 import com.shrivatsav.monomail.core.data.push.PushNotificationManager
 
 import android.content.Context
@@ -10,6 +9,7 @@ import com.shrivatsav.monomail.core.data.auth.AccountManager
 import com.shrivatsav.monomail.core.data.auth.UserProfile
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.tasks.await
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -20,6 +20,13 @@ class PushNotificationManagerImpl @Inject constructor(
     private val accountManager: AccountManager
 ) : PushNotificationManager {
 
+    private val installationId: String by lazy {
+        val preferences = context.getSharedPreferences("push_installation", Context.MODE_PRIVATE)
+        preferences.getString("installation_id", null) ?: UUID.randomUUID().toString().also {
+            preferences.edit().putString("installation_id", it).apply()
+        }
+    }
+
     override suspend fun registerForPushNotifications(account: UserProfile) {
         if (account.provider != "gmail" && account.provider != "outlook") {
             Log.i("PushManager", "Push notifications not supported for provider: ${account.provider}")
@@ -28,50 +35,39 @@ class PushNotificationManagerImpl @Inject constructor(
         try {
             val fcmToken = FirebaseMessaging.getInstance().token.await()
 
-            // Gmail: app calls watch API directly — OAuth token stays on device
-            if (account.provider == "gmail" && BuildConfig.PUBSUB_TOPIC.isNotBlank()) {
-                val watchResult = pushBackendClient.callGmailWatch(account.accessToken, BuildConfig.PUBSUB_TOPIC)
-                if (watchResult.isFailure) {
-                    Log.w("PushManager", "Gmail watch API call failed (non-fatal)", watchResult.exceptionOrNull())
-                }
-            }
-
-            // Register FCM token with backend — no OAuth token included
             val result = pushBackendClient.registerDevice(
                 accountId = account.id,
                 email = account.email,
                 fcmToken = fcmToken,
-                provider = account.provider
+                installationId = installationId,
+                provider = account.provider,
+                accessToken = account.accessToken
             )
             if (result.isSuccess) {
                 Log.i("PushManager", "Successfully registered device for push notifications (${account.email})")
             } else {
                 Log.e("PushManager", "Failed to register device with push backend", result.exceptionOrNull())
+                throw result.exceptionOrNull() ?: IllegalStateException("Push registration failed")
             }
         } catch (e: Exception) {
-            Log.e("PushManager", "Failed to retrieve FCM token", e)
+            Log.e("PushManager", "Push registration failed", e)
+            throw e
         }
     }
 
-    override suspend fun unregisterForPushNotifications(accountId: String) {
-        val account = accountManager.getAccounts().find { it.id == accountId }
-        if (account == null) {
-            Log.w("PushManager", "Account $accountId not found for unregistration")
-            return
-        }
-        // Stop Gmail push subscription on-device
-        if (account.provider == "gmail" && account.accessToken.isNotBlank()) {
-            val stopResult = pushBackendClient.callGmailStop(account.accessToken)
-            if (stopResult.isFailure) {
-                Log.w("PushManager", "Gmail stop failed (non-fatal)", stopResult.exceptionOrNull())
-            }
-        }
-        // Delete FCM mapping from backend
-        val result = pushBackendClient.unregisterDevice(accountId = account.id, email = account.email)
+    override suspend fun unregisterForPushNotifications(account: UserProfile) {
+        val result = pushBackendClient.unregisterDevice(
+            accountId = account.id,
+            email = account.email,
+            installationId = installationId,
+            provider = account.provider,
+            accessToken = account.accessToken
+        )
         if (result.isSuccess) {
             Log.i("PushManager", "Successfully unregistered push notifications for ${account.email}")
         } else {
             Log.w("PushManager", "Failed to unregister from push backend (non-fatal)", result.exceptionOrNull())
+            throw result.exceptionOrNull() ?: IllegalStateException("Push unregistration failed")
         }
     }
 
@@ -84,7 +80,9 @@ class PushNotificationManagerImpl @Inject constructor(
                         accountId = account.id,
                         email = account.email,
                         fcmToken = newToken,
-                        provider = account.provider
+                        installationId = installationId,
+                        provider = account.provider,
+                        accessToken = account.accessToken
                     )
                 }
             }

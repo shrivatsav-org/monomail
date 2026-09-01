@@ -31,7 +31,7 @@ import com.shrivatsav.monomail.ui.theme.cornerShape
 import kotlinx.coroutines.launch
 
 data class SwipeCallbacks(
-    val onThreadToDeleteChange: (String?) -> Unit,
+    val onThreadToDeleteChange: (EmailThread?) -> Unit,
     val onEmailClick: () -> Unit,
     val onLongClick: () -> Unit,
     val isNested: Boolean = false
@@ -69,22 +69,22 @@ internal fun SwipeableEmailItem(
         val action = resolveSwipeAction(dismissState, appSettings) ?: return@LaunchedEffect
         when (action) {
             com.shrivatsav.monomail.core.data.settings.SwipeAction.ARCHIVE -> {
-                if (tabForSwipe == InboxTab.ARCHIVED) viewModel.unarchiveThread(thread.threadId)
-                else if (tabForSwipe == InboxTab.SPAM) viewModel.deleteThread(thread.threadId)
-                else viewModel.archiveThread(thread.threadId)
+                if (tabForSwipe == InboxTab.ARCHIVED) viewModel.unarchiveThread(thread.threadId, thread.accountId)
+                else if (tabForSwipe == InboxTab.SPAM) viewModel.deleteThread(thread.threadId, thread.accountId)
+                else viewModel.archiveThread(thread.threadId, thread.accountId)
             }
             com.shrivatsav.monomail.core.data.settings.SwipeAction.STAR -> {
                 optIsStarred = !optIsStarred
-                viewModel.toggleStar(thread.threadId)
+                viewModel.toggleStar(thread.threadId, thread.accountId)
             }
             com.shrivatsav.monomail.core.data.settings.SwipeAction.DELETE -> {
-                callbacks.onThreadToDeleteChange(thread.threadId)
+                callbacks.onThreadToDeleteChange(thread)
             }
             com.shrivatsav.monomail.core.data.settings.SwipeAction.READ_UNREAD -> {
                 val wasRead = optIsRead
                 optIsRead = !wasRead
-                if (wasRead) viewModel.markThreadAsUnread(thread.threadId)
-                else viewModel.markThreadAsRead(thread.threadId)
+                if (wasRead) viewModel.markThreadAsUnread(thread.threadId, thread.accountId)
+                else viewModel.markThreadAsRead(thread.threadId, thread.accountId)
             }
         }
         scope.launch { dismissState.snapTo(SwipeToDismissBoxValue.Settled) }

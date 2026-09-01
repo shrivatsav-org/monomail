@@ -2,7 +2,7 @@ name = "monomail-push-backend"
 main = "src/index.ts"
 compatibility_date = "2025-01-09"
 
-# Bind a KV Namespace to store email -> FCM token and accountId mappings.
+# Bind a KV Namespace to store expiring provider identity and per-installation mappings.
 # Replace the id below with your actual KV namespace ID after running: wrangler kv:namespace create FCM_TOKENS
 [[kv_namespaces]]
 binding = "FCM_TOKENS"
@@ -12,16 +12,19 @@ id = "36c6042608ff4f71adf1be8d58398e57"
 # For Gmail Pub/Sub push notification setup
 GCP_PROJECT_ID = "monomail-500604"
 PUBSUB_TOPIC = "projects/monomail-500604/topics/monomail-push"
+PUBSUB_AUDIENCE = "https://monomail-push-backend.monomail.workers.dev/webhook/gmail"
+PUBSUB_SERVICE_ACCOUNT = "pubsub-push@monomail-500604.iam.gserviceaccount.com"
+PUBSUB_SUBSCRIPTION = "projects/monomail-500604/subscriptions/monomail-push-worker"
+INSTALLATION_TTL_SECONDS = "2592000"
 
 # For Outlook Microsoft Graph Webhooks setup
 WORKER_BASE_URL = "https://monomail-push-backend.monomail.workers.dev"
 
-# Set these as Wrangler secrets (never in vars):
+# Set this as a Wrangler secret (never in vars):
 #   wrangler secret put GCP_SERVICE_ACCOUNT_KEY
-#   wrangler secret put PUSH_API_KEY
-#   wrangler secret put PUBSUB_VERIFY_TOKEN
+# Optional durable delivery: create a Queue and add producer/consumer bindings named PUSH_QUEUE.
+# Without it, webhook requests return 503 when any FCM delivery has a retryable failure.
 
 [observability.logs]
 enabled = true
 invocation_logs = true
-

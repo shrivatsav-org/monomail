@@ -12,7 +12,7 @@ class PushNotificationManagerImpl @Inject constructor() : PushNotificationManage
         Log.i("PushManager", "GitHub build: Push notifications disabled. Relying on WorkManager periodic sync.")
     }
 
-    override suspend fun unregisterForPushNotifications(accountId: String) {
+    override suspend fun unregisterForPushNotifications(account: UserProfile) {
         Log.i("PushManager", "GitHub build: unregisterForPushNotifications no-op.")
     }
 

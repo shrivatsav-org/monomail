@@ -5,9 +5,9 @@
     "": {
       "name": "monomail-push-backend",
       "devDependencies": {
-        "@cloudflare/workers-types": "^4.20250109.0",
-        "typescript": "^5.5.4",
-        "wrangler": "4",
+        "@cloudflare/workers-types": "4.20260628.1",
+        "typescript": "5.9.3",
+        "wrangler": "4.105.0",
       },
     },
   },

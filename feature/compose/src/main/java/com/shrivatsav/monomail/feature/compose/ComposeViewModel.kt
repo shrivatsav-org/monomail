@@ -27,7 +27,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
@@ -36,6 +35,7 @@ import javax.inject.Inject
 enum class ComposeMode { NEW, REPLY, FORWARD }
 
 data class ComposeUiState(
+    val accountId: String = "",
     val from: String = "",
     val fromAliases: List<SendAsAlias> = emptyList(),
     val showFromDropdown: Boolean = false,
@@ -77,9 +77,11 @@ class ComposeViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
-    private val fromEmail: String = authManager.currentUser?.email ?: ""
-    private val accountId: String = authManager.currentUser?.id ?: ""
+    private val initialAccountId: String = savedStateHandle.get<String>("accountId")?.takeIf { it.isNotEmpty() }
+        ?: authManager.currentUser?.id.orEmpty()
+    private val initialFromEmail: String = authManager.currentUser?.takeIf { it.id == initialAccountId }?.email ?: ""
     private val mode: ComposeMode = ComposeMode.valueOf(savedStateHandle.get<String>("mode") ?: "NEW")
+    private val unifiedArg: Boolean = savedStateHandle.get<Boolean>("unified") ?: false
     private val replyTo: String = savedStateHandle.get<String>("to") ?: ""
     private val originalSubject: String = savedStateHandle.get<String>("subject") ?: ""
     private val threadIdArg: String? = savedStateHandle.get<String>("threadId")?.takeIf { it.isNotEmpty() }
@@ -90,9 +92,10 @@ class ComposeViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(
         ComposeUiState(
-            from = fromEmail,
+            accountId = initialAccountId,
+            from = initialFromEmail,
             mode = mode,
-            unifiedMode = false,
+            unifiedMode = unifiedArg && mode == ComposeMode.NEW,
             to = when (mode) {
                 ComposeMode.REPLY -> replyTo
                 else -> ""
@@ -110,7 +113,7 @@ class ComposeViewModel @Inject constructor(
         )
     )
     val templatesFlow = settingsDataStore.templatesFlow
-    val drafts: StateFlow<List<com.shrivatsav.monomail.data.model.EmailThread>> = repository.getDraftThreadsFlow(accountId)
+    val drafts: StateFlow<List<com.shrivatsav.monomail.data.model.EmailThread>> = repository.getDraftThreadsFlow(initialAccountId)
         .stateIn(viewModelScope, kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000), emptyList())
     val use24HourTime: StateFlow<Boolean> = settingsDataStore.settingsFlow
         .map { it.use24HourTime }
@@ -136,7 +139,7 @@ class ComposeViewModel @Inject constructor(
         }
         viewModelScope.launch {
             if (!messageIdArg.isNullOrEmpty()) {
-                val email = repository.getEmailById(messageIdArg)
+                val email = repository.getEmailById(messageIdArg, initialAccountId)
                 if (email != null) {
                     _state.value = _state.value.copy(originalBody = stripScripts(email.body))
                 }
@@ -147,6 +150,8 @@ class ComposeViewModel @Inject constructor(
                 val scheduled = repository.getScheduledMessageById(scheduledId)
                 if (scheduled != null) {
                     _state.value = _state.value.copy(
+                        accountId = scheduled.accountId,
+                        from = scheduled.fromEmail,
                         to = scheduled.to,
                         cc = scheduled.cc,
                         bcc = scheduled.bcc,
@@ -156,31 +161,23 @@ class ComposeViewModel @Inject constructor(
                         inReplyToMessageId = scheduled.messageId,
                         references = scheduled.messageId
                     )
+                    refreshAliases(scheduled.accountId)
                 }
             }
         }
+        refreshAliases(initialAccountId)
         viewModelScope.launch {
-            repository.refreshSendAsAliases()
-            repository.sendAsAliasesFlow.collect { aliases ->
-                val currentFrom = _state.value.from
-                _state.value = _state.value.copy(
-                    fromAliases = aliases,
-                    from = currentFrom.ifEmpty { fromEmail }
-                )
-            }
+            val accounts = authManager.getAccounts()
+            val selected = accounts.find { it.id == initialAccountId } ?: accounts.firstOrNull()
+            _state.value = _state.value.copy(
+                unifiedMode = unifiedArg && mode == ComposeMode.NEW,
+                allAccounts = accounts,
+                accountId = selected?.id ?: initialAccountId,
+                from = _state.value.from.ifEmpty { selected?.email.orEmpty() }
+            )
         }
         viewModelScope.launch {
-            val isUnified = settingsDataStore.settingsFlow.first().unifiedInboxEnabled
-            if (isUnified) {
-                val accounts = authManager.getAccounts()
-                _state.value = _state.value.copy(
-                    unifiedMode = true,
-                    allAccounts = accounts
-                )
-            }
-        }
-        viewModelScope.launch {
-            repository.refreshInbox(InboxTab.DRAFTS, accountId = accountId)
+            repository.refreshInbox(InboxTab.DRAFTS, accountId = initialAccountId)
         }
     }
 
@@ -195,7 +192,7 @@ class ComposeViewModel @Inject constructor(
                 .debounce(200)
                 .distinctUntilChanged()
                 .map { query -> 
-                    if (query.trim().length >= 3) repository.suggestContacts(query.trim())
+                    if (query.trim().length >= 3) repository.suggestContacts(query.trim(), _state.value.accountId)
                     else emptyList()
                 }
                 .collect { _suggestions.value = it }
@@ -207,7 +204,13 @@ class ComposeViewModel @Inject constructor(
     }
 
     fun selectAccount(account: com.shrivatsav.monomail.core.data.auth.UserProfile) {
-        _state.value = _state.value.copy(from = account.email, showFromDropdown = false)
+        _state.value = _state.value.copy(
+            accountId = account.id,
+            from = account.email,
+            fromAliases = emptyList(),
+            showFromDropdown = false
+        )
+        refreshAliases(account.id)
     }
 
     fun toggleFromDropdown() {
@@ -306,7 +309,7 @@ class ComposeViewModel @Inject constructor(
         
         viewModelScope.launch {
             val newThreadId = repository.saveDraftLocally(
-                accountId = accountId,
+                accountId = current.accountId,
                 to = current.to,
                 cc = current.cc,
                 bcc = current.bcc,
@@ -321,7 +324,7 @@ class ComposeViewModel @Inject constructor(
 
     fun deleteDraft(draftId: String) {
         viewModelScope.launch {
-            repository.deleteDraft(draftId)
+            repository.deleteDraft(draftId, _state.value.accountId)
             if (_state.value.currentDraftId == draftId) {
                 _state.value = _state.value.copy(currentDraftId = null)
             }
@@ -329,9 +332,12 @@ class ComposeViewModel @Inject constructor(
     }
     fun loadDraft(thread: com.shrivatsav.monomail.data.model.EmailThread) {
         viewModelScope.launch {
-            val email = repository.getEmailById(thread.latestMessageId)
+            val email = repository.getEmailById(thread.latestMessageId, thread.accountId)
             val current = _state.value
+            val ownerEmail = current.allAccounts.find { it.id == thread.accountId }?.email ?: email?.fromEmail.orEmpty()
             _state.value = current.copy(
+                accountId = thread.accountId,
+                from = ownerEmail,
                 currentDraftId = thread.threadId,
                 to = email?.to ?: "",
                 cc = email?.cc ?: "",
@@ -340,6 +346,7 @@ class ComposeViewModel @Inject constructor(
                 body = email?.body ?: thread.snippet,
                 threadId = thread.threadId
             )
+            refreshAliases(thread.accountId)
         }
     }
 
@@ -371,7 +378,7 @@ class ComposeViewModel @Inject constructor(
 
             if (settings.undoSendEnabled) {
                 val pendingId = repository.stagePendingSend(
-                    accountId = accountId,
+                    accountId = current.accountId,
                     fromEmail = current.from,
                     to = current.to,
                     subject = current.subject,
@@ -384,7 +391,7 @@ class ComposeViewModel @Inject constructor(
                         references = current.references,
                         attachments = current.attachments
                     ),
-                    fromAlias = current.from.takeIf { it != fromEmail }
+                    fromAlias = current.from.takeIf { it != selectedPrimaryEmail(current) }
                 )
                 sentEmailEvents.tryEmit(
                     SentEmailEvent(
@@ -394,7 +401,7 @@ class ComposeViewModel @Inject constructor(
                         isPendingSend = true
                     )
                 )
-                current.currentDraftId?.let { repository.deleteDraft(it) }
+                current.currentDraftId?.let { repository.deleteDraft(it, current.accountId) }
                 _state.value = current.copy(isSending = false, isSent = true, currentDraftId = null)
             } else {
                 val result = repository.sendEmail(
@@ -402,7 +409,8 @@ class ComposeViewModel @Inject constructor(
                     to = current.to,
                     subject = current.subject,
                     body = finalBody,
-                    params = SendEmailParams(cc = current.cc, bcc = current.bcc, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references, attachments = current.attachments)
+                    params = SendEmailParams(cc = current.cc, bcc = current.bcc, threadId = current.threadId, inReplyToMessageId = current.inReplyToMessageId, references = current.references, attachments = current.attachments),
+                    explicitAccountId = current.accountId
                 )
                 result.onSuccess { sendResult ->
                     sentEmailEvents.tryEmit(
@@ -415,7 +423,7 @@ class ComposeViewModel @Inject constructor(
                 }
                 _state.value = result.fold(
                     onSuccess = { 
-                        current.currentDraftId?.let { repository.deleteDraft(it) }
+                        current.currentDraftId?.let { repository.deleteDraft(it, current.accountId) }
                         current.copy(isSending = false, isSent = true, currentDraftId = null) 
                     },
                     onFailure = { current.copy(isSending = false, error = it.message ?: "Failed to send") }
@@ -459,9 +467,9 @@ class ComposeViewModel @Inject constructor(
                 "schedule_${System.currentTimeMillis()}",
                 current.attachments
             )
-            val fromAlias = current.from.takeIf { it != fromEmail }
+            val fromAlias = current.from.takeIf { it != selectedPrimaryEmail(current) }
             repository.scheduleSend(
-                accountId = accountId,
+                accountId = current.accountId,
                 fromEmail = current.from,
                 to = current.to,
                 subject = current.subject,
@@ -476,7 +484,7 @@ class ComposeViewModel @Inject constructor(
                     scheduledAt = scheduledAt
                 )
             )
-            current.currentDraftId?.let { repository.deleteDraft(it) }
+            current.currentDraftId?.let { repository.deleteDraft(it, current.accountId) }
             _state.value = _state.value.copy(isSent = true, currentDraftId = null)
         }
     }
@@ -489,7 +497,7 @@ class ComposeViewModel @Inject constructor(
                 _state.value = current.copy(isSending = false, error = "No valid recipient addresses for encryption")
                 return null
             }
-            val signingFp = if (current.signEnabled) getBestSigningKey() else null
+            val signingFp = if (current.signEnabled) getBestSigningKey(current) else null
             val result = if (signingFp != null) {
                 pgpManager.encryptAndSignBody(bodyText, recipients, signingFp)
             } else {
@@ -504,7 +512,7 @@ class ComposeViewModel @Inject constructor(
             }
             result.encryptedBody
         } else if (current.signEnabled) {
-            val signingFp = getBestSigningKey()
+            val signingFp = getBestSigningKey(current)
             if (signingFp == null) {
                 _state.value = current.copy(
                     isSending = false,
@@ -519,12 +527,27 @@ class ComposeViewModel @Inject constructor(
         } else bodyText
     }
 
-    private fun getBestSigningKey(): String? {
+    private fun getBestSigningKey(state: ComposeUiState): String? {
         val keys = pgpManager.getAvailableSigningKeys()
         if (keys.isEmpty()) return null
-        val currentEmail = authManager.currentUser?.email ?: ""
+        val currentEmail = selectedPrimaryEmail(state)
         val matching = keys.find { it.userId.contains(currentEmail, ignoreCase = true) }
         return matching?.fingerprint ?: keys.first().fingerprint
+    }
+
+    private fun selectedPrimaryEmail(state: ComposeUiState): String =
+        state.allAccounts.find { it.id == state.accountId }?.email
+            ?: authManager.currentUser?.takeIf { it.id == state.accountId }?.email
+            ?: state.from
+
+    private fun refreshAliases(accountId: String) {
+        if (accountId.isEmpty()) return
+        viewModelScope.launch {
+            val aliases = repository.refreshSendAsAliases(accountId)
+            if (_state.value.accountId == accountId) {
+                _state.value = _state.value.copy(fromAliases = aliases)
+            }
+        }
     }
 
     private fun parseRecipients(vararg fields: String): List<String> {

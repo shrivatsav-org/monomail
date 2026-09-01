@@ -55,4 +55,6 @@ dependencies {
     // Hilt for DI (since network clients are usually provided via DI)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+
+    testImplementation(libs.junit)
 }

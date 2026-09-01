@@ -144,13 +144,14 @@ flowchart TB
 git clone https://github.com/shrivatsav-org/monomail.git
 ```
 
-Create `secrets.properties` for the `playstore` flavor:
+Create `secrets.properties` for configured `playstore` builds:
 
 ```properties
 GOOGLE_CLIENT_ID=your_web_client_id_here
+PUSH_BACKEND_URL=https://your-worker.workers.dev
 ```
 
-Configure MSAL (optional — `app/src/main/res/raw/msal_config.json`):
+Configure MSAL in the applicable build-type overlay, such as `app/src/debug/res/raw/msal_config.json` or `app/src/playstoreRelease/res/raw/msal_config.json`:
 
 ```json
 {
@@ -172,6 +173,8 @@ Minimum SDK: 26 (Android 8.0).
 ```bash
 ./gradlew installPlaystoreDebug   # or installGithubDebug
 ```
+
+Debug variants use the standard Android debug key and may be built without release credentials. Play Store release builds require non-placeholder OAuth, push, Firebase, MSAL, and release-keystore configuration.
 
 ## Contributing
 

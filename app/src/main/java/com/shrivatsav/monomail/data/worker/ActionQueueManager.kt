@@ -39,6 +39,13 @@ class ActionQueueManager @Inject constructor(
     fun start() {
         if (job?.isActive == true) return
         job = scope.launch {
+            // Recover actions stranded as IN_FLIGHT by a previous process kill so
+            // they are retried instead of being stuck forever.
+            try {
+                pendingActionDao.recoverStaleInFlight()
+            } catch (e: Exception) {
+                Log.e(tag, "Failed to recover stale IN_FLIGHT actions", e)
+            }
             Log.d(tag, "Queue processor started")
             while (isActive) {
                 try {

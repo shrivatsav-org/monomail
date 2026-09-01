@@ -9,10 +9,13 @@ import com.shrivatsav.monomail.core.network.provider.ProviderMessage
 import com.shrivatsav.monomail.core.network.provider.SendEmailOptions
 import com.shrivatsav.monomail.core.network.provider.ProviderThread
 import com.shrivatsav.monomail.core.network.provider.ProviderThreadListResult
+import com.shrivatsav.monomail.core.network.provider.ProviderContentException
 import com.shrivatsav.monomail.core.network.provider.SendAsAlias
 import com.shrivatsav.monomail.core.network.provider.SendEmailResult
 import jakarta.mail.Flags
 import jakarta.mail.Folder
+import jakarta.mail.FolderNotFoundException
+import jakarta.mail.MessagingException
 import jakarta.mail.Message
 import jakarta.mail.Multipart
 import jakarta.mail.Part
@@ -50,6 +53,7 @@ class ImapProvider(
         private val HTML_STYLE_REGEX = Regex("<style[^>]*>[\\s\\S]*?</style>", RegexOption.IGNORE_CASE)
         private val HTML_SCRIPT_REGEX = Regex("<script[^>]*>[\\s\\S]*?</script>", RegexOption.IGNORE_CASE)
         private val HTML_TAG_REGEX = Regex("<[^>]+>")
+        private const val MAX_BODY_CHARS = 2 * 1024 * 1024
     }
 
     override val providerName: String = "imap"
@@ -108,8 +112,11 @@ class ImapProvider(
         sinceDate: Long?,
         onProgress: ((Float) -> Unit)?
     ): ProviderThreadListResult = withStore { store ->
-        val imapFolder = openListFolder(store, folder)
-            ?: return@withStore ProviderThreadListResult(emptyList(), null)
+        val imapFolder = try {
+            openListFolder(store, folder)
+        } catch (e: Exception) {
+            if (e.isMissingFolderFailure()) null else throw e
+        } ?: return@withStore ProviderThreadListResult(emptyList(), null)
 
         try {
             imapFolder.open(Folder.READ_ONLY)
@@ -167,20 +174,24 @@ class ImapProvider(
 
             ProviderThreadListResult(threads, nextToken)
         } catch (e: Exception) {
-            ProviderThreadListResult(emptyList(), null)
+            if (e.isMissingFolderFailure()) {
+                ProviderThreadListResult(emptyList(), null)
+            } else {
+                throw e
+            }
         } finally {
             if (imapFolder.isOpen) imapFolder.close(false)
         }
     }
 
     private suspend fun openListFolder(store: Store, folder: EmailFolder): Folder? {
-        return if (folder == EmailFolder.STARRED) {
+        val result = if (folder == EmailFolder.STARRED) {
             store.getFolder(getFolderName(EmailFolder.INBOX) ?: "INBOX")
         } else {
             val folderName = getFolderName(folder) ?: return null
-            val f = store.getFolder(folderName)
-            if (!f.exists()) null else f
+            store.getFolder(folderName)
         }
+        return if (result.exists()) result else null
     }
 
     private data class FetchResult(val messages: List<jakarta.mail.Message>, val fetchStart: Int)
@@ -303,12 +314,16 @@ class ImapProvider(
             collectMessagesFromFolder(store, folderName, threadId, rawMessages)
         }
 
-        if (rawMessages.isEmpty()) return@withStore ProviderThread(threadId, emptyList())
+        if (rawMessages.isEmpty()) return@withStore ProviderThread(threadId, emptyList(), isComplete = false)
 
-        val threadsMap = ImapThreader.groupByReferences(rawMessages)
-        threadsMap.values.firstOrNull()?.let { msgs ->
-            ProviderThread(threadId, msgs)
-        } ?: ProviderThread(threadId, emptyList())
+        val threadsMap = ImapThreader.groupByReferences(rawMessages.distinctBy { it.messageId })
+        val messages = threadsMap.values.firstOrNull { messages -> messages.any { it.id == threadId } }
+            ?: threadsMap.values.firstOrNull()
+            ?: emptyList()
+        // IMAP has no authoritative thread resource. Reference searches can
+        // miss messages in custom folders, so this result must never drive
+        // deletion of locally stored thread members.
+        ProviderThread(threadId, messages, isComplete = false)
     }
 
     private fun collectMessagesFromFolder(
@@ -344,7 +359,7 @@ class ImapProvider(
                 rawMessages.add(raw)
             }
         } catch (e: Exception) {
-            // Ignore folder open/search errors (e.g. [NONEXISTENT] Unknown Mailbox) and proceed to next folder
+            if (!e.isMissingFolderFailure()) throw e
         } finally {
             if (f.isOpen) f.close(false)
         }
@@ -379,7 +394,7 @@ class ImapProvider(
         try {
             processPart(msg, state)
         } catch (e: Exception) {
-            android.util.Log.w("ImapProvider", "Body fetch/parse failed for thread msg $messageId: ${e.message}")
+            throw ProviderContentException("Could not fetch or parse message $messageId", e)
         }
 
         val preCleanHtml = state.htmlBody
@@ -423,11 +438,7 @@ class ImapProvider(
     }
 
     override suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? = withStore { store ->
-        val searchFolders = listOfNotNull(
-            folderNamesCache[EmailFolder.INBOX],
-            folderNamesCache[EmailFolder.SENT],
-            folderNamesCache[EmailFolder.ARCHIVE]
-        ).distinct()
+        val searchFolders = folderNamesCache.values.distinct()
 
         for (folderName in searchFolders) {
             val result = findAttachmentInFolder(store, folderName, messageId, attachmentId)
@@ -706,7 +717,7 @@ class ImapProvider(
                 val name = part.fileName ?: "attachment"
                 attachments.add(EmailAttachmentInfo(id = name, messageId = messageId, mimeType = contentType.substringBefore(";"), name = name, size = part.size))
             } else if (part.isMimeType(MIME_MULTIPART)) {
-                val mp = toMultipart(part) ?: return
+                val mp = toMultipart(part)
                 for (i in 0 until mp.count) {
                     collectAttachments(mp.getBodyPart(i), attachments, messageId)
                 }
@@ -731,39 +742,30 @@ class ImapProvider(
                 state.attachments.add(EmailAttachmentInfo(id = name, messageId = state.messageId, mimeType = mimeType, name = name, size = part.size))
             }
             part.isMimeType(MIME_TEXT_PLAIN) && state.plainBody.isEmpty() -> {
-                // Skip enormous text parts (> 512 KB) to avoid stalling the connection
-                if (part.size in 1..(512 * 1024) || part.size == -1) {
-                    state.plainBody = part.getBodyText() ?: ""
-                }
+                state.plainBody = part.getBodyText(MAX_BODY_CHARS)
             }
             part.isMimeType(MIME_TEXT_HTML) && state.htmlBody.isEmpty() -> {
-                if (part.size in 1..(512 * 1024) || part.size == -1) {
-                    state.htmlBody = part.getBodyText() ?: ""
-                    state.bodyIsHtml = true
-                }
+                state.htmlBody = part.getBodyText(MAX_BODY_CHARS)
+                state.bodyIsHtml = true
             }
             part.isMimeType(MIME_MULTIPART) -> {
-                try {
-                    val mp = toMultipart(part) ?: return
-                    for (i in 0 until mp.count) {
-                        processPart(mp.getBodyPart(i), state)
-                    }
-                } catch (e: Exception) {
-                    android.util.Log.e("ImapProvider", "Error parsing multipart", e)
+                val mp = toMultipart(part)
+                for (i in 0 until mp.count) {
+                    processPart(mp.getBodyPart(i), state)
                 }
             }
         }
     }
 
 
-    private fun toMultipart(part: Part): Multipart? {
+    private fun toMultipart(part: Part): Multipart {
         val content = part.content
         return when (content) {
             is Multipart -> content
-            is java.io.InputStream -> try {
+            is java.io.InputStream -> {
                 jakarta.mail.internet.MimeMultipart(jakarta.mail.util.ByteArrayDataSource(content, part.contentType))
-            } catch (e: Exception) { null }
-            else -> null
+            }
+            else -> throw MessagingException("Unsupported multipart content: ${content?.javaClass?.name}")
         }
     }
 
@@ -817,7 +819,9 @@ class ImapProvider(
         val mapped = hints.mapNotNull { hint ->
             try { folderNamesCache[EmailFolder.valueOf(hint)] } catch (_: Exception) { null }
         }
-        return mapped.ifEmpty { allFolders }.distinct()
+        // Hints prioritize the likely mailbox, then the remaining known folders
+        // complete the search so stale labels cannot make Trash/Spam/Drafts fail.
+        return (mapped + allFolders).distinct()
     }
 
     private suspend fun saveToSentFolder(message: jakarta.mail.Message) {
@@ -851,36 +855,51 @@ class ImapProvider(
         var bodyIsHtml: Boolean = false,
         val attachments: MutableList<EmailAttachmentInfo> = mutableListOf()
     )
+
 }
 
-private fun Part.getBodyText(): String? {
-    return try {
-        when (val c = content) {
-            is String -> c
+private fun Part.getBodyText(maxChars: Int): String {
+    return when (val c = content) {
+            is String -> c.take(maxChars).withTruncationMarker(c.length > maxChars)
             is java.io.InputStream -> {
                 val charset = java.nio.charset.Charset.forName(contentType.charsetOrUtf8())
                 // Decode Content-Transfer-Encoding (base64, quoted-printable, etc.)
                 val encoding = (this as? jakarta.mail.internet.MimePart)?.encoding
                 val decodedStream = if (encoding != null) {
-                    try {
-                        jakarta.mail.internet.MimeUtility.decode(c, encoding)
-                    } catch (e: Exception) {
-                        c
-                    }
+                    jakarta.mail.internet.MimeUtility.decode(c, encoding)
                 } else {
                     c
                 }
-                decodedStream.bufferedReader(charset).readText()
+                decodedStream.bufferedReader(charset).use { reader ->
+                    val output = StringBuilder(minOf(maxChars, 64 * 1024))
+                    val buffer = CharArray(8192)
+                    var truncated = false
+                    while (output.length < maxChars) {
+                        val read = reader.read(buffer, 0, minOf(buffer.size, maxChars - output.length))
+                        if (read < 0) break
+                        output.append(buffer, 0, read)
+                    }
+                    if (output.length == maxChars && reader.read() >= 0) truncated = true
+                    output.toString().withTruncationMarker(truncated)
+                }
             }
-            else -> {
-                android.util.Log.e("ImapProvider", "Unknown content type: ${c?.javaClass?.name}")
-                null
-            }
+            else -> throw MessagingException("Unsupported text content: ${c?.javaClass?.name}")
         }
-    } catch (e: Exception) {
-        android.util.Log.e("ImapProvider", "Error getting body text: ${e.message}", e)
-        null
+}
+
+private fun String.withTruncationMarker(truncated: Boolean): String =
+    if (truncated) this + "\n\n[Message truncated for display]" else this
+
+private fun Throwable.isMissingFolderFailure(): Boolean {
+    var cause: Throwable? = this
+    while (cause != null) {
+        if (cause is FolderNotFoundException ||
+            cause.message.orEmpty().contains("NONEXISTENT", ignoreCase = true) ||
+            cause.message.orEmpty().contains("unknown mailbox", ignoreCase = true)
+        ) return true
+        cause = cause.cause
     }
+    return false
 }
 
 private val EXTRACT_SNIPPET_HTML_REGEX = Regex("<[^>]+>")
@@ -915,4 +934,3 @@ private fun extractSnippet(part: jakarta.mail.Part): String {
 private fun String.charsetOrUtf8(): String =
     Regex("charset=[\"']?([\\w-]+)[\"']?", RegexOption.IGNORE_CASE)
         .find(this)?.groupValues?.get(1) ?: "UTF-8"
-

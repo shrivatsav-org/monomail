@@ -1,67 +1,126 @@
-# Monomail Push Notification Backend (Cloudflare Worker)
+# Monomail Push Backend
 
-This lightweight Cloudflare Worker bridges push notifications from **Google Cloud Pub/Sub (Gmail)** and **Microsoft Graph Webhooks (Outlook)** to **Firebase Cloud Messaging (FCM)** on your Android device. It is the backbone of the Monomail zero-polling push notification system.
+This Cloudflare Worker verifies Gmail or Outlook account ownership, manages provider subscriptions, and fans provider notifications out to every registered Android installation through FCM. Provider OAuth access tokens are used only for the current request and are never persisted.
 
-> **Note:** The official Play Store (Paid) version of Monomail already uses a hosted, fully managed instance of this backend. These instructions are purely for self-hosters and open-source users.
+## Protocol
 
-## Features
-- **Gmail Push**: Leverages Gmail API `watch` to receive real-time updates via Google Cloud Pub/Sub.
-- **Outlook Push**: Creates Microsoft Graph Webhook subscriptions for real-time inbox updates.
-- **FCM Relay**: Relays data messages to your device via the FCM HTTP v1 API using WebCrypto JWT signing.
-- **Serverless**: Zero maintenance, runs entirely on Cloudflare Workers edge network with Cloudflare KV storage.
+`POST /register` and `POST /unregister` require `Authorization: Bearer <provider-access-token>` and `Content-Type: application/json`. There is no application-wide API key.
 
----
+Registration body:
 
-## Setup Instructions for Self-Hosters
-
-### 1. Pre-requisites
-- A **Cloudflare** account.
-- A **Google Cloud Platform (GCP)** project with Pub/Sub enabled and Firebase Cloud Messaging set up.
-- A **Microsoft Azure App Registration** (if supporting Outlook).
-
-### 2. Configure Cloudflare KV
-1. Install Wrangler CLI: `npm install -g wrangler`
-2. Login to Cloudflare: `wrangler login`
-3. Create a KV namespace for storing FCM tokens:
-   ```bash
-   wrangler kv:namespace create FCM_TOKENS
-   ```
-4. Copy the output binding configuration into `wrangler.toml`.
-
-### 3. Configure Gmail Pub/Sub
-1. In your GCP Console, navigate to **Pub/Sub** > **Topics** and create a topic (e.g., `monomail-push`).
-2. Give the Gmail API permission to publish to your topic by adding `gmail-api-push@system.gserviceaccount.com` as a Pub/Sub Publisher.
-3. Create a **Subscription** for your topic:
-   - Select **Push** delivery method.
-   - Set the Endpoint URL to your Cloudflare Worker URL: `https://monomail-push.<your-subdomain>.workers.dev/webhook/gmail`
-4. Update `GCP_PROJECT_ID` and `PUBSUB_TOPIC` in `wrangler.toml`.
-
-### 4. Configure Firebase Cloud Messaging
-1. In your GCP/Firebase Console, go to **Project Settings** > **Service Accounts**.
-2. Generate a new private key JSON file.
-3. Set this JSON file content as a secret in your Cloudflare Worker:
-   ```bash
-   wrangler secret put GCP_SERVICE_ACCOUNT_KEY
-   ```
-   *(Paste the entire JSON string when prompted).*
-
-### 5. Configure Outlook Webhooks
-1. In `wrangler.toml`, ensure `WORKER_BASE_URL` matches your deployed Cloudflare Worker base URL (e.g., `https://monomail-push.<your-subdomain>.workers.dev`).
-
-### 6. Deploy the Worker
-Run the following command to deploy your worker to Cloudflare's global network:
-```bash
-npm run deploy
+```json
+{
+  "accountId": "local-account-id",
+  "email": "owner@example.com",
+  "fcmToken": "firebase-registration-token",
+  "installationId": "stable-random-installation-id",
+  "provider": "gmail"
+}
 ```
 
----
+Unregistration body:
 
-## Configuring the Android App
+```json
+{
+  "accountId": "local-account-id",
+  "email": "owner@example.com",
+  "installationId": "stable-random-installation-id",
+  "provider": "gmail"
+}
+```
 
-To point the Monomail Android application to your self-hosted backend, add or update the `PUSH_BACKEND_URL` property in your `secrets.properties` file at the root of the Android project:
+The Worker validates Gmail tokens with Google userinfo and Outlook tokens with Microsoft Graph `/me`. The verified provider subject and email are bound to expiring, per-installation KV records. Unregistration removes only the matching installation and only stops/deletes the provider subscription when the last installation is removed.
+
+Gmail watch creation happens after the installation mapping is stored. Watch `expiration` and `historyId` are retained. Outlook subscriptions are created and renewed with a random 256-bit `clientState`; callback notifications must match both the stored subscription ID and client state.
+
+## Cloudflare
+
+Create a KV namespace and set its ID in `wrangler.toml`:
+
+```bash
+npx wrangler kv namespace create FCM_TOKENS
+```
+
+Configure these Worker variables:
+
+- `GCP_PROJECT_ID`: Firebase/GCP project ID.
+- `PUBSUB_TOPIC`: full Gmail watch topic, such as `projects/project-id/topics/monomail-push`.
+- `PUBSUB_AUDIENCE`: exact audience configured on the authenticated Pub/Sub push subscription, normally the Gmail webhook URL.
+- `PUBSUB_SERVICE_ACCOUNT`: service account whose Google-signed OIDC token authenticates Pub/Sub pushes.
+- `PUBSUB_SUBSCRIPTION`: full subscription name expected in the Pub/Sub message envelope.
+- `WORKER_BASE_URL`: public HTTPS Worker base URL used for Graph callbacks.
+- `INSTALLATION_TTL_SECONDS`: registration TTL, from 3600 through 7776000 seconds; 2592000 is the default.
+
+Set the Firebase service account JSON as a Worker secret:
+
+```bash
+npx wrangler secret put GCP_SERVICE_ACCOUNT_KEY
+```
+
+### Durable FCM Delivery
+
+A Cloudflare Queue is optional but recommended. Without one, the webhook sends synchronously and returns `503` for retryable FCM failures so Gmail/Graph can retry. Invalid/unregistered FCM tokens are removed in either mode.
+
+Create the queue:
+
+```bash
+npx wrangler queues create monomail-push-delivery
+```
+
+Add bindings to `wrangler.toml`:
+
+```toml
+[[queues.producers]]
+binding = "PUSH_QUEUE"
+queue = "monomail-push-delivery"
+
+[[queues.consumers]]
+queue = "monomail-push-delivery"
+max_batch_size = 10
+max_retries = 5
+```
+
+## Gmail Pub/Sub
+
+1. Create `PUBSUB_TOPIC` and grant `gmail-api-push@system.gserviceaccount.com` Pub/Sub Publisher on it.
+2. Create a dedicated push-auth service account matching `PUBSUB_SERVICE_ACCOUNT`.
+3. Allow the Pub/Sub service agent to mint OIDC tokens for that account by granting `roles/iam.serviceAccountTokenCreator` on it.
+4. Create the push subscription with endpoint `https://your-worker.example/webhook/gmail`, OIDC authentication enabled, and the exact `PUBSUB_AUDIENCE` value.
+
+Example:
+
+```bash
+gcloud pubsub subscriptions create monomail-push-worker \
+  --topic=monomail-push \
+  --push-endpoint=https://your-worker.example/webhook/gmail \
+  --push-auth-service-account=pubsub-push@project-id.iam.gserviceaccount.com \
+  --push-auth-token-audience=https://your-worker.example/webhook/gmail
+```
+
+The Worker validates the Google JWT signature against Google's JWKS and checks `alg`, issuer, exact audience, service-account email, `email_verified`, issue time, expiry, and the configured subscription name. Missing authentication configuration fails closed.
+
+The Android Google token must include `gmail.modify` and `userinfo.email`. The app's daily renewal worker refreshes registration before Gmail's watch expires.
+
+## Microsoft Graph
+
+The Android Microsoft access token must allow reading mail and creating subscriptions for `/me/mailFolders('Inbox')/messages`. Registration creates a roughly 60-hour subscription. Daily Android renewal calls registration again; the Worker retains a healthy subscription, patches one nearing expiry, or recreates one no longer present. Last-installation unregistration deletes it using the client-provided token.
+
+Graph's validation request to `POST /webhook/outlook?validationToken=...` is returned as plain text. Normal notifications do not trigger FCM unless stored `subscriptionId` and cryptographically random `clientState` metadata both match and remain unexpired.
+
+## Android
+
+Set only the backend URL in root `secrets.properties`:
 
 ```properties
-PUSH_BACKEND_URL=https://monomail-push.<your-subdomain>.workers.dev
+PUSH_BACKEND_URL=https://your-worker.example
 ```
 
-The app will automatically register your device with your custom backend upon building the `playstore` release variant.
+The Play Store flavor creates a stable random installation ID in app-private preferences. OAuth tokens are sent over HTTPS in the authorization header for registration and unregistration, but are not placed in request JSON or backend storage.
+
+## Verification
+
+```bash
+npm test
+npm run typecheck
+npm run deploy
+```

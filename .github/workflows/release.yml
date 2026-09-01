@@ -1,270 +1,236 @@
-name: Build & Release
+name: Build and Release
 
 on:
-  pull_request:
-    types: [closed]
+  push:
     branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
 jobs:
   release:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    if: github.ref == 'refs/heads/main'
     runs-on: blacksmith-4vcpu-ubuntu-2404
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout main
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           ref: main
           fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      - name: Set up Java
+        uses: actions/setup-java@c5195efecf7bdfc987ee8bae7a71cb8b11521c00 # v4.7.1
         with:
           distribution: temurin
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@41ad77ca97e46ee2e825d5e6b9a95d8169fcc44c # v4.4.2
 
-      - name: Make gradlew executable
-        run: chmod +x gradlew
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@735343b667d3e6f658f44d0eca948eb6282f2b76 # v2.0.2
+        with:
+          bun-version-file: backend/.bun-version
 
-      # --------------------------------------------------------------------------
-      # Config files from secrets
-      # --------------------------------------------------------------------------
-
-      - name: Decode keystore
-        run: |
-          mkdir -p app
-          echo "${{ secrets.KEYSTORE_FILE_BASE64 }}" | base64 -d > app/monomail-release.keystore
-
-      - name: Create keystore.properties
-        run: |
-          cat > keystore.properties << EOF
-          storeFile=app/monomail-release.keystore
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
-
-      - name: Create secrets.properties
-        run: |
-          cat > secrets.properties << EOF
-          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-          PUSH_BACKEND_URL=${{ secrets.PUSH_BACKEND_URL }}
-          PUSH_API_KEY=${{ secrets.PUSH_API_KEY }}
-          PUBSUB_TOPIC=${{ secrets.PUBSUB_TOPIC }}
-          EOF
-
-      - name: Decode google-services.json
-        run: |
-          mkdir -p app/src/playstore
-          echo "${{ secrets.GOOGLE_SERVICES_JSON }}" | base64 -d > app/src/playstore/google-services.json
-
-      # --------------------------------------------------------------------------
-      # Check for existing draft release
-      # --------------------------------------------------------------------------
-
-      - name: Check for existing draft
-        id: draft
+      - name: Validate release secrets
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KEYSTORE_FILE_BASE64: ${{ secrets.KEYSTORE_FILE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+          SERVICE_ACCOUNT_JSON: ${{ secrets.SERVICE_ACCOUNT_JSON }}
         run: |
-          DRAFTS=$(gh release list --json tagName,isDraft --jq '[.[] | select(.isDraft)]')
-          DRAFT_COUNT=$(echo "$DRAFTS" | jq 'length')
-
-          if [ "$DRAFT_COUNT" -gt 0 ]; then
-            # Pick the draft with the highest semver tag
-            TAG=$(echo "$DRAFTS" | jq -r \
-              'sort_by(.tagName | ltrimstr("v") | split(".") | map(tonumber)) | last | .tagName')
-            VERSION="${TAG#v}"
-            echo "FOUND=true" >> $GITHUB_OUTPUT
-            echo "TAG=$TAG" >> $GITHUB_OUTPUT
-            echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-
-            if [ "$DRAFT_COUNT" -gt 1 ]; then
-              echo "::warning::$DRAFT_COUNT draft releases found. Using latest: $TAG. Delete stale drafts manually."
+          set -euo pipefail
+          failed=0
+          for name in \
+            KEYSTORE_FILE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD \
+            GOOGLE_CLIENT_ID PUSH_BACKEND_URL \
+            GOOGLE_SERVICES_JSON SERVICE_ACCOUNT_JSON; do
+            value="${!name:-}"
+            normalized="${value,,}"
+            if [ -z "$value" ] || [[ "$normalized" =~ placeholder|changeme|yourdomain|example\.com ]]; then
+              echo "::error::Required release secret $name is missing or contains a placeholder."
+              failed=1
             fi
-            echo "Using existing draft: $TAG"
-          else
-            echo "FOUND=false" >> $GITHUB_OUTPUT
-            echo "No existing draft found"
-          fi
+          done
+          exit "$failed"
 
-      # --------------------------------------------------------------------------
-      # Version bump (only if no existing draft)
-      # --------------------------------------------------------------------------
+      - name: Create release configuration
+        env:
+          KEYSTORE_FILE_BASE64: ${{ secrets.KEYSTORE_FILE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          PUSH_BACKEND_URL: ${{ secrets.PUSH_BACKEND_URL }}
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_FILE_BASE64" | base64 --decode > app/monomail-release.keystore
+          {
+            printf 'storeFile=app/monomail-release.keystore\n'
+            printf 'storePassword=%s\n' "$KEYSTORE_PASSWORD"
+            printf 'keyAlias=%s\n' "$KEY_ALIAS"
+            printf 'keyPassword=%s\n' "$KEY_PASSWORD"
+          } > keystore.properties
+          {
+            printf 'GOOGLE_CLIENT_ID=%s\n' "$GOOGLE_CLIENT_ID"
+            printf 'PUSH_BACKEND_URL=%s\n' "$PUSH_BACKEND_URL"
+          } > secrets.properties
+          mkdir -p app/src/playstore
+          printf '%s' "$GOOGLE_SERVICES_JSON" | base64 --decode > app/src/playstore/google-services.json
+          test -s app/monomail-release.keystore
+          test -s app/src/playstore/google-services.json
 
-      - name: Bump version
+      - name: Resolve next immutable version
         id: version
-        if: steps.draft.outputs.FOUND == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION=$(grep 'versionName = "' app/build.gradle.kts | sed 's/.*"\(.*\)".*/\1/')
-          VCODE=$(grep 'versionCode = ' app/build.gradle.kts | sed 's/.*versionCode = \([0-9]*\).*/\1/')
+          set -euo pipefail
+          base_sha=$(git rev-parse HEAD)
+          version=$(sed -n 's/.*versionName = "\([0-9][0-9.]*\)".*/\1/p' app/build.gradle.kts)
+          version_code=$(sed -n 's/.*versionCode = \([0-9][0-9]*\).*/\1/p' app/build.gradle.kts)
+          IFS=. read -r major minor patch <<< "$version"
+          patch=$((patch + 1))
+          if [ "$patch" -ge 100 ]; then
+            patch=0
+            minor=$((minor + 1))
+          fi
+          next_version="$major.$minor.$patch"
+          next_version_code=$((version_code + 1))
+          tag="v$next_version"
 
-          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
-
-          PATCH=$((PATCH + 1))
-
-          if [ "$PATCH" -ge 100 ]; then
-            PATCH=0
-            MINOR=$((MINOR + 1))
+          test -n "$version" && test -n "$version_code"
+          if git show-ref --verify --quiet "refs/tags/$tag" || \
+             git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1 || \
+             gh release view "$tag" >/dev/null 2>&1; then
+            echo "::error::Tag or release $tag already exists; refusing to overwrite immutable release state."
+            exit 1
           fi
 
-          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
-          NEW_VCODE=$((VCODE + 1))
+          sed -i "s/versionCode = $version_code/versionCode = $next_version_code/" app/build.gradle.kts
+          sed -i "s/versionName = \"$version\"/versionName = \"$next_version\"/" app/build.gradle.kts
+          {
+            echo "base_sha=$base_sha"
+            echo "previous_version=$version"
+            echo "version=$next_version"
+            echo "version_code=$next_version_code"
+            echo "tag=$tag"
+          } >> "$GITHUB_OUTPUT"
 
-          sed -i "s/versionCode = $VCODE/versionCode = $NEW_VCODE/" app/build.gradle.kts
-          sed -i "s/versionName = \"$VERSION\"/versionName = \"$NEW_VERSION\"/" app/build.gradle.kts
+      - name: Install locked backend dependencies
+        working-directory: backend
+        run: bun install --frozen-lockfile
 
-          echo "OLD_VERSION=$VERSION" >> $GITHUB_OUTPUT
-          echo "VERSION=$NEW_VERSION" >> $GITHUB_OUTPUT
-          echo "VCODE=$NEW_VCODE" >> $GITHUB_OUTPUT
+      - name: Validate backend
+        working-directory: backend
+        run: bun run typecheck && bun run test
 
-      # --------------------------------------------------------------------------
-      # Commit & Tag (only if new version)
-      # --------------------------------------------------------------------------
+      - name: Validate Android and build signed release artifacts
+        run: >-
+          ./gradlew
+          lintGithubRelease lintPlaystoreRelease
+          testGithubReleaseUnitTest testPlaystoreReleaseUnitTest
+          assembleGithubRelease bundlePlaystoreRelease
+          --stacktrace
 
-      - name: Commit, tag, and push
-        if: steps.draft.outputs.FOUND == 'false'
+      - name: Prepare immutable artifacts and release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || true)
-          echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+          set -euo pipefail
+          mkdir -p release-artifacts distribution/whatsnew
+          cp app/build/outputs/apk/github/release/app-github-release.apk "release-artifacts/MonoMail-$TAG.apk"
+          cp app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab "release-artifacts/MonoMail-$TAG-playstore.aab"
+          cp app/build/outputs/mapping/githubRelease/mapping.txt "release-artifacts/MonoMail-$TAG-github-mapping.txt"
+          cp app/build/outputs/mapping/playstoreRelease/mapping.txt "release-artifacts/MonoMail-$TAG-playstore-mapping.txt"
+          (cd release-artifacts && sha256sum * > SHA256SUMS)
 
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git add app/build.gradle.kts
-          git commit -m "chore: bump version to ${{ steps.version.outputs.VERSION }} [skip ci]"
-
-          git tag "v${{ steps.version.outputs.VERSION }}"
-
-          git push
-          git push --tags
-
-      # --------------------------------------------------------------------------
-      # Resolve version and tag for this run
-      # --------------------------------------------------------------------------
-
-      - name: Resolve version
-        id: resolved
-        run: |
-          if [ "${{ steps.draft.outputs.FOUND }}" = "true" ]; then
-            echo "VERSION=${{ steps.draft.outputs.VERSION }}" >> $GITHUB_OUTPUT
-            echo "TAG=${{ steps.draft.outputs.TAG }}" >> $GITHUB_OUTPUT
-            # Find the tag before the draft's tag (the last released version)
-            PREV_TAG=$(git describe --tags --abbrev=0 "${{ steps.draft.outputs.TAG }}"^ 2>/dev/null || true)
-            echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+          previous_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+          if [ -n "$previous_tag" ]; then
+            range="$previous_tag..${{ steps.version.outputs.base_sha }}"
           else
-            echo "VERSION=${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
-            echo "TAG=v${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
-            PREV_TAG="v${{ steps.version.outputs.OLD_VERSION }}"
-            echo "PREV_TAG=$PREV_TAG" >> $GITHUB_OUTPUT
+            range="${{ steps.version.outputs.base_sha }}"
           fi
-
-      # --------------------------------------------------------------------------
-      # Gather commits since previous tag
-      # --------------------------------------------------------------------------
-
-      - name: Gather commits since previous tag
-        run: |
-          PREV_TAG="${{ steps.resolved.outputs.PREV_TAG }}"
-
-          if [ -n "$PREV_TAG" ]; then
-            RANGE="$PREV_TAG..HEAD"
-          else
-            RANGE="HEAD"
-          fi
-
-          echo "Using range: $RANGE"
-
-          git log "$RANGE" \
-            --pretty=format:'%s' \
-            --no-merges \
-            --invert-grep \
-            --grep='^chore: bump version' \
-            > commit_log.txt
-
-          if [ ! -s commit_log.txt ]; then
-            echo "No user-facing changes." > commit_log.txt
-          fi
-
-          echo "===== COMMITS ====="
-          cat commit_log.txt
-
-
-      - name: Fallback full release notes
-        run: |
+          git log "$range" --pretty=format:'- %s' --no-merges \
+            --invert-grep --grep='^chore: bump version' > release_notes.md
           if [ ! -s release_notes.md ]; then
-            cat > release_notes.md <<EOF
-          ## What's Changed
-
-          $(sed 's/^/- /' commit_log.txt)
-          EOF
+            printf '%s\n' '- No user-facing changes.' > release_notes.md
           fi
+          {
+            printf '%s\n\n' "## What's Changed"
+            cat release_notes.md
+          } > release_notes.full.md
+          mv release_notes.full.md release_notes.md
 
-      - name: Print release notes
-        run: |
-          echo "===== RELEASE NOTES ====="
-          cat release_notes.md
+          plain=$(tr '\n' ' ' < release_notes.md | sed 's/## What.s Changed//; s/- / /g; s/  */ /g; s/^ //; s/ $//')
+          printf '%.500s' "$plain" > distribution/whatsnew/whatsnew-en-GB
 
-      - name: Prepare Play Store release notes
+      - name: Commit and atomically publish version tag
+        env:
+          BASE_SHA: ${{ steps.version.outputs.base_sha }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          mkdir -p distribution/whatsnew
-          if [ ! -f distribution/whatsnew/whatsnew-en-GB ] || [ ! -s distribution/whatsnew/whatsnew-en-GB ]; then
-            # Fallback: strip markdown and truncate
-            PLAIN=$(sed 's/^##.*//; s/^[-*] //; s/\*\*//g; s/\n\+/\n/g' release_notes.md \
-              | sed '/^$/d' | tr '\n' ' ' | sed 's/  */ /g; s/^ //; s/ $//')
-            # Truncate at last word boundary under 500 chars
-            TRUNC=$(echo "$PLAIN" | head -c 497 | sed 's/ [^ ]*$//')
-            printf '%s' "$TRUNC" > distribution/whatsnew/whatsnew-en-GB
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/build.gradle.kts
+          git commit -m "chore: bump version to $VERSION [skip ci]"
+          git diff --exit-code HEAD
+
+          git fetch origin main --tags
+          remote_main=$(git rev-parse origin/main)
+          if [ "$remote_main" != "$BASE_SHA" ]; then
+            echo "::error::main advanced during validation; refusing to publish artifacts built from stale source."
+            exit 1
           fi
-          # Enforce 500-char cap on whatever we have
-          SHORT=$(cat distribution/whatsnew/whatsnew-en-GB | head -c 497 | sed 's/ [^ ]*$//')
-          printf '%s' "$SHORT" > distribution/whatsnew/whatsnew-en-GB
-          echo "===== PLAY STORE NOTES (${#SHORT} chars) ====="
-          cat distribution/whatsnew/whatsnew-en-GB
+          git tag "$TAG"
+          test "$(git rev-parse "$TAG^{commit}")" = "$(git rev-parse HEAD)"
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/$TAG"
 
-      # --------------------------------------------------------------------------
-      # Build
-      # --------------------------------------------------------------------------
+      - name: Retain signed artifacts and R8 mappings
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-${{ steps.version.outputs.tag }}
+          path: release-artifacts/
+          if-no-files-found: error
+          retention-days: 90
 
-      - name: Build GitHub APK
-        run: ./gradlew assembleGithubRelease
-
-      - name: Build Play Store AAB
-        run: ./gradlew bundlePlaystoreRelease
-
-      # --------------------------------------------------------------------------
-      # Upload AAB to Play Store
-      # --------------------------------------------------------------------------
       - name: Upload AAB to Play Store
-        uses: r0adkll/upload-google-play@v1
+        uses: r0adkll/upload-google-play@935ef9c68bb393a8e6116b1575626a7f5be3a7fb # v1.1.3
         with:
           serviceAccountJsonPlainText: ${{ secrets.SERVICE_ACCOUNT_JSON }}
           packageName: com.shrivatsav.monomail
-          releaseFiles: app/build/outputs/bundle/playstoreRelease/app-playstore-release.aab
+          releaseFiles: release-artifacts/MonoMail-${{ steps.version.outputs.tag }}-playstore.aab
           track: beta
           status: completed
           whatsNewDirectory: distribution/whatsnew
-      - name: Upload to GitHub Release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cp app/build/outputs/apk/github/release/app-github-release.apk \
-             "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk"
 
-          if [ "${{ steps.draft.outputs.FOUND }}" = "true" ]; then
-            gh release upload \
-              "${{ steps.resolved.outputs.TAG }}" \
-              "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
-              --clobber
-          else
-            gh release create \
-              "${{ steps.resolved.outputs.TAG }}" \
-              "Github-release-v${{ steps.resolved.outputs.VERSION }}.apk" \
-              --draft \
-              --title "${{ steps.resolved.outputs.TAG }}" \
-              --notes-file release_notes.md
-          fi
+      - name: Create exact-tag GitHub draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            "release-artifacts/MonoMail-$TAG.apk" \
+            "release-artifacts/MonoMail-$TAG-github-mapping.txt" \
+            "release-artifacts/MonoMail-$TAG-playstore-mapping.txt" \
+            "release-artifacts/SHA256SUMS" \
+            --draft \
+            --verify-tag \
+            --target "$TAG" \
+            --title "$TAG" \
+            --notes-file release_notes.md

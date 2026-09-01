@@ -26,6 +26,11 @@ interface PendingActionDao {
     @Query("UPDATE pending_actions SET status = :status WHERE id = :id")
     suspend fun updateStatus(id: String, status: PendingActionStatus)
 
+    /** Reset actions stranded in IN_FLIGHT (e.g. the process was killed mid-action)
+     *  back to PENDING so they are retried on the next queue start. */
+    @Query("UPDATE pending_actions SET status = 'PENDING' WHERE status = 'IN_FLIGHT'")
+    suspend fun recoverStaleInFlight()
+
     @Query("UPDATE pending_actions SET status = 'PENDING', retryCount = retryCount + 1, errorMessage = :error WHERE id = :id")
     suspend fun incrementRetry(id: String, error: String)
 
