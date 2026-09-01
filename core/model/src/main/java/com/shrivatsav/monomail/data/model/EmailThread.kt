@@ -10,5 +10,6 @@ data class EmailThread(
     val isRead: Boolean,           
     val isStarred: Boolean,
     val latestMessageId: String,
-    val participants: List<String> 
+    val participants: List<String>,
+    val accountId: String = ""
 )

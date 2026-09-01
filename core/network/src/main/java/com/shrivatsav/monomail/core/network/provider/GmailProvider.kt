@@ -1,11 +1,14 @@
 package com.shrivatsav.monomail.core.network.provider
 import android.content.Context
 import com.shrivatsav.monomail.core.network.mapper.EmailMapper.toEmail
+import com.shrivatsav.monomail.core.network.mapper.decodeGmailBody
 import com.shrivatsav.monomail.core.network.remote.BatchModifyMessagesRequest
 import com.shrivatsav.monomail.core.network.remote.GmailApi
 import com.shrivatsav.monomail.core.network.remote.ModifyThreadRequest
 import com.shrivatsav.monomail.core.network.remote.RetrofitClient
 import com.shrivatsav.monomail.core.network.remote.SendMessageRequest
+import com.shrivatsav.monomail.core.network.remote.GmailMessage
+import com.shrivatsav.monomail.core.network.remote.MessagePart
 import jakarta.mail.Message
 import jakarta.mail.Multipart
 import jakarta.mail.Session
@@ -162,16 +165,46 @@ class GmailProvider(
         }
         val messages = rawThread.messages.orEmpty().map { msg ->
             val email = msg.toEmail()
+            val externalBody = if (email.body.isBlank()) fetchExternalTextBody(msg) else null
             ProviderMessage(
                 id = email.id, threadId = email.threadId, subject = email.subject,
                 from = email.from, fromEmail = email.fromEmail, to = email.`to`,
                 cc = email.cc, bcc = email.bcc, snippet = email.snippet,
-                body = email.body, bodyIsHtml = email.bodyIsHtml, date = email.date,
+                body = externalBody?.first ?: email.body,
+                bodyIsHtml = externalBody?.second ?: email.bodyIsHtml,
+                date = email.date,
                 isRead = email.isRead, isStarred = email.isStarred,
                 folders = labelsToFolders(email.labels), attachments = email.attachments
             )
         }
-        ProviderThread(rawThread.id, messages)
+        if (messages.isEmpty()) {
+            throw IncompleteProviderResponseException("Thread $threadId returned no messages")
+        }
+        ProviderThread(rawThread.id, messages, isComplete = true)
+    }
+
+    private suspend fun fetchExternalTextBody(message: GmailMessage): Pair<String, Boolean>? {
+        val part = findExternalTextPart(message.payload, "text/html")
+            ?: findExternalTextPart(message.payload, "text/plain")
+            ?: return null
+        val attachmentId = part.body?.attachmentId ?: return null
+        val encoded = api.getAttachment(message.id, attachmentId).data
+            ?: throw ProviderContentException("Gmail returned no data for message body ${message.id}")
+        val decoded = decodeGmailBody(encoded)
+        if (decoded.isEmpty() && (part.body.size ?: 0) > 0) {
+            throw ProviderContentException("Gmail returned an empty decoded body for message ${message.id}")
+        }
+        return decoded to part.mimeType.equals("text/html", ignoreCase = true)
+    }
+
+    private fun findExternalTextPart(part: MessagePart?, mimeType: String): MessagePart? {
+        if (part == null) return null
+        if (part.filename.isNullOrEmpty() &&
+            part.mimeType.equals(mimeType, ignoreCase = true) &&
+            part.body?.data == null &&
+            part.body?.attachmentId != null
+        ) return part
+        return part.parts.orEmpty().firstNotNullOfOrNull { findExternalTextPart(it, mimeType) }
     }
 
     private fun labelsToFolders(labels: List<String>): Set<EmailFolder> {

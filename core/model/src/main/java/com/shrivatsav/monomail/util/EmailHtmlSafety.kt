@@ -29,6 +29,9 @@ fun stripUnsafeHtml(html: String): String {
     return result
 }
 
+fun blockRemoteImageSources(html: String): String =
+    html.replace(REMOTE_IMAGE_SOURCE_ATTRIBUTE) { match -> "data-blocked-${match.value.lowercase()}" }
+
 private fun extractProviderBodyText(trimmedBody: String): String? {
     if (!(trimmedBody.startsWith("[") || trimmedBody.startsWith("{"))) return null
 
@@ -92,3 +95,5 @@ private val HTML_TAG = Pattern.compile(
     """</?(html|head|body|table|tbody|tr|td|div|span|p|br|a|img|style|strong|em|ul|ol|li|blockquote)\b""",
     Pattern.CASE_INSENSITIVE
 )
+private val REMOTE_IMAGE_SOURCE_ATTRIBUTE =
+    Regex("""\b(src|srcset)(?=\s*=\s*(?:[\"']\s*)?https?://)""", RegexOption.IGNORE_CASE)

@@ -15,7 +15,8 @@ data class Email(
     val isRead: Boolean,
     val isStarred: Boolean,
     val labels: List<String>,
-    val attachments: List<EmailAttachmentInfo> = emptyList()
+    val attachments: List<EmailAttachmentInfo> = emptyList(),
+    val accountId: String = ""
 )
 data class EmailAttachmentInfo(
     val id: String, 

@@ -1,11 +1,11 @@
 package com.shrivatsav.monomail.core.network.mapper
 import android.text.Html
-import android.util.Base64
 import com.shrivatsav.monomail.data.model.Email
 import com.shrivatsav.monomail.data.model.EmailThread
 import com.shrivatsav.monomail.core.network.remote.GmailMessage
 import com.shrivatsav.monomail.core.network.remote.GmailThread
 import com.shrivatsav.monomail.core.network.remote.MessagePart
+import com.shrivatsav.monomail.core.network.provider.ProviderContentException
 import com.shrivatsav.monomail.util.cleanSubject
 object EmailMapper {
 
@@ -105,7 +105,10 @@ object EmailMapper {
         if (part == null) return BodyResult("", isHtml = true)
         val data = part.body?.data
         if (data != null && part.parts.isNullOrEmpty()) {
-            val decoded = decodeBase64Url(data)
+            val decoded = decodeGmailBody(data)
+            if (decoded.isEmpty() && (part.body.size ?: 0) > 0) {
+                throw ProviderContentException("Gmail decoded a non-empty message body as empty")
+            }
             if (part.mimeType == MIME_TEXT_HTML) return BodyResult(decoded, isHtml = true)
             if (part.mimeType == MIME_TEXT_PLAIN) return BodyResult(decoded, isHtml = false)
         }
@@ -123,7 +126,13 @@ object EmailMapper {
         for (child in children) {
             val data = child.body?.data
             if (child.mimeType == mimeType && data != null) {
-                return BodyResult(decodeBase64Url(data), isHtml = mimeType == MIME_TEXT_HTML)
+                val decoded = decodeGmailBody(data)
+                if (decoded.isEmpty() && (child.body?.size ?: 0) > 0) {
+                    throw ProviderContentException("Gmail decoded a non-empty message body as empty")
+                }
+                if (decoded.isNotEmpty()) {
+                    return BodyResult(decoded, isHtml = mimeType == MIME_TEXT_HTML)
+                }
             }
         }
         return null
@@ -193,12 +202,11 @@ object EmailMapper {
         part.parts?.forEach { attachments.addAll(extractAttachments(it, messageId)) }
         return attachments
     }
-    private fun decodeBase64Url(data: String): String {
-        return try {
-            val bytes = Base64.decode(data, Base64.URL_SAFE or Base64.NO_WRAP)
-            String(bytes, Charsets.UTF_8)
-        } catch (e: Exception) {
-            ""
-        }
-    }
+}
+
+internal fun decodeGmailBody(data: String): String = try {
+    val padded = data.padEnd(data.length + (4 - data.length % 4) % 4, '=')
+    String(java.util.Base64.getUrlDecoder().decode(padded), Charsets.UTF_8)
+} catch (e: IllegalArgumentException) {
+    throw ProviderContentException("Could not decode Gmail message body", e)
 }

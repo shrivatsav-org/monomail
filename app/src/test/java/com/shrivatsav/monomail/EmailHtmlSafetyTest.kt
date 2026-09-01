@@ -2,6 +2,7 @@ package com.shrivatsav.monomail
 
 import com.shrivatsav.monomail.util.normalizeEmailBody
 import com.shrivatsav.monomail.util.stripUnsafeHtml
+import com.shrivatsav.monomail.util.blockRemoteImageSources
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -109,28 +110,32 @@ class EmailHtmlSafetyTest {
         assertTrue("event handlers are deliberately not stripped (JS is off)", result.contains("onclick"))
     }
 
-    // ── Fix 2: remote-image blocking CSS logic ──
+    // ── Fix 2: remote-image request sanitizing ──
 
     @Test
-    fun remoteImageCss_presentWhenBothFlagsFalse() {
-        val load = false; val show = false
-        val css = imgBlockCss(load, show)
-        assertTrue("CSS should block http images", css.contains("http://"))
-        assertTrue("CSS should block https images", css.contains("https://"))
+    fun blockRemoteImageSources_disablesQuotedAndUnquotedSources() {
+        val result = blockRemoteImageSources(
+            """<img src="https://example.com/a.png"><img SRC=http://example.com/b.png>"""
+        )
+
+        assertFalse(Regex("""<img\s+src\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(result))
+        assertTrue(result.contains("data-blocked-src=", ignoreCase = true))
     }
 
     @Test
-    fun remoteImageCss_absentWhenLoadRemoteImagesTrue() {
-        val load = true; val show = false
-        val css = imgBlockCss(load, show)
-        assertEquals("no CSS when loadRemoteImages is true", "", css)
+    fun blockRemoteImageSources_disablesRemoteSrcset() {
+        val result = blockRemoteImageSources(
+            """<img srcset='https://example.com/a.png 1x, https://example.com/b.png 2x'>"""
+        )
+
+        assertFalse(Regex("""<img\s+srcset\s*=""", RegexOption.IGNORE_CASE).containsMatchIn(result))
+        assertTrue(result.contains("data-blocked-srcset=", ignoreCase = true))
     }
 
     @Test
-    fun remoteImageCss_absentWhenShowRemoteImagesTrue() {
-        val load = false; val show = true
-        val css = imgBlockCss(load, show)
-        assertEquals("no CSS when showRemoteImages is true", "", css)
+    fun blockRemoteImageSources_preservesCidAndDataSources() {
+        val input = """<img src="cid:photo"><img src="data:image/png;base64,AA==">"""
+        assertEquals(input, blockRemoteImageSources(input))
     }
 
     // ── Fix 3: cardBgColor logic ──
@@ -143,15 +148,6 @@ class EmailHtmlSafetyTest {
     @Test
     fun cardBgColor_nonOriginalIsSurface() {
         assertEquals("AUTO -> surface", 0, cardBgColorRes(original = false))
-    }
-
-    // ── Helpers (mirror the inline logic from EmailDetailScreen.kt) ──
-
-    private fun imgBlockCss(loadRemoteImages: Boolean, showRemoteImages: Boolean): String {
-        return if (!loadRemoteImages && !showRemoteImages) """
-            img[src^="http://"] { display: none !important; }
-            img[src^="https://"] { display: none !important; }
-        """.trimIndent() else ""
     }
 
     private fun cardBgColorRes(original: Boolean): Int {

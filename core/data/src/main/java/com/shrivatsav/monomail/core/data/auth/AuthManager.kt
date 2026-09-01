@@ -26,7 +26,7 @@ class AuthManager(
     companion object {
         private const val TAG = "AuthManager"
         private const val PUSH_REGISTRATION_FAILED = "registerForPushNotifications failed"
-        const val GMAIL_SCOPE = "oauth2:https://www.googleapis.com/auth/gmail.modify"
+        const val GMAIL_SCOPE = "oauth2:https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/userinfo.email"
         private const val GOOGLE_ACCOUNT_TYPE = "com.google"
     }
     val microsoftAuthManager = MicrosoftAuthManager(context, accountManager)
@@ -55,7 +55,8 @@ class AuthManager(
         _userProfile = profile
         _isSignedIn.value = true
         refreshCurrentToken()
-        try { pushNotificationManager.registerForPushNotifications(profile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
+        val refreshedProfile = accountManager.getActiveAccount() ?: profile
+        try { pushNotificationManager.registerForPushNotifications(refreshedProfile) } catch (e: Exception) { android.util.Log.w(TAG, PUSH_REGISTRATION_FAILED, e) }
         return true
     }
 
@@ -237,17 +238,18 @@ class AuthManager(
     suspend fun removeAccount(accountId: String) {
         val allAccounts = accountManager.getAccounts()
         val target = allAccounts.find { it.id == accountId } ?: return
+        try { pushNotificationManager.unregisterForPushNotifications(target) } catch (e: Exception) { android.util.Log.w(TAG, "push unregister failed during removeAccount for ${target.id}", e) }
         if (target.provider == "outlook") {
             try { microsoftAuthManager.signOut(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "Outlook signOut failed during removeAccount for ${target.id}", e) }
         }
         accountManager.removeAccount(accountId)
-        try { pushNotificationManager.unregisterForPushNotifications(target.id) } catch (e: Exception) { android.util.Log.w(TAG, "push unregister failed during removeAccount for ${target.id}", e) }
         try { NotificationChannelManager.deleteChannel(context, target.id) } catch (e: Exception) { android.util.Log.w(TAG, "notification channel delete failed during removeAccount for ${target.id}", e) }
         try {
             database.emailDao().clearForAccount(accountId)
             database.threadDao().clearForAccount(accountId)
             database.pendingActionDao().clearForAccount(accountId)
             database.scheduledMessageDao().clearForAccount(accountId)
+            database.pendingSendDao().clearForAccount(accountId)
         } catch (e: Exception) {
             android.util.Log.w(TAG, "Failed to clear database for $accountId", e)
         }
@@ -266,6 +268,9 @@ class AuthManager(
     }
     suspend fun signOutActiveAccount() {
         val active = _userProfile ?: return
+        try { pushNotificationManager.unregisterForPushNotifications(active) } catch (e: Exception) {
+            android.util.Log.w("AuthManager", "push unregister failed during signOut for ${active.id}", e)
+        }
         if (active.provider == "gmail") {
             try {
                 googleAuthHelper.clearCredentialState(context)
@@ -280,9 +285,6 @@ class AuthManager(
             }
         }
         accountManager.removeAccount(active.id)
-        try { pushNotificationManager.unregisterForPushNotifications(active.id) } catch (e: Exception) {
-            android.util.Log.w("AuthManager", "push unregister failed during signOut for ${active.id}", e)
-        }
         try { NotificationChannelManager.deleteChannel(context, active.id) } catch (e: Exception) {
             android.util.Log.w(TAG, "notification channel delete failed during signOut for ${active.id}", e)
         }
@@ -291,8 +293,9 @@ class AuthManager(
             database.threadDao().clearForAccount(active.id)
             database.pendingActionDao().clearForAccount(active.id)
             database.scheduledMessageDao().clearForAccount(active.id)
+            database.pendingSendDao().clearForAccount(active.id)
         } catch (e: Exception) {
-            android.util.Log.w(TAG, "Failed to clear database for ${active.id}", e)
+            android.util.Log.w("AuthManager", "Failed to clear database for ${active.id}", e)
         }
         val newActive = accountManager.getActiveAccount()
         if (newActive != null) {
@@ -304,16 +307,16 @@ class AuthManager(
         }
     }
     suspend fun signOutAll() {
+        val accounts = accountManager.getAccounts()
+        accounts.forEach {
+            try { pushNotificationManager.unregisterForPushNotifications(it) } catch (e: Exception) {
+                android.util.Log.w("AuthManager", "push unregister failed during signOutAll for ${it.id}", e)
+            }
+        }
         try {
             googleAuthHelper.clearCredentialState(context)
         } catch (e: Exception) {
             android.util.Log.w("AuthManager", "signOutAll clearCredentialState failed", e)
-        }
-        val accounts = accountManager.getAccounts()
-        accounts.forEach {
-            try { pushNotificationManager.unregisterForPushNotifications(it.id) } catch (e: Exception) {
-                android.util.Log.w("AuthManager", "push unregister failed during signOutAll for ${it.id}", e)
-            }
         }
         accounts.filter { it.provider == "outlook" }.forEach {
             try { microsoftAuthManager.signOut(it.id) } catch (e: Exception) {
@@ -326,8 +329,10 @@ class AuthManager(
     }
     fun isUserSignedIn(): Boolean = _isSignedIn.value
     suspend fun updateAccessToken(updated: UserProfile) {
-        _userProfile = updated
         accountManager.updateAccountToken(updated.id, updated.accessToken)
+        if (_userProfile?.id == updated.id) {
+            _userProfile = updated
+        }
     }
     suspend fun updateAccount(updated: UserProfile) {
         if (_userProfile?.id == updated.id) {

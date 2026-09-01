@@ -170,7 +170,7 @@ class SettingsDataStore(private val context: Context) {
             smartGroupingEnabled = prefs[Keys.SMART_GROUPING_ENABLED] ?: true,
             smartGroupingRecentOnly = prefs[Keys.SMART_GROUPING_RECENT_ONLY] ?: true,
             organizeByThread = prefs[Keys.ORGANIZE_BY_THREAD] ?: true,
-            loadRemoteImages = prefs[Keys.LOAD_REMOTE_IMAGES] ?: true,
+            loadRemoteImages = prefs[Keys.LOAD_REMOTE_IMAGES] ?: false,
             renderMarkdown = prefs[Keys.RENDER_MARKDOWN] ?: false,
             emailTheme = prefs[Keys.EMAIL_THEME]?.let {
                 try { EmailTheme.valueOf(it) } catch (e: Exception) { EmailTheme.AUTO }

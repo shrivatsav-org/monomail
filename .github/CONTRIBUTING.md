@@ -15,9 +15,9 @@ See the [README](../README.md) for full setup instructions (MSAL, Google Cloud p
 
 ## Code Style
 
-- **Kotlin** — follow the [Kotlin Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html). The project uses ktlint (run `./gradlew ktlintCheck`).
+- **Kotlin** — follow the [Kotlin Coding Conventions](https://kotlinlang.org/docs/coding-conventions.html). Run Android lint with `./gradlew lintGithubDebug lintPlaystoreDebug`.
 - **Compose** — one file per screen: `{ScreenName}Screen.kt` + `{ScreenName}ViewModel.kt`. Keep composables at the top, ViewModel at the bottom. State hoisting, single source of truth.
-- **Package structure** — match the existing layout in `app/src/main/java/com/shrivatsav/monomail/`. See [CLAUDE.md](../CLAUDE.md) for the full map.
+- **Package structure** — match the existing module layout under `app/`, `core/`, and `feature/`.
 - **Naming** — `camelCase` for functions/vals, `PascalCase` for classes/composables. No Hungarian notation.
 
 ## Pull Requests
@@ -29,8 +29,8 @@ See the [README](../README.md) for full setup instructions (MSAL, Google Cloud p
 
 ### Before submitting
 
-- Build: `./gradlew assembleGithubDebug` should pass.
-- Tests: `./gradlew test` should pass. Add tests for new logic — no need to test every Compose composable, but data/repository/ViewModel logic should have coverage.
+- Build: `./gradlew assembleGithubDebug assemblePlaystoreDebug` should pass.
+- Checks: `./gradlew lintGithubDebug lintPlaystoreDebug testGithubDebugUnitTest testPlaystoreDebugUnitTest` should pass. Add tests for new logic — no need to test every Compose composable, but data/repository/ViewModel logic should have coverage.
 - Existing tests must not break.
 
 ## Commit Messages

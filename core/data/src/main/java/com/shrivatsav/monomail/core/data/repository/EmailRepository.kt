@@ -26,6 +26,7 @@ import com.shrivatsav.monomail.core.network.provider.ProviderMessage
 import com.shrivatsav.monomail.core.network.provider.ProviderThread
 import com.shrivatsav.monomail.core.network.provider.ProviderThreadListResult
 import com.shrivatsav.monomail.core.network.provider.ResourceNotFoundException
+import com.shrivatsav.monomail.core.network.provider.IncompleteProviderResponseException
 import com.shrivatsav.monomail.core.network.provider.SendAsAlias
 import com.shrivatsav.monomail.core.network.provider.SendEmailOptions
 import com.shrivatsav.monomail.core.network.provider.SendEmailResult
@@ -35,8 +36,6 @@ import com.shrivatsav.monomail.util.cleanSubject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.emitAll
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,6 +47,17 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.Job
+
+internal fun mergeStoredEmailContent(incoming: EmailEntity, existing: EmailEntity?): EmailEntity {
+    if (existing == null) return incoming
+    return incoming.copy(
+        body = incoming.body.takeUnless { it.isBlank() } ?: existing.body,
+        bodyIsHtml = if (incoming.body.isBlank() && existing.body.isNotBlank()) existing.bodyIsHtml else incoming.bodyIsHtml,
+        snippet = incoming.snippet.takeUnless { it.isBlank() } ?: existing.snippet,
+        attachmentsJson = incoming.attachmentsJson.takeUnless { it.isBlank() || it == "[]" }
+            ?: existing.attachmentsJson
+    )
+}
 
 data class EmailContact(
     val name: String,
@@ -110,7 +120,7 @@ class EmailRepository(
         val activeAccountId = accountId ?: getActiveAccountId()
         val ftsQuery = buildFtsQuery(query, searchField)
         if (ftsQuery.isBlank()) return emptyList()
-        val threadIds = emailDao.searchThreadIds(ftsQuery, dateFrom, dateTo, hasAttachments)
+        val threadIds = emailDao.searchThreadIds(ftsQuery, activeAccountId, dateFrom, dateTo, hasAttachments)
         if (threadIds.isEmpty()) return emptyList()
         return threadDao.getThreadsByIds(threadIds, activeAccountId).map { it.toDomainModel() }
     }
@@ -227,13 +237,11 @@ class EmailRepository(
     suspend fun getEmailEntityById(id: String, accountId: String): com.shrivatsav.monomail.core.database.local.EmailEntity? {
         return emailDao.getEmailById(id, accountId)
     }
-    fun getThreadEmailsFlow(threadId: String): Flow<List<Email>> = flow {
-        val accountId = resolveAccountId(threadId)
-        emitAll(emailDao.getEmailsForThread(threadId, accountId).map { list -> list.map { it.toDomainModel() } })
-    }
+    fun getThreadEmailsFlow(threadId: String, accountId: String): Flow<List<Email>> =
+        emailDao.getEmailsForThread(threadId, accountId).map { list -> list.map { it.toDomainModel() } }
 
-    suspend fun suggestContacts(query: String): List<EmailContact> {
-        return emailDao.searchContacts(query).map { EmailContact(it.name, it.email) }
+    suspend fun suggestContacts(query: String, accountId: String): List<EmailContact> {
+        return emailDao.searchContacts(query, accountId).map { EmailContact(it.name, it.email) }
     }
 
     private fun resolveFolder(tab: InboxTab): EmailFolder = when (tab) {
@@ -348,6 +356,8 @@ class EmailRepository(
 
     /** Serializes concurrent refreshes (ViewModel pull-to-refresh + periodic worker) so they queue instead of colliding on the shared IMAP connection. */
     private val refreshMutex = Mutex()
+    /** Prevent header/list writes from racing a detail or backfill body write with stale empty content. */
+    private val emailContentWriteMutex = Mutex()
     /** Single-flight guard for body backfill sweeps (service + inline fallback). */
     private val backfillMutex = Mutex()
     /** Job of the sweep currently holding [backfillMutex]; lets callers join
@@ -428,13 +438,25 @@ class EmailRepository(
                 pendingThreadIds,
                 existingLabels
             )
+            val now = System.currentTimeMillis()
             val existingSnoozed = threadDao.getSnoozeStateForThreads(entities.map { it.threadId }, resolvedAccountId)
                 .filter { it.isSnoozed }.associateBy { it.threadId }
 
-            database.withTransaction {
-                threadDao.insertThreads(entities)
-                existingSnoozed.forEach { (threadId, state) -> threadDao.snoozeThread(threadId, resolvedAccountId, state.snoozedUntil) }
-                emailDao.insertEmails(allEmails)
+            emailContentWriteMutex.withLock {
+                val contentSafeEmails = preserveStoredEmailContent(allEmails)
+                database.withTransaction {
+                    threadDao.insertThreads(entities)
+                    // Keep snoozing only while the snooze window is still active;
+                    // an expired snooze auto-returns the thread to the inbox.
+                    existingSnoozed.forEach { (threadId, state) ->
+                        if (state.snoozedUntil > now) {
+                            threadDao.snoozeThread(threadId, resolvedAccountId, state.snoozedUntil)
+                        } else {
+                            threadDao.unsnoozeThread(threadId, resolvedAccountId)
+                        }
+                    }
+                    emailDao.insertEmails(contentSafeEmails)
+                }
             }
             Result.success(listResponse.nextPageToken)
         } catch (e: RetrofitClient.AuthFailedException) {
@@ -538,9 +560,12 @@ class EmailRepository(
                 pendingThreadIds,
                 existingLabels
             )
-            database.withTransaction {
-                threadDao.insertThreads(entities)
-                emailDao.insertEmails(allEmails)
+            emailContentWriteMutex.withLock {
+                val contentSafeEmails = preserveStoredEmailContent(allEmails)
+                database.withTransaction {
+                    threadDao.insertThreads(entities)
+                    emailDao.insertEmails(contentSafeEmails)
+                }
             }
             pageToken = listResponse.nextPageToken
             pageIndex++
@@ -687,9 +712,8 @@ class EmailRepository(
                             if (connectionAborted.get()) return@withPermit
                             val threadId = threadMeta.threadId
                             val threadEmails = missing.filter { it.threadId == threadId }
-                            // Search only the folders this thread's emails live in (labels are
-                            // EmailFolder enum names) instead of the default 3 — ~3x fewer
-                            // IMAP searches on folder-specific sweeps (e.g. Sent).
+                            // Search likely folders first; IMAP completes the search across
+                            // known folders so stale labels cannot hide moved messages.
                             val folderHints = threadEmails.flatMap { it.labels }.distinct()
                             try {
                                 val threadResponse = provider.getThread(threadId, folderHints)
@@ -698,12 +722,20 @@ class EmailRepository(
                                 // Update each missing email in this thread
                                 for (emailMeta in threadEmails) {
                                     val providerMsg = emailById[emailMeta.id]
-                                    val body = providerMsg?.body?.takeIf { it.isNotBlank() } ?: emailMeta.body ?: ""
-                                    val bodyIsHtml = providerMsg?.bodyIsHtml ?: emailMeta.bodyIsHtml
-                                    val snippet = providerMsg?.snippet?.takeIf { it.isNotBlank() } ?: emailMeta.snippet
-
-                                    if (providerMsg?.body != null) {
-                                        emailDao.updateEmailBody(emailMeta.id, accountId, body, bodyIsHtml, snippet)
+                                    if (providerMsg?.body?.isNotBlank() == true) {
+                                        emailContentWriteMutex.withLock {
+                                            val current = emailDao.getEmailById(emailMeta.id, accountId)
+                                            val snippet = providerMsg.snippet.takeIf { it.isNotBlank() }
+                                                ?: current?.snippet
+                                                ?: emailMeta.snippet
+                                            emailDao.updateEmailBody(
+                                                emailMeta.id,
+                                                accountId,
+                                                providerMsg.body,
+                                                providerMsg.bodyIsHtml,
+                                                snippet
+                                            )
+                                        }
                                     }
                                 }
                             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -871,55 +903,72 @@ class EmailRepository(
             null -> Int.MAX_VALUE
         }
     } ?: Int.MAX_VALUE
-    suspend fun refreshThread(threadId: String): Result<Unit> {
-        val accountId = resolveAccountId(threadId)
+
+    private suspend fun preserveStoredEmailContent(entities: List<EmailEntity>): List<EmailEntity> =
+        entities.map { incoming ->
+            val existing = emailDao.getEmailById(incoming.id, incoming.accountId) ?: return@map incoming
+            incoming.copy(
+                body = incoming.body.takeUnless { it.isBlank() } ?: existing.body,
+                bodyIsHtml = if (incoming.body.isBlank() && existing.body.isNotBlank()) existing.bodyIsHtml else incoming.bodyIsHtml,
+                snippet = incoming.snippet.takeUnless { it.isBlank() } ?: existing.snippet,
+                attachmentsJson = incoming.attachmentsJson.takeUnless { it.isBlank() || it == "[]" }
+                    ?: existing.attachmentsJson
+            )
+        }
+
+    suspend fun refreshThread(threadId: String, explicitAccountId: String? = null): Result<Unit> {
+        val accountId = explicitAccountId ?: resolveAccountId(threadId)
         return try {
             val provider = getProviderForAccount(accountId)
                 ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
 
-            val threadResponse = provider.getThread(threadId)
-            // Fetch existing folder labels to preserve them (getThread may find messages
-            // in Gmail All Mail / Archive folder even when they belong to INBOX)
-            val existingLabels = emailDao.getEmailsByThreadId(threadId, accountId)
-                .associateBy { it.id }
-
-            val emails = threadResponse.messages.map { msg ->
-                val existing = existingLabels[msg.id]
-                val newLabels = msg.folders.map { it.name }.toSet()
-                // Merge: keep existing INBOX/SENT labels, only add new folder info from provider
-                val mergedLabels = mutableSetOf<String>().apply {
-                    addAll(newLabels)
-                    if (existing != null) {
-                        if (existing.inInbox) add("INBOX")
-                        if (existing.inSent) add("SENT")
-                        if (existing.inArchived) add("ARCHIVE")
-                    }
-                }
-                Email(
-                    id = msg.id,
-                    threadId = msg.threadId,
-                    subject = msg.subject,
-                    from = msg.from,
-                    fromEmail = msg.fromEmail,
-                    to = msg.to,
-                    cc = msg.cc,
-                    bcc = msg.bcc,
-                    snippet = msg.snippet,
-                    body = msg.body,
-                    bodyIsHtml = msg.bodyIsHtml,
-                    date = msg.date,
-                    isRead = msg.isRead,
-                    isStarred = msg.isStarred,
-                    labels = mergedLabels.toList(),
-                    attachments = msg.attachments
-                )
+            val storedBeforeFetch = emailDao.getEmailEntitiesForThread(threadId, accountId)
+            val folderHints = storedBeforeFetch.flatMap { it.labels }.distinct()
+            val threadResponse = provider.getThread(threadId, folderHints)
+            if (threadResponse.messages.isEmpty()) {
+                throw IncompleteProviderResponseException("The mail server returned an empty thread. Please retry.")
             }
-            database.withTransaction {
-                if (emails.isNotEmpty()) {
-                    val serverEmailIds = emails.map { it.id }
-                    emailDao.deleteOrphanedEmails(threadId, accountId, serverEmailIds)
-                    emailDao.insertEmails(emails.map { it.toEntity(accountId) })
-                    val deduplicated = emails.fold(mutableListOf<com.shrivatsav.monomail.data.model.Email>()) { acc, email ->
+
+            var missingFetchedContent = false
+            emailContentWriteMutex.withLock {
+                val existingById = emailDao.getEmailEntitiesForThread(threadId, accountId).associateBy { it.id }
+                val returnedIds = threadResponse.messages.mapTo(mutableSetOf()) { it.id }
+                if (!threadResponse.isComplete && existingById.values.any { it.body.isBlank() && it.id !in returnedIds }) {
+                    missingFetchedContent = true
+                }
+                val emails = threadResponse.messages.map { msg ->
+                    val existing = existingById[msg.id]
+                    val mergedLabels = (msg.folders.map { it.name } + existing?.labels.orEmpty()).distinct()
+                    val knownSnippet = msg.snippet.ifBlank { existing?.snippet.orEmpty() }
+                    if (msg.body.isBlank() && knownSnippet.isNotBlank() && existing?.body.isNullOrBlank()) {
+                        missingFetchedContent = true
+                    }
+                    Email(
+                        id = msg.id,
+                        threadId = msg.threadId,
+                        subject = msg.subject,
+                        from = msg.from,
+                        fromEmail = msg.fromEmail,
+                        to = msg.to,
+                        cc = msg.cc,
+                        bcc = msg.bcc,
+                        snippet = msg.snippet,
+                        body = msg.body,
+                        bodyIsHtml = msg.bodyIsHtml,
+                        date = msg.date,
+                        isRead = msg.isRead,
+                        isStarred = msg.isStarred,
+                        labels = mergedLabels,
+                        attachments = msg.attachments
+                    ).toEntity(accountId)
+                }
+                val contentSafeEmails = preserveStoredEmailContent(emails)
+                database.withTransaction {
+                    if (threadResponse.isComplete) {
+                        emailDao.deleteOrphanedEmails(threadId, accountId, contentSafeEmails.map { it.id })
+                    }
+                    emailDao.insertEmails(contentSafeEmails)
+                    val deduplicated = contentSafeEmails.fold(mutableListOf<EmailEntity>()) { acc, email ->
                         val isDuplicate = acc.any { existing ->
                             existing.fromEmail == email.fromEmail &&
                             existing.snippet == email.snippet &&
@@ -929,21 +978,33 @@ class EmailRepository(
                         if (!isDuplicate) acc.add(email)
                         acc
                     }
-                    threadDao.updateMessageCount(threadId, accountId, deduplicated.size)
+                    val messageCount = if (threadResponse.isComplete) {
+                        deduplicated.size
+                    } else {
+                        (existingById.keys + contentSafeEmails.map { it.id }).size
+                    }
+                    threadDao.updateMessageCount(threadId, accountId, messageCount)
                 }
+            }
+            if (missingFetchedContent) {
+                throw IncompleteProviderResponseException("Email content was not returned by the mail server. Please retry.")
             }
             Result.success(Unit)
         } catch (e: ResourceNotFoundException) {
             Log.w("EmailRepo", "Thread $threadId not found on server — removing stale local data")
-            threadDao.deleteThread(threadId, accountId)
-            emailDao.deleteThreadEmails(threadId, accountId)
+            emailContentWriteMutex.withLock {
+                database.withTransaction {
+                    threadDao.deleteThread(threadId, accountId)
+                    emailDao.deleteThreadEmails(threadId, accountId)
+                }
+            }
             Result.success(Unit)
         } catch (e: java.net.UnknownHostException) {
-            Result.failure(Exception("No internet connection. Could not reach the mail server."))
+            Result.failure(Exception("No internet connection. Could not reach the mail server.", e))
         } catch (e: java.net.ConnectException) {
-            Result.failure(Exception("Could not connect to the mail server. Check your internet connection."))
+            Result.failure(Exception("Could not connect to the mail server. Check your internet connection.", e))
         } catch (e: jakarta.mail.MessagingException) {
-            Result.failure(Exception("Mail server error: " + (e.message?.substringBefore(";")?.substringBefore("\n") ?: "Connection failed")))
+            Result.failure(Exception("Mail server error: " + (e.message?.substringBefore(";")?.substringBefore("\n") ?: "Connection failed"), e))
         } catch (e: Exception) {
             Result.failure(e)
         }
@@ -953,33 +1014,35 @@ class EmailRepository(
         insertPendingAction(PendingActionType.MESSAGE_TOGGLE_STAR, accountId, threadId, payload = newStarred.toString(), emailIdsJson = emailId)
         emailDao.updateEmailStarred(emailId, accountId, newStarred)
     }
-    suspend fun toggleStar(threadId: String, currentStarred: Boolean) {
+    suspend fun toggleStar(threadId: String, currentStarred: Boolean, explicitAccountId: String? = null) {
         val newStarred = !currentStarred
-        val accountId = resolveAccountId(threadId)
+        val accountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.TOGGLE_STAR, accountId, threadId, payload = newStarred.toString())
         threadDao.updateThreadStarred(threadId, accountId, newStarred)
         emailDao.updateThreadStarred(threadId, accountId, newStarred)
     }
-    suspend fun markEmailsAsRead(emailIds: List<String>) {
+    suspend fun markEmailsAsRead(emailIds: List<String>, explicitAccountId: String? = null) {
         if (emailIds.isEmpty()) return
-        val activeAccountId = getActiveAccountId()
+        val activeAccountId = explicitAccountId ?: getActiveAccountId()
         emailDao.markEmailsAsRead(emailIds, activeAccountId)
         insertPendingAction(PendingActionType.MARK_READ, activeAccountId, "", emailIdsJson = emailIds.joinToString(","))
     }
-    suspend fun markThreadAsRead(threadId: String) {
-        val accountId = resolveAccountId(threadId)
+    suspend fun markThreadAsRead(threadId: String, explicitAccountId: String? = null) {
+        val accountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.MARK_READ, accountId, threadId)
         threadDao.updateThreadReadStatus(threadId, accountId, true)
         emailDao.updateThreadEmailsReadStatus(threadId, accountId, true)
     }
-    suspend fun markThreadsAsRead(threadIds: List<String>): Result<Unit> {
+    suspend fun markThreadsAsRead(threadIds: List<String>, explicitAccountId: String? = null): Result<Unit> {
         if (threadIds.isEmpty()) return Result.success(Unit)
         return try {
-            val activeAccountId = getActiveAccountId()
+            val activeAccountId = explicitAccountId ?: getActiveAccountId()
             val unreadEmailIds = emailDao.getUnreadEmailIdsForThreads(threadIds, activeAccountId)
             threadDao.markThreadsAsRead(threadIds, activeAccountId)
             emailDao.markThreadEmailsAsRead(threadIds, activeAccountId)
-            val provider = getActiveProvider() ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
+            val provider = explicitAccountId?.let { getProviderForAccount(it) }
+                ?: getActiveProvider()
+                ?: return Result.failure(Exception(NO_ACTIVE_PROVIDER))
             withContext(Dispatchers.IO) {
                 if (unreadEmailIds.isNotEmpty()) {
                     provider.batchMarkRead(unreadEmailIds)
@@ -996,8 +1059,8 @@ class EmailRepository(
             Result.failure(e)
         }
     }
-    suspend fun markThreadAsUnread(threadId: String) {
-        val accountId = resolveAccountId(threadId)
+    suspend fun markThreadAsUnread(threadId: String, explicitAccountId: String? = null) {
+        val accountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.MARK_UNREAD, accountId, threadId)
         threadDao.updateThreadReadStatus(threadId, accountId, false)
         emailDao.updateThreadEmailsReadStatus(threadId, accountId, false)
@@ -1127,13 +1190,13 @@ class EmailRepository(
         accountsToProcess.forEach { accId ->
             val spamIds = threadDao.getSpamThreadIds(accId)
             spamIds.forEach { threadId ->
-                deleteThread(threadId)
+                deleteThread(threadId, accId)
             }
         }
     }
 
-    suspend fun deleteThread(threadId: String) {
-        val accountId = resolveAccountId(threadId)
+    suspend fun deleteThread(threadId: String, explicitAccountId: String? = null) {
+        val accountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.DELETE, accountId, threadId)
         threadDao.moveToTrash(threadId, accountId)
         emailDao.moveThreadEmailsToTrash(threadId, accountId)
@@ -1142,25 +1205,25 @@ class EmailRepository(
         insertPendingAction(PendingActionType.MESSAGE_DELETE, accountId, threadId, emailIdsJson = emailId)
         emailDao.moveEmailToTrash(emailId, accountId)
     }
-    suspend fun deleteDraft(draftId: String) {
-        emailDao.deleteDraftEmail(draftId)
+    suspend fun deleteDraft(draftId: String, accountId: String) {
+        emailDao.deleteDraftEmail(draftId, accountId)
     }
-    suspend fun restoreThread(threadId: String) {
-        val accountId = resolveAccountId(threadId)
+    suspend fun restoreThread(threadId: String, explicitAccountId: String? = null) {
+        val accountId = explicitAccountId ?: resolveAccountId(threadId)
         insertPendingAction(PendingActionType.RESTORE, accountId, threadId)
         threadDao.restoreFromTrash(threadId, accountId)
         emailDao.restoreThreadEmailsFromTrash(threadId, accountId)
     }
-    suspend fun reportNotSpam(threadId: String) {
-        val accountId = resolveAccountId(threadId)
+    suspend fun reportNotSpam(threadId: String, explicitAccountId: String? = null) {
+        val accountId = explicitAccountId ?: resolveAccountId(threadId)
         threadDao.reportNotSpam(threadId, accountId)
         emailDao.reportThreadEmailsNotSpam(threadId, accountId)
     }
     suspend fun clearLocalData() {
         withContext(Dispatchers.IO) { database.clearAllTables() }
     }
-    suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
-        val provider = getActiveProvider() ?: return null
+    suspend fun getAttachmentBytes(messageId: String, attachmentId: String, accountId: String? = null): ByteArray? {
+        val provider = accountId?.let { getProviderForAccount(it) } ?: getActiveProvider() ?: return null
         return provider.getAttachmentBytes(messageId, attachmentId)
     }
     suspend fun sendEmail(
@@ -1458,9 +1521,13 @@ class EmailRepository(
     private val _sendAsAliases = kotlinx.coroutines.flow.MutableStateFlow<List<SendAsAlias>>(emptyList())
     val sendAsAliasesFlow: kotlinx.coroutines.flow.StateFlow<List<SendAsAlias>> = _sendAsAliases.asStateFlow()
 
-    suspend fun refreshSendAsAliases() {
-        val activeAccount = accountManager.getActiveAccount() ?: return
-        val provider = providerFactory(activeAccount)
+    suspend fun refreshSendAsAliases(accountId: String? = null): List<SendAsAlias> {
+        val account = if (accountId == null) {
+            accountManager.getActiveAccount()
+        } else {
+            accountManager.getAccounts().find { it.id == accountId }
+        } ?: return emptyList()
+        val provider = providerFactory(account)
         val aliases = try {
             provider.getSendAsAliases()
         } catch (e: Exception) {
@@ -1468,6 +1535,7 @@ class EmailRepository(
             emptyList()
         }
         _sendAsAliases.value = aliases
+        return aliases
     }
 
     fun getPendingScheduledMessagesFlow(accountId: String) = scheduledMessageDao.getPendingScheduledMessages(accountId)

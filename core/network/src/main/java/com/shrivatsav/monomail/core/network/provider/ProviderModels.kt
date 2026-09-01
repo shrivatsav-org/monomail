@@ -16,7 +16,9 @@ data class ProviderThreadListResult(
 )
 data class ProviderThread(
     val threadId: String,
-    val messages: List<ProviderMessage>
+    val messages: List<ProviderMessage>,
+    /** True only when this response authoritatively contains every server message in the thread. */
+    val isComplete: Boolean = false
 )
 data class ProviderMessage(
     val id: String,

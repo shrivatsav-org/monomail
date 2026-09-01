@@ -178,7 +178,7 @@ class OutlookProvider(
             throw e
         }
         if (response.value.isEmpty()) {
-            throw ResourceNotFoundException("Thread $threadId not found — empty result set")
+            throw IncompleteProviderResponseException("Thread $threadId returned no messages")
         }
         val providerMessages = response.value.map { msg ->
             val date = messageDate(msg)
@@ -214,7 +214,11 @@ class OutlookProvider(
                 attachments = attachments
             )
         }
-        ProviderThread(threadId, providerMessages.sortedBy { it.date })
+        ProviderThread(
+            threadId,
+            providerMessages.sortedBy { it.date },
+            isComplete = response.nextLink == null
+        )
     }
     override suspend fun getAttachmentBytes(messageId: String, attachmentId: String): ByteArray? {
         return withContext(Dispatchers.IO) {

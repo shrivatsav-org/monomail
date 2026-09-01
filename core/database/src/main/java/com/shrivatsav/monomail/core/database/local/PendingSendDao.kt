@@ -27,4 +27,7 @@ interface PendingSendDao {
     suspend fun deleteById(id: String)
     @Query("UPDATE pending_sends SET retryCount = :count WHERE id = :id")
     suspend fun updateRetryCount(id: String, count: Int)
+
+    @Query("DELETE FROM pending_sends WHERE accountId = :accountId")
+    suspend fun clearForAccount(accountId: String)
 }

@@ -8,7 +8,7 @@ import com.shrivatsav.monomail.security.SecurityUtil
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 @Database(
     entities = [ThreadEntity::class, EmailEntity::class, EmailFtsEntity::class, ScheduledMessageEntity::class, PendingActionEntity::class, PendingSendEntity::class],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -47,7 +47,7 @@ abstract class AppDatabase : RoomDatabase() {
                     newDb.absolutePath
                 )
                 .openHelperFactory(factory)
-                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19)
+                .addMigrations(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
                 .build()
                 INSTANCE = instance
                 instance
@@ -245,6 +245,10 @@ val MIGRATION_16_17 = object : androidx.room.migration.Migration(16, 17) {
             INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`)
             SELECT `rowid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet` FROM `emails`
         """)
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_BEFORE_UPDATE` BEFORE UPDATE ON `emails` BEGIN DELETE FROM `emails_fts` WHERE `docid` = OLD.`rowid`; END")
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_BEFORE_DELETE` BEFORE DELETE ON `emails` BEGIN DELETE FROM `emails_fts` WHERE `docid` = OLD.`rowid`; END")
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_AFTER_UPDATE` AFTER UPDATE ON `emails` BEGIN INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`) VALUES (NEW.`rowid`, NEW.`subject`, NEW.`body`, NEW.`fromName`, NEW.`fromEmail`, NEW.`toEmail`, NEW.`snippet`); END")
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_AFTER_INSERT` AFTER INSERT ON `emails` BEGIN INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`) VALUES (NEW.`rowid`, NEW.`subject`, NEW.`body`, NEW.`fromName`, NEW.`fromEmail`, NEW.`toEmail`, NEW.`snippet`); END")
     }
 }
 
@@ -257,5 +261,90 @@ val MIGRATION_17_18 = object : androidx.room.migration.Migration(17, 18) {
 val MIGRATION_18_19 = object : androidx.room.migration.Migration(18, 19) {
     override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE pending_sends ADD COLUMN retryCount INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+val MIGRATION_19_20 = object : androidx.room.migration.Migration(19, 20) {
+    override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+        // FTS references email rowids, so rebuild it after replacing the content table.
+        db.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_emails_fts_BEFORE_UPDATE`")
+        db.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_emails_fts_BEFORE_DELETE`")
+        db.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_emails_fts_AFTER_UPDATE`")
+        db.execSQL("DROP TRIGGER IF EXISTS `room_fts_content_sync_emails_fts_AFTER_INSERT`")
+        db.execSQL("DROP TABLE IF EXISTS `emails_fts`")
+        db.execSQL("""
+            CREATE TABLE IF NOT EXISTS `emails_new` (
+                `id` TEXT NOT NULL,
+                `accountId` TEXT NOT NULL,
+                `threadId` TEXT NOT NULL,
+                `subject` TEXT NOT NULL,
+                `fromName` TEXT NOT NULL,
+                `fromEmail` TEXT NOT NULL,
+                `toEmail` TEXT NOT NULL,
+                `ccEmail` TEXT NOT NULL,
+                `bccEmail` TEXT NOT NULL,
+                `snippet` TEXT NOT NULL,
+                `body` TEXT NOT NULL,
+                `bodyIsHtml` INTEGER NOT NULL,
+                `date` INTEGER NOT NULL,
+                `isRead` INTEGER NOT NULL,
+                `isStarred` INTEGER NOT NULL,
+                `labels` TEXT NOT NULL,
+                `attachmentsJson` TEXT NOT NULL,
+                `inInbox` INTEGER NOT NULL,
+                `inSent` INTEGER NOT NULL,
+                `inArchived` INTEGER NOT NULL,
+                `inTrash` INTEGER NOT NULL,
+                `isSnoozed` INTEGER NOT NULL,
+                `snoozedUntil` INTEGER NOT NULL,
+                `inSpam` INTEGER NOT NULL,
+                `inDrafts` INTEGER NOT NULL,
+                PRIMARY KEY(`accountId`, `id`)
+            )
+        """)
+        db.execSQL("""
+            INSERT INTO `emails_new` (
+                `id`, `accountId`, `threadId`, `subject`, `fromName`, `fromEmail`, `toEmail`,
+                `ccEmail`, `bccEmail`, `snippet`, `body`, `bodyIsHtml`, `date`, `isRead`,
+                `isStarred`, `labels`, `attachmentsJson`, `inInbox`, `inSent`, `inArchived`,
+                `inTrash`, `isSnoozed`, `snoozedUntil`, `inSpam`, `inDrafts`
+            ) SELECT
+                `id`, `accountId`, `threadId`, `subject`, `fromName`, `fromEmail`, `toEmail`,
+                `ccEmail`, `bccEmail`, `snippet`, `body`, `bodyIsHtml`, `date`, `isRead`,
+                `isStarred`, `labels`, `attachmentsJson`, `inInbox`, `inSent`, `inArchived`,
+                `inTrash`, `isSnoozed`, `snoozedUntil`, `inSpam`, `inDrafts`
+            FROM `emails`
+        """)
+        db.execSQL("DROP TABLE `emails`")
+        db.execSQL("ALTER TABLE `emails_new` RENAME TO `emails`")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_threadId` ON `emails` (`accountId`, `threadId`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_inInbox_date` ON `emails` (`accountId`, `inInbox`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_inSent_date` ON `emails` (`accountId`, `inSent`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_inArchived_date` ON `emails` (`accountId`, `inArchived`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_isStarred_date` ON `emails` (`accountId`, `isStarred`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_inTrash_date` ON `emails` (`accountId`, `inTrash`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_inSpam_date` ON `emails` (`accountId`, `inSpam`, `date`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_accountId_isSnoozed_snoozedUntil` ON `emails` (`accountId`, `isSnoozed`, `snoozedUntil`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_isSnoozed_snoozedUntil` ON `emails` (`isSnoozed`, `snoozedUntil`)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS `index_emails_threadId_accountId` ON `emails` (`threadId`, `accountId`)")
+        db.execSQL("""
+            CREATE VIRTUAL TABLE IF NOT EXISTS `emails_fts` USING FTS4(
+                `subject` TEXT NOT NULL,
+                `body` TEXT NOT NULL,
+                `fromName` TEXT NOT NULL,
+                `fromEmail` TEXT NOT NULL,
+                `toEmail` TEXT NOT NULL,
+                `snippet` TEXT NOT NULL,
+                content=`emails`
+            )
+        """)
+        db.execSQL("""
+            INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`)
+            SELECT `rowid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet` FROM `emails`
+        """)
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_BEFORE_UPDATE` BEFORE UPDATE ON `emails` BEGIN DELETE FROM `emails_fts` WHERE `docid` = OLD.`rowid`; END")
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_BEFORE_DELETE` BEFORE DELETE ON `emails` BEGIN DELETE FROM `emails_fts` WHERE `docid` = OLD.`rowid`; END")
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_AFTER_UPDATE` AFTER UPDATE ON `emails` BEGIN INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`) VALUES (NEW.`rowid`, NEW.`subject`, NEW.`body`, NEW.`fromName`, NEW.`fromEmail`, NEW.`toEmail`, NEW.`snippet`); END")
+        db.execSQL("CREATE TRIGGER IF NOT EXISTS `room_fts_content_sync_emails_fts_AFTER_INSERT` AFTER INSERT ON `emails` BEGIN INSERT INTO `emails_fts`(`docid`, `subject`, `body`, `fromName`, `fromEmail`, `toEmail`, `snippet`) VALUES (NEW.`rowid`, NEW.`subject`, NEW.`body`, NEW.`fromName`, NEW.`fromEmail`, NEW.`toEmail`, NEW.`snippet`); END")
     }
 }

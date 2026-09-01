@@ -1,5 +1,68 @@
 import java.util.Properties
 import java.io.FileInputStream
+import org.gradle.api.DefaultTask
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.Internal
+import org.gradle.api.tasks.TaskAction
+
+abstract class ValidatePlaystoreReleaseConfigTask : DefaultTask() {
+    @get:Internal
+    abstract val rootDirectory: DirectoryProperty
+
+    @TaskAction
+    fun validate() {
+        val rootDirectory = rootDirectory.get().asFile
+        fun String?.isMissingOrPlaceholder(): Boolean {
+            val value = this?.trim()?.lowercase().orEmpty()
+            return value.isEmpty() || listOf(
+                "placeholder",
+                "changeme",
+                "your_",
+                "your-",
+                "yourdomain",
+                "example.com"
+            ).any(value::contains)
+        }
+
+        fun loadProperties(file: File) = Properties().apply {
+            if (file.isFile) {
+                file.inputStream().use(::load)
+            }
+        }
+
+        val releaseSecrets = loadProperties(File(rootDirectory, "secrets.properties"))
+        val requiredSecrets = mapOf(
+            "GOOGLE_CLIENT_ID" to releaseSecrets.getProperty("GOOGLE_CLIENT_ID"),
+            "PUSH_BACKEND_URL" to releaseSecrets.getProperty("PUSH_BACKEND_URL")
+        )
+        val invalidSecrets = requiredSecrets.filterValues { it.isMissingOrPlaceholder() }.keys
+        check(invalidSecrets.isEmpty()) {
+            "Missing or placeholder Play Store release properties: ${invalidSecrets.joinToString()}."
+        }
+
+        val releaseSigning = loadProperties(File(rootDirectory, "keystore.properties"))
+        val requiredSigningProperties = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        val invalidSigningProperties = requiredSigningProperties.filter {
+            releaseSigning.getProperty(it).isMissingOrPlaceholder()
+        }
+        val configuredKeystore = releaseSigning.getProperty("storeFile")
+            ?.takeIf { it.isNotBlank() }
+            ?.let { File(rootDirectory, it) }
+        check(invalidSigningProperties.isEmpty() && configuredKeystore?.isFile == true) {
+            "Play Store release signing is incomplete or the configured keystore does not exist."
+        }
+
+        val googleServicesFile = File(rootDirectory, "app/src/playstore/google-services.json")
+        check(googleServicesFile.isFile && !googleServicesFile.readText().isMissingOrPlaceholder()) {
+            "A non-placeholder app/src/playstore/google-services.json is required for Play Store releases."
+        }
+
+        val msalConfigFile = File(rootDirectory, "app/src/playstoreRelease/res/raw/msal_config.json")
+        check(msalConfigFile.isFile && !msalConfigFile.readText().isMissingOrPlaceholder()) {
+            "A non-placeholder Play Store release MSAL configuration is required."
+        }
+    }
+}
 
 plugins {
     alias(libs.plugins.android.application)
@@ -16,14 +79,15 @@ if (secretsFile.exists()) {
 }
 val googleClientId = secrets.getProperty("GOOGLE_CLIENT_ID") ?: ""
 val pushBackendUrl = secrets.getProperty("PUSH_BACKEND_URL") ?: "https://monomail-push.yourdomain.workers.dev"
-val pushApiKey = secrets.getProperty("PUSH_API_KEY") ?: ""
-val pubSubTopic = secrets.getProperty("PUBSUB_TOPIC") ?: ""
 
 val keystoreFile = rootProject.file("keystore.properties")
 val keystoreProps = Properties()
 if (keystoreFile.exists()) {
     keystoreProps.load(FileInputStream(keystoreFile))
 }
+val releaseKeystoreFile = keystoreProps.getProperty("storeFile")
+    ?.takeIf { it.isNotBlank() }
+    ?.let(rootProject::file)
 
 android {
     namespace = "com.shrivatsav.monomail"
@@ -45,23 +109,19 @@ android {
             dimension = "distribution"
             buildConfigField("String", "GOOGLE_CLIENT_ID", "\"\"")
             buildConfigField("String", "PUSH_BACKEND_URL", "\"$pushBackendUrl\"")
-            buildConfigField("String", "PUSH_API_KEY", "\"\"")
-            buildConfigField("String", "PUBSUB_TOPIC", "\"\"")
             buildConfigField("Boolean", "IS_GITHUB_BUILD", "true")
         }
         create("playstore") {
             dimension = "distribution"
             buildConfigField("String", "GOOGLE_CLIENT_ID", "\"$googleClientId\"")
             buildConfigField("String", "PUSH_BACKEND_URL", "\"$pushBackendUrl\"")
-            buildConfigField("String", "PUSH_API_KEY", "\"$pushApiKey\"")
-            buildConfigField("String", "PUBSUB_TOPIC", "\"$pubSubTopic\"")
             buildConfigField("Boolean", "IS_GITHUB_BUILD", "false")
         }
     }
 
     signingConfigs {
         create("release") {
-            storeFile = rootProject.file(keystoreProps.getProperty("storeFile", ""))
+            storeFile = releaseKeystoreFile
             storePassword = keystoreProps.getProperty("storePassword", "")
             keyAlias = keystoreProps.getProperty("keyAlias", "")
             keyPassword = keystoreProps.getProperty("keyPassword", "")
@@ -69,9 +129,6 @@ android {
     }
 
     buildTypes {
-        getByName("debug") {
-            signingConfig = signingConfigs.getByName("release")
-        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -111,6 +168,16 @@ android {
             )
         }
     }
+}
+
+val validatePlaystoreReleaseConfig by tasks.registering(ValidatePlaystoreReleaseConfigTask::class) {
+    group = "verification"
+    description = "Fails Play Store release builds when required release configuration is missing."
+    rootDirectory.set(rootProject.layout.projectDirectory)
+}
+
+tasks.matching { it.name == "prePlaystoreReleaseBuild" }.configureEach {
+    dependsOn(validatePlaystoreReleaseConfig)
 }
 
 androidComponents {
@@ -233,6 +300,11 @@ dependencies {
 
 tasks.matching { it.name.contains("Github", ignoreCase = true) && it.name.contains("GoogleServices", ignoreCase = true) }.configureEach {
     enabled = false
+}
+
+val hasPlaystoreGoogleServices = project.file("src/playstore/google-services.json").isFile
+tasks.matching { it.name == "processPlaystoreDebugGoogleServices" }.configureEach {
+    enabled = hasPlaystoreGoogleServices
 }
 
 // Retain ProGuard/R8 mapping files for crash deobfuscation across releases.
